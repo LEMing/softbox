@@ -1,6 +1,11 @@
 Changelog
 =========
 
+0.11.0
+---
+* Add blur env map
+* Use new threedgizmo 0.6.0
+
 0.10.0
 ---
 * Make light optional

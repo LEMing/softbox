@@ -8,6 +8,7 @@ import { SceneInitializer } from '../SceneInitializer';
 import { PathTracingManager } from './PathTracingManager';
 import { AnimationManager } from './AnimationManager';
 import { THREEBase } from '../types';
+import { EnvironmentMapManager } from './EnvironmentMapManager';
 
 export class SceneManager {
   private mountRef;
@@ -22,6 +23,7 @@ export class SceneManager {
   private sceneInitializer: SceneInitializer;
   public readonly pathTracingManager: PathTracingManager | null;
   private animationManager: AnimationManager;
+  private environmentMapManager: EnvironmentMapManager | null = null;
 
   constructor(
     threeBase: THREEBase,
@@ -58,10 +60,6 @@ export class SceneManager {
     this.cameraRef.current = this.cameraManager.camera;
     this.sceneRef.current = this.sceneInitializer.scene;
 
-    this.loadEnvironmentMap();
-
-    this.mountRef.current.appendChild(this.rendererManager.renderer.domElement);
-
     if (this.options.usePathTracing) {
       this.pathTracingManager = new PathTracingManager(
         this.rendererManager.renderer,
@@ -73,6 +71,23 @@ export class SceneManager {
     } else {
       this.pathTracingManager = null;
     }
+
+    // Initialize EnvironmentMapManager
+    this.environmentMapManager = new EnvironmentMapManager({
+      renderer: this.rendererManager.renderer,
+      scene: this.sceneInitializer.scene,
+      camera: this.cameraManager.camera,
+      envMapUrl: this.options.envMapUrl,
+      usePathTracing: this.options.usePathTracing,
+      pathTracingManager: this.pathTracingManager,
+      backgroundBlurriness: 0.4,
+      blurStrengthPathTracing: 0.4
+    });
+
+    // Load the environment map via the EnvironmentMapManager
+    this.environmentMapManager.load();
+
+    this.mountRef.current.appendChild(this.rendererManager.renderer.domElement);
 
     this.animationManager = new AnimationManager(
       this.rendererManager.renderer,
@@ -99,42 +114,6 @@ export class SceneManager {
     this.animationManager.startRendering();
     if (this.options.usePathTracing) {
       this.pathTracingManager?.stopPathTracing();
-    }
-  }
-
-  private loadEnvironmentMap() {
-    const envMapUrl = this.options.envMapUrl;
-    if (envMapUrl) {
-      const loader = new THREE.TextureLoader();
-      loader.load(
-        envMapUrl,
-        (texture) => {
-          texture.mapping = THREE.EquirectangularReflectionMapping;
-
-          // If Path Tracing is enabled, use BlurredEnvMapGenerator
-          if (this.options.usePathTracing && this.pathTracingManager) {
-            const { BlurredEnvMapGenerator } = importRaytracer();
-            const envMapGenerator = new BlurredEnvMapGenerator(this.rendererRef.current!);
-
-            // Generate a blurred environment map
-            const blurredEnvMap = envMapGenerator.generate(texture, 0.2); // The higher the value, the stronger the blur
-            this.sceneRef.current!.environment = blurredEnvMap;
-            this.sceneRef.current!.background = blurredEnvMap;
-            // Update the environment in the Path Tracer
-            this.pathTracingManager.ptRenderer.updateEnvironment();
-          } else {
-            // If Path Tracing is not enabled, simply use the standard environment map
-            this.sceneRef.current!.environment = texture;
-            this.sceneRef.current!.background = texture;
-            // Forcefully update the render
-            this.rendererRef.current!.render(this.sceneRef.current!, this.cameraRef.current!);
-          }
-        },
-        undefined,
-        (error) => {
-          console.error('Error loading environment map:', error);
-        }
-      );
     }
   }
 
