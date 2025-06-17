@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import {MapControls} from 'three/examples/jsm/controls/MapControls';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
 
+// Re-export new modular types
+export * from './types/options';
+export type { SimpleViewerOptions as NewSimpleViewerOptions, ThreeJSRefs } from './types/SimpleViewerOptions';
+
 export type LoaderGLB = {
   load: (
     url: string,
@@ -10,11 +14,18 @@ export type LoaderGLB = {
     onError?: (event: ErrorEvent) => void) => void;
 }
 
+// Use the old SimpleViewerOptions type for now to maintain backward compatibility
 export interface SimpleViewerProps {
   object: THREE.Object3D | null | string; // Pass any Three.js object or an url to a glb file
   options?: SimpleViewerOptions;
 }
 
+// ============================================
+// Legacy types - kept for backward compatibility
+// Will be removed in v2.0
+// ============================================
+
+/** @deprecated Use CameraOptions from types/options instead */
 export interface CameraOptions {
   cameraPosition: [number, number, number];
   cameraTarget: [number, number, number];
@@ -24,6 +35,7 @@ export interface CameraOptions {
   autoFitToObject: boolean;
 }
 
+/** @deprecated Use RendererOptions from types/options instead */
 export interface RendererOptions {
   antialias: boolean;
   alpha: boolean;
@@ -34,6 +46,7 @@ export interface RendererOptions {
   toneMappingExposure?: number;
 }
 
+/** @deprecated Use LightingOptions from types/options instead (also note the spelling fix) */
 export interface LightningOptions {
   ambientLight?: {
     color: string;
@@ -68,11 +81,13 @@ export interface LightningOptions {
   };
 }
 
+/** @deprecated Use ControlType from types/options instead */
 export enum ControlType {
-  MapsControls = 'MapControls',
+  MapControls = 'MapControls',
   OrbitControls = 'OrbitControls'
 }
 
+/** @deprecated Use HelperOptions from types/options instead */
 export interface HelperOptions {
   gridHelper: boolean;
   color: string;
@@ -82,6 +97,7 @@ export interface HelperOptions {
   addGizmo: boolean;
 }
 
+/** @deprecated Use the new modular SimpleViewerOptions from types/SimpleViewerOptions instead */
 export interface SimpleViewerOptions {
   usePathTracing: boolean;
   maxSamplesPathTracing: number;

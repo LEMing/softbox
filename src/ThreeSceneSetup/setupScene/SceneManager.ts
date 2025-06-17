@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { SimpleViewerOptions } from '../../types';
-import { importRaytracer } from '../importRaytracer';
+import { ThreeViewerError, ErrorCode } from '../../errors';
 import { CameraManager } from './CameraManager';
 import { RendererManager } from './RendererManager';
 import { ControlsManager } from './ControlsManager';
@@ -39,43 +39,76 @@ export class SceneManager {
     this.object = object;
     this.options = options;
 
-    if (!this.mountRef.current) throw new Error('Mount div is not ready');
+    if (!this.mountRef.current) {
+      throw new ThreeViewerError(
+        'Mount element is not ready',
+        ErrorCode.COMPONENT_NOT_MOUNTED
+      );
+    }
 
+    // Initialize managers
     this.cameraManager = new CameraManager(this.mountRef, this.options);
     this.rendererManager = new RendererManager(this.options);
+    
+    // Setup renderer with Result pattern
+    const rendererResult = this.rendererManager.setup();
+    if (!rendererResult.ok) {
+      throw rendererResult.error;
+    }
+    
     this.controlsManager = new ControlsManager(
       this.cameraManager.camera,
-      this.rendererManager.renderer.domElement,
+      rendererResult.value.domElement,
       this.options
     );
+    
+    // Setup controls
+    const controlsResult = this.controlsManager.setup();
+    if (!controlsResult.ok) {
+      throw controlsResult.error;
+    }
     this.sceneInitializer = new SceneInitializer(
       this.object,
       this.cameraManager.camera,
-      this.controlsManager.controls,
+      controlsResult.value,
       this.options,
       this.mountRef
     );
+    
+    // Setup scene
+    const sceneResult = this.sceneInitializer.setup();
+    if (!sceneResult.ok) {
+      throw sceneResult.error;
+    }
 
-    this.rendererRef.current = this.rendererManager.renderer;
+    this.rendererRef.current = rendererResult.value;
     this.cameraRef.current = this.cameraManager.camera;
-    this.sceneRef.current = this.sceneInitializer.scene;
+    this.sceneRef.current = sceneResult.value;
 
     if (this.options.usePathTracing) {
       this.pathTracingManager = new PathTracingManager(
-        this.rendererManager.renderer,
-        this.sceneInitializer.scene,
+        rendererResult.value,
+        sceneResult.value,
         this.cameraManager.camera,
         this.options,
         setRenderCompleteImage
       );
+      
+      // Setup path tracer
+      const pathTracerResult = this.pathTracingManager.setup();
+      if (!pathTracerResult.ok) {
+        console.warn('Failed to setup path tracer:', pathTracerResult.error);
+        // Path tracing is optional, so we don't throw here
+        this.pathTracingManager = null;
+      }
     } else {
       this.pathTracingManager = null;
     }
 
     // Initialize EnvironmentMapManager
     this.environmentMapManager = new EnvironmentMapManager({
-      renderer: this.rendererManager.renderer,
-      scene: this.sceneInitializer.scene,
+      renderer: rendererResult.value,
+      scene: sceneResult.value,
       camera: this.cameraManager.camera,
       envMapUrl: this.options.envMapUrl,
       usePathTracing: this.options.usePathTracing,
@@ -84,34 +117,70 @@ export class SceneManager {
       blurStrengthPathTracing: 0.4
     });
 
-    // Load the environment map via the EnvironmentMapManager
-    this.environmentMapManager.load();
+    // Setup environment map manager
+    const envSetupResult = this.environmentMapManager.setup();
+    if (!envSetupResult.ok) {
+      console.warn('Failed to setup environment map manager:', envSetupResult.error);
+      // Environment map is optional, so we don't throw here
+    }
 
-    this.mountRef.current.appendChild(this.rendererManager.renderer.domElement);
+    // Load the environment map asynchronously
+    if (this.options.envMapUrl) {
+      this.environmentMapManager.load().then(result => {
+        if (!result.ok) {
+          console.warn('Failed to load environment map:', result.error);
+        }
+      });
+    }
+
+    this.mountRef.current.appendChild(rendererResult.value.domElement);
 
     this.animationManager = new AnimationManager(
-      this.rendererManager.renderer,
-      this.sceneInitializer.scene,
+      rendererResult.value,
+      sceneResult.value,
       this.cameraManager.camera,
-      this.controlsManager.controls,
+      controlsResult.value,
       this.options,
       this.pathTracingManager
     );
 
-    this.controlsManager.controls.addEventListener('start', () => {
+    // Setup animation manager
+    const animationResult = this.animationManager.setup();
+    if (!animationResult.ok) {
+      throw animationResult.error;
+    }
+    
+    // Start initial rendering
+    this.animationManager.startInitialRendering();
+
+    controlsResult.value.addEventListener('start', () => {
       this.onStartRendering();
     });
-    this.controlsManager.controls.addEventListener('end', () =>
-      this.animationManager.stopRendering()
-    );
+    controlsResult.value.addEventListener('end', () => {
+      const stopResult = this.animationManager.stopRendering();
+      if (!stopResult.ok) {
+        console.warn('Failed to stop rendering:', stopResult.error);
+      }
+    });
   }
 
   public onStartRendering() {
     if (this.options.usePathTracing) {
-      if (!this.pathTracingManager) throw new Error('Path Tracing Manager is not initialized');
-      this.pathTracingManager.setupPathTracer();
+      if (!this.pathTracingManager) {
+        throw new ThreeViewerError(
+          'Path Tracing Manager is not initialized',
+          ErrorCode.RENDERER_INIT_FAILED
+        );
+      }
+      // Path tracer is already setup during initialization
     }
-    this.animationManager.startRendering();
+    
+    const startResult = this.animationManager.startRendering();
+    if (!startResult.ok) {
+      console.error('Failed to start rendering:', startResult.error);
+      throw startResult.error;
+    }
+    
     if (this.options.usePathTracing) {
       this.pathTracingManager?.stopPathTracing();
     }
@@ -119,10 +188,10 @@ export class SceneManager {
 
   public getSceneElements() {
     return {
-      scene: this.sceneInitializer.scene,
+      scene: this.sceneInitializer.scene!,
       camera: this.cameraManager.camera,
-      renderer: this.rendererManager.renderer,
-      controls: this.controlsManager.controls,
+      renderer: this.rendererManager.renderer!,
+      controls: this.controlsManager.controls!,
       pathTracingManager: this.pathTracingManager,
     };
   }
