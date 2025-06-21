@@ -18,6 +18,9 @@ ThreeDViewer is a React component library for easily integrating Three.js-based 
 - Path tracing for high-quality rendering with customizable parameters
 - Environment map support for realistic lighting and reflections
 - Screenshot capture when rendering is complete (optional)
+- **New in v2.0**: Event-driven architecture with typed events
+- **New in v2.0**: Comprehensive error handling with Result pattern
+- **New in v2.0**: Enhanced TypeScript support with modular option interfaces
 
 ## Installation
 
@@ -32,6 +35,8 @@ or if you're using yarn:
 ```bash
 yarn add threedviewer
 ```
+
+> **Note:** Version 2.0.0 introduces breaking changes. If you're upgrading from v1.x, please see the [Migration Guide](./MIGRATION_GUIDE.md).
 
 ## Usage
 
@@ -118,8 +123,8 @@ function App() {
       fov: 60,
       autoFitToObject: false,
     },
-   lights: {
-      ...defaultOptions.lights,
+   lighting: {
+      ...defaultOptions.lighting,
       ambient: { intensity: 0.5 },
       directional: { position: [10, 10, 5] },
     },
@@ -157,8 +162,59 @@ In this example, we demonstrate how to use external scene references, handle cam
 The main component for displaying 3D objects.
 
 Props:
-- `object` (required): A Three.js `Object3D` to be displayed in the viewer.
+- `object` (required): A Three.js `Object3D` to be displayed in the viewer, or a URL string to a 3D model file.
 - `options` (optional): An object containing viewer options (see below).
+
+### Event System (New in v2.0)
+
+The SimpleViewer now provides an event-driven API through the `events` property on the viewer handle:
+
+```javascript
+import React, { useRef, useEffect } from 'react';
+import { SimpleViewer, SimpleViewerHandle } from 'threedviewer';
+
+function App() {
+  const viewerRef = useRef<SimpleViewerHandle>(null);
+
+  useEffect(() => {
+    if (!viewerRef.current) return;
+
+    const { events } = viewerRef.current;
+
+    // Subscribe to events
+    events.on('model:loaded', ({ model, loadTime }) => {
+      console.log('Model loaded in', loadTime, 'ms');
+    });
+
+    events.on('render:complete', ({ frame, renderTime }) => {
+      console.log('Frame', frame, 'rendered in', renderTime, 'ms');
+    });
+
+    events.on('error', ({ error }) => {
+      console.error('Viewer error:', error);
+    });
+
+    // Cleanup
+    return () => {
+      events.removeAllListeners();
+    };
+  }, []);
+
+  return (
+    <SimpleViewer
+      ref={viewerRef}
+      object="https://modelviewer.dev/shared-assets/models/RobotExpressive.glb"
+    />
+  );
+}
+```
+
+Available events:
+- `model:loaded` - Fired when a model is successfully loaded
+- `model:error` - Fired when model loading fails
+- `render:complete` - Fired after each render frame
+- `controls:change` - Fired when camera controls are updated
+- `error` - General error event
 
 ## Configuration Options
 
@@ -167,29 +223,29 @@ Props:
 ```javascript
 const defaultOptions: SimpleViewerOptions = {
    staticScene: true, // It stops animation loop if there is no interactions
-   backgroundColor: '#f0f0f7', // From BACKGROUND_COLOR constant
+   backgroundColor: '#f0f0f7',
    camera: {
-      cameraPosition: [2, 6, 2],
-      cameraTarget: [0, 0, 0], // Center of the scene
-      cameraFov: 75, // From initializeCamera
-      cameraNear: 0.1, // From initializeCamera
-      cameraFar: 100000, // From initializeCamera
+      position: [2, 6, 2],
+      target: [0, 0, 0], // Center of the scene
+      fov: 75,
+      near: 0.1,
+      far: 100000,
       autoFitToObject: true,
    },
-   lightning: {
-      ambientLight: {
+   lighting: {
+      ambient: {
          color: '#404040',
          intensity: Math.PI,
       },
-      hemisphereLight: {
+      hemisphere: {
          skyColor: '#ffffbb',
          groundColor: '#080820',
          intensity: 1,
       },
-      directionalLight: {
+      directional: {
          color: '#ffffff',
          intensity: Math.PI,
-         position: new THREE.Vector3(6, 6, 6),
+         position: [6, 6, 6],
          castShadow: true,
          shadow: {
             mapSize: {
@@ -209,10 +265,10 @@ const defaultOptions: SimpleViewerOptions = {
          },
       },
    },
-   renderer: {
+   render: {
       antialias: true,
       alpha: false,
-      shadowMapEnabled: true,
+      shadowMap: true,
       pixelRatio: window.devicePixelRatio,
       shadowMapType: THREE.VSMShadowMap,
       toneMapping: THREE.ACESFilmicToneMapping,
@@ -220,17 +276,17 @@ const defaultOptions: SimpleViewerOptions = {
    },
    controls: {
       type: ControlType.OrbitControls, // 'OrbitControls' or 'MapControls'
-      enabled: true, // Controls are used in setupScene
-      enableDamping: true, // From setupScene
-      dampingFactor: 0.25, // From setupScene
-      enableZoom: true, // From setupScene
-      enableRotate: true, // Default for OrbitControls
-      enablePan: true, // Default for OrbitControls
+      enabled: true,
+      enableDamping: true,
+      dampingFactor: 0.25,
+      enableZoom: true,
+      enableRotate: true,
+      enablePan: true,
    },
    helpers: {
-      gridHelper: true,
-      color: '#333333',
-      axesHelper: false,
+      grid: true,
+      gridColor: '#333333',
+      axes: false,
       object3DHelper: false,
       addGizmo: false, // new Gizmo control is disabled by default
    },
@@ -243,18 +299,20 @@ const defaultOptions: SimpleViewerOptions = {
    },
    animationLoop: null,
    usePathTracing: true, // Enables path tracing for high-quality rendering
-   maxSamplesPathTracing: 300, // Limits the number of samples for path tracing
-   envMapUrl: 'https://cdn.polyhaven.com/asset_img/primary/belfast_sunset_puresky.png', // Environment map URL for lighting and reflections
-   pathTracingSettings: {
+   pathTracing: {
+      enabled: true,
+      samples: 300, // Limits the number of samples for path tracing
       bounces: 8,
       transmissiveBounces: 4,
       lowResScale: 0.7,
       renderScale: 1.0,
-      enablePathTracing: true,
       dynamicLowRes: true,
    },
+   environment: {
+      url: 'https://cdn.polyhaven.com/asset_img/primary/belfast_sunset_puresky.png', // Environment map URL for lighting and reflections
+      studio: true, // Enables a studio-like lighting environment
+   },
    replaceWithScreenshotOnComplete: false, // Option to replace viewer with a screenshot after path tracing is complete
-   studioEnvironment: true, // Enables a studio-like lighting environment
 };
 ```
 
@@ -263,22 +321,25 @@ const defaultOptions: SimpleViewerOptions = {
 ThreeDViewer now supports path tracing for high-quality rendering with customizable settings:
 
 - `usePathTracing`: Enables or disables path tracing.
-- `maxSamplesPathTracing`: Limits the number of path tracing samples to prevent infinite rendering.
-- `pathTracingSettings`: Customizes path tracing settings, including:
+- `pathTracing`: Customizes path tracing settings, including:
+   - `enabled`: Enables the path tracing mode.
+   - `samples`: Limits the number of path tracing samples to prevent infinite rendering.
    - `bounces`: Number of light bounces.
    - `transmissiveBounces`: Number of transmissive bounces.
    - `lowResScale`: Low-resolution scale factor for performance optimization.
    - `renderScale`: Controls the overall rendering scale.
-   - `enablePathTracing`: Enables the path tracing mode.
    - `dynamicLowRes`: Adjusts resolution dynamically based on performance.
 
 ### Environment Map
 
 To improve lighting and reflections, ThreeDViewer supports environment maps:
 
-- `envMapUrl`: You can provide a URL to an environment map. For example:
-  ```
-  envMapUrl: 'https://cdn.polyhaven.com/asset_img/primary/sunset_in_the_chalk_quarry.png'
+- `environment.url`: You can provide a URL to an environment map. For example:
+  ```javascript
+  environment: {
+    url: 'https://cdn.polyhaven.com/asset_img/primary/sunset_in_the_chalk_quarry.png',
+    studio: true // Enable studio-like lighting
+  }
   ```
 
 This will automatically load and apply the environment map to the scene.

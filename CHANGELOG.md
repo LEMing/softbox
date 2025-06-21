@@ -1,6 +1,45 @@
 Changelog
 =========
 
+2.0.0
+---
+**Breaking Changes** - See [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) for upgrade instructions
+
+### New Features
+* **Event System**: Introduced event-driven architecture with typed events
+  - `model:loaded`, `model:error`, `render:complete`, `controls:change`, `error` events
+  - Replace callback-based API with EventEmitter pattern
+* **Error Handling**: Implemented Result pattern for all manager methods
+  - No more throwing errors - all operations return `Result<T, E>`
+  - Enhanced error context with `ThreeViewerError` class and error codes
+* **TypeScript Improvements**: 
+  - Modular option interfaces for better type safety
+  - New types: `Result<T>`, `ViewerEventMap`, `ErrorCode`
+* **Configuration Validation**: Comprehensive validation for all options with helpful error messages
+* **Test Coverage**: Achieved 86%+ test coverage across all modules
+
+### Configuration Changes
+* **Nested Structure**: Migrated from flat to nested configuration
+  - Camera options: `cameraFov` → `camera.fov`, `cameraPosition` → `camera.position`
+  - Render options: `antialias` → `render.antialias`, `shadowMap` → `render.shadowMap`
+  - Control options: `enableDamping` → `controls.enableDamping`
+  - Helper options: `axes` → `helpers.axes`, `grid` → `helpers.grid`
+  - Lighting: `lightning` → `lighting` (fixed typo)
+  - Path tracing: `pathTracingSettings` → `pathTracing`
+  - Environment: `envMapUrl` → `environment.url`
+
+### API Changes
+* `SimpleViewerHandle` now includes `events` property
+* Manager methods return `Result<T>` instead of throwing
+* Async initialization for PathTracingManager and EnvironmentMapManager
+
+### Security
+* Updated vite from 5.4.1 to 6.3.5 to fix esbuild vulnerability (GHSA-67mh-4wv8-2f99)
+
+### Deprecations
+* Flat configuration properties (will be removed in v3.0)
+* Callback-based event handlers (`onLoad`, `onError`, etc.)
+
 0.11.0
 ---
 * Add blur env map
