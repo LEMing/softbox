@@ -12,7 +12,7 @@ class HexTile {
     this.size = size;
     this.color = color;
     this.height = 0.25; // Default height for the tile
-    this.bevel = 0.5; // Default height for the tile
+    this.bevel = 0.5; // Default bevel size for the tile
   }
 
   createMesh(): THREE.Object3D {

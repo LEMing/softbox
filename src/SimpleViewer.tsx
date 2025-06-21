@@ -28,6 +28,7 @@ export interface SimpleViewerHandle {
   startRendering: () => void;
   stopRendering: () => void;
   captureScreenshot: () => Promise<string>;
+  dispose: () => void;
 }
 
 const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>((props, externalRef) => {
@@ -67,6 +68,7 @@ const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>((props, e
   const [sceneManager, setSceneManager] = useState<SceneManager | null>(null);
   const [isSceneReady, setIsSceneReady] = useState(false);
   const frameCountRef = useRef(0);
+  const cleanupFunctionRef = useRef<(() => void) | null>(null);
   
   // Initialize event emitter
   const events = useMemo(() => new TypedEventEmitter<ViewerEventMap>(), []);
@@ -129,7 +131,7 @@ const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>((props, e
     if (!rendererRef.current) {
       throw new ThreeViewerError(
         'Renderer not initialized',
-        ErrorCode.COMPONENT_NOT_MOUNTED
+        ErrorCode.RENDERER_INIT_FAILED
       );
     }
     
@@ -137,6 +139,13 @@ const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>((props, e
     events.emit('screenshot:captured', { dataUrl });
     return dataUrl;
   }, [events]);
+
+  const disposeMethod = useCallback(() => {
+    if (cleanupFunctionRef.current) {
+      cleanupFunctionRef.current();
+      cleanupFunctionRef.current = null;
+    }
+  }, []);
 
   // Expose refs and events through imperative handle
   useImperativeHandle(externalRef, () => ({
@@ -149,7 +158,8 @@ const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>((props, e
     startRendering: startRenderingMethod,
     stopRendering: stopRenderingMethod,
     captureScreenshot: captureScreenshotMethod,
-  }), [events, loadModelMethod, startRenderingMethod, stopRenderingMethod, captureScreenshotMethod]);
+    dispose: disposeMethod,
+  }), [events, loadModelMethod, startRenderingMethod, stopRenderingMethod, captureScreenshotMethod, disposeMethod]);
 
   // Model loading with proper error handling
   useEffect(() => {
@@ -274,7 +284,7 @@ const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>((props, e
 
       window.addEventListener('resize', resizeHandler);
       
-      return () => {
+      const cleanup = () => {
         setIsSceneReady(false);
         events.emit('disposed', { 
           viewer: {
@@ -286,11 +296,15 @@ const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>((props, e
             loadModel: loadModelMethod,
             startRendering: startRenderingMethod,
             stopRendering: stopRenderingMethod,
-            captureScreenshot: captureScreenshotMethod
+            captureScreenshot: captureScreenshotMethod,
+            dispose: disposeMethod
           } as SimpleViewerHandle
         });
         cleanupScene(mountRef, renderer, resizeHandler);
       };
+      
+      cleanupFunctionRef.current = cleanup;
+      return cleanup;
     } catch (err) {
       const error = ThreeViewerError.fromError(
         err,
