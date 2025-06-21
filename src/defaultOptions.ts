@@ -5,7 +5,7 @@ const defaultOptions: SimpleViewerOptions = {
   staticScene: true, // It stops animation loop if there is no interactions
   usePathTracing: false, // Path tracing is not optimised
   maxSamplesPathTracing: 300,
-  envMapUrl: 'https://cdn.polyhaven.com/asset_img/primary/studio_garden.png?height=720',
+  envMapUrl: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/industrial_sunset_puresky.jpg',
   pathTracingSettings: {
     bounces: 8,
     transmissiveBounces: 4,

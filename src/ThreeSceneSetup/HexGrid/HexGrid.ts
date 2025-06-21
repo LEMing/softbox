@@ -23,7 +23,8 @@ class HexGrid {
       for (let r = r1; r <= r2; r++) {
         const x = width * (q + r / 2);
         const z = height * 0.75 * r;
-        const tile = new HexTile(new THREE.Vector3(x, -0.1, z), this.tileSize, this.color);
+        const y = -0.25 - 0.5; // -tile.height - tile.bevel
+        const tile = new HexTile(new THREE.Vector3(x, y, z), this.tileSize, this.color);
         hexTiles.push(tile);
       }
     }

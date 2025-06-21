@@ -4,11 +4,15 @@ class HexTile {
   position: THREE.Vector3;
   size: number;
   color: string;
+  public readonly height: number;
+  public bevel: number;
 
   constructor(position: THREE.Vector3, size: number, color: string) {
     this.position = position;
     this.size = size;
     this.color = color;
+    this.height = 0.25; // Default height for the tile
+    this.bevel = 0.5; // Default bevel size for the tile
   }
 
   createMesh(): THREE.Object3D {
@@ -29,11 +33,11 @@ class HexTile {
 
     // Extrusion parameters to create tile volume
     const extrudeSettings = {
-      depth: 4, // Tile thickness
+      depth: this.height, // Tile thickness
       bevelEnabled: true,   // Enable beveling (chamfer)
-      bevelSize: 0.5,       // Bevel size
-      bevelThickness: 0.5, // Bevel thickness
-      bevelSegments: 6,     // Number of segments for smoothing the edge
+      bevelSize: this.bevel,       // Bevel size
+      bevelThickness: this.bevel, // Bevel thickness
+      bevelSegments: 64,     // Number of segments for smoothing the edge
     };
 
     // Create the extrusion
@@ -42,14 +46,23 @@ class HexTile {
     const edgeMaterial = new THREE.LineBasicMaterial({ color: this.color });
 
     // Create the tile material
-    const planeMaterial = new THREE.MeshStandardMaterial({
-      color: this.color,
-      metalness: 0.3,
-      roughness: 0.1,
+    const liquidGlassMaterial = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(0xffffff),
+      metalness: 0,
+      roughness: 0.15,
+      transparent: true,
+      transmission: 1.0,
+      thickness: 0.4,
+      ior: 1.5,
+      opacity: 1.0,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.05,
+      sheen: 1.0,
+      sheenColor: new THREE.Color(0xffffff),
     });
 
     // Create the hexagonal tile and its edge lines
-    const hexMesh = new THREE.Mesh(geometry, planeMaterial);
+    const hexMesh = new THREE.Mesh(geometry, liquidGlassMaterial);
     // const edgeLines = new THREE.LineSegments(edges, edgeMaterial);
     hexMesh.receiveShadow = true;
     // Group to combine the tile and edges
