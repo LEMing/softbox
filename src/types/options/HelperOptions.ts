@@ -19,12 +19,5 @@ export interface HelperOptions {
   axes?: boolean | AxesHelperOptions;
   stats?: boolean;
   gizmo?: boolean | GizmoOptions;
-  
-  // Legacy options
-  gridHelper?: boolean;
-  axesHelper?: boolean;
-  color?: string;
   studioEnvironment?: boolean;
-  object3DHelper?: boolean;
-  addGizmo?: boolean;
 }

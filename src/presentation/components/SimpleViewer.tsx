@@ -1,0 +1,173 @@
+import React, { useRef, useEffect, forwardRef, useImperativeHandle, useMemo, useCallback } from 'react';
+import { SimpleViewerHandle, SimpleViewerProps } from '../../types';
+import { ControlsInstance } from '../../types/CommonTypes';
+import { useViewerCore, useViewerEventHandlers } from '../hooks';
+import { ViewerProvider } from './ViewerContext';
+import { ViewerCanvas } from './ViewerCanvas';
+import { ViewerGizmo } from './ViewerGizmo';
+import { ViewerErrorBoundary } from './ViewerErrorBoundary';
+import { TypedEventEmitter } from '../../events/EventEmitter';
+import { ViewerEventMap } from '../../events/ViewerEvents';
+import { ViewerEventMap as CoreViewerEventMap } from '../../core/events/ViewerEvents';
+import { ThreeObject3DAdapter } from '../../infrastructure/three/ThreeObject3D';
+import { EventAdapter } from '../adapters/EventAdapter';
+import * as THREE from 'three';
+
+/**
+ * Refactored SimpleViewer component using clean architecture
+ * Maintains backward compatibility with existing API
+ */
+export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
+  ({ object, options = {} }, ref) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const { viewer, isInitialized } = useViewerCore(canvasRef, options);
+    const eventsRef = useRef<TypedEventEmitter<ViewerEventMap>>(
+      new TypedEventEmitter()
+    );
+
+    // Create stable object reference for non-string objects
+    const stableObjectRef = useRef<string | THREE.Object3D | null | undefined>(undefined);
+    const objectKey = useMemo(() => {
+      if (typeof object === 'string') {
+        return object;
+      } else if (object) {
+        // For objects, use a combination of properties that identify it
+        return `object-${object.uuid || 'no-uuid'}`;
+      }
+      return undefined;
+    }, [object]);
+    
+    // Update ref when key changes
+    useMemo(() => {
+      stableObjectRef.current = object;
+    }, [objectKey, object]);
+    
+    // Load object when provided and viewer is ready
+    useEffect(() => {
+      if (!viewer || !isInitialized || !stableObjectRef.current) {
+        return;
+      }
+
+      // Load the object - handle Three.js objects by wrapping them
+      const objectToLoad = typeof stableObjectRef.current === 'string' ? 
+        stableObjectRef.current :
+        new ThreeObject3DAdapter(stableObjectRef.current as THREE.Object3D);
+      viewer.loadModel(objectToLoad).then((result) => {
+        if (!result.ok) {
+          console.error('Failed to load model:', result.error);
+        }
+      });
+    }, [viewer, isInitialized, objectKey]); // Use objectKey instead of object
+
+    // Memoize event handlers to prevent recreating on every render
+    const eventHandlers = useMemo(() => ({
+      'model:loaded': (data: CoreViewerEventMap['model:loaded']) => 
+        eventsRef.current.emit('model:loaded', EventAdapter.convertModelLoaded(data)),
+      'model:error': (data: CoreViewerEventMap['model:error']) => 
+        eventsRef.current.emit('model:error', data),
+      'render:complete': (data: CoreViewerEventMap['render:complete']) => 
+        eventsRef.current.emit('render:complete', data),
+      'controls:change': (data: CoreViewerEventMap['controls:change']) => 
+        eventsRef.current.emit('controls:change', EventAdapter.convertControlsChange(data)),
+      'error': (data: CoreViewerEventMap['error']) => 
+        eventsRef.current.emit('error', data),
+    }), []); // Empty deps as eventsRef is stable
+    
+    // Forward events from ViewerCore to external events
+    useViewerEventHandlers(viewer, eventHandlers);
+
+    // Helper to extract Three.js objects from adapters
+    const getScene = useCallback((adapter: unknown): THREE.Scene | null => {
+      if (adapter && typeof adapter === 'object') {
+        const obj = adapter as Record<string, unknown>;
+        if (typeof obj.getThreeScene === 'function') {
+          return obj.getThreeScene() as THREE.Scene;
+        }
+      }
+      return null;
+    }, []);
+
+    const getCamera = useCallback((adapter: unknown): THREE.Camera | null => {
+      if (adapter && typeof adapter === 'object') {
+        const obj = adapter as Record<string, unknown>;
+        if (typeof obj.getThreeCamera === 'function') {
+          return obj.getThreeCamera() as THREE.Camera;
+        }
+      }
+      return null;
+    }, []);
+
+    const getRenderer = useCallback((adapter: unknown): THREE.WebGLRenderer | null => {
+      if (adapter && typeof adapter === 'object') {
+        const obj = adapter as Record<string, unknown>;
+        if (typeof obj.getThreeRenderer === 'function') {
+          return obj.getThreeRenderer() as THREE.WebGLRenderer;
+        }
+      }
+      return null;
+    }, []);
+
+    const getControls = useCallback((adapter: unknown): ControlsInstance | null => {
+      if (adapter && typeof adapter === 'object') {
+        const obj = adapter as Record<string, unknown>;
+        if (typeof obj.getThreeControls === 'function') {
+          return obj.getThreeControls() as ControlsInstance;
+        }
+      }
+      return null;
+    }, []);
+
+    // Get Three.js objects for gizmo
+    const camera = viewer ? getCamera((viewer as unknown as Record<string, unknown>)['camera']) : null;
+    const controls = viewer ? getControls((viewer as unknown as Record<string, unknown>)['controls']) : null;
+    const renderer = viewer ? getRenderer((viewer as unknown as Record<string, unknown>)['renderer']) : null;
+
+    // Render function for gizmo
+    const renderScene = useCallback(() => {
+      if (renderer && viewer) {
+        // Request a render through the viewer's internal render loop
+        const viewerAny = viewer as any;
+        if (viewerAny.renderLoopManager && typeof viewerAny.renderLoopManager.requestRender === 'function') {
+          viewerAny.renderLoopManager.requestRender();
+        }
+      }
+    }, [viewer, renderer]);
+
+    // Check if gizmo is enabled
+    const isGizmoEnabled = options.helpers?.gizmo !== undefined && options.helpers.gizmo !== false;
+    const gizmoOptions = typeof options.helpers?.gizmo === 'object' ? options.helpers.gizmo : {};
+
+    // Expose imperative handle for backward compatibility
+    useImperativeHandle(ref, () => {
+      return {
+        scene: viewer ? getScene((viewer as unknown as Record<string, unknown>)['scene']) : null,
+        camera,
+        renderer,
+        controls,
+        events: eventsRef.current,
+      };
+    }, [viewer, camera, renderer, controls, getScene]);
+
+    // Always render the canvas, even if viewer is not ready
+    return (
+      <ViewerErrorBoundary>
+        <ViewerProvider viewer={viewer} canvasRef={canvasRef}>
+          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            <ViewerCanvas />
+            {isGizmoEnabled && isInitialized && camera && controls && (
+              <ViewerGizmo
+                camera={camera}
+                controls={controls}
+                render={renderScene}
+                placement={gizmoOptions.placement}
+                size={gizmoOptions.size}
+              />
+            )}
+          </div>
+        </ViewerProvider>
+      </ViewerErrorBoundary>
+    );
+  }
+);
+
+SimpleViewer.displayName = 'SimpleViewer';

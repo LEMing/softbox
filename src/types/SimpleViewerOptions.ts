@@ -9,6 +9,7 @@ import {
   LightingOptions,
   PathTracingOptions,
   RendererOptions,
+  RenderingOptions,
 } from './options';
 
 export interface ThreeJSRefs {
@@ -32,6 +33,7 @@ export interface SimpleViewerOptions {
   lighting?: LightingOptions;
   pathTracing?: PathTracingOptions;
   renderer?: RendererOptions;
+  rendering?: RenderingOptions;
   
   // Refs for external control
   refs?: Partial<ThreeJSRefs>;
@@ -44,31 +46,4 @@ export interface SimpleViewerOptions {
   
   // Special features
   replaceWithScreenshotOnComplete?: boolean;
-  
-  // Legacy support - will be removed in v2.0
-  /** @deprecated Use pathTracing.enabled instead */
-  usePathTracing?: boolean;
-  /** @deprecated Use pathTracing.maxSamples instead */
-  maxSamplesPathTracing?: number;
-  /** @deprecated Use pathTracing options instead */
-  pathTracingSettings?: {
-    bounces?: number;
-    transmissiveBounces?: number;
-    lowResScale?: number;
-    renderScale?: number;
-    enablePathTracing?: boolean;
-    dynamicLowRes?: boolean;
-  };
-  /** @deprecated Use environment.url instead */
-  envMapUrl?: string;
-  /** @deprecated Use lighting instead of lightning (typo fix) */
-  lightning?: LightingOptions;
-  /** @deprecated Use refs instead */
-  threeBaseRefs?: {
-    scene: {current: THREE.Scene | null};
-    camera: {current: THREE.Camera | null};
-    renderer: {current: THREE.WebGLRenderer | null};
-    controls: {current: OrbitControls | MapControls | null};
-    mountPoint: {current: HTMLDivElement | null}
-  };
 }

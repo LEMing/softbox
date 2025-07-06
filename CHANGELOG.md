@@ -1,6 +1,54 @@
 Changelog
 =========
 
+2.1.0
+---
+
+### Architecture Changes
+* **Clean Architecture Implementation**: Complete restructuring following clean architecture principles
+  - Core layer: Business logic and interfaces (framework-agnostic)
+  - Infrastructure layer: Three.js implementations and adapters
+  - Presentation layer: React components and hooks
+* **Functional Components**: Migrated from class-based to functional React components with hooks
+* **Dependency Inversion**: All dependencies flow inward, core doesn't depend on infrastructure
+
+### New Features
+* **Type Safety**: Enforced strict TypeScript with no 'any' types allowed
+  - Created comprehensive type definitions and interfaces
+  - Type guards for runtime type checking
+  - Result pattern for error handling throughout
+* **Modular Architecture**: 
+  - Separated concerns into focused modules
+  - Adapter pattern for Three.js integration
+  - Service interfaces for extensibility
+* **Improved Testing**: 
+  - Better test isolation with clean architecture
+  - Mock implementations for all external dependencies
+  - Maintained 86%+ test coverage
+
+### Internal API Changes (No public API changes)
+* **Component Structure**: 
+  - `SimpleViewer` now uses functional component architecture
+  - New hooks: `useViewerCore`, `useViewerEvents`, `useViewerState`
+  - Context-based state management
+* **Service Interfaces**:
+  - `IPathTracingService`: Abstracted path tracing functionality
+  - `IEnvironmentService`: Environment map management
+  - `ISceneSetupService`: Scene configuration and helpers
+* **Factory Pattern**: `ViewerFactory` for creating viewer instances with proper dependency injection
+
+### Removed
+* Legacy class-based components and managers
+* Direct Three.js dependencies in core business logic
+* Deprecated utilities and option mappers
+* `Resizer.ts`, `loadModel.ts`, and other standalone utilities
+
+### Technical Improvements
+* **ESLint Configuration**: Migrated to ESLint v9 flat config format
+* **Type Definitions**: Comprehensive TypeScript types with no implicit 'any'
+* **Error Handling**: Consistent Result<T> pattern throughout the codebase
+* **Code Organization**: Clear separation between layers with explicit boundaries
+
 2.0.0
 ---
 **Breaking Changes** - See [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) for upgrade instructions

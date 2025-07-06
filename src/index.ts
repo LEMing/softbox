@@ -1,4 +1,4 @@
-export { default as SimpleViewer, type SimpleViewerHandle } from './SimpleViewer'
+export { default as SimpleViewer, type SimpleViewerHandle } from './SimpleViewerWrapper'
 export { type SimpleViewerProps } from './types'
 export { type SimpleViewerOptions } from './types'
 export {default as defaultOptions} from './defaultOptions'

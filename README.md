@@ -132,7 +132,7 @@ function App() {
       ...defaultOptions.helpers,
       grid: true,
       axes: true,
-      addGizmo: true, // New gizmo option
+      gizmo: true, // Enable viewport gizmo
     },
    threeBaseRefs: {
       scene: sceneRef,
@@ -285,10 +285,8 @@ const defaultOptions: SimpleViewerOptions = {
    },
    helpers: {
       grid: true,
-      gridColor: '#333333',
       axes: false,
-      object3DHelper: false,
-      addGizmo: false, // new Gizmo control is disabled by default
+      gizmo: false, // Viewport gizmo is disabled by default
    },
    threeBaseRefs: {
       mountPoint: {current: null},
@@ -315,6 +313,29 @@ const defaultOptions: SimpleViewerOptions = {
    replaceWithScreenshotOnComplete: false, // Option to replace viewer with a screenshot after path tracing is complete
 };
 ```
+
+### Viewport Gizmo
+
+ThreeDViewer includes an optional viewport gizmo for easy camera orientation control:
+
+```javascript
+const options = {
+  helpers: {
+    gizmo: true, // Enable with default settings
+    // Or configure with options:
+    gizmo: {
+      placement: 'top-right', // 'top-left', 'top-right', 'bottom-left', 'bottom-right'
+      size: 128 // Size in pixels
+    }
+  }
+};
+```
+
+The gizmo provides:
+- Interactive 3D orientation indicator
+- Click to snap camera to axis views
+- Visual feedback for current camera orientation
+- Synchronized with main viewport controls
 
 ### Path Tracing
 

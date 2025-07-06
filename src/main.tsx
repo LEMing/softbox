@@ -1,34 +1,34 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import ReactDOM from 'react-dom/client';
-import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader';
+import SimpleViewer from './SimpleViewerWrapper';
 import defaultOptions from './defaultOptions';
-import {loadModel} from './loadModel';
-import SimpleViewer from './SimpleViewer';
-import * as THREE from 'three';
-import {LoaderGLB} from './types';
-
 
 const App = () => {
-  const [object, setObject] = useState<THREE.Object3D | null>(null);
+  const models = [
+    "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/TextureCoordinateTest/glTF-Binary/TextureCoordinateTest.glb",
+    "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/CesiumMan/glTF-Binary/CesiumMan.glb",
+    "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb",
+    "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Lantern/glTF-Binary/Lantern.glb",
+    "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/WaterBottle/glTF-Binary/WaterBottle.glb",
+  ];
 
-  useEffect(() => {
-    const MODEL_URL = 'https://modelviewer.dev/shared-assets/models/RobotExpressive.glb';
-    const loader = new GLTFLoader();
-    const targetSize = new THREE.Vector3(24, 24, 24);
-    loadModel(MODEL_URL, loader as LoaderGLB, targetSize).then(setObject);
-  }, []);
+
+  const randomModel = models[Math.floor(Math.random() * models.length)];
+  const MODEL_URL = randomModel || "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb";
+  const options = {
+    ...defaultOptions,
+    helpers: {
+      ...defaultOptions.helpers,
+      grid: true,
+    },
+  } as const;
 
   return (
     <div style={{ width: '100vw', height: '100vh', margin: 0, padding: 0 }}>
-      {object && <SimpleViewer object={object} options={
-        {
-          ...defaultOptions,
-          helpers: {
-            ...defaultOptions.helpers,
-            addGizmo: true
-          }
-        }
-      }/>}
+      <SimpleViewer
+        object={MODEL_URL}
+        options={options}
+      />
     </div>
   );
 };

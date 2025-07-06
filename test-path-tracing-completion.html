@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Path Tracing Completion Test</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    #viewer-container {
+      width: 800px;
+      height: 600px;
+      margin: 20px auto;
+      border: 2px solid #444;
+      position: relative;
+    }
+    .controls {
+      text-align: center;
+      margin: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 0 10px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #status {
+      text-align: center;
+      margin: 20px;
+      font-size: 18px;
+    }
+    .test-scenario {
+      background: #333;
+      padding: 20px;
+      margin: 20px auto;
+      width: 800px;
+      border-radius: 8px;
+    }
+    .test-scenario h3 {
+      margin-top: 0;
+    }
+    .test-scenario code {
+      background: #555;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <h1 style="text-align: center;">Path Tracing Completion Test</h1>
+  
+  <div class="test-scenario">
+    <h3>Test Scenario 1: Without Screenshot Replacement</h3>
+    <p>This tests that the path traced image persists after reaching maxSamples when <code>replaceWithScreenshotOnComplete: false</code></p>
+    <div id="viewer-container-1"></div>
+    <div id="status-1">Loading...</div>
+  </div>
+
+  <div class="test-scenario">
+    <h3>Test Scenario 2: With Screenshot Replacement</h3>
+    <p>This tests that the screenshot captures the final image when <code>replaceWithScreenshotOnComplete: true</code></p>
+    <div id="viewer-container-2"></div>
+    <div id="status-2">Loading...</div>
+  </div>
+
+  <script type="module">
+    import { SimpleViewer } from '/src/index.ts';
+
+    // Test 1: Without screenshot replacement
+    async function test1() {
+      const container1 = document.getElementById('viewer-container-1');
+      const status1 = document.getElementById('status-1');
+      
+      const viewer1 = new SimpleViewer(container1, {
+        pathTracing: {
+          enabled: true,
+          maxSamples: 8, // Low number for quick testing
+          bounces: 3,
+          renderScale: 0.5
+        },
+        replaceWithScreenshotOnComplete: false,
+        staticScene: true,
+        environment: {
+          url: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/exr/2k/industrial_sunset_puresky_2k.exr'
+        }
+      });
+
+      viewer1.on('pathtracing:complete', (data) => {
+        status1.textContent = `Path tracing complete! Samples: ${data.samples}, Time: ${(data.totalTime / 1000).toFixed(2)}s`;
+        status1.style.color = '#4CAF50';
+        
+        // Check if image is still visible after 2 seconds
+        setTimeout(() => {
+          const canvas = container1.querySelector('canvas');
+          if (canvas) {
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, 10, 10);
+            const hasContent = imageData.data.some(pixel => pixel > 0);
+            
+            if (hasContent) {
+              status1.textContent += ' ✓ Image persisted successfully!';
+            } else {
+              status1.textContent += ' ✗ ERROR: Image disappeared (black screen)';
+              status1.style.color = '#f44336';
+            }
+          }
+        }, 2000);
+      });
+
+      await viewer1.loadModel('/examples/assets/DamagedHelmet.glb');
+    }
+
+    // Test 2: With screenshot replacement
+    async function test2() {
+      const container2 = document.getElementById('viewer-container-2');
+      const status2 = document.getElementById('status-2');
+      
+      const viewer2 = new SimpleViewer(container2, {
+        pathTracing: {
+          enabled: true,
+          maxSamples: 8, // Low number for quick testing
+          bounces: 3,
+          renderScale: 0.5
+        },
+        replaceWithScreenshotOnComplete: true,
+        staticScene: true,
+        environment: {
+          url: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/exr/2k/industrial_sunset_puresky_2k.exr'
+        }
+      });
+
+      viewer2.on('pathtracing:complete', (data) => {
+        status2.textContent = `Path tracing complete! Samples: ${data.samples}, Time: ${(data.totalTime / 1000).toFixed(2)}s`;
+        status2.style.color = '#4CAF50';
+        
+        // Check if screenshot was created
+        setTimeout(() => {
+          const img = container2.querySelector('img');
+          if (img && img.src) {
+            status2.textContent += ' ✓ Screenshot created successfully!';
+          } else {
+            status2.textContent += ' ✗ ERROR: Screenshot not created';
+            status2.style.color = '#f44336';
+          }
+        }, 500);
+      });
+
+      await viewer2.loadModel('/examples/assets/DamagedHelmet.glb');
+    }
+
+    // Run tests
+    test1().catch(console.error);
+    test2().catch(console.error);
+  </script>
+</body>
+</html>

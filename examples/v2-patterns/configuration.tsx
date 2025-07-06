@@ -1,6 +1,6 @@
 /**
  * Example: Configuration Patterns in ThreeDViewer v2.0
- * 
+ *
  * This example shows:
  * - Modular configuration structure
  * - Runtime validation
@@ -42,7 +42,7 @@ const PRESETS: Record<string, SimpleViewerOptions> = {
       stats: false
     }
   },
-  
+
   cinematic: {
     backgroundColor: '#000000',
     render: {
@@ -72,7 +72,7 @@ const PRESETS: Record<string, SimpleViewerOptions> = {
       stats: false
     }
   },
-  
+
   technical: {
     backgroundColor: '#f0f0f0',
     render: {
@@ -103,12 +103,12 @@ const PRESETS: Record<string, SimpleViewerOptions> = {
       object3DHelper: true
     }
   },
-  
+
   pathTracing: {
     backgroundColor: '#1a1a1a',
-    usePathTracing: true,
+    usePathTracing: false,
     pathTracing: {
-      enabled: true,
+      enabled: false,
       samples: 64,
       bounces: 4,
       renderScale: 0.5 // Start at half res for performance
@@ -160,7 +160,7 @@ export function ConfigurationExample() {
         fov
       }
     };
-    
+
     // Validate before applying
     const testConfig = { ...config, ...newConfig };
     if (validateConfig(testConfig)) {
@@ -203,7 +203,7 @@ export function ConfigurationExample() {
   return (
     <div style={{ padding: '20px' }}>
       <h2>Configuration Example</h2>
-      
+
       {/* Controls */}
       <div style={{ marginBottom: '20px' }}>
         <h3>Presets</h3>
@@ -224,11 +224,11 @@ export function ConfigurationExample() {
             </button>
           ))}
         </div>
-        
+
         <h3>Custom Settings</h3>
         <div>
           <label>
-            FOV: 
+            FOV:
             <input
               type="range"
               min="20"
@@ -239,7 +239,7 @@ export function ConfigurationExample() {
             <span>{config.camera?.fov || 75}°</span>
           </label>
         </div>
-        
+
         <div>
           <label>
             Background Color:
@@ -253,7 +253,7 @@ export function ConfigurationExample() {
             />
           </label>
         </div>
-        
+
         <div>
           <h4>Helpers</h4>
           <label>
@@ -281,7 +281,7 @@ export function ConfigurationExample() {
             Stats
           </label>
         </div>
-        
+
         <div>
           <h4>Render Quality</h4>
           <button onClick={() => updateRenderQuality('low')}>Low</button>
@@ -380,7 +380,7 @@ export function DynamicConfigExample() {
       <button onClick={() => setConfig(createConfig())}>Random Config</button>
       <button onClick={animateConfig}>Animate Config (3s)</button>
       <button onClick={() => setConfig(PRESETS.default)}>Reset</button>
-      
+
       <div style={{ height: '500px', marginTop: '20px' }}>
         <SimpleViewer
           ref={viewerRef}

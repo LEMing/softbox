@@ -5,7 +5,7 @@ NODE_MODULES := node_modules
 DIST := dist
 
 # Targets
-.PHONY: all install clean build test dev preview publish help
+.PHONY: all install clean build test lint dev preview publish help
 
 all: install build test
 
@@ -24,6 +24,9 @@ build: install
 test: install
 	$(PACKAGE_MANAGER) test
 
+lint: install
+	$(PACKAGE_MANAGER) run lint
+
 dev: install
 	$(PACKAGE_MANAGER) run dev
 
@@ -39,6 +42,7 @@ help:
 	@echo "  make clean    - Remove node_modules and dist directories"
 	@echo "  make build    - Build the project"
 	@echo "  make test     - Run tests"
+	@echo "  make lint     - Run ESLint to check code quality"
 	@echo "  make dev      - Start development server"
 	@echo "  make preview  - Preview the production build"
 	@echo "  make publish  - Build, test, and publish to npm"
