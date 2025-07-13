@@ -1,5 +1,7 @@
-export class TypedEventEmitter<T extends Record<string, any>> {
-  private listeners = new Map<keyof T, Set<(data: any) => void>>();
+type EventListener<T> = (data: T) => void;
+
+export class TypedEventEmitter<T> {
+  private listeners = new Map<keyof T, Set<EventListener<unknown>>>();
   
   on<K extends keyof T>(
     event: K,
@@ -9,18 +11,21 @@ export class TypedEventEmitter<T extends Record<string, any>> {
       this.listeners.set(event, new Set());
     }
     
-    this.listeners.get(event)!.add(listener);
+    const eventListeners = this.listeners.get(event);
+    if (eventListeners) {
+      eventListeners.add(listener as EventListener<unknown>);
+    }
     
     // Return unsubscribe function
     return () => {
-      this.listeners.get(event)?.delete(listener);
+      this.listeners.get(event)?.delete(listener as EventListener<unknown>);
     };
   }
   
   emit<K extends keyof T>(event: K, data: T[K]): void {
     this.listeners.get(event)?.forEach(listener => {
       try {
-        listener(data);
+        (listener as EventListener<T[K]>)(data);
       } catch (error) {
         console.error(`Error in event listener for ${String(event)}:`, error);
       }
@@ -48,5 +53,19 @@ export class TypedEventEmitter<T extends Record<string, any>> {
   
   listenerCount(event: keyof T): number {
     return this.listeners.get(event)?.size || 0;
+  }
+  
+  /**
+   * Alias for removing a listener (compatible with Node.js EventEmitter)
+   */
+  off<K extends keyof T>(event: K, listener: (data: T[K]) => void): void {
+    this.listeners.get(event)?.delete(listener as EventListener<unknown>);
+  }
+  
+  /**
+   * Alias for on (compatible with Node.js EventEmitter)
+   */
+  removeListener<K extends keyof T>(event: K, listener: (data: T[K]) => void): void {
+    this.off(event, listener);
   }
 }

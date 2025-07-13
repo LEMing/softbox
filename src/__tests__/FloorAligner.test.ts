@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import FloorAligner from '../FloorAligner';
+import FloorAligner from '../infrastructure/three/FloorAligner';
 
 describe('FloorAligner', () => {
   let mockMesh: THREE.Mesh;

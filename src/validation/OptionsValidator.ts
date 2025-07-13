@@ -1,12 +1,13 @@
 import { SimpleViewerOptions } from '../types';
 import { Result } from '../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../errors';
+import { GridHelperOptions, AxesHelperOptions } from '../types/options/HelperOptions';
 import * as THREE from 'three';
 
 interface ValidationError {
   field: string;
   message: string;
-  value?: any;
+  value?: unknown;
 }
 
 export class OptionsValidator {
@@ -39,13 +40,13 @@ export class OptionsValidator {
     }
 
     // Validate path tracing options
-    if (options.usePathTracing && options.pathTracingSettings) {
-      this.validatePathTracingOptions(options.pathTracingSettings);
+    if (options.pathTracing) {
+      this.validatePathTracingOptions(options.pathTracing);
     }
 
-    // Validate lightning options
-    if (options.lightning) {
-      this.validateLightningOptions(options.lightning);
+    // Validate lighting options
+    if (options.lighting) {
+      this.validateLightingOptions(options.lighting);
     }
 
     // Check for errors
@@ -66,78 +67,80 @@ export class OptionsValidator {
   }
 
   private static validateCameraOptions(camera: NonNullable<SimpleViewerOptions['camera']>): void {
+    const { fov, near, far, position, target } = camera;
+
     // FOV validation
-    if (camera.cameraFov !== undefined) {
-      if (camera.cameraFov < 1 || camera.cameraFov > 180) {
+    if (fov !== undefined) {
+      if (fov < 1 || fov > 180) {
         this.errors.push({
-          field: 'camera.cameraFov',
+          field: 'camera.fov',
           message: 'Camera FOV must be between 1 and 180 degrees',
-          value: camera.cameraFov
+          value: fov
         });
       }
     }
 
     // Near plane validation
-    if (camera.cameraNear !== undefined) {
-      if (camera.cameraNear <= 0) {
+    if (near !== undefined) {
+      if (near <= 0) {
         this.errors.push({
-          field: 'camera.cameraNear',
+          field: 'camera.near',
           message: 'Camera near plane must be positive',
-          value: camera.cameraNear
+          value: near
         });
       }
     }
 
     // Far plane validation
-    if (camera.cameraFar !== undefined) {
-      if (camera.cameraFar <= 0) {
+    if (far !== undefined) {
+      if (far <= 0) {
         this.errors.push({
-          field: 'camera.cameraFar',
+          field: 'camera.far',
           message: 'Camera far plane must be positive',
-          value: camera.cameraFar
+          value: far
         });
       }
 
       // Near/Far relationship
-      if (camera.cameraNear !== undefined && camera.cameraFar <= camera.cameraNear) {
+      if (near !== undefined && far <= near) {
         this.errors.push({
-          field: 'camera.cameraFar',
+          field: 'camera.far',
           message: 'Camera far plane must be greater than near plane',
-          value: { near: camera.cameraNear, far: camera.cameraFar }
+          value: { near: near, far: far }
         });
       }
     }
 
     // Position validation
-    if (camera.cameraPosition) {
-      if (!Array.isArray(camera.cameraPosition) || camera.cameraPosition.length !== 3) {
+    if (position) {
+      if (!Array.isArray(position) || position.length !== 3) {
         this.errors.push({
-          field: 'camera.cameraPosition',
+          field: 'camera.position',
           message: 'Camera position must be an array of 3 numbers',
-          value: camera.cameraPosition
+          value: position
         });
-      } else if (!camera.cameraPosition.every(v => typeof v === 'number' && !isNaN(v))) {
+      } else if (!position.every((v) => typeof v === 'number' && !isNaN(v as number))) {
         this.errors.push({
-          field: 'camera.cameraPosition',
+          field: 'camera.position',
           message: 'Camera position values must be valid numbers',
-          value: camera.cameraPosition
+          value: position
         });
       }
     }
 
     // Target validation
-    if (camera.cameraTarget) {
-      if (!Array.isArray(camera.cameraTarget) || camera.cameraTarget.length !== 3) {
+    if (target) {
+      if (!Array.isArray(target) || target.length !== 3) {
         this.errors.push({
-          field: 'camera.cameraTarget',
+          field: 'camera.target',
           message: 'Camera target must be an array of 3 numbers',
-          value: camera.cameraTarget
+          value: target
         });
-      } else if (!camera.cameraTarget.every(v => typeof v === 'number' && !isNaN(v))) {
+      } else if (!target.every((v) => typeof v === 'number' && !isNaN(v as number))) {
         this.errors.push({
-          field: 'camera.cameraTarget',
+          field: 'camera.target',
           message: 'Camera target values must be valid numbers',
-          value: camera.cameraTarget
+          value: target
         });
       }
     }
@@ -195,7 +198,7 @@ export class OptionsValidator {
         THREE.AgXToneMapping,
         THREE.NeutralToneMapping
       ];
-      if (!validMappings.includes(renderer.toneMapping as any)) {
+      if (!validMappings.includes(renderer.toneMapping as THREE.ToneMapping)) {
         this.errors.push({
           field: 'renderer.toneMapping',
           message: 'Invalid tone mapping type',
@@ -222,35 +225,49 @@ export class OptionsValidator {
   }
 
   private static validateHelpersOptions(helpers: NonNullable<SimpleViewerOptions['helpers']>): void {
-    // Axes helper validation
-    if (typeof helpers.axesHelper === 'number') {
-      if (helpers.axesHelper <= 0) {
+    // Grid validation
+    if (typeof helpers.grid === 'object' && helpers.grid !== null) {
+      const gridOptions = helpers.grid as GridHelperOptions;
+      if (gridOptions.size !== undefined && gridOptions.size <= 0) {
         this.errors.push({
-          field: 'helpers.axesHelper',
-          message: 'Axes helper size must be positive',
-          value: helpers.axesHelper
+          field: 'helpers.grid.size',
+          message: 'Grid size must be positive',
+          value: gridOptions.size
+        });
+      }
+      if (gridOptions.divisions !== undefined && gridOptions.divisions <= 0) {
+        this.errors.push({
+          field: 'helpers.grid.divisions',
+          message: 'Grid divisions must be positive',
+          value: gridOptions.divisions
         });
       }
     }
 
-    // Color validation
-    if (helpers.color !== undefined) {
-      if (!this.isValidColor(helpers.color)) {
+    // Axes validation
+    if (typeof helpers.axes === 'object' && helpers.axes !== null) {
+      const axesOptions = helpers.axes as AxesHelperOptions;
+      if (axesOptions.size !== undefined && axesOptions.size <= 0) {
         this.errors.push({
-          field: 'helpers.color',
-          message: 'Invalid color format',
-          value: helpers.color
+          field: 'helpers.axes.size',
+          message: 'Axes size must be positive',
+          value: axesOptions.size
         });
       }
     }
   }
 
-  private static validatePathTracingOptions(pathTracing: NonNullable<SimpleViewerOptions['pathTracingSettings']>): void {
+  private static validatePathTracingOptions(pathTracing: NonNullable<SimpleViewerOptions['pathTracing']>): void {
+    // Skip validation if path tracing is disabled
+    if (!pathTracing.enabled) {
+      return;
+    }
+
     // Bounces validation
     if (pathTracing.bounces !== undefined) {
       if (pathTracing.bounces < 0 || pathTracing.bounces > 32) {
         this.errors.push({
-          field: 'pathTracingSettings.bounces',
+          field: 'pathTracing.bounces',
           message: 'Bounces must be between 0 and 32',
           value: pathTracing.bounces
         });
@@ -261,7 +278,7 @@ export class OptionsValidator {
     if (pathTracing.transmissiveBounces !== undefined) {
       if (pathTracing.transmissiveBounces < 0 || pathTracing.transmissiveBounces > 32) {
         this.errors.push({
-          field: 'pathTracingSettings.transmissiveBounces',
+          field: 'pathTracing.transmissiveBounces',
           message: 'Transmissive bounces must be between 0 and 32',
           value: pathTracing.transmissiveBounces
         });
@@ -272,7 +289,7 @@ export class OptionsValidator {
     if (pathTracing.renderScale !== undefined) {
       if (pathTracing.renderScale <= 0 || pathTracing.renderScale > 2) {
         this.errors.push({
-          field: 'pathTracingSettings.renderScale',
+          field: 'pathTracing.renderScale',
           message: 'Render scale must be between 0 and 2',
           value: pathTracing.renderScale
         });
@@ -283,7 +300,7 @@ export class OptionsValidator {
     if (pathTracing.lowResScale !== undefined) {
       if (pathTracing.lowResScale <= 0 || pathTracing.lowResScale > 1) {
         this.errors.push({
-          field: 'pathTracingSettings.lowResScale',
+          field: 'pathTracing.lowResScale',
           message: 'Low res scale must be between 0 and 1',
           value: pathTracing.lowResScale
         });
@@ -291,86 +308,86 @@ export class OptionsValidator {
     }
   }
 
-  private static validateLightningOptions(lightning: NonNullable<SimpleViewerOptions['lightning']>): void {
+  private static validateLightingOptions(lighting: NonNullable<SimpleViewerOptions['lighting']>): void {
     // Validate ambient light
-    if (lightning.ambientLight) {
-      if (lightning.ambientLight.intensity !== undefined && lightning.ambientLight.intensity < 0) {
+    if (lighting.ambientLight) {
+      if (lighting.ambientLight.intensity !== undefined && lighting.ambientLight.intensity < 0) {
         this.errors.push({
-          field: 'lightning.ambientLight.intensity',
+          field: 'lighting.ambientLight.intensity',
           message: 'Ambient light intensity must be non-negative',
-          value: lightning.ambientLight.intensity
+          value: lighting.ambientLight.intensity
         });
       }
 
-      if (lightning.ambientLight.color !== undefined) {
-        if (!this.isValidColor(lightning.ambientLight.color)) {
+      if (lighting.ambientLight.color !== undefined) {
+        if (!this.isValidColor(lighting.ambientLight.color)) {
           this.errors.push({
-            field: 'lightning.ambientLight.color',
+            field: 'lighting.ambientLight.color',
             message: 'Invalid ambient light color format',
-            value: lightning.ambientLight.color
+            value: lighting.ambientLight.color
           });
         }
       }
     }
 
     // Validate hemisphere light
-    if (lightning.hemisphereLight) {
-      if (lightning.hemisphereLight.intensity !== undefined && lightning.hemisphereLight.intensity < 0) {
+    if (lighting.hemisphereLight) {
+      if (lighting.hemisphereLight.intensity !== undefined && lighting.hemisphereLight.intensity < 0) {
         this.errors.push({
-          field: 'lightning.hemisphereLight.intensity',
+          field: 'lighting.hemisphereLight.intensity',
           message: 'Hemisphere light intensity must be non-negative',
-          value: lightning.hemisphereLight.intensity
+          value: lighting.hemisphereLight.intensity
         });
       }
 
-      if (lightning.hemisphereLight.skyColor !== undefined) {
-        if (!this.isValidColor(lightning.hemisphereLight.skyColor)) {
+      if (lighting.hemisphereLight.skyColor !== undefined) {
+        if (!this.isValidColor(lighting.hemisphereLight.skyColor)) {
           this.errors.push({
-            field: 'lightning.hemisphereLight.skyColor',
+            field: 'lighting.hemisphereLight.skyColor',
             message: 'Invalid hemisphere light sky color format',
-            value: lightning.hemisphereLight.skyColor
+            value: lighting.hemisphereLight.skyColor
           });
         }
       }
 
-      if (lightning.hemisphereLight.groundColor !== undefined) {
-        if (!this.isValidColor(lightning.hemisphereLight.groundColor)) {
+      if (lighting.hemisphereLight.groundColor !== undefined) {
+        if (!this.isValidColor(lighting.hemisphereLight.groundColor)) {
           this.errors.push({
-            field: 'lightning.hemisphereLight.groundColor',
+            field: 'lighting.hemisphereLight.groundColor',
             message: 'Invalid hemisphere light ground color format',
-            value: lightning.hemisphereLight.groundColor
+            value: lighting.hemisphereLight.groundColor
           });
         }
       }
     }
 
     // Validate directional light
-    if (lightning.directionalLight) {
-      if (lightning.directionalLight.intensity !== undefined && lightning.directionalLight.intensity < 0) {
+    if (lighting.directionalLight) {
+      if (lighting.directionalLight.intensity !== undefined && lighting.directionalLight.intensity < 0) {
         this.errors.push({
-          field: 'lightning.directionalLight.intensity',
+          field: 'lighting.directionalLight.intensity',
           message: 'Directional light intensity must be non-negative',
-          value: lightning.directionalLight.intensity
+          value: lighting.directionalLight.intensity
         });
       }
 
-      if (lightning.directionalLight.color !== undefined) {
-        if (!this.isValidColor(lightning.directionalLight.color)) {
+      if (lighting.directionalLight.color !== undefined) {
+        if (!this.isValidColor(lighting.directionalLight.color)) {
           this.errors.push({
-            field: 'lightning.directionalLight.color',
+            field: 'lighting.directionalLight.color',
             message: 'Invalid directional light color format',
-            value: lightning.directionalLight.color
+            value: lighting.directionalLight.color
           });
         }
       }
 
       // Validate shadow camera bounds
-      if (lightning.directionalLight.shadow?.camera) {
-        const shadowCam = lightning.directionalLight.shadow.camera;
+      if (lighting.directionalLight.shadow?.camera) {
+        const shadowCam = lighting.directionalLight.shadow.camera;
         if (shadowCam.left !== undefined && shadowCam.right !== undefined) {
           if (shadowCam.left >= shadowCam.right) {
             this.errors.push({
-              field: 'lightning.directionalLight.shadow.camera',
+              field: 'lighting.directionalLight.shadow.camera',
               message: 'Shadow camera left must be less than right',
               value: { left: shadowCam.left, right: shadowCam.right }
             });
@@ -379,7 +396,7 @@ export class OptionsValidator {
         if (shadowCam.bottom !== undefined && shadowCam.top !== undefined) {
           if (shadowCam.bottom >= shadowCam.top) {
             this.errors.push({
-              field: 'lightning.directionalLight.shadow.camera',
+              field: 'lighting.directionalLight.shadow.camera',
               message: 'Shadow camera bottom must be less than top',
               value: { bottom: shadowCam.bottom, top: shadowCam.top }
             });
@@ -408,7 +425,7 @@ export class OptionsValidator {
   /**
    * Check if a value is a valid THREE.Color input
    */
-  private static isValidColor(color: any): boolean {
+  private static isValidColor(color: unknown): boolean {
     if (typeof color === 'number') {
       return true; // Numbers are valid colors
     }

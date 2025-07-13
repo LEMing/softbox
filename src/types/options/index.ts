@@ -5,3 +5,4 @@ export * from './HelperOptions';
 export * from './LightingOptions';
 export * from './PathTracingOptions';
 export * from './RendererOptions';
+export * from './RenderingOptions';

@@ -1,0 +1,323 @@
+import * as THREE from 'three';
+import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment';
+import { 
+  IEnvironmentService, 
+  IEnvironmentOptions,
+  IStudioEnvironmentOptions 
+} from '../../core/services/IEnvironmentService';
+import { IScene, ITexture } from '../../core/interfaces/IScene';
+import { Result } from '../../utils/Result';
+import { ThreeViewerError, ErrorCode } from '../../errors';
+import { ThreeSceneAdapter } from './ThreeScene';
+import { RendererWithInternalAccess } from '../../types/CommonTypes';
+
+type SceneWithOriginalTexture = THREE.Scene & {
+  __originalEnvironmentTexture?: THREE.Texture;
+};
+
+export class ThreeEnvironmentService implements IEnvironmentService {
+  private pmremGenerator: THREE.PMREMGenerator | null = null;
+  private loadedTextures: Map<string, THREE.Texture> = new Map();
+
+  constructor() {
+    // PMREMGenerator will be created when initialize is called with a renderer
+  }
+
+  async initialize(options: IEnvironmentOptions): Promise<Result<void>> {
+    try {
+      // Get the Three.js renderer
+      const rendererAccess = options.renderer as RendererWithInternalAccess;
+      let threeRenderer = rendererAccess.renderer || 
+        rendererAccess.getThreeRenderer?.();
+      
+      if (!threeRenderer && rendererAccess.getDomElement) {
+        const canvas = rendererAccess.getDomElement();
+        if (canvas && 'parentElement' in canvas && canvas.parentElement) {
+          const parentRenderer = (canvas.parentElement as unknown as { renderer?: THREE.WebGLRenderer }).renderer;
+          if (parentRenderer instanceof THREE.WebGLRenderer) {
+            threeRenderer = parentRenderer;
+          }
+        }
+      }
+      
+      if (!threeRenderer) {
+        return Result.err(
+          new ThreeViewerError(
+            'Could not access Three.js renderer',
+            ErrorCode.INITIALIZATION_FAILED
+          )
+        );
+      }
+
+      this.pmremGenerator = new THREE.PMREMGenerator(threeRenderer);
+      this.pmremGenerator.compileEquirectangularShader();
+
+      return Result.ok(undefined);
+    } catch (error) {
+      return Result.err(
+        new ThreeViewerError(
+          'Failed to initialize environment service',
+          ErrorCode.INITIALIZATION_FAILED,
+          { originalError: error }
+        )
+      );
+    }
+  }
+
+  async loadEnvironmentMap(url: string): Promise<Result<ITexture>> {
+    try {
+      // Check cache
+      const cachedTexture = this.loadedTextures.get(url);
+      if (cachedTexture) {
+        return Result.ok(new ThreeTextureAdapter(cachedTexture));
+      }
+
+      // Determine loader based on file extension
+      const extension = url.split('.').pop()?.toLowerCase();
+      let loader: RGBELoader | EXRLoader | THREE.TextureLoader;
+
+      switch (extension) {
+        case 'hdr':
+          loader = new RGBELoader();
+          break;
+        case 'exr':
+          loader = new EXRLoader();
+          break;
+        case 'jpg':
+        case 'jpeg':
+        case 'png':
+          loader = new THREE.TextureLoader();
+          break;
+        default:
+          return Result.err(
+            new ThreeViewerError(
+              `Unsupported environment map format: ${extension}`,
+              ErrorCode.UNSUPPORTED_FORMAT,
+              { url, extension }
+            )
+          );
+      }
+
+      // Load texture
+      const texture = await new Promise<THREE.Texture>((resolve, reject) => {
+        loader.load(
+          url,
+          (texture) => {
+            console.log('[ThreeEnvironmentService] Texture loaded:', {
+              url,
+              format: texture.format,
+              type: texture.type,
+              mapping: texture.mapping,
+              hasImage: !!texture.image,
+              imageType: texture.image?.constructor?.name,
+              imageData: texture.image?.data ? 'has data' : 'no data',
+              imageWidth: texture.image?.width,
+              imageHeight: texture.image?.height
+            });
+            resolve(texture);
+          },
+          undefined,
+          (error) => reject(error)
+        );
+      });
+
+      // Process with PMREM for environment mapping
+      if (this.pmremGenerator) {
+        // Set the mapping for equirectangular projection
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        
+        const pmremTexture = this.pmremGenerator.fromEquirectangular(texture).texture;
+        // Keep the original texture for path tracing
+        // texture.dispose(); // Don't dispose - path tracer needs the original
+        
+        // Store both textures - PMREM for standard rendering, original for path tracing
+        this.loadedTextures.set(url, pmremTexture);
+        this.loadedTextures.set(url + '_original', texture);
+        
+        console.log('[ThreeEnvironmentService] Stored original texture for path tracing:', {
+          url: url + '_original',
+          format: texture.format,
+          mapping: texture.mapping,
+          hasImage: !!texture.image,
+          imageComplete: texture.image?.complete,
+          imageNaturalWidth: texture.image?.naturalWidth,
+          imageNaturalHeight: texture.image?.naturalHeight
+        });
+        
+        return Result.ok(new ThreeTextureAdapter(pmremTexture));
+      }
+
+      this.loadedTextures.set(url, texture);
+      return Result.ok(new ThreeTextureAdapter(texture));
+    } catch (error) {
+      return Result.err(
+        new ThreeViewerError(
+          'Failed to load environment map',
+          ErrorCode.TEXTURE_LOAD_FAILED,
+          { url, originalError: error }
+        )
+      );
+    }
+  }
+
+  applyToScene(scene: IScene, texture: ITexture): Result<void> {
+    try {
+      if (!(scene instanceof ThreeSceneAdapter)) {
+        return Result.err(
+          new ThreeViewerError(
+            'Scene must be ThreeSceneAdapter',
+            ErrorCode.INVALID_PARAMETER
+          )
+        );
+      }
+
+      if (!(texture instanceof ThreeTextureAdapter)) {
+        return Result.err(
+          new ThreeViewerError(
+            'Texture must be ThreeTextureAdapter',
+            ErrorCode.INVALID_PARAMETER
+          )
+        );
+      }
+
+      const threeScene = scene.getThreeScene();
+      const threeTexture = texture.getThreeTexture();
+
+      // Set environment for reflections
+      threeScene.environment = threeTexture;
+      
+      // IMPORTANT: Also set the original texture for path tracing
+      // Path tracer needs equirectangular texture, not PMREM
+      if (threeTexture.mapping === THREE.CubeUVReflectionMapping) {
+        // Find the original equirectangular texture
+        const originalTextures = Array.from(this.loadedTextures.entries());
+        const originalEntry = originalTextures.find(([key, tex]) => 
+          key.endsWith('_original') && tex.mapping === THREE.EquirectangularReflectionMapping
+        );
+        
+        if (originalEntry) {
+          // Store original texture reference for path tracer
+          (threeScene as SceneWithOriginalTexture).__originalEnvironmentTexture = originalEntry[1];
+        }
+      } else if (threeTexture.mapping === THREE.EquirectangularReflectionMapping) {
+        // If we already have equirectangular, use it directly
+        (threeScene as SceneWithOriginalTexture).__originalEnvironmentTexture = threeTexture;
+      }
+      
+      // For background, try to use the original texture if available
+      // PMREM textures can cause the weird sphere effect when used as background
+      if (threeTexture.mapping === THREE.EquirectangularReflectionMapping) {
+        // Equirectangular textures can be used directly as background
+        threeScene.background = threeTexture;
+      } else if (threeTexture.mapping === THREE.CubeUVReflectionMapping) {
+        // For PMREM textures, try to find the original texture
+        // Check if we have the original texture stored
+        const originalTextures = Array.from(this.loadedTextures.entries());
+        const originalEntry = originalTextures.find(([key, tex]) => 
+          key.endsWith('_original') && tex.mapping === THREE.EquirectangularReflectionMapping
+        );
+        
+        if (originalEntry) {
+          // Use the original equirectangular texture as background
+          threeScene.background = originalEntry[1];
+        } else {
+          // If no original available, use the PMREM texture anyway
+          // It might look weird but it's better than black
+          threeScene.background = threeTexture;
+        }
+      } else {
+        // For other textures, use them as background
+        threeScene.background = threeTexture;
+      }
+
+      return Result.ok(undefined);
+    } catch (error) {
+      return Result.err(
+        new ThreeViewerError(
+          'Failed to apply environment to scene',
+          ErrorCode.SCENE_OPERATION_FAILED,
+          { originalError: error }
+        )
+      );
+    }
+  }
+
+  /**
+   * Get the original environment texture (for path tracing)
+   */
+  getOriginalEnvironmentTexture(url: string): ITexture | null {
+    const originalTexture = this.loadedTextures.get(url + '_original');
+    return originalTexture ? new ThreeTextureAdapter(originalTexture) : null;
+  }
+
+  createStudioEnvironment(_options: IStudioEnvironmentOptions = {}): Result<ITexture> {
+    try {
+      if (!this.pmremGenerator) {
+        return Result.err(
+          new ThreeViewerError(
+            'Environment service not initialized',
+            ErrorCode.INITIALIZATION_FAILED
+          )
+        );
+      }
+
+      // Create RoomEnvironment scene
+      const roomEnvironment = new RoomEnvironment();
+      const roomTexture = this.pmremGenerator.fromScene(roomEnvironment).texture;
+
+      // Clean up
+      roomEnvironment.dispose();
+
+      return Result.ok(new ThreeTextureAdapter(roomTexture));
+    } catch (error) {
+      return Result.err(
+        new ThreeViewerError(
+          'Failed to create studio environment',
+          ErrorCode.TEXTURE_LOAD_FAILED,
+          { originalError: error }
+        )
+      );
+    }
+  }
+
+  dispose(): void {
+    this.loadedTextures.forEach(texture => texture.dispose());
+    this.loadedTextures.clear();
+    
+    if (this.pmremGenerator) {
+      this.pmremGenerator.dispose();
+      this.pmremGenerator = null;
+    }
+  }
+}
+
+// Adapter for Three.js Texture
+class ThreeTextureAdapter implements ITexture {
+  constructor(private texture: THREE.Texture) {}
+
+  get id(): string {
+    return this.texture.uuid;
+  }
+
+  get image(): HTMLImageElement | ImageData | HTMLCanvasElement | HTMLVideoElement | null {
+    return this.texture.image;
+  }
+
+  get needsUpdate(): boolean {
+    return this.texture.needsUpdate;
+  }
+
+  set needsUpdate(value: boolean) {
+    this.texture.needsUpdate = value;
+  }
+
+  dispose(): void {
+    this.texture.dispose();
+  }
+
+  getThreeTexture(): THREE.Texture {
+    return this.texture;
+  }
+}

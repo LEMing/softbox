@@ -26,11 +26,11 @@ describe('OptionsValidator', () => {
         ...defaultOptions,
         camera: {
           ...defaultOptions.camera,
-          cameraFov: 75,
-          cameraNear: 0.1,
-          cameraFar: 1000,
-          cameraPosition: [1, 2, 3],
-          cameraTarget: [0, 0, 0]
+          fov: 75,
+          near: 0.1,
+          far: 1000,
+          position: [1, 2, 3],
+          target: [0, 0, 0]
         },
         renderer: {
           ...defaultOptions.renderer,
@@ -45,8 +45,7 @@ describe('OptionsValidator', () => {
         },
         helpers: {
           ...defaultOptions.helpers,
-          axesHelper: true,
-          color: '#ff0000'
+          axes: true
         }
       };
       const result = OptionsValidator.validate(options);
@@ -60,7 +59,7 @@ describe('OptionsValidator', () => {
         ...defaultOptions,
         camera: { 
           ...defaultOptions.camera,
-          cameraFov: 200 
+          fov: 200 
         }
       };
       const result = OptionsValidator.validate(options);
@@ -68,7 +67,7 @@ describe('OptionsValidator', () => {
       if (!result.ok) {
         expect(result.error.code).toBe(ErrorCode.INVALID_CONFIGURATION);
         expect(result.error.context?.errors).toContainEqual({
-          field: 'camera.cameraFov',
+          field: 'camera.fov',
           message: 'Camera FOV must be between 1 and 180 degrees',
           value: 200
         });
@@ -80,14 +79,14 @@ describe('OptionsValidator', () => {
         ...defaultOptions,
         camera: { 
           ...defaultOptions.camera,
-          cameraNear: -1 
+          near: -1 
         }
       };
       const result = OptionsValidator.validate(options);
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.context?.errors).toContainEqual({
-          field: 'camera.cameraNear',
+          field: 'camera.near',
           message: 'Camera near plane must be positive',
           value: -1
         });
@@ -99,15 +98,15 @@ describe('OptionsValidator', () => {
         ...defaultOptions,
         camera: {
           ...defaultOptions.camera,
-          cameraNear: 10,
-          cameraFar: 5
+          near: 10,
+          far: 5
         }
       };
       const result = OptionsValidator.validate(options);
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.context?.errors).toContainEqual({
-          field: 'camera.cameraFar',
+          field: 'camera.far',
           message: 'Camera far plane must be greater than near plane',
           value: { near: 10, far: 5 }
         });
@@ -119,14 +118,14 @@ describe('OptionsValidator', () => {
         ...defaultOptions,
         camera: { 
           ...defaultOptions.camera,
-          cameraPosition: [1, 2] as any 
+          position: [1, 2] as unknown as [number, number, number] 
         }
       };
       const result = OptionsValidator.validate(options);
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.context?.errors).toContainEqual({
-          field: 'camera.cameraPosition',
+          field: 'camera.position',
           message: 'Camera position must be an array of 3 numbers',
           value: [1, 2]
         });
@@ -138,14 +137,14 @@ describe('OptionsValidator', () => {
         ...defaultOptions,
         camera: { 
           ...defaultOptions.camera,
-          cameraPosition: [1, NaN, 3] 
+          position: [1, NaN, 3] 
         }
       };
       const result = OptionsValidator.validate(options);
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.context?.errors).toContainEqual({
-          field: 'camera.cameraPosition',
+          field: 'camera.position',
           message: 'Camera position values must be valid numbers',
           value: [1, NaN, 3]
         });
@@ -197,7 +196,7 @@ describe('OptionsValidator', () => {
         ...defaultOptions,
         renderer: { 
           ...defaultOptions.renderer,
-          shadowMapType: 999 as any 
+          shadowMapType: 999 as unknown as 0 | 1 | 2 
         }
       };
       const result = OptionsValidator.validate(options);
@@ -288,7 +287,7 @@ describe('OptionsValidator', () => {
         ...defaultOptions,
         helpers: { 
           ...defaultOptions.helpers,
-          axesHelper: true 
+          axes: true 
         }
       };
       const result = OptionsValidator.validate(options);
@@ -300,55 +299,39 @@ describe('OptionsValidator', () => {
         ...defaultOptions,
         helpers: { 
           ...defaultOptions.helpers,
-          axesHelper: false 
+          axes: false 
         }
       };
       const result = OptionsValidator.validate(options);
       expect(result.ok).toBe(true);
     });
 
-    it('should reject invalid color format', () => {
+    it('should accept grid helper as boolean', () => {
       const options: SimpleViewerOptions = {
         ...defaultOptions,
         helpers: { 
           ...defaultOptions.helpers,
-          color: 'invalid-color' 
+          grid: true 
         }
       };
       const result = OptionsValidator.validate(options);
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error.context?.errors).toContainEqual({
-          field: 'helpers.color',
-          message: 'Invalid color format',
-          value: 'invalid-color'
-        });
-      }
+      expect(result.ok).toBe(true);
     });
 
-    it('should accept valid color formats', () => {
-      const validColors = ['#ff0000', 'red', 'rgb(255, 0, 0)'];
-      validColors.forEach(color => {
-        const options: SimpleViewerOptions = {
-          ...defaultOptions,
-          helpers: { 
-            ...defaultOptions.helpers,
-            color 
-          }
-        };
-        const result = OptionsValidator.validate(options);
-        expect(result.ok).toBe(true);
-      });
-      
-      // Test number color by modifying type at runtime
-      const optionsWithNumberColor: any = {
+    it('should accept grid helper with options', () => {
+      const options: SimpleViewerOptions = {
         ...defaultOptions,
         helpers: { 
           ...defaultOptions.helpers,
-          color: 0xff0000 // Actual number
+          grid: {
+            size: 100,
+            divisions: 10,
+            colorCenterLine: '#ff0000',
+            colorGrid: '#cccccc'
+          }
         }
       };
-      const result = OptionsValidator.validate(optionsWithNumberColor as SimpleViewerOptions);
+      const result = OptionsValidator.validate(options);
       expect(result.ok).toBe(true);
     });
   });
@@ -357,9 +340,9 @@ describe('OptionsValidator', () => {
     it('should validate path tracing options when enabled', () => {
       const options: SimpleViewerOptions = {
         ...defaultOptions,
-        usePathTracing: true,
-        pathTracingSettings: {
-          ...defaultOptions.pathTracingSettings,
+        pathTracing: {
+          ...defaultOptions.pathTracing!,
+          enabled: true,
           bounces: 8,
           transmissiveBounces: 4,
           renderScale: 1.0,
@@ -373,9 +356,9 @@ describe('OptionsValidator', () => {
     it('should reject bounces outside range', () => {
       const options: SimpleViewerOptions = {
         ...defaultOptions,
-        usePathTracing: true,
-        pathTracingSettings: {
-          ...defaultOptions.pathTracingSettings,
+        pathTracing: {
+          ...defaultOptions.pathTracing!,
+          enabled: true,
           bounces: 50
         }
       };
@@ -383,7 +366,7 @@ describe('OptionsValidator', () => {
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.context?.errors).toContainEqual({
-          field: 'pathTracingSettings.bounces',
+          field: 'pathTracing.bounces',
           message: 'Bounces must be between 0 and 32',
           value: 50
         });
@@ -393,9 +376,9 @@ describe('OptionsValidator', () => {
     it('should reject render scale outside range', () => {
       const options: SimpleViewerOptions = {
         ...defaultOptions,
-        usePathTracing: true,
-        pathTracingSettings: {
-          ...defaultOptions.pathTracingSettings,
+        pathTracing: {
+          ...defaultOptions.pathTracing!,
+          enabled: true,
           renderScale: 3
         }
       };
@@ -403,7 +386,7 @@ describe('OptionsValidator', () => {
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.context?.errors).toContainEqual({
-          field: 'pathTracingSettings.renderScale',
+          field: 'pathTracing.renderScale',
           message: 'Render scale must be between 0 and 2',
           value: 3
         });
@@ -413,9 +396,9 @@ describe('OptionsValidator', () => {
     it('should not validate path tracing options when disabled', () => {
       const options: SimpleViewerOptions = {
         ...defaultOptions,
-        usePathTracing: false,
-        pathTracingSettings: {
-          ...defaultOptions.pathTracingSettings,
+        pathTracing: {
+          ...defaultOptions.pathTracing!,
+          enabled: false,
           bounces: 50 // Invalid, but should not be checked
         }
       };
@@ -424,22 +407,22 @@ describe('OptionsValidator', () => {
     });
   });
 
-  describe('lightning validation', () => {
+  describe('lighting validation', () => {
     it('should reject negative light intensities', () => {
       const options: SimpleViewerOptions = {
         ...defaultOptions,
-        lightning: {
-          ...defaultOptions.lightning,
+        lighting: {
+          ...defaultOptions.lighting!,
           ambientLight: { 
-            ...defaultOptions.lightning.ambientLight!,
+            ...defaultOptions.lighting!.ambientLight!,
             intensity: -1 
           },
           hemisphereLight: { 
-            ...defaultOptions.lightning.hemisphereLight!,
+            ...defaultOptions.lighting!.hemisphereLight!,
             intensity: -2 
           },
           directionalLight: { 
-            ...defaultOptions.lightning.directionalLight!,
+            ...defaultOptions.lighting!.directionalLight!,
             intensity: -3 
           }
         }
@@ -450,7 +433,7 @@ describe('OptionsValidator', () => {
         const errors = result.error.context?.errors;
         expect(errors).toHaveLength(3);
         expect(errors).toContainEqual({
-          field: 'lightning.ambientLight.intensity',
+          field: 'lighting.ambientLight.intensity',
           message: 'Ambient light intensity must be non-negative',
           value: -1
         });
@@ -460,19 +443,19 @@ describe('OptionsValidator', () => {
     it('should validate light colors', () => {
       const options: SimpleViewerOptions = {
         ...defaultOptions,
-        lightning: {
-          ...defaultOptions.lightning,
+        lighting: {
+          ...defaultOptions.lighting!,
           ambientLight: { 
-            ...defaultOptions.lightning.ambientLight!,
+            ...defaultOptions.lighting!.ambientLight!,
             color: 'invalid-color' 
           },
           hemisphereLight: { 
-            ...defaultOptions.lightning.hemisphereLight!,
+            ...defaultOptions.lighting!.hemisphereLight!,
             skyColor: 'invalid-sky',
             groundColor: 'invalid-ground'
           },
           directionalLight: { 
-            ...defaultOptions.lightning.directionalLight!,
+            ...defaultOptions.lighting!.directionalLight!,
             color: 'invalid-directional' 
           }
         }
@@ -488,14 +471,14 @@ describe('OptionsValidator', () => {
     it('should validate shadow camera bounds', () => {
       const options: SimpleViewerOptions = {
         ...defaultOptions,
-        lightning: {
-          ...defaultOptions.lightning,
+        lighting: {
+          ...defaultOptions.lighting!,
           directionalLight: {
-            ...defaultOptions.lightning.directionalLight!,
+            ...defaultOptions.lighting!.directionalLight!,
             shadow: {
-              ...defaultOptions.lightning.directionalLight!.shadow,
+              ...defaultOptions.lighting!.directionalLight!.shadow!,
               camera: {
-                ...defaultOptions.lightning.directionalLight!.shadow.camera,
+                ...defaultOptions.lighting!.directionalLight!.shadow!.camera!,
                 left: 10,
                 right: -10,
                 bottom: 10,
@@ -510,12 +493,12 @@ describe('OptionsValidator', () => {
       if (!result.ok) {
         const errors = result.error.context?.errors;
         expect(errors).toContainEqual({
-          field: 'lightning.directionalLight.shadow.camera',
+          field: 'lighting.directionalLight.shadow.camera',
           message: 'Shadow camera left must be less than right',
           value: { left: 10, right: -10 }
         });
         expect(errors).toContainEqual({
-          field: 'lightning.directionalLight.shadow.camera',
+          field: 'lighting.directionalLight.shadow.camera',
           message: 'Shadow camera bottom must be less than top',
           value: { bottom: 10, top: -10 }
         });
@@ -529,8 +512,8 @@ describe('OptionsValidator', () => {
         ...defaultOptions,
         camera: {
           ...defaultOptions.camera,
-          cameraFov: 200,
-          cameraNear: -1
+          fov: 200,
+          near: -1
         },
         renderer: {
           ...defaultOptions.renderer,
@@ -571,7 +554,7 @@ describe('OptionsValidator', () => {
         ...defaultOptions,
         camera: { 
           ...defaultOptions.camera,
-          cameraFov: 200 
+          fov: 200 
         }
       };
       OptionsValidator.validate(options);

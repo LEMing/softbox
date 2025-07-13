@@ -1,7 +1,7 @@
 import { ErrorCode } from './ErrorCode';
 
 export interface ErrorContext {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export class ThreeViewerError extends Error {

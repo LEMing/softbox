@@ -6,5 +6,12 @@ export const OrbitControls = jest.fn().mockImplementation(() => ({
   addEventListener: jest.fn(),
   removeEventListener: jest.fn(),
   dispatchEvent: jest.fn(),
-  target: { x: 0, y: 0, z: 0, copy: jest.fn() }
+  target: { 
+    x: 0, 
+    y: 0, 
+    z: 0, 
+    copy: jest.fn(),
+    set: jest.fn()
+  },
+  dispose: jest.fn()
 }));

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Path Tracing Test</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    #viewer-container {
+      width: 800px;
+      height: 600px;
+      margin: 20px auto;
+      border: 2px solid #444;
+      position: relative;
+    }
+    #status {
+      text-align: center;
+      margin: 20px;
+      font-size: 18px;
+    }
+    .info {
+      text-align: center;
+      margin: 10px;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <h1 style="text-align: center;">Simple Path Tracing Test</h1>
+  <div class="info">Testing with maxSamples: 8, replaceWithScreenshotOnComplete: false</div>
+  <div class="info">Expected: Image should persist after path tracing completes</div>
+  
+  <div id="viewer-container"></div>
+  <div id="status">Loading...</div>
+
+  <script type="module">
+    import { SimpleViewer } from '/src/index.ts';
+
+    const container = document.getElementById('viewer-container');
+    const status = document.getElementById('status');
+    
+    const viewer = new SimpleViewer(container, {
+      pathTracing: {
+        enabled: true,
+        maxSamples: 8, // Low number for quick testing
+        bounces: 3,
+        renderScale: 0.5
+      },
+      replaceWithScreenshotOnComplete: false, // This is the key setting we're testing
+      staticScene: true,
+      environment: {
+        url: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/exr/2k/industrial_sunset_puresky_2k.exr'
+      }
+    });
+
+    let startTime = Date.now();
+
+    viewer.on('pathtracing:progress', (data) => {
+      status.textContent = `Path tracing: ${data.samples}/${data.maxSamples} samples`;
+    });
+
+    viewer.on('pathtracing:complete', (data) => {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+      status.textContent = `Path tracing complete! ${data.samples} samples in ${elapsed}s`;
+      status.style.color = '#4CAF50';
+      
+      // Monitor for black screen
+      let checkCount = 0;
+      const checkInterval = setInterval(() => {
+        checkCount++;
+        const canvas = container.querySelector('canvas');
+        if (canvas) {
+          const ctx = canvas.getContext('webgl2') || canvas.getContext('webgl');
+          if (ctx) {
+            const pixels = new Uint8Array(4);
+            ctx.readPixels(canvas.width/2, canvas.height/2, 1, 1, ctx.RGBA, ctx.UNSIGNED_BYTE, pixels);
+            
+            const isBlack = pixels[0] === 0 && pixels[1] === 0 && pixels[2] === 0;
+            if (isBlack) {
+              status.textContent += ` - ERROR: Black screen detected after ${checkCount} checks!`;
+              status.style.color = '#f44336';
+              clearInterval(checkInterval);
+            }
+          }
+        }
+        
+        if (checkCount >= 10) {
+          status.textContent += ' - ✓ Image persisted successfully!';
+          clearInterval(checkInterval);
+        }
+      }, 500);
+    });
+
+    viewer.loadModel('/examples/assets/DamagedHelmet.glb').catch(console.error);
+  </script>
+</body>
+</html>
