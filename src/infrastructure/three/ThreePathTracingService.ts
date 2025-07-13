@@ -15,7 +15,6 @@ import {
   ExtendedWebGLPathTracer,
   PathTracingWebGLRenderer,
   PathTracingScene,
-  PathTracingObject3D,
   hasGetInternalRenderer
 } from './types/PathTracerTypes';
 import { TypedEventEmitter } from '../../events/EventEmitter';
@@ -319,6 +318,8 @@ export class ThreePathTracingService implements IPathTracingService {
       // If not enabled for other reasons, delegate to standard renderer
       const rendererResult = this.renderer.render(scene, camera);
       if (!rendererResult.ok) {
+        // Return the error result from the standard renderer
+        return rendererResult;
       }
       return rendererResult;
     }
@@ -345,6 +346,8 @@ export class ThreePathTracingService implements IPathTracingService {
           // Fallback to standard renderer
           const rendererResult = this.renderer.render(scene, camera);
           if (!rendererResult.ok) {
+            // Return the error result from the standard renderer
+            return rendererResult;
           }
           return rendererResult;
         }
@@ -438,7 +441,7 @@ export class ThreePathTracingService implements IPathTracingService {
                       originalEnvTexture.needsUpdate = true;
                       resolve();
                     };
-                    originalEnvTexture.image.onerror = (error: Event | string) => {
+                    originalEnvTexture.image.onerror = (_error: Event | string) => {
                       resolve();
                     };
                     // If already loading, it should fire the onload event
@@ -466,16 +469,11 @@ export class ThreePathTracingService implements IPathTracingService {
             }
           } else if (threeScene.environment?.mapping === THREE.EquirectangularReflectionMapping) {
             // Already have equirectangular texture
-            try {
-              // Log scene contents before setting
-
-              if (this.pathTracer) {
-                this.pathTracer.setScene(threeScene, threeCamera);
-              }
-              this.sceneInitialized = true;
-            } catch (setSceneError) {
-              throw setSceneError;
+            // Log scene contents before setting
+            if (this.pathTracer) {
+              this.pathTracer.setScene(threeScene, threeCamera);
             }
+            this.sceneInitialized = true;
           } else {
             // PMREM texture but no original available - this will likely fail
             // Disable path tracing
@@ -485,6 +483,7 @@ export class ThreePathTracingService implements IPathTracingService {
         } catch (error) {
           // Don't disable path tracing yet - we might succeed on next try
           // Just fallback to standard renderer for this frame
+          console.warn('Scene initialization error:', error);
           return this.renderer.render(scene, camera);
         }
       }
@@ -500,6 +499,8 @@ export class ThreePathTracingService implements IPathTracingService {
               this.pathTracer.updateLights();
             }
           } catch (lightError) {
+            // Continue even if light update fails - path tracing can still work
+            console.warn('Failed to update lights for path tracing:', lightError);
           }
         }
 
@@ -512,7 +513,6 @@ export class ThreePathTracingService implements IPathTracingService {
         }
         
         // Now accumulate path tracing sample in the background
-        try {
           const threeRenderer = hasGetInternalRenderer(this.renderer) ? this.renderer.getInternalRenderer() as PathTracingWebGLRenderer : null;
           if (threeRenderer) {
             // Temporarily save current renderer state
@@ -556,7 +556,7 @@ export class ThreePathTracingService implements IPathTracingService {
                 
                 // Copy path traced result to screen
                 // The path tracer should have a method to copy its accumulated buffer
-                const copyQuad = this.pathTracer.copyQuad as any;
+                const copyQuad = this.pathTracer.copyQuad as { render: (renderer: THREE.WebGLRenderer) => void } | undefined;
                 if (copyQuad && typeof copyQuad.render === 'function') {
                   copyQuad.render(threeRenderer);
                 } else {
@@ -579,6 +579,8 @@ export class ThreePathTracingService implements IPathTracingService {
                 // Restore renderer state
                 threeRenderer.autoClear = originalAutoClear;
               } catch (error) {
+                // Continue even if capture fails - path tracing is still complete
+                console.warn('Failed to capture path traced result:', error);
               }
             }
             
@@ -596,10 +598,9 @@ export class ThreePathTracingService implements IPathTracingService {
           }
 
           // Check if we've reached the sample limit
-        } catch (renderError) {
-          throw renderError;
-        }
       } else {
+        // Scene not initialized yet - fallback to standard renderer
+        return this.renderer.render(scene, camera);
       }
 
       // CRITICAL: The path tracer has rendered to the canvas
@@ -692,9 +693,11 @@ export class ThreePathTracingService implements IPathTracingService {
         
       };
       
-      img.onerror = (error) => {
+      img.onerror = (_error) => {
+        console.error('Failed to load path traced image overlay');
       };
     } else {
+      console.warn('Cannot create image overlay: canvas has no parent element');
     }
   }
 
@@ -708,6 +711,8 @@ export class ThreePathTracingService implements IPathTracingService {
       try {
         this.pathTracer.dispose();
       } catch (error) {
+        // Continue disposal even if path tracer disposal fails
+        console.warn('Failed to dispose path tracer:', error);
       }
       this.pathTracer = null;
     }
@@ -759,6 +764,8 @@ export class ThreePathTracingService implements IPathTracingService {
       try {
         this.pathTracer.dispose();
       } catch (error) {
+        // Continue disposal even if path tracer disposal fails
+        console.warn('Failed to dispose path tracer during service disposal:', error);
       }
       this.pathTracer = null;
     }

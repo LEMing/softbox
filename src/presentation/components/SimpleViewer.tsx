@@ -126,9 +126,13 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
     const renderScene = useCallback(() => {
       if (renderer && viewer) {
         // Request a render through the viewer's internal render loop
-        const viewerAny = viewer as any;
-        if (viewerAny.renderLoopManager && typeof viewerAny.renderLoopManager.requestRender === 'function') {
-          viewerAny.renderLoopManager.requestRender();
+        const viewerWithRenderLoop = viewer as unknown as {
+          renderLoopManager?: {
+            requestRender?: () => void;
+          };
+        };
+        if (viewerWithRenderLoop.renderLoopManager && typeof viewerWithRenderLoop.renderLoopManager.requestRender === 'function') {
+          viewerWithRenderLoop.renderLoopManager.requestRender();
         }
       }
     }, [viewer, renderer]);

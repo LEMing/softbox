@@ -8,7 +8,7 @@ import defaultOptions from '../defaultOptions';
 const testDefaultOptions: SimpleViewerOptions = {
   ...defaultOptions,
   pathTracing: {
-    ...defaultOptions.pathTracing!,
+    ...(defaultOptions.pathTracing ?? {}),
     enabled: false, // Disable path tracing in tests
   },
 };

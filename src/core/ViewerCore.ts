@@ -229,7 +229,7 @@ export class ViewerCore {
           }
           
           // Listen for pathtracing:paused event
-          this.pathTracingService.events.on('pathtracing:paused', (data) => {
+          this.pathTracingService.events.on('pathtracing:paused', (_data) => {
             
             // Stop the render loop to prevent further renders
             this.renderLoopManager.disableContinuousRendering();
@@ -417,7 +417,7 @@ export class ViewerCore {
       }
       
       // Additional safety check - if renderer is disposed, stop the loop
-      if (!this.renderer || (this.renderer as any).renderer === null) {
+      if (!this.renderer || (this.renderer as unknown as { renderer: null | unknown }).renderer === null) {
         this.renderLoopManager.stop();
         return;
       }
@@ -456,7 +456,6 @@ export class ViewerCore {
       });
       
       // Check if path tracing just completed AFTER rendering
-      const isPathTracingActiveNow = this.pathTracingService?.isEnabled() || false;
       const currentSampleCount = this.pathTracingService?.getSampleCount() || 0;
       
       // Path tracing just completed if we've reached max samples and haven't handled it yet
@@ -506,7 +505,7 @@ export class ViewerCore {
           // The path tracing service has disabled autoClear to preserve the image
           // Just ensure we don't accidentally clear it
           if (hasGetInternalRenderer(this.renderer)) {
-            const threeRenderer = this.renderer.getInternalRenderer() as any;
+            const threeRenderer = this.renderer.getInternalRenderer() as { autoClear: boolean };
             if (threeRenderer) {
               threeRenderer.autoClear = false;
             }
@@ -630,7 +629,7 @@ export class ViewerCore {
     // Immediately render a frame to prevent aspect ratio stretching
     try {
       this.renderer.render(this.scene, this.camera);
-    } catch (error) {
+    } catch {
       // Silent catch - render might fail if scene is not ready
     }
 
@@ -831,6 +830,8 @@ export class ViewerCore {
     // The service should remain available to display the final image
     // It will be disposed when the entire viewer is disposed
     if (this.pathTracingService) {
+      // Keep the service active to preserve the final rendered image
+      // This prevents the white screen issue when switching to screenshot
     }
     
     // Dispose environment service
@@ -849,15 +850,15 @@ export class ViewerCore {
     // Clear and dispose entire scene
     this.scene.traverse((child) => {
       if ('geometry' in child && child.geometry) {
-        (child.geometry as any).dispose?.();
+        (child.geometry as { dispose?: () => void }).dispose?.();
       }
       if ('material' in child && child.material) {
         if (Array.isArray(child.material)) {
-          child.material.forEach((mat: any) => {
+          child.material.forEach((mat: { dispose?: () => void }) => {
             mat.dispose?.();
           });
         } else {
-          (child.material as any).dispose?.();
+          (child.material as { dispose?: () => void }).dispose?.();
         }
       }
     });
@@ -868,8 +869,8 @@ export class ViewerCore {
     
     
     // Force garbage collection hint (works in some environments)
-    if ((globalThis as any).gc) {
-      (globalThis as any).gc();
+    if ((globalThis as { gc?: () => void }).gc) {
+      (globalThis as { gc?: () => void }).gc?.();
     }
     
     MemoryMonitor.logMemoryUsage('After disposal');
@@ -885,16 +886,16 @@ export class ViewerCore {
    */
   private disposeObject(object: IObject3D): void {
     object.traverse((child) => {
-      if ('geometry' in child && (child as any).geometry?.dispose) {
-        (child as any).geometry.dispose();
+      if ('geometry' in child && (child as { geometry?: { dispose?: () => void } }).geometry?.dispose) {
+        (child as { geometry?: { dispose?: () => void } }).geometry?.dispose?.();
       }
-      if ('material' in child && (child as any).material) {
-        const material = (child as any).material;
+      if ('material' in child && (child as { material?: unknown }).material) {
+        const material = (child as { material?: { dispose?: () => void } | Array<{ dispose?: () => void }> }).material;
         if (Array.isArray(material)) {
-          material.forEach((mat: any) => {
+          material.forEach((mat: { dispose?: () => void }) => {
             mat.dispose?.();
           });
-        } else if (material.dispose) {
+        } else if (material?.dispose) {
           material.dispose();
         }
       }

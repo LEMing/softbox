@@ -17,7 +17,13 @@ export class MemoryMonitor {
     };
   } | null {
     // Check if performance.memory is available (Chrome only)
-    const perf = performance as any;
+    const perf = performance as unknown as {
+      memory?: {
+        usedJSHeapSize: number;
+        totalJSHeapSize: number;
+        jsHeapSizeLimit: number;
+      };
+    };
     if (!perf.memory) {
       return null;
     }

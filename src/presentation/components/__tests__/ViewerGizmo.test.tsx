@@ -4,10 +4,18 @@ import '@testing-library/jest-dom';
 import { ViewerGizmo } from '../ViewerGizmo';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { MapControls } from 'three/examples/jsm/controls/MapControls';
+
+// Define proper types for the Gizmo mock
+interface GizmoProps {
+  camera: THREE.Camera;
+  controls: OrbitControls | MapControls;
+  render: () => void;
+}
 
 // Mock threedgizmo module
 jest.mock('threedgizmo', () => ({
-  Gizmo: ({ camera, controls, render }: any) => (
+  Gizmo: ({ camera, controls, render: _render }: GizmoProps) => (
     <div data-testid="gizmo-component">
       Gizmo Mock - Camera: {camera ? 'Present' : 'Missing'}, 
       Controls: {controls ? 'Present' : 'Missing'}
@@ -40,7 +48,7 @@ describe('ViewerGizmo', () => {
     render(
       <ViewerGizmo
         camera={mockCamera}
-        controls={mockControls as any}
+        controls={mockControls}
         render={mockRender}
       />
     );
@@ -54,7 +62,7 @@ describe('ViewerGizmo', () => {
     const { container } = render(
       <ViewerGizmo
         camera={null}
-        controls={mockControls as any}
+        controls={mockControls}
         render={mockRender}
       />
     );
@@ -78,7 +86,7 @@ describe('ViewerGizmo', () => {
     const { container, rerender } = render(
       <ViewerGizmo
         camera={mockCamera}
-        controls={mockControls as any}
+        controls={mockControls}
         render={mockRender}
         placement="top-right"
         size={128}
@@ -98,7 +106,7 @@ describe('ViewerGizmo', () => {
     rerender(
       <ViewerGizmo
         camera={mockCamera}
-        controls={mockControls as any}
+        controls={mockControls}
         render={mockRender}
         placement="bottom-left"
         size={160}
@@ -118,7 +126,7 @@ describe('ViewerGizmo', () => {
     const { container } = render(
       <ViewerGizmo
         camera={mockCamera}
-        controls={mockControls as any}
+        controls={mockControls}
         render={mockRender}
       />
     );

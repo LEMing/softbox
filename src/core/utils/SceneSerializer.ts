@@ -1,4 +1,4 @@
-import { IObject3D, ICamera, IVector3 } from '../interfaces';
+import { ICamera, IVector3 } from '../interfaces';
 
 /**
  * Serializes scene state for restoration after memory cleanup
