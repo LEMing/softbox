@@ -34,7 +34,10 @@ const defaultOptions: SimpleViewerOptions = {
 
   // Environment
   environment: {
-    url: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/industrial_sunset_puresky.jpg',
+    // url: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/industrial_sunset_puresky.jpg',
+    backgroundBlurriness: 0.5,
+    backgroundIntensity: 1,
+    environmentIntensity: 1,
   },
 
   // Lighting (new format with corrected spelling)

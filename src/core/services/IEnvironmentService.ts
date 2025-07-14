@@ -17,7 +17,7 @@ export interface IEnvironmentService {
   /**
    * Apply environment to scene
    */
-  applyToScene(scene: IScene, texture: ITexture): Result<void>;
+  applyToScene(scene: IScene, texture: ITexture, options?: IEnvironmentApplyOptions): Result<void>;
   
   /**
    * Create studio environment
@@ -39,4 +39,10 @@ export interface IStudioEnvironmentOptions {
   intensity?: number;
   groundColor?: string;
   skyColor?: string;
+}
+
+export interface IEnvironmentApplyOptions {
+  backgroundBlurriness?: number;
+  backgroundIntensity?: number;
+  environmentIntensity?: number;
 }

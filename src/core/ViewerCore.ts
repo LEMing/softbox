@@ -189,7 +189,11 @@ export class ViewerCore {
           const envResult = await this.environmentService.loadEnvironmentMap(envUrl);
           if (envResult.ok) {
             // Apply environment map to both background and reflections
-            this.environmentService.applyToScene(this.scene, envResult.value);
+            this.environmentService.applyToScene(this.scene, envResult.value, {
+              backgroundBlurriness: this.options.environment?.backgroundBlurriness,
+              backgroundIntensity: this.options.environment?.backgroundIntensity,
+              environmentIntensity: this.options.environment?.environmentIntensity
+            });
           } else {
             console.warn('Failed to load environment map:', envResult.error);
           }
@@ -197,7 +201,11 @@ export class ViewerCore {
           // Create studio environment
           const studioResult = this.environmentService.createStudioEnvironment();
           if (studioResult.ok) {
-            this.environmentService.applyToScene(this.scene, studioResult.value);
+            this.environmentService.applyToScene(this.scene, studioResult.value, {
+              backgroundBlurriness: this.options.environment?.backgroundBlurriness,
+              backgroundIntensity: this.options.environment?.backgroundIntensity,
+              environmentIntensity: this.options.environment?.environmentIntensity
+            });
           } else {
             console.warn('Failed to create studio environment:', studioResult.error);
           }

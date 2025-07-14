@@ -5,7 +5,8 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { 
   IEnvironmentService, 
   IEnvironmentOptions,
-  IStudioEnvironmentOptions 
+  IStudioEnvironmentOptions,
+  IEnvironmentApplyOptions 
 } from '../../core/services/IEnvironmentService';
 import { IScene, ITexture } from '../../core/interfaces/IScene';
 import { Result } from '../../utils/Result';
@@ -162,7 +163,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     }
   }
 
-  applyToScene(scene: IScene, texture: ITexture): Result<void> {
+  applyToScene(scene: IScene, texture: ITexture, options?: IEnvironmentApplyOptions): Result<void> {
     try {
       if (!(scene instanceof ThreeSceneAdapter)) {
         return Result.err(
@@ -187,6 +188,19 @@ export class ThreeEnvironmentService implements IEnvironmentService {
 
       // Set environment for reflections
       threeScene.environment = threeTexture;
+      
+      // Apply blur and intensity settings if provided
+      if (options) {
+        if (options.backgroundBlurriness !== undefined) {
+          threeScene.backgroundBlurriness = options.backgroundBlurriness;
+        }
+        if (options.backgroundIntensity !== undefined) {
+          threeScene.backgroundIntensity = options.backgroundIntensity;
+        }
+        if (options.environmentIntensity !== undefined) {
+          threeScene.environmentIntensity = options.environmentIntensity;
+        }
+      }
       
       // IMPORTANT: Also set the original texture for path tracing
       // Path tracer needs equirectangular texture, not PMREM
