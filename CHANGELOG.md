@@ -1,6 +1,40 @@
 Changelog
 =========
 
+2.3.0
+---
+
+### New Features
+* **Customizable Grid Styles**: Added GridFactory pattern to support multiple grid rendering styles
+  - Square wire grid: Traditional wireframe grid
+  - Hexagonal wire grid: Wireframe hexagonal pattern
+  - Hexagonal glass grid: Translucent glass-like hexagonal tiles
+  - Stone tiles grid: Textured stone tile grid with material properties
+* **Enhanced Grid Configuration**: Grid helper now accepts detailed configuration options
+  - Type selection for different grid styles
+  - Opacity control for translucent grids
+  - Material properties (metalness, roughness, transmission)
+  - Texture support (diffuse, normal, roughness maps)
+  - Geometry customization (height, bevel, randomization)
+* **Default Grid Creation**: Added support for creating default grids on initialization
+  - Configurable size and divisions
+  - Automatic grid type selection based on options
+
+### Technical Improvements
+* **Grid Architecture**: Implemented extensible grid system
+  - `IGridStyle` interface for custom grid implementations
+  - `GridFactory` for creating different grid types
+  - Separated grid styles into dedicated classes
+* **Backward Compatibility**: Maintained compatibility with existing boolean grid options
+  - Legacy `grid: true` still works as before
+  - New object-based configuration is optional
+
+2.2.0
+---
+
+### Bug Fixes
+* **Environment Blur**: Fixed environment blur settings not being applied correctly
+
 2.1.0
 ---
 

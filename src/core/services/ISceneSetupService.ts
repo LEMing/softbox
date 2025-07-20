@@ -34,13 +34,15 @@ export interface ISceneSetupService {
   addDynamicGrid(scene: IScene, object: IObject3D, scaleFactor?: number): Result<void>;
 }
 
+import { GridHelperOptions, AxesHelperOptions } from '../../types/options/HelperOptions';
+
 export interface IHelperOptions {
-  grid?: boolean;
+  grid?: boolean | GridHelperOptions;
   gridSize?: number;
   gridDivisions?: number;
   gridColor?: string;
   gridCenterLineColor?: string;
-  axes?: boolean;
+  axes?: boolean | AxesHelperOptions;
   axesSize?: number;
   object3DHelper?: boolean;
 }

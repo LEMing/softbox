@@ -119,8 +119,8 @@ export class ViewerCore {
         // Add helpers
         if (this.options.helpers) {
           const helperOptions: IHelperOptions = {
-            grid: typeof this.options.helpers.grid === 'boolean' ? this.options.helpers.grid : !!this.options.helpers.grid,
-            axes: typeof this.options.helpers.axes === 'boolean' ? this.options.helpers.axes : !!this.options.helpers.axes,
+            grid: this.options.helpers.grid,
+            axes: this.options.helpers.axes,
             gridColor: '#AAAAAA', // Default grid color
           };
           const helpersResult = this.sceneSetupService.addHelpers(this.scene, helperOptions);

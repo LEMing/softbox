@@ -96,7 +96,16 @@ const defaultOptions: SimpleViewerOptions = {
 
   // Helpers
   helpers: {
-    grid: true,
+    grid: {
+      type: 'hexagonal_wire', // Options: 'square_wire', 'hexagonal_wire', 'hexagonal_glass', 'stone_tiles'
+      size: 20,              // Grid size (triggers default grid creation)
+      divisions: 20,         // Grid divisions
+      colorGrid: 0x444444,   // Grid color
+      opacity: 0.5,          // Grid opacity
+      styleOptions: {
+        // Additional style-specific options can be added here
+      }
+    },
     axes: false,
     stats: false,
     gizmo: false,

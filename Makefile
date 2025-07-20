@@ -21,7 +21,7 @@ clean:
 build: install
 	$(PACKAGE_MANAGER) run build
 
-test: install
+test: install lint
 	$(PACKAGE_MANAGER) test
 
 lint: install
