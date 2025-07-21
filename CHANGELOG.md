@@ -1,6 +1,35 @@
 Changelog
 =========
 
+2.4.0
+---
+
+### Architecture Improvements
+* **Refactored ViewerCore**: Split monolithic ViewerCore into focused manager classes
+  - `ModelManager`: Handles model loading and manipulation
+  - `StateManager`: Manages viewer state and updates
+  - `ResourceManager`: Manages resource disposal and memory
+  - `ScreenshotManager`: Handles screenshot functionality
+* **Improved Separation of Concerns**: Each manager has a single responsibility
+* **Better Testability**: Comprehensive test coverage for all manager classes
+
+### New Features
+* **Dark Studio Mode**: Added new dark studio environment option
+  - Creates a professional dark backdrop for better model visibility
+  - Configurable through environment settings
+
+### Code Quality
+* **Linting Enforcement**: Added strict linting requirements to development workflow
+  - All code must pass ESLint with zero warnings
+  - Fixed all existing linting errors across the codebase
+* **Test Coverage**: Added comprehensive tests for all manager classes
+  - Achieved high test coverage for new code
+  - Mocked external dependencies for better test isolation
+
+### Developer Experience
+* **Updated CLAUDE.md**: Enhanced development guide with mandatory linting requirements
+* **Clean Test Output**: Mocked console.error in tests for cleaner test output
+
 2.3.0
 ---
 
