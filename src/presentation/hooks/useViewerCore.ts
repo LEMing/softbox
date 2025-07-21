@@ -28,11 +28,6 @@ export function useViewerCore(
 
     // Merge options with defaults
     const mergedOptions = { ...defaultOptions, ...stableOptions };
-    console.log('[useViewerCore] Creating viewer with options:', {
-      pathTracingEnabled: mergedOptions.pathTracing?.enabled,
-      staticScene: mergedOptions.staticScene,
-      pathTracing: mergedOptions.pathTracing
-    });
     
     // Create viewer with factory
     const viewer = ViewerFactory.createViewer(canvasRef.current, mergedOptions);

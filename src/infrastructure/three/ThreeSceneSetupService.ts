@@ -148,7 +148,6 @@ export class ThreeSceneSetupService implements ISceneSetupService {
       const box = new THREE.Box3().setFromObject(threeObject);
       const size = box.getSize(new THREE.Vector3());
 
-      console.log('Object size:', size);
 
       // For a regular hexagon: edge length = radius (center to vertex)
       // We want edge length = 1 unit
@@ -181,13 +180,6 @@ export class ThreeSceneSetupService implements ISceneSetupService {
         gridRadius = 3;
       }
 
-      console.log('Grid parameters:', {
-        tileSize,
-        gridRadius,
-        requiredWidth,
-        hexWidth,
-        actualCoverage: (2 * gridRadius + 1) * hexWidth
-      });
 
       // Create grid using the factory based on type
       const gridType = gridOptions.type || GridType.HEXAGONAL_GLASS;
@@ -422,11 +414,6 @@ export class ThreeSceneSetupService implements ISceneSetupService {
       const center = box.getCenter(new THREE.Vector3());
       const size = box.getSize(new THREE.Vector3());
 
-      console.log('Fitting camera to object:', {
-        center,
-        size,
-        maxDimension: Math.max(size.x, size.y, size.z)
-      });
 
       // Get the max dimension
       const maxDim = Math.max(size.x, size.y, size.z);
@@ -467,8 +454,6 @@ export class ThreeSceneSetupService implements ISceneSetupService {
         threeControls.update();
       }
 
-      console.log('Camera positioned at:', { x: cameraX, y: cameraY, z: cameraZ });
-      console.log('Looking at:', center);
 
       return Result.ok(undefined);
     } catch (error) {

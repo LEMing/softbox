@@ -1,6 +1,23 @@
 Changelog
 =========
 
+2.4.2
+---
+
+### Improvements
+* **Removed console logging**: Cleaned up console output by removing debug logs
+  - Removed memory monitoring logs for cleaner production output
+  - Removed render loop state change logs
+  - Removed environment service texture loading logs
+  - Removed model loading progress logs
+  - Removed renderer initialization logs
+  - Removed scene setup debug logs
+  - Removed viewer core initialization logs
+* **Default options updates**: 
+  - Changed default camera FOV from 75 to 45 for better perspective
+  - Added default environment map URL for better initial lighting
+  - Adjusted environment blur from 0.5 to 0.15 for sharper reflections
+
 2.4.1
 ---
 

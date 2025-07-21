@@ -118,7 +118,6 @@ export class RenderLoopManager {
           if (!this.continuousRenderingEnabled) {
             this.idleTimeout = window.setTimeout(() => {
               this.isIdle = true;
-              console.log('[RenderLoopManager] Entering idle state');
             }, this.idleDelay);
           }
         }
@@ -135,7 +134,6 @@ export class RenderLoopManager {
         this.animationFrameId = requestAnimationFrame(animate);
       } else {
         // Stop the loop when idle
-        console.log('[RenderLoopManager] Stopping render loop (idle)');
         this.animationFrameId = null;
       }
     };

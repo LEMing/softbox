@@ -30,7 +30,6 @@ export class ThreeRendererAdapter implements IRenderer {
   }
 
   initialize(options: IRendererOptions): Result<void> {
-    console.log('[ThreeRendererAdapter] initialize() called');
     try {
       // Create renderer with options
       this.renderer = new THREE.WebGLRenderer({
@@ -41,7 +40,6 @@ export class ThreeRendererAdapter implements IRenderer {
         preserveDrawingBuffer: options.preserveDrawingBuffer ?? false,
         powerPreference: options.powerPreference ?? 'default',
       });
-      console.log('[ThreeRendererAdapter] WebGLRenderer created successfully');
 
 
       // Configure shadow map
@@ -139,7 +137,6 @@ export class ThreeRendererAdapter implements IRenderer {
       // This prevents the standard renderer from overwriting path traced output
       const isPathTracingActive = (this.renderer as PathTracingWebGLRenderer).__pathTracingActive;
       if (isPathTracingActive) {
-        console.log('[ThreeRenderer] Skipping standard render - path tracing is active');
         return Result.ok(undefined);
       }
 
@@ -225,7 +222,6 @@ export class ThreeRendererAdapter implements IRenderer {
    * Implementation of IRendererExtension interface
    */
   getInternalRenderer(): THREE.WebGLRenderer | null {
-    console.log('[ThreeRendererAdapter] getInternalRenderer called, renderer exists:', !!this.renderer);
     return this.renderer;
   }
   

@@ -51,8 +51,8 @@ export class ThreeGLTFLoaderAdapter implements IModelLoader {
           (progress) => {
             // Progress callback - could emit events here
             if (progress.total > 0) {
-              const percentComplete = (progress.loaded / progress.total) * 100;
-              console.log(`Loading: ${percentComplete.toFixed(0)}%`);
+              // Progress is available but not logged
+              // percentComplete = (progress.loaded / progress.total) * 100;
             }
           },
           (error) => {

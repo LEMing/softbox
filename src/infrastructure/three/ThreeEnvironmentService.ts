@@ -106,17 +106,6 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         loader.load(
           url,
           (texture) => {
-            console.log('[ThreeEnvironmentService] Texture loaded:', {
-              url,
-              format: texture.format,
-              type: texture.type,
-              mapping: texture.mapping,
-              hasImage: !!texture.image,
-              imageType: texture.image?.constructor?.name,
-              imageData: texture.image?.data ? 'has data' : 'no data',
-              imageWidth: texture.image?.width,
-              imageHeight: texture.image?.height
-            });
             resolve(texture);
           },
           undefined,
@@ -137,15 +126,6 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         this.loadedTextures.set(url, pmremTexture);
         this.loadedTextures.set(url + '_original', texture);
         
-        console.log('[ThreeEnvironmentService] Stored original texture for path tracing:', {
-          url: url + '_original',
-          format: texture.format,
-          mapping: texture.mapping,
-          hasImage: !!texture.image,
-          imageComplete: texture.image?.complete,
-          imageNaturalWidth: texture.image?.naturalWidth,
-          imageNaturalHeight: texture.image?.naturalHeight
-        });
         
         return Result.ok(new ThreeTextureAdapter(pmremTexture));
       }

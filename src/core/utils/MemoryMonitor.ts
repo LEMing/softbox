@@ -48,24 +48,25 @@ export class MemoryMonitor {
   /**
    * Log memory usage to console
    */
-  static logMemoryUsage(label: string = 'Memory'): void {
+  static logMemoryUsage(_label: string = 'Memory'): void {
     const info = this.getMemoryInfo();
     if (info) {
-      console.log(`[${label}] JS Heap: ${info.jsHeapUsed}MB / ${info.jsHeapTotal}MB (Limit: ${info.jsHeapLimit}MB)`);
+      // Memory info available but not logged
       if (info.webglMemory) {
-        console.log(`[${label}] WebGL - Programs: ${info.webglMemory.programs}, Geometries: ${info.webglMemory.geometries}, Textures: ${info.webglMemory.textures}`);
+        // WebGL memory info available but not logged
       }
     } else {
-      console.log(`[${label}] Memory info not available (use Chrome with --enable-precise-memory-info)`);
+      // Memory info not available
     }
   }
   
   /**
    * Monitor memory usage over time
    */
-  static startMonitoring(intervalMs: number = 5000, label: string = 'MemoryMonitor'): () => void {
+  static startMonitoring(intervalMs: number = 5000, _label: string = 'MemoryMonitor'): () => void {
     const interval = setInterval(() => {
-      this.logMemoryUsage(label);
+      // Monitoring is active but not logging
+      this.getMemoryInfo();
     }, intervalMs);
     
     return () => clearInterval(interval);

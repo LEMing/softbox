@@ -26,7 +26,7 @@ const defaultOptions: SimpleViewerOptions = {
   camera: {
     position: [60, 60, 60],
     target: [0, 0, 0],
-    fov: 75,
+    fov: 45,
     near: 0.1,
     far: 100000,
     autoFitToObject: true,
@@ -34,8 +34,8 @@ const defaultOptions: SimpleViewerOptions = {
 
   // Environment
   environment: {
-    // url: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/industrial_sunset_puresky.jpg',
-    backgroundBlurriness: 0.5,
+    url: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/industrial_sunset_puresky.jpg',
+    backgroundBlurriness: 0.15,
     backgroundIntensity: 1,
     environmentIntensity: 1,
   },
