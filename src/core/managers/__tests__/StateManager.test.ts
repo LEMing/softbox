@@ -38,7 +38,7 @@ describe('StateManager', () => {
         traverse: jest.fn()
       };
       
-      stateManager.setLoaded(mockModel as any);
+      stateManager.setLoaded(mockModel as unknown as import('../../interfaces').IObject3D);
       
       expect(stateManager.getStatus()).toBe('loaded');
       expect(stateManager.getCurrentModel()).toBe(mockModel);
@@ -79,7 +79,7 @@ describe('StateManager', () => {
 
     it('should set disposed state', () => {
       const mockModel = { dispose: jest.fn(), traverse: jest.fn() };
-      stateManager.setLoaded(mockModel as any);
+      stateManager.setLoaded(mockModel as unknown as import('../../interfaces').IObject3D);
       stateManager.setDisposed();
       
       expect(stateManager.getStatus()).toBe('disposed');
@@ -101,7 +101,7 @@ describe('StateManager', () => {
       expect(stateManager.canLoad()).toBe(false);
       
       // Loaded state - can load again
-      stateManager.setLoaded({ dispose: jest.fn() } as any);
+      stateManager.setLoaded({ dispose: jest.fn() } as unknown as import('../../interfaces').IObject3D);
       expect(stateManager.canLoad()).toBe(true);
       
       // Error state - can load
@@ -117,7 +117,7 @@ describe('StateManager', () => {
   describe('state change callbacks', () => {
     it('should notify subscribers on state change', () => {
       const callback = jest.fn();
-      const unsubscribe = stateManager.onStateChange(callback);
+      stateManager.onStateChange(callback);
       
       // Trigger state change
       stateManager.setInitialized();

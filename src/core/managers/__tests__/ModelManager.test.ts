@@ -20,7 +20,7 @@ describe('ModelManager', () => {
     // Mock model loader
     mockModelLoader = {
       load: jest.fn()
-    } as any;
+    } as unknown as jest.Mocked<IModelLoader>;
 
     // Mock scene
     mockScene = {
@@ -28,28 +28,28 @@ describe('ModelManager', () => {
       remove: jest.fn().mockReturnValue(Result.ok(undefined)),
       clear: jest.fn(),
       traverse: jest.fn()
-    } as any;
+    } as unknown as jest.Mocked<IScene>;
 
     // Mock camera and controls
     mockCamera = {
       type: 'perspective',
       updateProjectionMatrix: jest.fn()
-    } as any;
+    } as unknown as jest.Mocked<ICamera>;
 
     mockControls = {
       update: jest.fn(),
       dispose: jest.fn()
-    } as any;
+    } as unknown as jest.Mocked<IControls>;
 
     // Mock services
     mockFloorAlignmentService = {
       alignToFloor: jest.fn().mockReturnValue(Result.ok(undefined))
-    } as any;
+    } as unknown as jest.Mocked<IFloorAlignmentService>;
 
     mockSceneSetupService = {
       addDynamicGrid: jest.fn().mockReturnValue(Result.ok(undefined)),
       fitCameraToObject: jest.fn().mockReturnValue(Result.ok(undefined))
-    } as any;
+    } as unknown as jest.Mocked<ISceneSetupService>;
 
     // Create event emitter
     mockEvents = new TypedEventEmitter<ViewerEventMap>();
@@ -75,14 +75,18 @@ describe('ModelManager', () => {
 
   describe('loadModel', () => {
     describe('loading from URL', () => {
-      const mockModel: IObject3D = {
-        traverse: jest.fn((callback) => {
-          // Simulate traversing children
-          const child = { castShadow: false, receiveShadow: false };
-          callback(child);
-        }),
-        dispose: jest.fn()
-      } as any;
+      let mockModel: IObject3D;
+      
+      beforeEach(() => {
+        mockModel = {
+          traverse: jest.fn((callback: (obj: unknown) => void) => {
+            // Simulate traversing children
+            const child = { castShadow: false, receiveShadow: false };
+            callback(child);
+          }),
+          dispose: jest.fn()
+        } as unknown as IObject3D;
+      });
 
       beforeEach(() => {
         mockModelLoader.load.mockResolvedValue(Result.ok({
@@ -110,7 +114,7 @@ describe('ModelManager', () => {
 
       it('should enable shadows on model', async () => {
         const child = { castShadow: false, receiveShadow: false };
-        (mockModel.traverse as jest.Mock).mockImplementation((callback: any) => {
+        (mockModel.traverse as jest.Mock).mockImplementation((callback: (obj: unknown) => void) => {
           callback(child);
         });
 
@@ -180,10 +184,14 @@ describe('ModelManager', () => {
     });
 
     describe('loading from object', () => {
-      const mockObject: IObject3D = {
-        traverse: jest.fn(),
-        dispose: jest.fn()
-      } as any;
+      let mockObject: IObject3D;
+      
+      beforeEach(() => {
+        mockObject = {
+          traverse: jest.fn(),
+          dispose: jest.fn()
+        } as unknown as IObject3D;
+      });
 
       it('should accept IObject3D directly', async () => {
         const result = await modelManager.loadModel(mockObject, mockEvents);
@@ -215,7 +223,9 @@ describe('ModelManager', () => {
         const result = await modelManager.loadModel('error.glb', mockEvents);
 
         expect(result.ok).toBe(false);
-        expect((result as any).error).toBe(loaderError);
+        if (!result.ok) {
+          expect(result.error).toBe(loaderError);
+        }
         expect(errorHandler).toHaveBeenCalledWith({
           error: loaderError,
           url: 'error.glb'
@@ -223,7 +233,7 @@ describe('ModelManager', () => {
       });
 
       it('should handle scene add errors', async () => {
-        const mockModel = { traverse: jest.fn(), dispose: jest.fn() } as any;
+        const mockModel = { traverse: jest.fn(), dispose: jest.fn() } as unknown as IObject3D;
         mockModelLoader.load.mockResolvedValue(Result.ok({
           scene: mockModel,
           animations: []
@@ -235,13 +245,15 @@ describe('ModelManager', () => {
         const result = await modelManager.loadModel('test.glb', mockEvents);
 
         expect(result.ok).toBe(false);
-        expect((result as any).error?.message).toBe('Add failed');
+        if (!result.ok) {
+          expect(result.error?.message).toBe('Add failed');
+        }
       });
 
       it('should warn on service failures but continue', async () => {
         const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
         
-        const mockModel = { traverse: jest.fn(), dispose: jest.fn() } as any;
+        const mockModel = { traverse: jest.fn(), dispose: jest.fn() } as unknown as IObject3D;
         mockModelLoader.load.mockResolvedValue(Result.ok({
           scene: mockModel,
           animations: []
@@ -277,7 +289,7 @@ describe('ModelManager', () => {
 
   describe('disposeCurrentModel', () => {
     it('should dispose current model', async () => {
-      const mockModel = { traverse: jest.fn(), dispose: jest.fn() } as any;
+      const mockModel = { traverse: jest.fn(), dispose: jest.fn() } as unknown as IObject3D;
       mockModelLoader.load.mockResolvedValue(Result.ok({
         scene: mockModel,
         animations: []
@@ -299,7 +311,7 @@ describe('ModelManager', () => {
 
   describe('dispose', () => {
     it('should dispose all resources', async () => {
-      const mockModel = { traverse: jest.fn(), dispose: jest.fn() } as any;
+      const mockModel = { traverse: jest.fn(), dispose: jest.fn() } as unknown as IObject3D;
       mockModelLoader.load.mockResolvedValue(Result.ok({
         scene: mockModel,
         animations: []
@@ -333,13 +345,13 @@ describe('ModelManager', () => {
       };
       
       const mockModel = {
-        traverse: jest.fn((callback) => {
+        traverse: jest.fn((callback: (obj: unknown) => void) => {
           callback(mockChild1);
           callback(mockChild2);
           callback(mockModel); // Self
         }),
         dispose: jest.fn()
-      } as any;
+      } as unknown as IObject3D;
 
       mockModelLoader.load.mockResolvedValue(Result.ok({
         scene: mockModel,

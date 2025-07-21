@@ -3,6 +3,7 @@
 ## Development Commands
 - `npm run dev` - Start Vite development server
 - `npm run build` - Build production bundle
+- `npm run lint` - Run ESLint to check code style
 - `npm test` - Run all tests
 - `npm test -- -t "test name"` - Run specific test by name
 - `npm test -- src/path/to/file.test.ts` - Run tests in specific file
@@ -16,7 +17,10 @@
 - **Test Structure**: Follow Arrange-Act-Assert pattern
 - **Mocking**: Mock external dependencies, especially Three.js objects
 - **Edge Cases**: Test error conditions, edge cases, and happy paths
-- **Before Committing**: Always run `npm test` to ensure all tests pass
+- **Before Committing**: 
+  - Always run `npm test` to ensure all tests pass
+  - Always run `npm run lint` to ensure code follows style guidelines
+  - Fix all linting errors - no `@ts-ignore` or `eslint-disable` without justification
 
 ## Code Style Guidelines
 - **Imports**: Group imports by external libs first, then internal modules

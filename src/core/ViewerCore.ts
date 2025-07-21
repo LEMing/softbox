@@ -23,6 +23,7 @@ import { StateManager } from './managers/StateManager';
 import { ScreenshotManager } from './managers/ScreenshotManager';
 import { ModelManager } from './managers/ModelManager';
 import { ResourceManager } from './managers/ResourceManager';
+import { ViewerState } from './entities/ViewerState';
 
 export interface ViewerDependencies {
   renderer: IRenderer;
@@ -626,7 +627,7 @@ export class ViewerCore {
   /**
    * Subscribe to state changes
    */
-  onStateChange(callback: (state: any) => void): () => void {
+  onStateChange(callback: (state: ViewerState) => void): () => void {
     return this.stateManager.onStateChange(callback);
   }
 

@@ -40,18 +40,18 @@ describe('ScreenshotManager', () => {
       setSize: jest.fn(),
       initialize: jest.fn(),
       dispose: jest.fn()
-    } as any;
+    } as unknown as jest.Mocked<IRenderer>;
     
     // Mock camera and controls
     mockCamera = {
       type: 'perspective',
       updateProjectionMatrix: jest.fn()
-    } as any;
+    } as unknown as jest.Mocked<ICamera>;
     
     mockControls = {
       update: jest.fn(),
       dispose: jest.fn()
-    } as any;
+    } as unknown as jest.Mocked<IControls>;
     
     // Create callback
     onRestore = jest.fn();

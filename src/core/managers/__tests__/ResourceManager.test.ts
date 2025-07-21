@@ -24,7 +24,7 @@ describe('ResourceManager', () => {
       clear: jest.fn(),
       add: jest.fn(),
       remove: jest.fn()
-    } as any;
+    } as unknown as jest.Mocked<IScene>;
 
     // Mock path tracing service
     mockPathTracingService = {
@@ -34,7 +34,7 @@ describe('ResourceManager', () => {
       render: jest.fn(),
       reset: jest.fn(),
       events: { on: jest.fn(), emit: jest.fn() }
-    } as any;
+    } as unknown as jest.Mocked<IPathTracingService>;
 
     // Mock environment service
     mockEnvironmentService = {
@@ -42,7 +42,7 @@ describe('ResourceManager', () => {
       initialize: jest.fn(),
       loadEnvironmentMap: jest.fn(),
       applyToScene: jest.fn()
-    } as any;
+    } as unknown as jest.Mocked<IEnvironmentService>;
 
     // Create resource manager
     resourceManager = new ResourceManager({
@@ -59,7 +59,7 @@ describe('ResourceManager', () => {
     it('should update path tracing service', () => {
       const newPathTracingService = {
         dispose: jest.fn()
-      } as any;
+      } as unknown as jest.Mocked<IPathTracingService>;
 
       resourceManager.updateServices({
         pathTracingService: newPathTracingService
@@ -74,7 +74,7 @@ describe('ResourceManager', () => {
     it('should update environment service', () => {
       const newEnvironmentService = {
         dispose: jest.fn()
-      } as any;
+      } as unknown as jest.Mocked<IEnvironmentService>;
 
       resourceManager.updateServices({
         environmentService: newEnvironmentService
@@ -87,8 +87,8 @@ describe('ResourceManager', () => {
     });
 
     it('should update both services', () => {
-      const newPathTracingService = { dispose: jest.fn() } as any;
-      const newEnvironmentService = { dispose: jest.fn() } as any;
+      const newPathTracingService = { dispose: jest.fn() } as unknown as jest.Mocked<IPathTracingService>;
+      const newEnvironmentService = { dispose: jest.fn() } as unknown as jest.Mocked<IEnvironmentService>;
 
       resourceManager.updateServices({
         pathTracingService: newPathTracingService,
@@ -120,8 +120,8 @@ describe('ResourceManager', () => {
         {} // Empty object
       ];
 
-      mockScene.traverse.mockImplementation((callback) => {
-        mockChildren.forEach((child) => callback(child as any));
+      (mockScene.traverse as jest.Mock).mockImplementation((callback: (child: unknown) => void) => {
+        mockChildren.forEach((child) => callback(child));
       });
 
       resourceManager.disposeSceneResources();
@@ -178,17 +178,19 @@ describe('ResourceManager', () => {
 
     it('should attempt garbage collection if available', () => {
       const gcMock = jest.fn();
-      (globalThis as any).gc = gcMock;
+      const globalWithGc = globalThis as typeof globalThis & { gc?: () => void };
+      globalWithGc.gc = gcMock;
 
       resourceManager.disposeSceneResources();
 
       expect(gcMock).toHaveBeenCalled();
 
-      delete (globalThis as any).gc;
+      delete globalWithGc.gc;
     });
 
     it('should handle missing gc gracefully', () => {
-      delete (globalThis as any).gc;
+      const globalWithGc = globalThis as typeof globalThis & { gc?: () => void };
+      delete globalWithGc.gc;
 
       expect(() => resourceManager.disposeSceneResources()).not.toThrow();
     });
@@ -225,7 +227,8 @@ describe('ResourceManager', () => {
   describe('dispose', () => {
     it('should dispose everything', () => {
       const gcMock = jest.fn();
-      (globalThis as any).gc = gcMock;
+      const globalWithGc = globalThis as typeof globalThis & { gc?: () => void };
+      globalWithGc.gc = gcMock;
 
       resourceManager.dispose();
 
@@ -239,13 +242,13 @@ describe('ResourceManager', () => {
       // Should trigger GC
       expect(gcMock).toHaveBeenCalled();
 
-      delete (globalThis as any).gc;
+      delete globalWithGc.gc;
     });
   });
 
   describe('edge cases', () => {
     it('should handle scene without traverse method', () => {
-      const invalidScene = { clear: jest.fn() } as any;
+      const invalidScene = { clear: jest.fn() } as unknown as IScene;
       resourceManager = new ResourceManager({ scene: invalidScene });
 
       expect(() => resourceManager.disposeSceneResources()).not.toThrow();
@@ -259,8 +262,8 @@ describe('ResourceManager', () => {
         { material: {} } // No dispose method
       ];
 
-      mockScene.traverse.mockImplementation((callback) => {
-        mockChildren.forEach((child) => callback(child as any));
+      (mockScene.traverse as jest.Mock).mockImplementation((callback: (child: unknown) => void) => {
+        mockChildren.forEach((child) => callback(child));
       });
 
       expect(() => resourceManager.disposeSceneResources()).not.toThrow();
