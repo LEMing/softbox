@@ -206,6 +206,18 @@ export class ViewerCore {
               backgroundIntensity: this.options.environment?.backgroundIntensity,
               environmentIntensity: this.options.environment?.environmentIntensity
             });
+            
+            // Apply dark studio mode background if enabled
+            if (this.options.helpers?.darkStudioMode && this.sceneSetupService) {
+              const darkBackgroundColor = '#1a1a1f'; // Dark blue-gray color
+              const backgroundResult = this.sceneSetupService.createGradientBackground(this.scene, {
+                topColor: darkBackgroundColor,
+                bottomColor: darkBackgroundColor
+              });
+              if (!backgroundResult.ok) {
+                console.warn('Failed to set dark studio background:', backgroundResult.error);
+              }
+            }
           } else {
             console.warn('Failed to create studio environment:', studioResult.error);
           }

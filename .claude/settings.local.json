@@ -30,7 +30,8 @@
       "Bash(git push:*)",
       "Bash(gh pr create:*)",
       "Bash(git config:*)",
-      "Bash(make:*)"
+      "Bash(make:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": []
   }

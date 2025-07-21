@@ -45,4 +45,5 @@ export interface HelperOptions {
   stats?: boolean;
   gizmo?: boolean | GizmoOptions;
   studioEnvironment?: boolean;
+  darkStudioMode?: boolean;
 }
