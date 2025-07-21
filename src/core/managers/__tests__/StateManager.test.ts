@@ -157,6 +157,9 @@ describe('StateManager', () => {
     });
 
     it('should handle errors in callbacks gracefully', () => {
+      // Mock console.error to avoid polluting test output
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      
       const errorCallback = jest.fn(() => {
         throw new Error('Callback error');
       });
@@ -169,6 +172,12 @@ describe('StateManager', () => {
       expect(() => stateManager.setInitialized()).not.toThrow();
       expect(errorCallback).toHaveBeenCalled();
       expect(normalCallback).toHaveBeenCalled();
+      
+      // Verify console.error was called with the error
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Error in state change callback:', expect.any(Error));
+      
+      // Restore console.error
+      consoleErrorSpy.mockRestore();
     });
 
     it('should clear all callbacks', () => {
