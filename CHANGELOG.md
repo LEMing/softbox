@@ -1,6 +1,14 @@
 Changelog
 =========
 
+2.4.3
+---
+
+### Security Updates
+* **Fixed npm vulnerabilities**: Updated dependencies to resolve 1 critical vulnerability
+  - Added 12 packages and updated 1 package
+  - All security vulnerabilities resolved
+
 2.4.2
 ---
 
