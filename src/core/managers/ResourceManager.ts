@@ -56,21 +56,25 @@ export class ResourceManager {
     }
     
     // Clear and dispose entire scene
-    this.scene.traverse((child) => {
-      if ('geometry' in child && child.geometry) {
-        (child.geometry as { dispose?: () => void }).dispose?.();
-      }
-      if ('material' in child && child.material) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach((mat: { dispose?: () => void }) => {
-            mat.dispose?.();
-          });
-        } else {
-          (child.material as { dispose?: () => void }).dispose?.();
+    if (this.scene.traverse) {
+      this.scene.traverse((child) => {
+        if ('geometry' in child && child.geometry) {
+          (child.geometry as { dispose?: () => void }).dispose?.();
         }
-      }
-    });
-    this.scene.clear();
+        if ('material' in child && child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((mat: { dispose?: () => void }) => {
+              mat.dispose?.();
+            });
+          } else {
+            (child.material as { dispose?: () => void }).dispose?.();
+          }
+        }
+      });
+    }
+    if (this.scene.clear) {
+      this.scene.clear();
+    }
     
     // Force garbage collection hint (works in some environments)
     this.triggerGarbageCollection();
@@ -106,7 +110,9 @@ export class ResourceManager {
     this.disposeServices();
     
     // Clear scene
-    this.scene.clear();
+    if (this.scene.clear) {
+      this.scene.clear();
+    }
     
     // Trigger garbage collection
     this.triggerGarbageCollection();
