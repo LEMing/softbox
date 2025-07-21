@@ -1,6 +1,16 @@
 Changelog
 =========
 
+2.4.1
+---
+
+### Improvements
+* **Removed crypto dependency**: Replaced native crypto.randomUUID() with custom UUID implementation
+  - Eliminates external dependency for better compatibility
+  - Uses template-based approach for cleaner code
+  - Added comprehensive tests for UUID generation
+  - Note: Uses Math.random() which is suitable for internal IDs but not cryptographically secure
+
 2.4.0
 ---
 

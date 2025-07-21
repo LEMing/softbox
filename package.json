@@ -1,7 +1,7 @@
 {
   "name": "threedviewer",
   "private": false,
-  "version": "2.4.0",
+  "version": "2.4.1",
   "type": "module",
   "description": "A 3D viewer based on React and Three.js",
   "keywords": [

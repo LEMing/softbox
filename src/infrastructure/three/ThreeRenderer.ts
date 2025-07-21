@@ -11,13 +11,14 @@ import { ThreeSceneAdapter } from './ThreeScene';
 import { ThreeCameraAdapter } from './ThreeCamera';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import { PathTracingWebGLRenderer } from './types/PathTracerTypes';
+import { generateUUID } from '../../utils/uuid';
 
 /**
  * Adapter for Three.js WebGLRenderer to implement IRenderer
  */
 export class ThreeRendererAdapter implements IRenderer {
   private renderer: THREE.WebGLRenderer | null = null;
-  private _id: string = crypto.randomUUID();
+  private _id: string = generateUUID();
   private canvas?: HTMLCanvasElement;
 
   constructor(canvas?: HTMLCanvasElement) {
