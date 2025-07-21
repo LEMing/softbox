@@ -110,6 +110,7 @@ const defaultOptions: SimpleViewerOptions = {
     stats: false,
     gizmo: false,
     studioEnvironment: true,
+    darkStudioMode: false,
   },
 };
 

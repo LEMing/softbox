@@ -17,19 +17,12 @@ const App = () => {
   const MODEL_URL = randomModel || "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb";
   const options = {
     ...defaultOptions,
-    helpers: {
-      ...defaultOptions.helpers,
-      grid: {
-        type: 'stone_tiles', // Options: 'square_wire', 'hexagonal_wire', 'hexagonal_glass', 'stone_tiles'
-        opacity: 1.0,
-        styleOptions: {
-          texture: 'https://cdn.architextures.org/textures/23/4/brushed-concrete-none-acbwon-1200.jpg',
-          normalMap: 'https://cdn.architextures.org/textures/23/4/brushed-concrete-none-acbwon-1200.jpg',
-          roughnessMap: 'https://cdn.architextures.org/textures/23/4/brushed-concrete-none-acbwon-1200.jpg',
-          // Additional style-specific options can be added here
-        }
-      },
-    },
+    environment: {
+      url: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/industrial_sunset_puresky.jpg',
+      backgroundBlurriness: 0.05,
+      backgroundIntensity: 1,
+      environmentIntensity: 0.5,
+    }
   } as const;
 
   return (

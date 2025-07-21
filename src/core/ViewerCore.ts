@@ -8,7 +8,6 @@ import {
   IObject3D,
   Result
 } from './interfaces';
-import { ViewerState } from './entities/ViewerState';
 import { TypedEventEmitter } from '../events/EventEmitter';
 import { ViewerEventMap } from './events/ViewerEvents';
 import { ThreeViewerError, ErrorCode } from '../errors';
@@ -18,9 +17,13 @@ import { IEnvironmentService } from './services/IEnvironmentService';
 import { ISceneSetupService, ILightingOptions, IHelperOptions } from './services/ISceneSetupService';
 import { IFloorAlignmentService } from './services/IFloorAlignmentService';
 import { RenderLoopManager } from './utils/RenderLoopManager';
-import { SceneSerializer, SerializedSceneState } from './utils/SceneSerializer';
-import { MemoryMonitor } from './utils/MemoryMonitor';
+import { SceneSerializer } from './utils/SceneSerializer';
 import { hasGetInternalRenderer } from '../infrastructure/three/types/PathTracerTypes';
+import { StateManager } from './managers/StateManager';
+import { ScreenshotManager } from './managers/ScreenshotManager';
+import { ModelManager } from './managers/ModelManager';
+import { ResourceManager } from './managers/ResourceManager';
+import { ViewerState } from './entities/ViewerState';
 
 export interface ViewerDependencies {
   renderer: IRenderer;
@@ -42,49 +45,68 @@ export interface ViewerDependencies {
  * Independent of UI framework and rendering engine
  */
 export class ViewerCore {
-  private state: ViewerState;
   private readonly events: TypedEventEmitter<ViewerEventMap>;
   private readonly renderLoopManager: RenderLoopManager;
   private lastFrameTime: number = 0;
   private frameCount: number = 0;
-  private stateChangeCallback?: (newState: ViewerState) => void;
   private pathTracingStartTime?: number;
-  private screenshotElement: HTMLImageElement | null = null;
-  private isShowingScreenshot: boolean = false;
-  private screenshotResizeHandler?: () => void;
-  private serializedSceneState?: SerializedSceneState;
-  private lastModelUrl?: string;
   private pathTracingCompleteHandled: boolean = false;
   private disposed: boolean = false;
+
+  // Managers
+  private readonly stateManager: StateManager;
+  private readonly screenshotManager: ScreenshotManager;
+  private readonly modelManager: ModelManager;
+  private readonly resourceManager: ResourceManager;
 
   // Dependencies
   private readonly renderer: IRenderer;
   private readonly scene: IScene;
   private readonly camera: ICamera;
   private readonly controls: IControls;
-  private readonly modelLoader: IModelLoader;
   private readonly options: SimpleViewerOptions;
   private readonly rendererOptions?: IRendererOptions;
   private readonly sceneSetupService?: ISceneSetupService;
   private environmentService?: IEnvironmentService;
   private pathTracingService?: IPathTracingService;
-  private readonly floorAlignmentService?: IFloorAlignmentService;
 
   constructor(dependencies: ViewerDependencies) {
     this.renderer = dependencies.renderer;
     this.scene = dependencies.scene;
     this.camera = dependencies.camera;
     this.controls = dependencies.controls;
-    this.modelLoader = dependencies.modelLoader;
     this.options = dependencies.options;
     this.rendererOptions = dependencies.rendererOptions;
     this.sceneSetupService = dependencies.sceneSetupService;
     this.environmentService = dependencies.environmentService;
     this.pathTracingService = dependencies.pathTracingService;
-    this.floorAlignmentService = dependencies.floorAlignmentService;
 
+    // Initialize managers
+    this.stateManager = new StateManager();
+    
+    this.screenshotManager = new ScreenshotManager({
+      renderer: this.renderer,
+      onRestore: async () => {
+        await this.restoreFromScreenshot();
+      }
+    });
+    
+    this.modelManager = new ModelManager({
+      modelLoader: dependencies.modelLoader,
+      scene: this.scene,
+      camera: this.camera,
+      controls: this.controls,
+      floorAlignmentService: dependencies.floorAlignmentService,
+      sceneSetupService: this.sceneSetupService,
+      autoFitToObject: this.options.camera?.autoFitToObject
+    });
+    
+    this.resourceManager = new ResourceManager({
+      scene: this.scene,
+      pathTracingService: this.pathTracingService,
+      environmentService: this.environmentService
+    });
 
-    this.state = new ViewerState();
     this.events = new TypedEventEmitter<ViewerEventMap>();
     
     // Configure render loop based on options
@@ -206,6 +228,18 @@ export class ViewerCore {
               backgroundIntensity: this.options.environment?.backgroundIntensity,
               environmentIntensity: this.options.environment?.environmentIntensity
             });
+            
+            // Apply dark studio mode background if enabled
+            if (this.options.helpers?.darkStudioMode && this.sceneSetupService) {
+              const darkBackgroundColor = '#1a1a1f'; // Dark blue-gray color
+              const backgroundResult = this.sceneSetupService.createGradientBackground(this.scene, {
+                topColor: darkBackgroundColor,
+                bottomColor: darkBackgroundColor
+              });
+              if (!backgroundResult.ok) {
+                console.warn('Failed to set dark studio background:', backgroundResult.error);
+              }
+            }
           } else {
             console.warn('Failed to create studio environment:', studioResult.error);
           }
@@ -256,7 +290,7 @@ export class ViewerCore {
       }
 
       // Update state
-      this.state = this.state.setInitialized();
+      this.stateManager.setInitialized();
 
       // Start render loop
       this.startRenderLoop();
@@ -282,7 +316,7 @@ export class ViewerCore {
         ErrorCode.INITIALIZATION_FAILED,
         { originalError: error }
       );
-      this.state = this.state.setError(viewerError);
+      this.stateManager.setError(viewerError);
       this.events.emit('error', { error: viewerError });
       return Result.err(viewerError);
     }
@@ -292,104 +326,42 @@ export class ViewerCore {
    * Load a 3D model
    */
   async loadModel(source: string | IObject3D): Promise<Result<void>> {
-
-    if (!this.state.canLoad()) {
+    if (!this.stateManager.canLoad()) {
       return Result.err(
         new ThreeViewerError(
           'Cannot load model in current state',
           ErrorCode.INVALID_STATE,
-          { currentState: this.state.status, isInitialized: this.state.isInitialized }
+          { 
+            currentState: this.stateManager.getStatus(), 
+            isInitialized: this.stateManager.isInitialized() 
+          }
         )
       );
     }
 
     try {
-      this.state = this.state.startLoading();
-      const startTime = performance.now();
-
-      let model: IObject3D;
-
-      if (typeof source === 'string') {
-        // Store URL for potential restoration
-        this.lastModelUrl = source;
-        // Load from URL
-        const loadResult = await this.modelLoader.load(source);
-        if (!loadResult.ok) {
-          throw loadResult.error;
-        }
-        model = loadResult.value.scene;
-      } else {
-        // Use provided object
-        model = source;
-      }
-
-      // Clear existing model
-      if (this.state.currentModel) {
-        this.scene.remove(this.state.currentModel);
-        this.state.currentModel.dispose();
-      }
-
-      // Add new model to scene
-      const addResult = this.scene.add(model);
-      if (!addResult.ok) {
-        throw addResult.error;
-      }
-
-
-      // Align model to floor
-      if (this.floorAlignmentService) {
-        const alignResult = this.floorAlignmentService.alignToFloor(model);
-        if (!alignResult.ok) {
-          console.warn('Failed to align model to floor:', alignResult.error);
-        }
-      }
-
-      // Enable shadows on the model
-      model.traverse((child) => {
-        if ('castShadow' in child && 'receiveShadow' in child) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-        }
-      });
-
-      // Update state
-      this.state = this.state.setLoaded(model);
-
-      // Add dynamic grid based on object size
-      if (this.sceneSetupService) {
-        const gridResult = this.sceneSetupService.addDynamicGrid(this.scene, model, 2);
-        if (!gridResult.ok) {
-          console.warn('Failed to add dynamic grid:', gridResult.error);
-        }
-      }
-
-      // Auto-fit camera to object if enabled
-      if (this.options.camera?.autoFitToObject && this.sceneSetupService) {
-        const fitResult = this.sceneSetupService.fitCameraToObject(
-          model,
-          this.camera,
-          this.controls
-        );
-        if (!fitResult.ok) {
-          console.warn('Failed to fit camera to object:', fitResult.error);
-        }
-      }
-
-      // Emit event
-      const loadTime = performance.now() - startTime;
-      this.events.emit('model:loaded', { model, loadTime });
-
-      // Request render after model load
-      this.renderLoopManager.requestRender();
+      this.stateManager.startLoading();
       
-      // Reset path tracing when new model is loaded
-      const pathTracingEnabledForReset = this.options.pathTracing?.enabled ?? false;
-      if (this.pathTracingService && pathTracingEnabledForReset) {
-        this.pathTracingService.reset();
-        this.pathTracingCompleteHandled = false;
+      const result = await this.modelManager.loadModel(source, this.events);
+      
+      if (result.ok) {
+        this.stateManager.setLoaded(result.value);
+        
+        // Request render after model load
+        this.renderLoopManager.requestRender();
+        
+        // Reset path tracing when new model is loaded
+        const pathTracingEnabledForReset = this.options.pathTracing?.enabled ?? false;
+        if (this.pathTracingService && pathTracingEnabledForReset) {
+          this.pathTracingService.reset();
+          this.pathTracingCompleteHandled = false;
+        }
+        
+        return Result.ok(undefined);
+      } else {
+        this.stateManager.setError(result.error);
+        return result;
       }
-
-      return Result.ok(undefined);
     } catch (error) {
       const viewerError = error instanceof ThreeViewerError ? error :
         new ThreeViewerError(
@@ -397,13 +369,8 @@ export class ViewerCore {
           ErrorCode.MODEL_LOAD_FAILED,
           { originalError: error, source }
         );
-
-      this.state = this.state.setError(viewerError);
-      this.events.emit('model:error', {
-        error: viewerError,
-        url: typeof source === 'string' ? source : undefined
-      });
-
+      
+      this.stateManager.setError(viewerError);
       return Result.err(viewerError);
     }
   }
@@ -420,7 +387,7 @@ export class ViewerCore {
       }
       
       // Skip frame if not initialized
-      if (!this.state.isInitialized || this.state.status === 'error') {
+      if (!this.stateManager.isInitialized() || this.stateManager.getStatus() === 'error') {
         return;
       }
       
@@ -523,7 +490,7 @@ export class ViewerCore {
 
       // Update render info
       this.frameCount++;
-      this.state = this.state.updateRenderInfo({
+      this.stateManager.updateRenderInfo({
         frameCount: this.frameCount,
         fps: Math.round(fps),
         lastRenderTime: performance.now() - currentTime,
@@ -553,11 +520,11 @@ export class ViewerCore {
     }
     
     // Don't render if we're showing a screenshot
-    if (this.isShowingScreenshot) {
+    if (this.screenshotManager.isActive()) {
       return;
     }
 
-    this.state = this.state.startRendering();
+    this.stateManager.startRendering();
     
     let renderResult;
     const pathTracingActiveInRender = this.pathTracingService?.isEnabled() || false;
@@ -653,28 +620,15 @@ export class ViewerCore {
   /**
    * Get current state
    */
-  getState(): ViewerState {
-    return this.state;
+  getState() {
+    return this.stateManager.getState();
   }
 
   /**
    * Subscribe to state changes
    */
   onStateChange(callback: (state: ViewerState) => void): () => void {
-    // Create a proxy to emit state changes
-    const updateState = (newState: ViewerState) => {
-      this.state = newState;
-      callback(newState);
-    };
-
-    // Store the callback for potential future use
-    this.stateChangeCallback = updateState;
-
-    // Return unsubscribe function
-    return () => {
-      // Cleanup if needed
-      this.stateChangeCallback = undefined;
-    };
+    return this.stateManager.onStateChange(callback);
   }
 
   /**
@@ -695,220 +649,58 @@ export class ViewerCore {
    * Replace the 3D scene with a screenshot
    */
   private replaceWithScreenshot(): void {
-    if (this.isShowingScreenshot) return;
-
-    const canvas = this.renderer.getDomElement();
+    const lastModelUrl = this.modelManager.getLastModelUrl();
     
-    // Capture the current frame as a data URL
-    const dataURL = canvas.toDataURL('image/png');
-    
-    // Create an image element
-    const img = document.createElement('img');
-    img.src = dataURL;
-    img.style.position = 'absolute';
-    img.style.top = '0';
-    img.style.left = '0';
-    img.style.width = '100%';
-    img.style.height = '100%';
-    img.style.pointerEvents = 'auto';
-    img.style.cursor = 'grab';
-    
-    // Insert the image in place of the canvas
-    const parent = canvas.parentElement;
-    if (parent) {
-      canvas.style.display = 'none';
-      parent.appendChild(img);
-      this.screenshotElement = img;
-      this.isShowingScreenshot = true;
-      
-      // Add interaction listeners to restore 3D scene
-      const restoreScene = () => {
-        this.restoreFromScreenshot();
-      };
-      
-      img.addEventListener('mousedown', restoreScene);
-      img.addEventListener('touchstart', restoreScene);
-      
-      // Also restore on window resize
-      const resizeHandler = () => {
-        if (this.isShowingScreenshot) {
-          this.restoreFromScreenshot();
-        }
-      };
-      window.addEventListener('resize', resizeHandler);
-      
-      // Store the handler for cleanup using a WeakMap or class property
-      // For now, store in instance
-      this.screenshotResizeHandler = resizeHandler;
-      
-      
-      // Only dispose scene resources if we successfully captured the screenshot
-      // The screenshot preserves the final rendered image, so it's safe to dispose
-      if (this.screenshotElement && this.screenshotElement.src) {
-        this.disposeSceneResources();
-      } else {
-        console.warn('[ViewerCore] Screenshot capture failed, keeping scene resources');
+    this.screenshotManager.captureAndReplace(
+      this.camera,
+      this.controls,
+      lastModelUrl,
+      () => {
+        // Dispose scene resources
+        this.modelManager.disposeCurrentModel();
+        this.resourceManager.disposeSceneResources(true);
       }
-    }
+    );
   }
 
   /**
    * Restore the 3D scene from screenshot
    */
   private async restoreFromScreenshot(): Promise<void> {
-    if (!this.isShowingScreenshot || !this.screenshotElement) return;
+    const serializedState = this.screenshotManager.getSerializedState();
     
+    // Renderer is still available - no need to re-initialize
     
-    const canvas = this.renderer.getDomElement();
-    const parent = this.screenshotElement.parentElement;
+    // Re-create services if they were disposed
+    if (!this.pathTracingService && this.options.pathTracing?.enabled) {
+      // Note: This is a limitation - we can't recreate the service here
+      // Would need factory access or dependency injection
+      console.warn('[ViewerCore] Cannot recreate path tracing service - feature disabled');
+    }
     
-    if (parent) {
-      // Remove resize handler
-      if (this.screenshotResizeHandler) {
-        window.removeEventListener('resize', this.screenshotResizeHandler);
-        this.screenshotResizeHandler = undefined;
-      }
-      
-      // Remove screenshot and show canvas again
-      parent.removeChild(this.screenshotElement);
-      canvas.style.display = '';
-      
-      this.screenshotElement = null;
-      this.isShowingScreenshot = false;
-      
-      
-      // Renderer is still available - no need to re-initialize
-      
-      // Re-create services if they were disposed
-      if (!this.pathTracingService && this.options.pathTracing?.enabled) {
-        // Note: This is a limitation - we can't recreate the service here
-        // Would need factory access or dependency injection
-        console.warn('[ViewerCore] Cannot recreate path tracing service - feature disabled');
-      }
-      
-      // Restore scene state
-      if (this.serializedSceneState) {
-        await SceneSerializer.restore(
-          this.serializedSceneState,
-          this.camera,
-          this.controls,
-          async (url) => {
-            // Reload the model
-            const result = await this.loadModel(url);
-            if (!result.ok) {
-              console.error('[ViewerCore] Failed to reload model:', result.error);
-            }
+    // Restore scene state
+    if (serializedState) {
+      await SceneSerializer.restore(
+        serializedState,
+        this.camera,
+        this.controls,
+        async (url) => {
+          // Reload the model
+          const result = await this.loadModel(url);
+          if (!result.ok) {
+            console.error('[ViewerCore] Failed to reload model:', result.error);
           }
-        );
-      }
-      
-      // Start render loop again
-      if (!this.renderLoopManager.isRunning()) {
-        this.startRenderLoop();
-      }
-      
-      // Request immediate render
-      this.renderLoopManager.requestRender();
-      
-    }
-  }
-
-  /**
-   * Dispose scene resources while keeping the screenshot
-   */
-  private disposeSceneResources(): void {
-    MemoryMonitor.logMemoryUsage('Before disposal');
-    
-    // Stop render loop immediately
-    this.renderLoopManager.stop();
-    
-    // Note: Path tracing image preservation is now handled differently
-    // - When replaceWithScreenshotOnComplete is true, the screenshot captures the image
-    // - When replaceWithScreenshotOnComplete is false, we keep autoClear disabled
-    
-    // Serialize scene state before disposal
-    this.serializedSceneState = SceneSerializer.serialize(
-      this.lastModelUrl,
-      this.camera,
-      this.controls,
-      this.renderer.getDomElement()
-    );
-    
-    // Don't dispose path tracing service here - it causes white screen
-    // The service should remain available to display the final image
-    // It will be disposed when the entire viewer is disposed
-    if (this.pathTracingService) {
-      // Keep the service active to preserve the final rendered image
-      // This prevents the white screen issue when switching to screenshot
-    }
-    
-    // Dispose environment service
-    if (this.environmentService) {
-      this.environmentService.dispose();
-    }
-    
-    // Dispose model and all scene resources
-    if (this.state.currentModel) {
-      this.scene.remove(this.state.currentModel);
-      this.disposeObject(this.state.currentModel);
-      // Clear model from state
-      this.state = new ViewerState().setInitialized();
-    }
-    
-    // Clear and dispose entire scene
-    this.scene.traverse((child) => {
-      if ('geometry' in child && child.geometry) {
-        (child.geometry as { dispose?: () => void }).dispose?.();
-      }
-      if ('material' in child && child.material) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach((mat: { dispose?: () => void }) => {
-            mat.dispose?.();
-          });
-        } else {
-          (child.material as { dispose?: () => void }).dispose?.();
         }
-      }
-    });
-    this.scene.clear();
-    
-    // Don't dispose renderer here - it's needed for path tracing to display the final image
-    // The renderer will be disposed when the entire viewer is disposed
-    
-    
-    // Force garbage collection hint (works in some environments)
-    if ((globalThis as { gc?: () => void }).gc) {
-      (globalThis as { gc?: () => void }).gc?.();
+      );
     }
     
-    MemoryMonitor.logMemoryUsage('After disposal');
+    // Start render loop again
+    if (!this.renderLoopManager.isRunning()) {
+      this.startRenderLoop();
+    }
     
-    // Schedule another check after potential GC
-    setTimeout(() => {
-      MemoryMonitor.logMemoryUsage('After GC delay');
-    }, 2000);
-  }
-  
-  /**
-   * Recursively dispose of an object and its children
-   */
-  private disposeObject(object: IObject3D): void {
-    object.traverse((child) => {
-      if ('geometry' in child && (child as { geometry?: { dispose?: () => void } }).geometry?.dispose) {
-        (child as { geometry?: { dispose?: () => void } }).geometry?.dispose?.();
-      }
-      if ('material' in child && (child as { material?: unknown }).material) {
-        const material = (child as { material?: { dispose?: () => void } | Array<{ dispose?: () => void }> }).material;
-        if (Array.isArray(material)) {
-          material.forEach((mat: { dispose?: () => void }) => {
-            mat.dispose?.();
-          });
-        } else if (material?.dispose) {
-          material.dispose();
-        }
-      }
-    });
-    object.dispose();
+    // Request immediate render
+    this.renderLoopManager.requestRender();
   }
 
   /**
@@ -920,20 +712,10 @@ export class ViewerCore {
     
     this.stopRenderLoop();
 
-    // Dispose model
-    if (this.state.currentModel) {
-      this.scene.remove(this.state.currentModel);
-      this.state.currentModel.dispose();
-    }
-
-    // Dispose services
-    if (this.pathTracingService) {
-      this.pathTracingService.dispose();
-    }
-    
-    if (this.environmentService) {
-      this.environmentService.dispose();
-    }
+    // Dispose managers
+    this.modelManager.dispose();
+    this.resourceManager.dispose();
+    this.screenshotManager.dispose();
 
     // Dispose scene
     this.scene.clear();
@@ -945,10 +727,10 @@ export class ViewerCore {
     this.renderer.dispose();
 
     // Update state
-    this.state = this.state.dispose();
+    this.stateManager.setDisposed();
 
     // Remove all event listeners
     this.events.removeAllListeners();
+    this.stateManager.clearCallbacks();
   }
-
 }
