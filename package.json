@@ -53,7 +53,7 @@
     "@types/lodash": "^4.17.7",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "@types/three": "0.168.0",
+    "@types/three": "0.177.0",
     "@typescript-eslint/eslint-plugin": "^8.35.1",
     "@typescript-eslint/parser": "^8.35.1",
     "@vitejs/plugin-react": "^4.3.1",
@@ -68,11 +68,11 @@
   },
   "dependencies": {
     "three-gpu-pathtracer": "^0.0.23",
-    "threedgizmo": "^0.6.0"
+    "threedgizmo": "^1.1.0"
   },
   "peerDependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "three": "0.168.0"
+    "three": "0.177.0"
   }
 }
