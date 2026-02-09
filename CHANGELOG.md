@@ -1,6 +1,14 @@
 Changelog
 =========
 
+2.5.0
+---
+
+### Dependency Updates
+* **Updated Three.js**: Upgraded `three` from 0.168.0 to 0.177.0 (peerDependency)
+* **Updated @types/three**: Upgraded from 0.168.0 to 0.177.0 (devDependency)
+* **Updated threedgizmo**: Upgraded from ^0.6.0 to ^1.1.0 (dependency)
+
 2.4.3
 ---
 
