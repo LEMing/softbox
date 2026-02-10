@@ -30,10 +30,11 @@ export default defineConfig({
       fileName: (format) => `simple-viewer.${format}.js`
     },
     rollupOptions: {
-      external: ['react', 'three'],
+      external: [/^react(\/.*)?$/, 'three'],
       output: {
         globals: {
           react: 'React',
+          'react/jsx-runtime': 'jsxRuntime',
           three: 'THREE'
         }
       }
