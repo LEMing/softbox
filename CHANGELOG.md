@@ -1,6 +1,19 @@
 Changelog
 =========
 
+2.6.0
+---
+
+### Dependency Updates
+* **Updated threedgizmo**: Upgraded from 1.1.0 to 1.2.0
+
+### React 19 Support
+* Updated `peerDependencies` for `react` and `react-dom` to `^19.0.0`
+* Updated `@types/react` and `@types/react-dom` to `^19.0.0`
+* Updated `@testing-library/react` to `^16.1.0` for React 19 compatibility
+* Updated `RefObject<T>` to `RefObject<T | null>` for React 19 mutable ref semantics
+* Updated `vite.config.ts` external react entries for build
+
 2.5.0
 ---
 

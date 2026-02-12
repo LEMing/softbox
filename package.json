@@ -1,7 +1,7 @@
 {
   "name": "threedviewer",
   "private": false,
-  "version": "2.5.0",
+  "version": "2.6.0",
   "type": "module",
   "description": "A 3D viewer based on React and Three.js",
   "keywords": [
@@ -70,7 +70,7 @@
   },
   "dependencies": {
     "three-gpu-pathtracer": "^0.0.23",
-    "threedgizmo": "file:../threedgizmo/threedgizmo-1.1.0.tgz"
+    "threedgizmo": "^1.2.0"
   },
   "peerDependencies": {
     "react": "^19.0.0",
