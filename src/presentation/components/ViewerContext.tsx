@@ -3,14 +3,14 @@ import { ViewerCore } from '../../core/ViewerCore';
 
 interface ViewerContextValue {
   viewer: ViewerCore | null;
-  canvasRef: React.RefObject<HTMLCanvasElement>;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
 }
 
 const ViewerContext = createContext<ViewerContextValue | null>(null);
 
 export interface ViewerProviderProps {
   viewer: ViewerCore | null;
-  canvasRef: React.RefObject<HTMLCanvasElement>;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
   children: React.ReactNode;
 }
 

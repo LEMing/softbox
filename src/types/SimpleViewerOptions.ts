@@ -13,11 +13,11 @@ import {
 } from './options';
 
 export interface ThreeJSRefs {
-  scene: React.RefObject<THREE.Scene>;
-  camera: React.RefObject<THREE.Camera>;
-  renderer: React.RefObject<THREE.WebGLRenderer>;
-  controls: React.RefObject<OrbitControls | MapControls>;
-  mountPoint: React.RefObject<HTMLDivElement>;
+  scene: React.RefObject<THREE.Scene | null>;
+  camera: React.RefObject<THREE.Camera | null>;
+  renderer: React.RefObject<THREE.WebGLRenderer | null>;
+  controls: React.RefObject<OrbitControls | MapControls | null>;
+  mountPoint: React.RefObject<HTMLDivElement | null>;
 }
 
 export interface SimpleViewerOptions {

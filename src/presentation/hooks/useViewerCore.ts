@@ -10,7 +10,7 @@ import { useStableOptions } from './useStableOptions';
  * Hook to create and manage ViewerCore instance
  */
 export function useViewerCore(
-  canvasRef: React.RefObject<HTMLCanvasElement>,
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
   options: SimpleViewerOptions
 ) {
   const viewerRef = useRef<ViewerCore | null>(null);
