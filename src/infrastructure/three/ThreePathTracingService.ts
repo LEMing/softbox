@@ -432,20 +432,21 @@ export class ThreePathTracingService implements IPathTracingService {
               // Log scene contents before setting
 
               // For JPEG/PNG textures loaded via TextureLoader, ensure the image is loaded
-              if (originalEnvTexture.image && !originalEnvTexture.image.data) {
+              const texImage = originalEnvTexture.image as HTMLImageElement | (ImageData & { data?: unknown }) | null;
+              if (texImage && !("data" in texImage && texImage.data)) {
 
                 // If it's an HTMLImageElement, wait for it to load
-                if (originalEnvTexture.image instanceof HTMLImageElement && !originalEnvTexture.image.complete) {
+                if (texImage instanceof HTMLImageElement && !texImage.complete) {
                   await new Promise<void>((resolve) => {
-                    originalEnvTexture.image.onload = () => {
+                    texImage.onload = () => {
                       originalEnvTexture.needsUpdate = true;
                       resolve();
                     };
-                    originalEnvTexture.image.onerror = (_error: Event | string) => {
+                    texImage.onerror = (_error: Event | string) => {
                       resolve();
                     };
                     // If already loading, it should fire the onload event
-                    if (originalEnvTexture.image.complete) {
+                    if (texImage.complete) {
                       resolve();
                     }
                   });

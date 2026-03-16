@@ -1,7 +1,7 @@
 {
   "name": "threedviewer",
   "private": false,
-  "version": "2.6.0",
+  "version": "2.6.1",
   "type": "module",
   "description": "A 3D viewer based on React and Three.js",
   "keywords": [
@@ -53,7 +53,7 @@
     "@types/lodash": "^4.17.7",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/three": "0.177.0",
+    "@types/three": "0.183.1",
     "@typescript-eslint/eslint-plugin": "^8.35.1",
     "@typescript-eslint/parser": "^8.35.1",
     "@vitejs/plugin-react": "^4.3.1",
@@ -62,6 +62,8 @@
     "jest-environment-jsdom": "^29.7.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "three": "^0.183.2",
+    "three-mesh-bvh": "^0.9.9",
     "ts-jest": "^29.2.4",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.35.1",
@@ -70,11 +72,11 @@
   },
   "dependencies": {
     "three-gpu-pathtracer": "^0.0.23",
-    "threedgizmo": "^1.2.0"
+    "threedgizmo": "^1.2.1"
   },
   "peerDependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "three": "0.177.0"
+    "three": ">=0.177.0"
   }
 }

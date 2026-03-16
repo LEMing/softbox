@@ -1,6 +1,10 @@
 Changelog
 =========
 
+2.6.1
+---
+* Fix Texture type casts for Three.js r183
+
 2.6.0
 ---
 

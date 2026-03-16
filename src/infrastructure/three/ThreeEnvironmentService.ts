@@ -296,7 +296,7 @@ class ThreeTextureAdapter implements ITexture {
   }
 
   get image(): HTMLImageElement | ImageData | HTMLCanvasElement | HTMLVideoElement | null {
-    return this.texture.image;
+    return this.texture.image as HTMLImageElement | ImageData | HTMLCanvasElement | HTMLVideoElement | null;
   }
 
   get needsUpdate(): boolean {
