@@ -399,10 +399,6 @@ export class ViewerCore {
         return;
       }
       
-      // Debug: log when render callback is called
-      if (this.frameCount % 60 === 0) { // Log every 60 frames to avoid spam
-      }
-
       const currentTime = performance.now();
       const fps = deltaTime > 0 ? 1000 / deltaTime : 0;
 
@@ -435,59 +431,10 @@ export class ViewerCore {
       // Check if path tracing just completed AFTER rendering
       const currentSampleCount = this.pathTracingService?.getSampleCount() || 0;
       
-      // Path tracing just completed if we've reached max samples and haven't handled it yet
-      // Note: The path tracing service disables itself during rendering, so we need to check
-      // if we've just reached the max samples, not just the enabled state change
+      // Path tracing completes once we reach max samples (the service disables
+      // itself during rendering, so we detect the sample threshold, not state).
       if (currentSampleCount >= maxSamples && !this.pathTracingCompleteHandled && wasPathTracingActive) {
-        
-        // Mark as handled to prevent repeated events
-        this.pathTracingCompleteHandled = true;
-        
-        this.renderLoopManager.disableContinuousRendering();
-        
-        // If using always render mode, disable it when path tracing completes
-        if (!this.options.staticScene) {
-          this.renderLoopManager.setAlwaysRender(false);
-        }
-        
-        
-        // Emit completion event
-        this.events.emit('pathtracing:complete', {
-          samples: pathTracingSamples,
-          totalTime: currentTime - (this.pathTracingStartTime || 0)
-        });
-        
-        // Replace with screenshot if enabled
-        if (this.options.replaceWithScreenshotOnComplete) {
-          this.schedule(() => {
-            this.replaceWithScreenshot();
-            // Stop the render loop after screenshot to prevent disposed service renders
-            this.schedule(() => {
-              this.renderLoopManager.stop();
-            }, 200);
-          }, 100);
-        } else {
-          // Path tracing complete but not replacing with screenshot
-          // Ensure the final image stays visible by preventing any further renders
-          
-          // Request one final render to ensure the last frame is displayed
-          this.renderLoopManager.requestRender();
-
-          // Stop the render loop after final render
-          this.schedule(() => {
-            this.renderLoopManager.stop();
-          }, 100);
-          
-          // The render loop is already stopped by disableContinuousRendering
-          // The path tracing service has disabled autoClear to preserve the image
-          // Just ensure we don't accidentally clear it
-          if (hasInternalRenderer(this.renderer)) {
-            const threeRenderer = this.renderer.getInternalRenderer() as { autoClear: boolean } | null;
-            if (threeRenderer) {
-              threeRenderer.autoClear = false;
-            }
-          }
-        }
+        this.handlePathTracingComplete(pathTracingSamples, currentTime);
       }
 
       // Update render info
@@ -500,6 +447,44 @@ export class ViewerCore {
       
       this.lastFrameTime = currentTime;
     });
+  }
+
+  /**
+   * Handle path-tracing reaching its sample target: emit completion, stop
+   * continuous rendering, and either capture a screenshot or keep the final
+   * image on screen.
+   */
+  private handlePathTracingComplete(pathTracingSamples: number, currentTime: number): void {
+    this.pathTracingCompleteHandled = true;
+    this.renderLoopManager.disableContinuousRendering();
+    if (!this.options.staticScene) {
+      this.renderLoopManager.setAlwaysRender(false);
+    }
+
+    this.events.emit('pathtracing:complete', {
+      samples: pathTracingSamples,
+      totalTime: currentTime - (this.pathTracingStartTime || 0),
+    });
+
+    if (this.options.replaceWithScreenshotOnComplete) {
+      this.schedule(() => {
+        this.replaceWithScreenshot();
+        // Stop the render loop after the screenshot to avoid disposed-service renders
+        this.schedule(() => this.renderLoopManager.stop(), 200);
+      }, 100);
+      return;
+    }
+
+    // Keep the final path-traced image visible: one last render, stop the loop,
+    // and prevent autoClear from wiping the preserved buffer.
+    this.renderLoopManager.requestRender();
+    this.schedule(() => this.renderLoopManager.stop(), 100);
+    if (hasInternalRenderer(this.renderer)) {
+      const threeRenderer = this.renderer.getInternalRenderer() as { autoClear: boolean } | null;
+      if (threeRenderer) {
+        threeRenderer.autoClear = false;
+      }
+    }
   }
 
   /**
