@@ -36,7 +36,30 @@ or if you're using yarn:
 yarn add threedviewer
 ```
 
-> **Note:** Version 3.0.0 introduces breaking changes (packaging is now ESM + CJS, the imperative handle and option types changed). See the [CHANGELOG](./CHANGELOG.md) for the full list.
+## Upgrading from 2.x to 3.0
+
+3.0 is a breaking release. Most apps only need to bump peers; a couple of unused APIs were removed.
+
+**Requirements**
+- React `^19` (was `^18`), `three` `>=0.177.0 <0.184.0`, Node `>=18`.
+
+**Removed APIs**
+- **`options.refs` / `ThreeJSRefs`** (external scene/camera/renderer injection) — removed. It was a no-op in 2.x (the viewer never read it). Delete any `refs: { … }` from your options.
+- **`SimpleViewerHandle.startRendering()`, `.stopRendering()`, `.captureScreenshot()`** — these were never implemented (always `undefined`) and are gone. `loadModel()` and `dispose()` are now real, implemented methods. For a screenshot, read the canvas directly:
+  ```ts
+  const dataUrl = viewerRef.current?.renderer?.domElement.toDataURL('image/png');
+  ```
+- **`OptionsValidator`** and the unofficial deep imports (`threedviewer/validation`, `threedviewer/utils`, `threedviewer/errors`) — import everything from the package root instead:
+  ```ts
+  import { SimpleViewer, defaultOptions, ControlType, ThreeViewerError, ErrorCode } from 'threedviewer';
+  ```
+
+**Packaging**
+- Ships **ESM + CJS** (no more UMD `<script>` global build). `import` / `require('threedviewer')` are unaffected; only `<script src=…>` global usage is gone. Types now resolve correctly under `nodenext` / `bundler`.
+
+**No code change needed if** you only use `<SimpleViewer object={…} options={…} />` with `defaultOptions` — the option keys are unchanged.
+
+➡️ Full details: [MIGRATION_GUIDE.md](https://github.com/LEMing/ThreeDViewer/blob/main/MIGRATION_GUIDE.md) · [CHANGELOG.md](https://github.com/LEMing/ThreeDViewer/blob/main/CHANGELOG.md)
 
 ## Usage
 

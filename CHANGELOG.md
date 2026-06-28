@@ -1,6 +1,13 @@
 Changelog
 =========
 
+3.0.1
+---
+
+### Documentation
+* Added an **"Upgrading from 2.x to 3.0"** section to the README and a `MIGRATION_GUIDE.md` — the npm page was missing migration notes and the removal of `options.refs` / the unimplemented handle methods
+* Synced `package-lock.json` to keep `three-gpu-pathtracer` / `threedgizmo` in devDependencies (they are bundled, not runtime deps)
+
 3.0.0
 ---
 
