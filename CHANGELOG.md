@@ -5,6 +5,7 @@ Changelog
 ---
 
 ### Cleanup & React polish
+* Extracted the path-tracing completion logic out of the render-loop callback into `handlePathTracingComplete()`, and hoisted the duplicated default sample count into a named constant
 * Removed dead code: `OptionsValidator`, `HexGrid`, `PerformanceMonitor`, `ExtendedTypes`, unused barrel files, and the unused `useViewerEvents`/`useViewerStatus` hooks
 * Dropped redundant devDependencies (`@types/lodash`, `@typescript-eslint/eslint-plugin`, `@typescript-eslint/parser` — provided by `typescript-eslint`)
 * Memoized the `ViewerContext` value, added a reset action to `ViewerErrorBoundary`, and removed the side-effecting `useMemo` ref writes in `SimpleViewer`/`useStableOptions`
