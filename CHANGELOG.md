@@ -5,6 +5,7 @@ Changelog
 ---
 
 ### Cleanup & React polish
+* Decomposed `ThreePathTracingService.render()` — the disabled-render, single-sample accumulation, and completion-capture blocks are now focused private methods (`renderWhileDisabled`/`accumulateOneSample`/`captureCompletedFrame`); verified behaviour-preserving via unit tests and a live path-traced render
 * Extracted the path-tracing completion logic out of the render-loop callback into `handlePathTracingComplete()`, and hoisted the duplicated default sample count into a named constant
 * Removed dead code: `OptionsValidator`, `HexGrid`, `PerformanceMonitor`, `ExtendedTypes`, unused barrel files, and the unused `useViewerEvents`/`useViewerStatus` hooks
 * Dropped redundant devDependencies (`@types/lodash`, `@typescript-eslint/eslint-plugin`, `@typescript-eslint/parser` — provided by `typescript-eslint`)

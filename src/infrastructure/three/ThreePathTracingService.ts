@@ -299,31 +299,7 @@ export class ThreePathTracingService implements IPathTracingService {
     }
 
     if (!this.enabled) {
-      // Check if we're disabled because we completed path tracing
-      if (this.sampleCount >= this.settings.samples && this.sampleCount > 0) {
-
-        // We need to ensure the final result is displayed on the canvas
-        // The path tracer renders to an internal buffer that needs to be copied to screen
-        if (this.pathTracer && hasGetInternalRenderer(this.renderer)) {
-          const threeRenderer = this.renderer.getInternalRenderer() as PathTracingWebGLRenderer;
-
-          // Make sure we're rendering to the screen
-          threeRenderer.setRenderTarget(null);
-
-          // The path tracer renders to its own buffer that needs to be displayed
-          // Normally this happens automatically, but we want to ensure the final frame stays visible
-        }
-
-        return Result.ok(undefined);
-      }
-
-      // If not enabled for other reasons, delegate to standard renderer
-      const rendererResult = this.renderer.render(scene, camera);
-      if (!rendererResult.ok) {
-        // Return the error result from the standard renderer
-        return rendererResult;
-      }
-      return rendererResult;
+      return this.renderWhileDisabled(scene, camera);
     }
 
     // Create path tracer on first render if not already created
@@ -515,96 +491,15 @@ export class ThreePathTracingService implements IPathTracingService {
           return standardRenderResult;
         }
         
-        // Now accumulate path tracing sample in the background
-          const threeRenderer = hasGetInternalRenderer(this.renderer) ? this.renderer.getInternalRenderer() as PathTracingWebGLRenderer : null;
-          if (threeRenderer) {
-            // Temporarily save current renderer state
-            const originalAutoClear = threeRenderer.autoClear;
-            const originalRenderTarget = threeRenderer.getRenderTarget();
-            
-            // Configure for path tracing accumulation
-            threeRenderer.autoClear = false;
-            
-            // Render the path traced sample to internal buffer
-            if (this.pathTracer) {
-              // The path tracer accumulates samples internally
-              this.pathTracer.renderSample();
-            }
-            
-            // Restore renderer state for standard rendering
-            threeRenderer.autoClear = originalAutoClear;
-            threeRenderer.setRenderTarget(originalRenderTarget);
-            
-            // Don't copy path traced result to screen yet - keep showing standard render
-          } else {
-            throw new Error('Three.js renderer not available');
-          }
+        // Accumulate one path-tracing sample into the internal buffer
+        this.accumulateOneSample();
 
-          // Only increment sample count after successful render
-          this.sampleCount++;
+        // Only increment sample count after a successful render
+        this.sampleCount++;
 
-          if (this.sampleCount === this.settings.samples) {
-            
-            // Now we need to copy the path traced result to canvas before capturing it
-            const threeRenderer = hasGetInternalRenderer(this.renderer) ? this.renderer.getInternalRenderer() as PathTracingWebGLRenderer : null;
-            if (threeRenderer && this.pathTracer) {
-              try {
-                // Clear the canvas and copy the path traced result
-                const originalAutoClear = threeRenderer.autoClear;
-                threeRenderer.autoClear = true;
-                threeRenderer.setRenderTarget(null);
-                
-                // Clear canvas
-                threeRenderer.clear(true, true, true);
-                
-                // Copy path traced result to screen
-                // The path tracer should have a method to copy its accumulated buffer
-                const copyQuad = this.pathTracer.copyQuad as { render: (renderer: THREE.WebGLRenderer) => void } | undefined;
-                if (copyQuad && typeof copyQuad.render === 'function') {
-                  copyQuad.render(threeRenderer);
-                } else {
-                  // Fallback: render one more sample which should copy to screen
-                  threeRenderer.autoClear = false;
-                  this.pathTracer.renderSample();
-                }
-                
-                // Now capture the canvas with the path traced result
-                const canvas = threeRenderer.domElement;
-                const base64Image = canvas.toDataURL('image/png');
-                
-                
-                // Save to property for later retrieval
-                this.pausedFrameBase64 = base64Image;
-                
-                // Create overlay with the captured image
-                this.createImageOverlay(canvas, base64Image);
-                
-                // Restore renderer state
-                threeRenderer.autoClear = originalAutoClear;
-              } catch (error) {
-                // Continue even if capture fails - path tracing is still complete
-                console.warn('Failed to capture path traced result:', error);
-              }
-            }
-            
-            this.enabled = false;
-
-            // Emit event so ViewerCore knows path tracing is complete
-            this.events.emit('pathtracing:paused', { samples: this.sampleCount });
-            
-            // Dispose of path tracing resources after a short delay to ensure image is displayed
-            this.disposeTimer = setTimeout(() => {
-              this.disposeTimer = null;
-              if (this.disposed) {
-                return;
-              }
-              this.disposePathTracingResources();
-            }, 100);
-            
-            return Result.ok(undefined);
-          }
-
-          // Check if we've reached the sample limit
+        if (this.sampleCount === this.settings.samples) {
+          return this.captureCompletedFrame();
+        }
       } else {
         // Scene not initialized yet - fallback to standard renderer
         return this.renderer.render(scene, camera);
@@ -623,6 +518,102 @@ export class ThreePathTracingService implements IPathTracingService {
         )
       );
     }
+  }
+
+  /**
+   * Render while path tracing is disabled: keep the final accumulated image on
+   * screen if we just completed, otherwise delegate to the standard renderer.
+   */
+  private renderWhileDisabled(scene: IScene, camera: ICamera): Result<void> {
+    if (!this.renderer) {
+      return Result.ok(undefined);
+    }
+
+    const completed = this.sampleCount >= this.settings.samples && this.sampleCount > 0;
+    if (completed) {
+      if (this.pathTracer && hasGetInternalRenderer(this.renderer)) {
+        const threeRenderer = this.renderer.getInternalRenderer() as PathTracingWebGLRenderer;
+        threeRenderer.setRenderTarget(null);
+      }
+      return Result.ok(undefined);
+    }
+
+    return this.renderer.render(scene, camera);
+  }
+
+  /**
+   * Render a single path-tracing sample into the internal buffer, preserving the
+   * renderer's autoClear/render-target state so the standard view stays visible.
+   */
+  private accumulateOneSample(): void {
+    const threeRenderer = hasGetInternalRenderer(this.renderer)
+      ? this.renderer.getInternalRenderer() as PathTracingWebGLRenderer
+      : null;
+    if (!threeRenderer) {
+      throw new Error('Three.js renderer not available');
+    }
+
+    const originalAutoClear = threeRenderer.autoClear;
+    const originalRenderTarget = threeRenderer.getRenderTarget();
+
+    threeRenderer.autoClear = false;
+    if (this.pathTracer) {
+      this.pathTracer.renderSample();
+    }
+    threeRenderer.autoClear = originalAutoClear;
+    threeRenderer.setRenderTarget(originalRenderTarget);
+  }
+
+  /**
+   * Path tracing reached its sample target: copy the accumulated result to the
+   * canvas, capture it as an overlay, emit completion, and schedule disposal.
+   */
+  private captureCompletedFrame(): Result<void> {
+    const threeRenderer = hasGetInternalRenderer(this.renderer)
+      ? this.renderer.getInternalRenderer() as PathTracingWebGLRenderer
+      : null;
+    if (threeRenderer && this.pathTracer) {
+      try {
+        const originalAutoClear = threeRenderer.autoClear;
+        threeRenderer.autoClear = true;
+        threeRenderer.setRenderTarget(null);
+        threeRenderer.clear(true, true, true);
+
+        // Copy the accumulated path-traced buffer to screen.
+        const copyQuad = this.pathTracer.copyQuad as { render: (renderer: THREE.WebGLRenderer) => void } | undefined;
+        if (copyQuad && typeof copyQuad.render === 'function') {
+          copyQuad.render(threeRenderer);
+        } else {
+          // Fallback: one more sample renders the result to screen.
+          threeRenderer.autoClear = false;
+          this.pathTracer.renderSample();
+        }
+
+        const canvas = threeRenderer.domElement;
+        const base64Image = canvas.toDataURL('image/png');
+        this.pausedFrameBase64 = base64Image;
+        this.createImageOverlay(canvas, base64Image);
+
+        threeRenderer.autoClear = originalAutoClear;
+      } catch (error) {
+        // Path tracing is still complete even if the capture fails.
+        console.warn('Failed to capture path traced result:', error);
+      }
+    }
+
+    this.enabled = false;
+    this.events.emit('pathtracing:paused', { samples: this.sampleCount });
+
+    // Dispose path-tracing resources shortly after, once the image is displayed.
+    this.disposeTimer = setTimeout(() => {
+      this.disposeTimer = null;
+      if (this.disposed) {
+        return;
+      }
+      this.disposePathTracingResources();
+    }, 100);
+
+    return Result.ok(undefined);
   }
 
   getSampleCount(): number {
