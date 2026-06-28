@@ -33,5 +33,3 @@ export interface IOrthographicCamera extends ICamera {
   bottom: number;
   zoom: number;
 }
-
-export type CameraType = IPerspectiveCamera | IOrthographicCamera;

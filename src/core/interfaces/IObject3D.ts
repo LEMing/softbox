@@ -30,13 +30,3 @@ export interface IVector3 {
   normalize(): void;
   length(): number;
 }
-
-export interface IBoundingBox {
-  min: IVector3;
-  max: IVector3;
-  
-  setFromObject(object: IObject3D): void;
-  getCenter(target: IVector3): void;
-  getSize(target: IVector3): void;
-  isEmpty(): boolean;
-}

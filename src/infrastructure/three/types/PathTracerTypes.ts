@@ -30,15 +30,6 @@ export interface PathTracingScene extends THREE.Scene {
 }
 
 /**
- * Extended Three.js Object3D with specific material properties
- */
-export interface PathTracingObject3D extends THREE.Object3D {
-  material?: THREE.Material | THREE.Material[];
-  isMesh?: boolean;
-  geometry?: THREE.BufferGeometry;
-}
-
-/**
  * Type guard to check if renderer has getInternalRenderer method
  */
 export function hasGetInternalRenderer(renderer: unknown): renderer is { getInternalRenderer(): THREE.WebGLRenderer } {

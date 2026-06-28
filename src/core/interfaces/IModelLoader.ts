@@ -36,13 +36,6 @@ export interface IAnimationTrack {
   values: Float32Array;
 }
 
-export interface ILoadingManager {
-  onStart?: (url: string, itemsLoaded: number, itemsTotal: number) => void;
-  onProgress?: (url: string, itemsLoaded: number, itemsTotal: number) => void;
-  onLoad?: () => void;
-  onError?: (url: string) => void;
-}
-
 export interface IModelCamera {
   name: string;
   type: string;

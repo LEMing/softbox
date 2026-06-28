@@ -14,7 +14,7 @@ Changelog
 * Added GitHub Actions CI running lint, type check, tests and build on every push/PR
 * Added an ESLint clean-architecture boundary: `src/core` can no longer import `three`, `three-gpu-pathtracer`, or anything from `infrastructure`/`presentation`
 * Removed the last `core -> infrastructure` import in `ViewerCore` (now uses the engine-agnostic `hasInternalRenderer` guard)
-* Added `typecheck` and `knip` npm scripts
+* Added `typecheck` and `knip` npm scripts; `knip` is a **blocking** CI gate (zero dead files/exports/deps)
 
 ### Resource management (GPU memory leak fixes)
 * Unified all teardown through a single Three.js disposal utility that frees geometries, materials, **the textures a material references**, light shadow maps, and scene background/environment textures

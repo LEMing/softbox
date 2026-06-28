@@ -52,5 +52,3 @@ export interface IMapControls extends IControls {
   type: 'map';
   screenSpacePanning: true; // Always true for map controls
 }
-
-export type ControlsType = IOrbitControls | IMapControls;
