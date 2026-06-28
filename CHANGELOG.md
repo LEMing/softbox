@@ -1,6 +1,29 @@
 Changelog
 =========
 
+3.0.0 (unreleased)
+---
+
+### Architecture guardrails
+* Added GitHub Actions CI running lint, type check, tests and build on every push/PR
+* Added an ESLint clean-architecture boundary: `src/core` can no longer import `three`, `three-gpu-pathtracer`, or anything from `infrastructure`/`presentation`
+* Removed the last `core -> infrastructure` import in `ViewerCore` (now uses the engine-agnostic `hasInternalRenderer` guard)
+* Added `typecheck` and `knip` npm scripts
+
+### Resource management (GPU memory leak fixes)
+* Unified all teardown through a single Three.js disposal utility that frees geometries, materials, **the textures a material references**, light shadow maps, and scene background/environment textures
+* `ResourceManager.dispose()` now releases the whole scene graph (grid, gradient background, axes, shadow maps) instead of only detaching children — fixes an unbounded GPU leak on unmount and on option-change rebuilds
+* The dynamic grid is now disposed before being replaced on every model swap
+* Model material textures are now disposed on swap/unmount
+
+### Screenshot capture
+* `preserveDrawingBuffer` is forced on automatically when `replaceWithScreenshotOnComplete` is enabled, so the captured frame is no longer blank
+* Capture now validates the result before hiding the canvas and disposing scene resources
+
+### Packaging
+* Added a `types` condition (and a `./package.json` export) to the `exports` map so types resolve under `node16`/`nodenext`/`bundler` module resolution
+* Raised `engines.node` to `>=18`
+
 2.6.1
 ---
 * Fix Texture type casts for Three.js r183

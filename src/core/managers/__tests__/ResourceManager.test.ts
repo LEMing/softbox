@@ -22,6 +22,7 @@ describe('ResourceManager', () => {
     mockScene = {
       traverse: jest.fn(),
       clear: jest.fn(),
+      disposeContents: jest.fn(),
       add: jest.fn(),
       remove: jest.fn()
     } as unknown as jest.Mocked<IScene>;
@@ -96,7 +97,7 @@ describe('ResourceManager', () => {
       });
 
       resourceManager.disposeServices();
-      
+
       expect(newPathTracingService.dispose).toHaveBeenCalled();
       expect(newEnvironmentService.dispose).toHaveBeenCalled();
       expect(mockPathTracingService.dispose).not.toHaveBeenCalled();
@@ -105,40 +106,11 @@ describe('ResourceManager', () => {
   });
 
   describe('disposeSceneResources', () => {
-    it('should dispose scene resources', () => {
-      const mockGeometry = { dispose: jest.fn() };
-      const mockMaterial = { dispose: jest.fn() };
-      const mockMaterialArray = [
-        { dispose: jest.fn() },
-        { dispose: jest.fn() }
-      ];
-
-      const mockChildren = [
-        { geometry: mockGeometry, material: mockMaterial },
-        { geometry: mockGeometry, material: mockMaterialArray },
-        { geometry: undefined, material: undefined }, // No geometry/material
-        {} // Empty object
-      ];
-
-      (mockScene.traverse as jest.Mock).mockImplementation((callback: (child: unknown) => void) => {
-        mockChildren.forEach((child) => callback(child));
-      });
-
+    it('should dispose scene contents and the environment service', () => {
       resourceManager.disposeSceneResources();
 
-      // Should traverse scene
-      expect(mockScene.traverse).toHaveBeenCalled();
-
-      // Should dispose geometries
-      expect(mockGeometry.dispose).toHaveBeenCalledTimes(2);
-
-      // Should dispose materials
-      expect(mockMaterial.dispose).toHaveBeenCalledTimes(1);
-      expect(mockMaterialArray[0].dispose).toHaveBeenCalledTimes(1);
-      expect(mockMaterialArray[1].dispose).toHaveBeenCalledTimes(1);
-
-      // Should clear scene
-      expect(mockScene.clear).toHaveBeenCalled();
+      // Should delegate GPU disposal to the scene (geometry/material/textures)
+      expect(mockScene.disposeContents).toHaveBeenCalledTimes(1);
 
       // Should dispose environment service
       expect(mockEnvironmentService.dispose).toHaveBeenCalled();
@@ -148,24 +120,24 @@ describe('ResourceManager', () => {
       expect(MemoryMonitor.logMemoryUsage).toHaveBeenCalledWith('After scene disposal');
     });
 
-    it('should not dispose path tracing when preservePathTracing is true', () => {
+    it('should preserve the path tracing service (final image stays visible)', () => {
       resourceManager.disposeSceneResources(true);
 
       expect(mockPathTracingService.dispose).not.toHaveBeenCalled();
       expect(mockEnvironmentService.dispose).toHaveBeenCalled();
+      expect(mockScene.disposeContents).toHaveBeenCalled();
     });
 
-    it('should dispose path tracing when preservePathTracing is false', () => {
+    it('should not dispose path tracing even when preservePathTracing is false', () => {
       resourceManager.disposeSceneResources(false);
 
-      // Note: Current implementation doesn't actually dispose path tracing
-      // This is intentional to preserve the final image
+      // The final rendered image is intentionally kept on screen.
       expect(mockPathTracingService.dispose).not.toHaveBeenCalled();
     });
 
     it('should schedule memory check after delay', () => {
       jest.useFakeTimers();
-      
+
       resourceManager.disposeSceneResources();
 
       // Fast forward time
@@ -206,7 +178,7 @@ describe('ResourceManager', () => {
 
     it('should clear service references', () => {
       resourceManager.disposeServices();
-      
+
       // Second call should not throw or call dispose again
       jest.clearAllMocks();
       resourceManager.disposeServices();
@@ -236,37 +208,13 @@ describe('ResourceManager', () => {
       expect(mockPathTracingService.dispose).toHaveBeenCalled();
       expect(mockEnvironmentService.dispose).toHaveBeenCalled();
 
-      // Should clear scene
-      expect(mockScene.clear).toHaveBeenCalled();
+      // Should dispose scene GPU resources
+      expect(mockScene.disposeContents).toHaveBeenCalled();
 
       // Should trigger GC
       expect(gcMock).toHaveBeenCalled();
 
       delete globalWithGc.gc;
-    });
-  });
-
-  describe('edge cases', () => {
-    it('should handle scene without traverse method', () => {
-      const invalidScene = { clear: jest.fn() } as unknown as IScene;
-      resourceManager = new ResourceManager({ scene: invalidScene });
-
-      expect(() => resourceManager.disposeSceneResources()).not.toThrow();
-    });
-
-    it('should handle materials that are not arrays or objects with dispose', () => {
-      const mockChildren = [
-        { material: null },
-        { material: 'invalid' },
-        { material: 123 },
-        { material: {} } // No dispose method
-      ];
-
-      (mockScene.traverse as jest.Mock).mockImplementation((callback: (child: unknown) => void) => {
-        mockChildren.forEach((child) => callback(child));
-      });
-
-      expect(() => resourceManager.disposeSceneResources()).not.toThrow();
     });
   });
 });

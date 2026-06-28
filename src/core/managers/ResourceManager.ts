@@ -39,48 +39,26 @@ export class ResourceManager {
   }
 
   /**
-   * Dispose scene resources (for screenshot mode)
+   * Dispose scene geometry/materials/textures (for screenshot mode).
+   *
+   * The path-tracing service is intentionally left alive so the final rendered
+   * image stays on screen behind the screenshot overlay; only the scene graph
+   * and the environment service are released here.
    */
-  disposeSceneResources(preservePathTracing: boolean = false): void {
+  disposeSceneResources(_preservePathTracing: boolean = false): void {
     MemoryMonitor.logMemoryUsage('Before scene disposal');
-    
-    // Don't dispose path tracing service if we need to preserve the final image
-    if (!preservePathTracing && this.pathTracingService) {
-      // Keep the service active to preserve the final rendered image
-      // This prevents the white screen issue when switching to screenshot
-    }
-    
-    // Dispose environment service
+
     if (this.environmentService) {
       this.environmentService.dispose();
     }
-    
-    // Clear and dispose entire scene
-    if (this.scene.traverse) {
-      this.scene.traverse((child) => {
-        if ('geometry' in child && child.geometry) {
-          (child.geometry as { dispose?: () => void }).dispose?.();
-        }
-        if ('material' in child && child.material) {
-          if (Array.isArray(child.material)) {
-            child.material.forEach((mat: { dispose?: () => void }) => {
-              mat.dispose?.();
-            });
-          } else {
-            (child.material as { dispose?: () => void }).dispose?.();
-          }
-        }
-      });
-    }
-    if (this.scene.clear) {
-      this.scene.clear();
-    }
-    
+
+    this.scene.disposeContents();
+
     // Force garbage collection hint (works in some environments)
     this.triggerGarbageCollection();
-    
+
     MemoryMonitor.logMemoryUsage('After scene disposal');
-    
+
     // Schedule another check after potential GC
     setTimeout(() => {
       MemoryMonitor.logMemoryUsage('After GC delay');
@@ -106,14 +84,12 @@ export class ResourceManager {
    * Complete disposal of all resources
    */
   dispose(): void {
-    // Dispose services
+    // Dispose services (path tracing + environment)
     this.disposeServices();
-    
-    // Clear scene
-    if (this.scene.clear) {
-      this.scene.clear();
-    }
-    
+
+    // Dispose every GPU-backed resource in the scene, then detach children
+    this.scene.disposeContents();
+
     // Trigger garbage collection
     this.triggerGarbageCollection();
   }

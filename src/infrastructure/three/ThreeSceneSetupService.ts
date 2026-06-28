@@ -15,6 +15,7 @@ import { Result } from '../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import { ThreeSceneAdapter } from './ThreeScene';
 import { ThreeObject3DAdapter } from './ThreeObject3D';
+import { disposeObject3D } from './disposal';
 import { ThreeCameraAdapter } from './ThreeCamera';
 import { ThreeOrbitControlsAdapter, ThreeMapControlsAdapter } from './ThreeControls';
 import { HexTileConfig } from './HexTileConfig';
@@ -134,7 +135,10 @@ export class ThreeSceneSetupService implements ISceneSetupService {
           existingGrids.push(child);
         }
       });
-      existingGrids.forEach(grid => threeScene.remove(grid));
+      existingGrids.forEach(grid => {
+        disposeObject3D(grid);
+        threeScene.remove(grid);
+      });
 
       // Calculate bounding box of the object
       let threeObject: THREE.Object3D;

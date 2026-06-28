@@ -3,6 +3,7 @@ import { IScene, IColor, ITexture, IFog } from '../../core/interfaces/IScene';
 import { IObject3D } from '../../core/interfaces/IObject3D';
 import { Result } from '../../utils/Result';
 import { ThreeObject3DAdapter } from './ThreeObject3D';
+import { disposeSceneContents } from './disposal';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 
 /**
@@ -77,6 +78,10 @@ export class ThreeSceneAdapter implements IScene {
     while (this.scene.children.length > 0) {
       this.scene.remove(this.scene.children[0]);
     }
+  }
+
+  disposeContents(): void {
+    disposeSceneContents(this.scene);
   }
 
   traverse(callback: (object: IObject3D) => void): void {
