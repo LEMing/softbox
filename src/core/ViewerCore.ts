@@ -65,7 +65,7 @@ export class ViewerCore {
   private readonly scene: IScene;
   private readonly camera: ICamera;
   private readonly controls: IControls;
-  private readonly options: SimpleViewerOptions;
+  private options: SimpleViewerOptions;
   private readonly rendererOptions?: IRendererOptions;
   private readonly sceneSetupService?: ISceneSetupService;
   private environmentService?: IEnvironmentService;
@@ -589,6 +589,40 @@ export class ViewerCore {
   /**
    * Resize the renderer
    */
+  /**
+   * Apply runtime-tunable options to a live viewer without rebuilding it.
+   *
+   * Only options that are safe to change on a running viewer are honoured here
+   * (currently the background color). Structural options — renderer, controls
+   * type, path tracing, lighting, helpers, environment — still take effect at
+   * construction time and require a rebuild.
+   */
+  updateOptions(partial: Partial<SimpleViewerOptions>): void {
+    if (this.disposed) {
+      return;
+    }
+    this.options = { ...this.options, ...partial };
+    if (partial.backgroundColor !== undefined) {
+      this.applyBackgroundColor(partial.backgroundColor);
+    }
+  }
+
+  private applyBackgroundColor(color: string | number): void {
+    // An environment map owns the background when present; don't override it.
+    if (this.options.environment?.url || !this.sceneSetupService) {
+      return;
+    }
+    const result = this.sceneSetupService.createGradientBackground(this.scene, {
+      topColor: String(color),
+      bottomColor: String(color),
+    });
+    if (!result.ok) {
+      console.warn('Failed to update background color:', result.error);
+      return;
+    }
+    this.renderLoopManager.requestRender();
+  }
+
   resize(width: number, height: number): void {
     // Skip if dimensions haven't actually changed
     const canvas = this.renderer.getDomElement();

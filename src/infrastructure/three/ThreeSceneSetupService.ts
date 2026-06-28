@@ -366,7 +366,11 @@ export class ThreeSceneSetupService implements ISceneSetupService {
       const texture = new THREE.CanvasTexture(canvas);
       texture.needsUpdate = true;
 
-      // Apply as background
+      // Apply as background, disposing any previous background texture so that
+      // repeated calls (e.g. runtime background-color changes) do not leak.
+      if (threeScene.background instanceof THREE.Texture) {
+        threeScene.background.dispose();
+      }
       threeScene.background = texture;
 
       return Result.ok(undefined);

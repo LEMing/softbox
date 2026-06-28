@@ -1118,3 +1118,54 @@ describe('ViewerCore', () => {
     });
   });
 });
+
+describe('ViewerCore.updateOptions (runtime options)', () => {
+  it('re-applies the background color via the scene setup service', () => {
+    const bundle = makeDeps({
+      withSceneSetup: true,
+      options: { backgroundColor: '#000000' },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+    bundle.sceneSetupService!.createGradientBackground.mockClear();
+
+    viewer.updateOptions({ backgroundColor: '#abcdef' });
+
+    expect(bundle.sceneSetupService!.createGradientBackground).toHaveBeenCalledWith(
+      bundle.scene,
+      { topColor: '#abcdef', bottomColor: '#abcdef' }
+    );
+  });
+
+  it('does not override the background when an environment map is set', () => {
+    const bundle = makeDeps({
+      withSceneSetup: true,
+      options: { environment: { url: 'https://example.com/env.hdr' } },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    viewer.updateOptions({ backgroundColor: '#abcdef' });
+
+    expect(bundle.sceneSetupService!.createGradientBackground).not.toHaveBeenCalled();
+  });
+
+  it('ignores updates that do not include a background color', () => {
+    const bundle = makeDeps({ withSceneSetup: true });
+    const viewer = new ViewerCore(bundle.deps);
+    bundle.sceneSetupService!.createGradientBackground.mockClear();
+
+    viewer.updateOptions({ staticScene: true });
+
+    expect(bundle.sceneSetupService!.createGradientBackground).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op after dispose', () => {
+    const bundle = makeDeps({ withSceneSetup: true });
+    const viewer = new ViewerCore(bundle.deps);
+    viewer.dispose();
+    bundle.sceneSetupService!.createGradientBackground.mockClear();
+
+    viewer.updateOptions({ backgroundColor: '#abcdef' });
+
+    expect(bundle.sceneSetupService!.createGradientBackground).not.toHaveBeenCalled();
+  });
+});

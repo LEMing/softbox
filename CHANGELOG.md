@@ -16,6 +16,12 @@ Changelog
 * The dynamic grid is now disposed before being replaced on every model swap
 * Model material textures are now disposed on swap/unmount
 
+### Runtime options (no more full rebuild on every change)
+* Added `ViewerCore.updateOptions(partial)` to apply runtime-tunable options to a live viewer
+* Options are now split into a structural set (rebuilds the viewer) and a runtime set; changing the background color no longer tears down the WebGLRenderer or re-fetches the model
+* `createGradientBackground` disposes the previous background texture before applying a new one (leak-safe runtime updates)
+* `useStableOptions` now returns `{ options, structuralKey, runtimeKey }` (**breaking** for direct consumers of this internal hook) and no longer writes a ref inside `useMemo`
+
 ### Screenshot capture
 * `preserveDrawingBuffer` is forced on automatically when `replaceWithScreenshotOnComplete` is enabled, so the captured frame is no longer blank
 * Capture now validates the result before hiding the canvas and disposing scene resources
