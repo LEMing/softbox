@@ -24,6 +24,7 @@ import { ScreenshotManager } from './managers/ScreenshotManager';
 import { ModelManager } from './managers/ModelManager';
 import { ResourceManager } from './managers/ResourceManager';
 import { ViewerState } from './entities/ViewerState';
+import { DEFAULT_PATH_TRACING_SAMPLES } from './constants';
 
 export interface ViewerDependencies {
   renderer: IRenderer;
@@ -261,7 +262,7 @@ export class ViewerCore {
           // Update path tracing settings
           if (this.options.pathTracing) {
             this.pathTracingService.updateSettings({
-              samples: this.options.pathTracing.maxSamples ?? 300,
+              samples: this.options.pathTracing.maxSamples ?? DEFAULT_PATH_TRACING_SAMPLES,
               bounces: this.options.pathTracing.bounces,
               transmissiveBounces: this.options.pathTracing.transmissiveBounces,
               renderScale: this.options.pathTracing.renderScale,
@@ -422,7 +423,7 @@ export class ViewerCore {
       // Check path tracing status BEFORE rendering
       const wasPathTracingActive = this.pathTracingService?.isEnabled() || false;
       const pathTracingSamples = this.pathTracingService?.getSampleCount() || 0;
-      const maxSamples = this.options.pathTracing?.maxSamples ?? 300;
+      const maxSamples = this.options.pathTracing?.maxSamples ?? DEFAULT_PATH_TRACING_SAMPLES;
       
       // Only render if RenderLoopManager says we need to
       // The manager already handled all the logic about when to render
@@ -545,7 +546,7 @@ export class ViewerCore {
     let renderResult;
     const pathTracingActiveInRender = this.pathTracingService?.isEnabled() || false;
     const pathTracingSamples = this.pathTracingService?.getSampleCount() || 0;
-    const maxSamples = this.options.pathTracing?.maxSamples ?? 300;
+    const maxSamples = this.options.pathTracing?.maxSamples ?? DEFAULT_PATH_TRACING_SAMPLES;
     
     // Check if we should use path tracing
     // Use path tracing if it's enabled OR if it has completed (to preserve the final image)

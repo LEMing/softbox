@@ -8,6 +8,7 @@ import {
 import { IRenderer } from '../../core/interfaces/IRenderer';
 import { IScene } from '../../core/interfaces/IScene';
 import { ICamera } from '../../core/interfaces/ICamera';
+import { DEFAULT_PATH_TRACING_SAMPLES } from '../../core/constants';
 import { Result } from '../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import { hasInternalRenderer } from '../../core/interfaces/IRendererExtension';
@@ -101,7 +102,7 @@ export class ThreePathTracingService implements IPathTracingService {
     this.instanceId = ++instanceCount;
     activeInstances.add(this);
     this.settings = {
-      samples: 300,
+      samples: DEFAULT_PATH_TRACING_SAMPLES,
       bounces: 4, // Reduce bounces for better performance
       transmissiveBounces: 2, // Reduce transmissive bounces
       renderScale: 0.5, // Start with lower resolution for better performance
