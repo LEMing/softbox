@@ -471,8 +471,9 @@ describe('ViewerCore', () => {
 
       expect(result.ok).toBe(true);
       expect(bundle.environmentService!.createStudioEnvironment).toHaveBeenCalled();
-      // Background color + dark studio background both go through createGradientBackground
-      expect(bundle.sceneSetupService!.createGradientBackground).toHaveBeenCalledTimes(2);
+      // The backgroundColor gradient is skipped because the studio environment
+      // owns the background; only the dark-studio gradient is applied (once).
+      expect(bundle.sceneSetupService!.createGradientBackground).toHaveBeenCalledTimes(1);
       expect(enableContinuousSpy).toHaveBeenCalled();
     });
 
@@ -1074,7 +1075,8 @@ describe('ViewerCore', () => {
       expect(modelDisposeSpy).toHaveBeenCalled();
       expect(resourceDisposeSpy).toHaveBeenCalled();
       expect(screenshotDisposeSpy).toHaveBeenCalled();
-      expect(bundle.scene.clear).toHaveBeenCalled();
+      // Teardown frees scene contents via ResourceManager.dispose() -> disposeContents()
+      expect(bundle.scene.disposeContents).toHaveBeenCalled();
       expect(bundle.controls.dispose).toHaveBeenCalled();
       expect(bundle.renderer.dispose).toHaveBeenCalled();
       expect(viewer.getState().status).toBe('disposed');

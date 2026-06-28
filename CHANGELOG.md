@@ -226,7 +226,7 @@ Changelog
 
 2.0.0
 ---
-**Breaking Changes** - See [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) for upgrade instructions
+**Breaking Changes** — see the notes below for upgrade instructions
 
 ### New Features
 * **Event System**: Introduced event-driven architecture with typed events

@@ -182,9 +182,12 @@ export class ViewerCore {
           }
         }
 
-        // Set background color only if no environment map
+        // Set background color only if nothing else will own the background
+        // (an environment map URL, or studio environment, would overwrite it and
+        // leak this gradient texture).
         const envUrl = this.options.environment?.url;
-        if (this.options.backgroundColor && !envUrl && this.sceneSetupService) {
+        const studioWillOwnBackground = this.options.helpers?.studioEnvironment ?? false;
+        if (this.options.backgroundColor && !envUrl && !studioWillOwnBackground && this.sceneSetupService) {
           // Use the scene setup service to create gradient background with single color
           const backgroundResult = this.sceneSetupService.createGradientBackground(this.scene, {
             topColor: String(this.options.backgroundColor),
@@ -778,13 +781,11 @@ export class ViewerCore {
 
     this.stopRenderLoop();
 
-    // Dispose managers
+    // Dispose managers (resourceManager.dispose() already disposes and detaches
+    // all scene contents, so no separate scene.clear() is needed here)
     this.modelManager.dispose();
     this.resourceManager.dispose();
     this.screenshotManager.dispose();
-
-    // Dispose scene
-    this.scene.clear();
 
     // Dispose controls
     this.controls.dispose();

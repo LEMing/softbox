@@ -165,24 +165,11 @@ export class ModelManager {
   }
 
   /**
-   * Recursively dispose of an object and its children
+   * Dispose of an object and its children. Delegates to the object's own
+   * dispose(), which routes through the canonical Three.js disposal helper
+   * (geometry + materials + textures + light shadows).
    */
   private disposeObject(object: IObject3D): void {
-    object.traverse((child) => {
-      if ('geometry' in child && (child as { geometry?: { dispose?: () => void } }).geometry?.dispose) {
-        (child as { geometry?: { dispose?: () => void } }).geometry?.dispose?.();
-      }
-      if ('material' in child && (child as { material?: unknown }).material) {
-        const material = (child as { material?: { dispose?: () => void } | Array<{ dispose?: () => void }> }).material;
-        if (Array.isArray(material)) {
-          material.forEach((mat: { dispose?: () => void }) => {
-            mat.dispose?.();
-          });
-        } else if (material?.dispose) {
-          material.dispose();
-        }
-      }
-    });
     object.dispose();
   }
 

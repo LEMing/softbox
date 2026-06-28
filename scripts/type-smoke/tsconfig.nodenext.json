@@ -9,5 +9,5 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "types": []
   },
-  "files": ["consumer.ts"]
+  "files": ["consumer.ts", "consumer.cts"]
 }

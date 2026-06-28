@@ -17,6 +17,9 @@ export interface StableOptions {
  * re-fetching the model.
  */
 export function useStableOptions(options: SimpleViewerOptions): StableOptions {
+  // Construction-time options: a change requires rebuilding the viewer. Note
+  // callbacks (onLoad/onProgress/onError) and animationLoop are intentionally
+  // excluded — they are read at construction and would churn on identity change.
   const structuralKey = useMemo(
     () =>
       JSON.stringify({
@@ -28,6 +31,8 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
         environment: options.environment,
         lighting: options.lighting,
         helpers: options.helpers,
+        rendering: options.rendering,
+        replaceWithScreenshotOnComplete: options.replaceWithScreenshotOnComplete,
       }),
     [
       options.pathTracing,
@@ -38,6 +43,8 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
       options.environment,
       options.lighting,
       options.helpers,
+      options.rendering,
+      options.replaceWithScreenshotOnComplete,
     ]
   );
 

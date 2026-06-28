@@ -1,16 +1,26 @@
 /**
- * Consumer smoke test for the built package. Loads each entrypoint exactly the
- * way real consumers do — ESM `import` and a child-process CJS `require` — and
- * asserts the public surface resolves. Catches packaging regressions (bad
- * externals, unresolved subpaths, SSR-unsafe top-level code) that `vite build`
- * alone does not surface.
+ * Consumer smoke test for the built package. Symlinks the package into its own
+ * node_modules and loads it BY NAME — `import 'threedviewer'` (ESM, exports.import)
+ * and a child-process `require('threedviewer')` (CJS, exports.require) — so the
+ * real exports map is what's under test, not raw file paths. Catches packaging
+ * regressions (bad externals, wrong conditions, SSR-unsafe top-level code).
  */
 import { execFileSync } from 'node:child_process';
+import { lstatSync, unlinkSync, symlinkSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const distDir = resolve(root, 'dist');
+const link = resolve(root, 'node_modules', 'threedviewer');
+
+function removeLink() {
+  try {
+    lstatSync(link);
+    unlinkSync(link);
+  } catch {
+    // not present
+  }
+}
 
 function assert(condition, message) {
   if (!condition) {
@@ -18,21 +28,27 @@ function assert(condition, message) {
   }
 }
 
-// ESM entrypoint (exports.import / `module`)
-const esm = await import(resolve(distDir, 'simple-viewer.es.js'));
-assert(esm.SimpleViewer, 'ESM: SimpleViewer export missing');
-assert(typeof esm.TypedEventEmitter === 'function', 'ESM: TypedEventEmitter export missing');
-assert(esm.defaultOptions && typeof esm.defaultOptions === 'object', 'ESM: defaultOptions export missing');
-assert(typeof esm.ThreeViewerError === 'function', 'ESM: ThreeViewerError export missing');
+removeLink();
+symlinkSync(root, link, 'junction');
 
-// CJS entrypoint (exports.require / `main`) — run in a real CJS process, the way
-// a `require('threedviewer')` consumer loads it.
-const cjsCheck = [
-  "const m = require('./dist/simple-viewer.cjs');",
-  "if (!m.SimpleViewer) throw new Error('CJS: SimpleViewer export missing');",
-  "if (typeof m.TypedEventEmitter !== 'function') throw new Error('CJS: TypedEventEmitter export missing');",
-  "if (!m.defaultOptions || typeof m.defaultOptions !== 'object') throw new Error('CJS: defaultOptions export missing');",
-].join('');
-execFileSync(process.execPath, ['-e', cjsCheck], { cwd: root, stdio: 'inherit' });
+try {
+  // ESM consumer — resolves via the `import` condition of the exports map.
+  const esm = await import('threedviewer');
+  assert(esm.SimpleViewer, 'ESM: SimpleViewer export missing');
+  assert(typeof esm.TypedEventEmitter === 'function', 'ESM: TypedEventEmitter export missing');
+  assert(esm.defaultOptions && typeof esm.defaultOptions === 'object', 'ESM: defaultOptions export missing');
+  assert(typeof esm.ThreeViewerError === 'function', 'ESM: ThreeViewerError export missing');
 
-console.log('smoke ok: ESM + CJS entrypoints load and export the public API');
+  // CJS consumer — resolves via the `require` condition, in a real CJS process.
+  const cjsCheck = [
+    "const m = require('threedviewer');",
+    "if (!m.SimpleViewer) throw new Error('CJS: SimpleViewer export missing');",
+    "if (typeof m.TypedEventEmitter !== 'function') throw new Error('CJS: TypedEventEmitter export missing');",
+    "if (!m.defaultOptions || typeof m.defaultOptions !== 'object') throw new Error('CJS: defaultOptions export missing');",
+  ].join('');
+  execFileSync(process.execPath, ['-e', cjsCheck], { cwd: root, stdio: 'inherit' });
+
+  console.log('smoke ok: threedviewer resolves via the exports map for ESM (import) and CJS (require)');
+} finally {
+  removeLink();
+}

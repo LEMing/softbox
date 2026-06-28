@@ -1,6 +1,7 @@
 export { default as SimpleViewer, type SimpleViewerHandle } from './SimpleViewerWrapper'
 export { type SimpleViewerProps } from './types'
 export { type SimpleViewerOptions } from './types'
+export type { ControlsInstance } from './types/CommonTypes'
 export { default as defaultOptions } from './defaultOptions'
 
 // Option sub-types and the ControlType enum, so consumers can construct options

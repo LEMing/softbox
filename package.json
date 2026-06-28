@@ -20,7 +20,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "NODE_ENV=production tsc && vite build",
+    "build": "NODE_ENV=production tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "jest --runInBand",
     "typecheck": "tsc --noEmit",
@@ -34,9 +34,7 @@
     "postpublish": "echo 'Published successfully!'"
   },
   "files": [
-    "dist",
-    "!dist/__tests__",
-    "!dist/__mocks__"
+    "dist"
   ],
   "main": "dist/simple-viewer.cjs",
   "module": "dist/simple-viewer.es.js",
