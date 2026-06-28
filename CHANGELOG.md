@@ -41,9 +41,15 @@ Changelog
 
 ### Packaging
 * Added a `types` condition (and a `./package.json` export) to the `exports` map so types resolve under `node16`/`nodenext`/`bundler` module resolution
-* Externalized `three` subpaths/addons and the `three-gpu-pathtracer` / `threedgizmo` runtime deps instead of bundling them — the ESM bundle dropped from ~138 kB to ~26 kB gzipped and consumers no longer get a second copy of three
+* Ship **ESM + CJS** instead of ESM + UMD. The CJS bundle uses a `.cjs` extension so Node loads it as CommonJS under `"type": "module"` (a `.js` bundle was parsed as ESM, so `require()` saw no exports)
+* Externalize the `three` CORE and React only; Three.js addons (`examples/jsm/*`), `three-gpu-pathtracer` and `threedgizmo` are bundled — three's exports map can't resolve extensionless addon subpaths and they have no UMD global, so externalizing them broke both entrypoints. Bundled addons still import the consumer's `three`, so there's no duplicate core.
+* `defaultOptions` no longer reads `window` at module load (SSR/Node-import safe)
+* Added a consumer smoke test (`npm run smoke`) that loads the built ESM and CJS entrypoints in CI, so packaging regressions fail the build
 * Capped the `three` peer range to the tested window (`>=0.177.0 <0.184.0`)
 * Raised `engines.node` to `>=18`
+
+### Examples & docs
+* Replaced the outdated `v2-patterns` examples (which used a props API that never existed and imported non-existent subpaths) with an accurate `examples/basic-usage.tsx`, type-checked in CI (`npm run typecheck:examples`) so examples can't silently rot
 
 2.6.1
 ---

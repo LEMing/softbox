@@ -25,11 +25,17 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      - name: Type check examples
+        run: npm run typecheck:examples
+
       - name: Test
         run: npm test
 
       - name: Build
         run: npm run build
+
+      - name: Package smoke test (ESM + CJS entrypoints)
+        run: npm run smoke
 
       - name: Dead-code check
         run: npm run knip

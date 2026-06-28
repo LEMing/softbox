@@ -24,6 +24,8 @@
     "preview": "vite preview",
     "test": "jest --runInBand",
     "typecheck": "tsc --noEmit",
+    "typecheck:examples": "tsc -p tsconfig.examples.json",
+    "smoke": "node scripts/smoke.mjs",
     "knip": "knip",
     "lint": "eslint 'src/**/*.{ts,tsx}' --max-warnings 0",
     "lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix",
@@ -35,14 +37,14 @@
     "!dist/__tests__",
     "!dist/__mocks__"
   ],
-  "main": "dist/simple-viewer.umd.js",
+  "main": "dist/simple-viewer.cjs",
   "module": "dist/simple-viewer.es.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/simple-viewer.es.js",
-      "require": "./dist/simple-viewer.umd.js"
+      "require": "./dist/simple-viewer.cjs"
     },
     "./package.json": "./package.json"
   },
@@ -65,16 +67,14 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "three": "^0.183.2",
+    "three-gpu-pathtracer": "^0.0.23",
     "three-mesh-bvh": "^0.9.9",
+    "threedgizmo": "^1.2.1",
     "ts-jest": "^29.2.4",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.35.1",
     "vite": "^6.3.5",
     "vite-plugin-dts": "^4.0.3"
-  },
-  "dependencies": {
-    "three-gpu-pathtracer": "^0.0.23",
-    "threedgizmo": "^1.2.1"
   },
   "peerDependencies": {
     "react": "^19.0.0",

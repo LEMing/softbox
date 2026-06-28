@@ -77,7 +77,7 @@ const defaultOptions: SimpleViewerOptions = {
     antialias: true,
     alpha: false,
     shadowMapEnabled: true,
-    pixelRatio: window.devicePixelRatio,
+    pixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio : 1,
     shadowMapType: 2, // PCFSoftShadowMap
     toneMapping: 6, // ACESFilmicToneMapping
     toneMappingExposure: 1.5,
