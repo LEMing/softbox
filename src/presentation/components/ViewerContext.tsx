@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 import { ViewerCore } from '../../core/ViewerCore';
 
 interface ViewerContextValue {
@@ -18,8 +18,9 @@ export interface ViewerProviderProps {
  * Provider component for viewer context
  */
 export function ViewerProvider({ viewer, canvasRef, children }: ViewerProviderProps) {
+  const value = useMemo(() => ({ viewer, canvasRef }), [viewer, canvasRef]);
   return (
-    <ViewerContext.Provider value={{ viewer, canvasRef }}>
+    <ViewerContext.Provider value={value}>
       {children}
     </ViewerContext.Provider>
   );

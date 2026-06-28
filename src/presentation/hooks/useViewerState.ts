@@ -28,20 +28,3 @@ export function useViewerState(viewer: ViewerCore | null): ViewerState {
 
   return state;
 }
-
-/**
- * Hook to get specific state properties with memoization
- */
-export function useViewerStatus(viewer: ViewerCore | null) {
-  const state = useViewerState(viewer);
-  
-  return {
-    status: state.status,
-    isLoading: state.isLoading(),
-    hasError: state.hasError(),
-    error: state.error,
-    canLoad: state.canLoad(),
-    canRender: state.canRender(),
-    loadProgress: state.loadProgress,
-  };
-}

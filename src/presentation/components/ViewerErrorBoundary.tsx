@@ -27,6 +27,10 @@ export class ViewerErrorBoundary extends Component<Props, State> {
     console.error('ViewerErrorBoundary caught error:', error, errorInfo);
   }
 
+  private reset = (): void => {
+    this.setState({ hasError: false, error: null });
+  };
+
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
@@ -49,6 +53,7 @@ export class ViewerErrorBoundary extends Component<Props, State> {
           <div>
             <h3>Error Loading 3D Viewer</h3>
             <p>{this.state.error?.message || 'An unexpected error occurred'}</p>
+            <button type="button" onClick={this.reset}>Try again</button>
           </div>
         </div>
       );

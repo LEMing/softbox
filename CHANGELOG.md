@@ -4,6 +4,11 @@ Changelog
 3.0.0 (unreleased)
 ---
 
+### Cleanup & React polish
+* Removed dead code: `OptionsValidator`, `HexGrid`, `PerformanceMonitor`, `ExtendedTypes`, unused barrel files, and the unused `useViewerEvents`/`useViewerStatus` hooks
+* Dropped redundant devDependencies (`@types/lodash`, `@typescript-eslint/eslint-plugin`, `@typescript-eslint/parser` — provided by `typescript-eslint`)
+* Memoized the `ViewerContext` value, added a reset action to `ViewerErrorBoundary`, and removed the side-effecting `useMemo` ref writes in `SimpleViewer`/`useStableOptions`
+
 ### Architecture guardrails
 * Added GitHub Actions CI running lint, type check, tests and build on every push/PR
 * Added an ESLint clean-architecture boundary: `src/core` can no longer import `three`, `three-gpu-pathtracer`, or anything from `infrastructure`/`presentation`

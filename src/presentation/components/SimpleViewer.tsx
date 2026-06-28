@@ -25,39 +25,33 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
       new TypedEventEmitter()
     );
 
-    // Create stable object reference for non-string objects
-    const stableObjectRef = useRef<string | THREE.Object3D | null | undefined>(undefined);
+    // Identity key for the object: its string URL, or a uuid-based key for
+    // Three.js objects, so the load effect only re-runs on a real change.
     const objectKey = useMemo(() => {
       if (typeof object === 'string') {
         return object;
       } else if (object) {
-        // For objects, use a combination of properties that identify it
         return `object-${object.uuid || 'no-uuid'}`;
       }
       return undefined;
     }, [object]);
-    
-    // Update ref when key changes
-    useMemo(() => {
-      stableObjectRef.current = object;
-    }, [objectKey, object]);
-    
-    // Load object when provided and viewer is ready
+
+    // Load object when provided and viewer is ready. Keyed on objectKey so a new
+    // object identity with the same key does not trigger a reload.
     useEffect(() => {
-      if (!viewer || !isInitialized || !stableObjectRef.current) {
+      if (!viewer || !isInitialized || !object) {
         return;
       }
 
-      // Load the object - handle Three.js objects by wrapping them
-      const objectToLoad = typeof stableObjectRef.current === 'string' ? 
-        stableObjectRef.current :
-        new ThreeObject3DAdapter(stableObjectRef.current as THREE.Object3D);
+      const objectToLoad = typeof object === 'string'
+        ? object
+        : new ThreeObject3DAdapter(object as THREE.Object3D);
       viewer.loadModel(objectToLoad).then((result) => {
         if (!result.ok) {
           console.error('Failed to load model:', result.error);
         }
       });
-    }, [viewer, isInitialized, objectKey]); // Use objectKey instead of object
+    }, [viewer, isInitialized, objectKey]);
 
     // Memoize event handlers to prevent recreating on every render
     const eventHandlers = useMemo(() => ({
