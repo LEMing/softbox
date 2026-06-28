@@ -33,6 +33,10 @@ export function useViewerCore(
     const viewer = ViewerFactory.createViewer(canvasRef.current, mergedOptions);
     viewerRef.current = viewer;
 
+    // Guards against the StrictMode mount->cleanup->mount cycle (and option
+    // changes) resolving a disposed viewer's initialize() promise.
+    let cancelled = false;
+
     // Subscribe to state changes
     const unsubscribe = viewer.onStateChange((newState) => {
       setState(newState);
@@ -40,6 +44,9 @@ export function useViewerCore(
 
     // Initialize viewer
     viewer.initialize().then((result) => {
+      if (cancelled) {
+        return;
+      }
       if (result.ok) {
         setIsInitialized(true);
       } else {
@@ -49,6 +56,7 @@ export function useViewerCore(
 
     // Cleanup
     return () => {
+      cancelled = true;
       unsubscribe();
       viewer.dispose();
       viewerRef.current = null;

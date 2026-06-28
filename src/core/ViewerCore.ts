@@ -52,6 +52,7 @@ export class ViewerCore {
   private pathTracingStartTime?: number;
   private pathTracingCompleteHandled: boolean = false;
   private disposed: boolean = false;
+  private readonly pendingTimers: Set<ReturnType<typeof setTimeout>> = new Set();
 
   // Managers
   private readonly stateManager: StateManager;
@@ -282,7 +283,7 @@ export class ViewerCore {
             }
             
             // Stop the render loop completely after a short delay
-            setTimeout(() => {
+            this.schedule(() => {
               this.renderLoopManager.stop();
             }, 100);
           });
@@ -457,10 +458,10 @@ export class ViewerCore {
         
         // Replace with screenshot if enabled
         if (this.options.replaceWithScreenshotOnComplete) {
-          setTimeout(() => {
+          this.schedule(() => {
             this.replaceWithScreenshot();
             // Stop the render loop after screenshot to prevent disposed service renders
-            setTimeout(() => {
+            this.schedule(() => {
               this.renderLoopManager.stop();
             }, 200);
           }, 100);
@@ -470,9 +471,9 @@ export class ViewerCore {
           
           // Request one final render to ensure the last frame is displayed
           this.renderLoopManager.requestRender();
-          
+
           // Stop the render loop after final render
-          setTimeout(() => {
+          this.schedule(() => {
             this.renderLoopManager.stop();
           }, 100);
           
@@ -505,6 +506,21 @@ export class ViewerCore {
    */
   private stopRenderLoop(): void {
     this.renderLoopManager.stop();
+  }
+
+  /**
+   * Schedule a deferred callback that is automatically cancelled on dispose and
+   * never runs against a disposed viewer.
+   */
+  private schedule(callback: () => void, delayMs: number): void {
+    const id = setTimeout(() => {
+      this.pendingTimers.delete(id);
+      if (this.disposed) {
+        return;
+      }
+      callback();
+    }, delayMs);
+    this.pendingTimers.add(id);
   }
 
   /**
@@ -709,7 +725,11 @@ export class ViewerCore {
   dispose(): void {
     // Mark as disposed first to prevent any further operations
     this.disposed = true;
-    
+
+    // Cancel any deferred screenshot/stop callbacks so they never run after teardown
+    this.pendingTimers.forEach((id) => clearTimeout(id));
+    this.pendingTimers.clear();
+
     this.stopRenderLoop();
 
     // Dispose managers

@@ -90,6 +90,7 @@ export class ThreePathTracingService implements IPathTracingService {
   private environmentWaitFrames: number = 0;
   private maxEnvironmentWaitFrames: number = 300; // Wait up to ~5 seconds at 60fps
   private disposed: boolean = false;
+  private disposeTimer: ReturnType<typeof setTimeout> | null = null;
   private convertedEnvTexture: THREE.DataTexture | null = null; // Store converted texture for reuse and disposal
   private lastResetTime: number = 0; // Track when we last reset to avoid too frequent resets
   private pausedFrameBase64: string | null = null; // Store base64 image when pausing
@@ -591,7 +592,11 @@ export class ThreePathTracingService implements IPathTracingService {
             this.events.emit('pathtracing:paused', { samples: this.sampleCount });
             
             // Dispose of path tracing resources after a short delay to ensure image is displayed
-            setTimeout(() => {
+            this.disposeTimer = setTimeout(() => {
+              this.disposeTimer = null;
+              if (this.disposed) {
+                return;
+              }
               this.disposePathTracingResources();
             }, 100);
             
@@ -743,6 +748,11 @@ export class ThreePathTracingService implements IPathTracingService {
   dispose(): void {
     this.disposed = true;
     activeInstances.delete(this);
+
+    if (this.disposeTimer !== null) {
+      clearTimeout(this.disposeTimer);
+      this.disposeTimer = null;
+    }
 
     // Remove image overlay if it exists
     if (this.imageOverlay && this.imageOverlay.parentElement) {
