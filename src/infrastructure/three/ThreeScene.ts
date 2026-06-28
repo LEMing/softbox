@@ -80,8 +80,8 @@ export class ThreeSceneAdapter implements IScene {
     }
   }
 
-  disposeContents(): void {
-    disposeSceneContents(this.scene);
+  disposeContents(options?: { keepBackgrounds?: boolean }): void {
+    disposeSceneContents(this.scene, options);
   }
 
   traverse(callback: (object: IObject3D) => void): void {

@@ -109,8 +109,10 @@ describe('ResourceManager', () => {
     it('should dispose scene contents and the environment service', () => {
       resourceManager.disposeSceneResources();
 
-      // Should delegate GPU disposal to the scene (geometry/material/textures)
+      // Should delegate GPU disposal to the scene but keep the background so the
+      // screenshot can be restored
       expect(mockScene.disposeContents).toHaveBeenCalledTimes(1);
+      expect(mockScene.disposeContents).toHaveBeenCalledWith({ keepBackgrounds: true });
 
       // Should dispose environment service
       expect(mockEnvironmentService.dispose).toHaveBeenCalled();
@@ -208,8 +210,8 @@ describe('ResourceManager', () => {
       expect(mockPathTracingService.dispose).toHaveBeenCalled();
       expect(mockEnvironmentService.dispose).toHaveBeenCalled();
 
-      // Should dispose scene GPU resources
-      expect(mockScene.disposeContents).toHaveBeenCalled();
+      // Should dispose scene GPU resources, including backgrounds (full teardown)
+      expect(mockScene.disposeContents).toHaveBeenCalledWith();
 
       // Should trigger GC
       expect(gcMock).toHaveBeenCalled();

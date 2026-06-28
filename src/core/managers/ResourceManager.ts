@@ -52,7 +52,8 @@ export class ResourceManager {
       this.environmentService.dispose();
     }
 
-    this.scene.disposeContents();
+    // Keep the background texture so the scene can be restored from the screenshot.
+    this.scene.disposeContents({ keepBackgrounds: true });
 
     // Force garbage collection hint (works in some environments)
     this.triggerGarbageCollection();

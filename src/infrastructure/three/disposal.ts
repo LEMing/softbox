@@ -30,20 +30,26 @@ export function disposeMaterial(material: THREE.Material): void {
 
 /**
  * Recursively dispose an object's geometries, materials (with their textures),
- * and light shadow-map render targets. Does not detach the object from its
- * parent; callers that need that should remove it afterwards.
+ * and light shadow-map render targets. Covers every renderable that carries
+ * geometry/material — meshes, lines (grids, axes helpers), points, sprites —
+ * not just meshes. Does not detach the object from its parent.
  */
 export function disposeObject3D(object: THREE.Object3D): void {
   object.traverse((child) => {
-    const mesh = child as THREE.Mesh;
-    if (mesh.isMesh) {
-      mesh.geometry?.dispose();
-      const material = mesh.material;
-      if (Array.isArray(material)) {
-        material.forEach(disposeMaterial);
-      } else if (material) {
-        disposeMaterial(material);
-      }
+    const renderable = child as Partial<{
+      geometry: THREE.BufferGeometry;
+      material: THREE.Material | THREE.Material[];
+    }>;
+
+    if (renderable.geometry && typeof renderable.geometry.dispose === 'function') {
+      renderable.geometry.dispose();
+    }
+
+    const material = renderable.material;
+    if (Array.isArray(material)) {
+      material.forEach(disposeMaterial);
+    } else if (material) {
+      disposeMaterial(material);
     }
 
     const light = child as THREE.Light & { shadow?: { dispose?: () => void } };
@@ -53,19 +59,31 @@ export function disposeObject3D(object: THREE.Object3D): void {
   });
 }
 
+export interface DisposeSceneOptions {
+  /**
+   * Keep `scene.background` / `scene.environment` textures alive. Used by the
+   * screenshot flow, which frees heavy geometry but must preserve the background
+   * so the scene can be restored when the user dismisses the screenshot.
+   */
+  keepBackgrounds?: boolean;
+}
+
 /**
- * Dispose everything held by a scene: background/environment textures plus all
- * children (geometries, materials, textures, light shadows), then detach the
- * children so the scene graph is empty.
+ * Dispose everything held by a scene: all children (geometries, materials,
+ * textures, light shadows) and, unless {@link DisposeSceneOptions.keepBackgrounds}
+ * is set, the background/environment textures. Detaches the children so the
+ * scene graph is empty.
  */
-export function disposeSceneContents(scene: THREE.Scene): void {
-  if (scene.background instanceof THREE.Texture) {
-    scene.background.dispose();
-    scene.background = null;
-  }
-  if (scene.environment instanceof THREE.Texture) {
-    scene.environment.dispose();
-    scene.environment = null;
+export function disposeSceneContents(scene: THREE.Scene, options?: DisposeSceneOptions): void {
+  if (!options?.keepBackgrounds) {
+    if (scene.background instanceof THREE.Texture) {
+      scene.background.dispose();
+      scene.background = null;
+    }
+    if (scene.environment instanceof THREE.Texture) {
+      scene.environment.dispose();
+      scene.environment = null;
+    }
   }
 
   for (const child of [...scene.children]) {

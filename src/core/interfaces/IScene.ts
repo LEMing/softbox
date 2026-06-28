@@ -15,11 +15,12 @@ export interface IScene extends IRendererExtension {
 
   /**
    * Dispose every GPU-backed resource held by the scene (geometries, materials,
-   * their textures, light shadow maps, background/environment textures) and
-   * detach all children. Use this for teardown instead of {@link clear}, which
-   * only removes children without releasing GPU memory.
+   * their textures, light shadow maps, and — unless `keepBackgrounds` is set —
+   * background/environment textures) and detach all children. Use this for
+   * teardown instead of {@link clear}, which only removes children without
+   * releasing GPU memory.
    */
-  disposeContents(): void;
+  disposeContents(options?: { keepBackgrounds?: boolean }): void;
 
   traverse(callback: (object: IObject3D) => void): void;
   

@@ -70,6 +70,20 @@ describe('disposal', () => {
 
       expect(shadowSpy).toHaveBeenCalledTimes(1);
     });
+
+    it('disposes non-mesh renderables (lines, e.g. wire grids and axes helpers)', () => {
+      const geometry = new THREE.BufferGeometry();
+      const material = new THREE.LineBasicMaterial();
+      const line = new THREE.LineSegments(geometry, material);
+
+      const geomSpy = jest.spyOn(geometry, 'dispose');
+      const matSpy = jest.spyOn(material, 'dispose');
+
+      disposeObject3D(line);
+
+      expect(geomSpy).toHaveBeenCalledTimes(1);
+      expect(matSpy).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('disposeSceneContents', () => {
@@ -106,6 +120,28 @@ describe('disposal', () => {
 
       expect(() => disposeSceneContents(scene)).not.toThrow();
       expect(scene.background).toBeInstanceOf(THREE.Color);
+    });
+
+    it('keeps background/environment textures when keepBackgrounds is set', () => {
+      const scene = new THREE.Scene();
+      const background = new THREE.Texture();
+      const environment = new THREE.Texture();
+      scene.background = background;
+      scene.environment = environment;
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+      scene.add(mesh);
+
+      const bgSpy = jest.spyOn(background, 'dispose');
+      const envSpy = jest.spyOn(environment, 'dispose');
+
+      disposeSceneContents(scene, { keepBackgrounds: true });
+
+      expect(bgSpy).not.toHaveBeenCalled();
+      expect(envSpy).not.toHaveBeenCalled();
+      expect(scene.background).toBe(background);
+      expect(scene.environment).toBe(environment);
+      // Children are still detached/disposed.
+      expect(scene.children).toHaveLength(0);
     });
   });
 });
