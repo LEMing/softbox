@@ -16,16 +16,18 @@
   },
   "license": "MIT",
   "engines": {
-    "node": ">=16"
+    "node": ">=18"
   },
   "scripts": {
     "dev": "vite",
     "build": "NODE_ENV=production tsc && vite build",
     "preview": "vite preview",
     "test": "jest --runInBand",
+    "typecheck": "tsc --noEmit",
+    "knip": "knip",
     "lint": "eslint 'src/**/*.{ts,tsx}' --max-warnings 0",
     "lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix",
-    "prepublishOnly": "npm run lint && npm run build && npm run test",
+    "prepublishOnly": "npm run lint && npm run typecheck && npm run build && npm run test",
     "postpublish": "echo 'Published successfully!'"
   },
   "files": [
@@ -38,9 +40,11 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/simple-viewer.es.js",
       "require": "./dist/simple-viewer.umd.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "publishConfig": {
     "access": "public"
@@ -60,6 +64,7 @@
     "eslint": "^9.30.1",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
+    "knip": "^6.23.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "three": "^0.183.2",

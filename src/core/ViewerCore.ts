@@ -18,7 +18,7 @@ import { ISceneSetupService, ILightingOptions, IHelperOptions } from './services
 import { IFloorAlignmentService } from './services/IFloorAlignmentService';
 import { RenderLoopManager } from './utils/RenderLoopManager';
 import { SceneSerializer } from './utils/SceneSerializer';
-import { hasGetInternalRenderer } from '../infrastructure/three/types/PathTracerTypes';
+import { hasInternalRenderer } from './interfaces/IRendererExtension';
 import { StateManager } from './managers/StateManager';
 import { ScreenshotManager } from './managers/ScreenshotManager';
 import { ModelManager } from './managers/ModelManager';
@@ -479,8 +479,8 @@ export class ViewerCore {
           // The render loop is already stopped by disableContinuousRendering
           // The path tracing service has disabled autoClear to preserve the image
           // Just ensure we don't accidentally clear it
-          if (hasGetInternalRenderer(this.renderer)) {
-            const threeRenderer = this.renderer.getInternalRenderer() as { autoClear: boolean };
+          if (hasInternalRenderer(this.renderer)) {
+            const threeRenderer = this.renderer.getInternalRenderer() as { autoClear: boolean } | null;
             if (threeRenderer) {
               threeRenderer.autoClear = false;
             }
