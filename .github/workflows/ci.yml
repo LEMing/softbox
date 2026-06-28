@@ -37,5 +37,8 @@ jobs:
       - name: Package smoke test (ESM + CJS entrypoints)
         run: npm run smoke
 
+      - name: Type smoke test (nodenext + bundler consumers)
+        run: npm run type-smoke
+
       - name: Dead-code check
         run: npm run knip

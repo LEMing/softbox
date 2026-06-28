@@ -44,7 +44,9 @@ Changelog
 * Ship **ESM + CJS** instead of ESM + UMD. The CJS bundle uses a `.cjs` extension so Node loads it as CommonJS under `"type": "module"` (a `.js` bundle was parsed as ESM, so `require()` saw no exports)
 * Externalize the `three` CORE and React only; Three.js addons (`examples/jsm/*`), `three-gpu-pathtracer` and `threedgizmo` are bundled — three's exports map can't resolve extensionless addon subpaths and they have no UMD global, so externalizing them broke both entrypoints. Bundled addons still import the consumer's `three`, so there's no duplicate core.
 * `defaultOptions` no longer reads `window` at module load (SSR/Node-import safe)
-* Added a consumer smoke test (`npm run smoke`) that loads the built ESM and CJS entrypoints in CI, so packaging regressions fail the build
+* Bundle declarations into a single `dist/index.d.ts` (`rollupTypes`) and remove the `three` resolve-alias, so published types resolve under `nodenext`/`bundler`: no extensionless relative imports (was TS2834) and no leaked `node_modules/three/...` paths (was TS2307)
+* Removed the dead `refs`/`ThreeJSRefs` option, which was the only thing exposing concrete `OrbitControls`/`MapControls` addon types in the public surface
+* Added consumer smoke tests wired into CI: `npm run smoke` (loads the built ESM + CJS entrypoints) and `npm run type-smoke` (type-checks a consumer against the published types under `nodenext` and `bundler`)
 * Capped the `three` peer range to the tested window (`>=0.177.0 <0.184.0`)
 * Raised `engines.node` to `>=18`
 

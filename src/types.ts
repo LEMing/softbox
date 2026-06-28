@@ -3,7 +3,7 @@ import type { SimpleViewerOptions as ViewerOptions } from './types/SimpleViewerO
 
 // Re-export all types from the new modular structure
 export * from './types/options';
-export { SimpleViewerOptions, ThreeJSRefs } from './types/SimpleViewerOptions';
+export { SimpleViewerOptions } from './types/SimpleViewerOptions';
 
 // Export SimpleViewerHandle from its dedicated type module
 export type { SimpleViewerHandle } from './types/SimpleViewerHandle';

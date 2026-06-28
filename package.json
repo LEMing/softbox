@@ -26,6 +26,7 @@
     "typecheck": "tsc --noEmit",
     "typecheck:examples": "tsc -p tsconfig.examples.json",
     "smoke": "node scripts/smoke.mjs",
+    "type-smoke": "node scripts/type-smoke.mjs",
     "knip": "knip",
     "lint": "eslint 'src/**/*.{ts,tsx}' --max-warnings 0",
     "lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix",

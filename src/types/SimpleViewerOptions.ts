@@ -1,6 +1,3 @@
-import * as THREE from 'three';
-import { MapControls } from 'three/examples/jsm/controls/MapControls';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import {
   CameraOptions,
   ControlsOptions,
@@ -12,19 +9,11 @@ import {
   RenderingOptions,
 } from './options';
 
-export interface ThreeJSRefs {
-  scene: React.RefObject<THREE.Scene | null>;
-  camera: React.RefObject<THREE.Camera | null>;
-  renderer: React.RefObject<THREE.WebGLRenderer | null>;
-  controls: React.RefObject<OrbitControls | MapControls | null>;
-  mountPoint: React.RefObject<HTMLDivElement | null>;
-}
-
 export interface SimpleViewerOptions {
   // Scene settings
   backgroundColor?: string | number;
   staticScene?: boolean;
-  
+
   // Component options
   camera?: CameraOptions;
   controls?: ControlsOptions;
@@ -34,10 +23,7 @@ export interface SimpleViewerOptions {
   pathTracing?: PathTracingOptions;
   renderer?: RendererOptions;
   rendering?: RenderingOptions;
-  
-  // Refs for external control
-  refs?: Partial<ThreeJSRefs>;
-  
+
   // Callbacks
   onLoad?: () => void;
   onProgress?: (progress: number) => void;

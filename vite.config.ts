@@ -4,17 +4,16 @@ import dts from 'vite-plugin-dts'
 import { resolve } from 'path'
 
 export default defineConfig({
-  resolve: {
-    alias: {
-      'three': resolve(__dirname, 'node_modules/three')
-    }
-  },
   plugins: [
     react(),
     dts({
       include: ['src/**/*.ts', 'src/**/*.tsx'],
       exclude: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/__mocks__/**/*'],
       insertTypesEntry: true,
+      // Bundle all declarations into a single dist/index.d.ts. This removes the
+      // extensionless relative imports that break `moduleResolution: nodenext`
+      // (TS2834) and keeps only bare external imports (three, react).
+      rollupTypes: true,
     }),
   ],
   server: {
