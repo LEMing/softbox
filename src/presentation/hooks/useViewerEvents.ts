@@ -3,35 +3,6 @@ import { ViewerCore } from '../../core/ViewerCore';
 import { ViewerEventMap } from '../../core/events/ViewerEvents';
 
 /**
- * Hook to subscribe to viewer events
- */
-export function useViewerEvents<K extends keyof ViewerEventMap>(
-  viewer: ViewerCore | null,
-  event: K,
-  handler: (data: ViewerEventMap[K]) => void
-) {
-  const handlerRef = useRef(handler);
-  handlerRef.current = handler;
-
-  useEffect(() => {
-    if (!viewer) {
-      return;
-    }
-
-    const events = viewer.getEvents();
-    const wrappedHandler = (data: ViewerEventMap[K]) => {
-      handlerRef.current(data);
-    };
-
-    events.on(event, wrappedHandler);
-
-    return () => {
-      events.off(event, wrappedHandler);
-    };
-  }, [viewer, event]);
-}
-
-/**
  * Hook to subscribe to multiple viewer events
  */
 export function useViewerEventHandlers(

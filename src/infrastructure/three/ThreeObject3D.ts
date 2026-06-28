@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { IObject3D, IVector3 } from '../../core/interfaces/IObject3D';
 import { Result } from '../../utils/Result';
 import { ThreeVector3Adapter } from './ThreeVector3';
+import { disposeObject3D } from './disposal';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 
 /**
@@ -108,19 +109,7 @@ export class ThreeObject3DAdapter implements IObject3D {
   }
 
   dispose(): void {
-    // Traverse and dispose of all geometries and materials
-    this.object.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.geometry?.dispose();
-        if (child.material) {
-          if (Array.isArray(child.material)) {
-            child.material.forEach(mat => mat.dispose());
-          } else {
-            child.material.dispose();
-          }
-        }
-      }
-    });
+    disposeObject3D(this.object);
   }
 
   // Get the underlying Three.js object

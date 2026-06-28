@@ -329,28 +329,10 @@ describe('ModelManager', () => {
   });
 
   describe('disposeObject (private)', () => {
-    it('should recursively dispose geometry and materials', async () => {
-      const mockGeometry = { dispose: jest.fn() };
-      const mockMaterial1 = { dispose: jest.fn() };
-      const mockMaterial2 = { dispose: jest.fn() };
-      
-      const mockChild1 = {
-        geometry: mockGeometry,
-        material: mockMaterial1
-      };
-      
-      const mockChild2 = {
-        geometry: mockGeometry,
-        material: [mockMaterial1, mockMaterial2]
-      };
-      
+    it('delegates disposal to the object (canonical geometry/material/texture disposal lives in the adapter)', async () => {
       const mockModel = {
-        traverse: jest.fn((callback: (obj: unknown) => void) => {
-          callback(mockChild1);
-          callback(mockChild2);
-          callback(mockModel); // Self
-        }),
-        dispose: jest.fn()
+        traverse: jest.fn(),
+        dispose: jest.fn(),
       } as unknown as IObject3D;
 
       mockModelLoader.load.mockResolvedValue(Result.ok({
@@ -361,15 +343,9 @@ describe('ModelManager', () => {
       await modelManager.loadModel('test.glb', mockEvents);
       modelManager.disposeCurrentModel();
 
-      // Should dispose geometry
-      expect(mockGeometry.dispose).toHaveBeenCalledTimes(2);
-      
-      // Should dispose materials
-      expect(mockMaterial1.dispose).toHaveBeenCalledTimes(2);
-      expect(mockMaterial2.dispose).toHaveBeenCalledTimes(1);
-      
-      // Should dispose object
-      expect(mockModel.dispose).toHaveBeenCalled();
+      // ModelManager delegates to object.dispose(); the actual geometry/material/
+      // texture/shadow disposal is covered by disposal.test.ts against real THREE.
+      expect(mockModel.dispose).toHaveBeenCalledTimes(1);
     });
   });
 });

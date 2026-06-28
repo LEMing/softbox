@@ -1,6 +1,58 @@
 Changelog
 =========
 
+3.0.0
+---
+
+### Cleanup & React polish
+* Decomposed `ThreePathTracingService.render()` — the disabled-render, single-sample accumulation, and completion-capture blocks are now focused private methods (`renderWhileDisabled`/`accumulateOneSample`/`captureCompletedFrame`); verified behaviour-preserving via unit tests and a live path-traced render
+* Extracted the path-tracing completion logic out of the render-loop callback into `handlePathTracingComplete()`, and hoisted the duplicated default sample count into a named constant
+* Removed dead code: `OptionsValidator`, `HexGrid`, `PerformanceMonitor`, `ExtendedTypes`, unused barrel files, and the unused `useViewerEvents`/`useViewerStatus` hooks
+* Dropped redundant devDependencies (`@types/lodash`, `@typescript-eslint/eslint-plugin`, `@typescript-eslint/parser` — provided by `typescript-eslint`)
+* Memoized the `ViewerContext` value, added a reset action to `ViewerErrorBoundary`, and removed the side-effecting `useMemo` ref writes in `SimpleViewer`/`useStableOptions`
+
+### Architecture guardrails
+* Added GitHub Actions CI running lint, type check, tests and build on every push/PR
+* Added an ESLint clean-architecture boundary: `src/core` can no longer import `three`, `three-gpu-pathtracer`, or anything from `infrastructure`/`presentation`
+* Removed the last `core -> infrastructure` import in `ViewerCore` (now uses the engine-agnostic `hasInternalRenderer` guard)
+* Added `typecheck` and `knip` npm scripts; `knip` is a **blocking** CI gate (zero dead files/exports/deps)
+
+### Resource management (GPU memory leak fixes)
+* Unified all teardown through a single Three.js disposal utility that frees geometries, materials, **the textures a material references**, light shadow maps, and scene background/environment textures
+* `ResourceManager.dispose()` now releases the whole scene graph (grid, gradient background, axes, shadow maps) instead of only detaching children — fixes an unbounded GPU leak on unmount and on option-change rebuilds
+* The dynamic grid is now disposed before being replaced on every model swap
+* Model material textures are now disposed on swap/unmount
+
+### Runtime options (no more full rebuild on every change)
+* Added `ViewerCore.updateOptions(partial)` to apply runtime-tunable options to a live viewer
+* Options are now split into a structural set (rebuilds the viewer) and a runtime set; changing the background color no longer tears down the WebGLRenderer or re-fetches the model
+* `createGradientBackground` disposes the previous background texture before applying a new one (leak-safe runtime updates)
+* `useStableOptions` now returns `{ options, structuralKey, runtimeKey }` (**breaking** for direct consumers of this internal hook) and no longer writes a ref inside `useMemo`
+
+### Screenshot capture
+* `preserveDrawingBuffer` is forced on automatically when `replaceWithScreenshotOnComplete` is enabled, so the captured frame is no longer blank
+* Capture now validates the result before hiding the canvas and disposing scene resources
+
+### Public contract & boundaries
+* `ViewerCore` now exposes `getRenderer()/getScene()/getCamera()/getControls()/requestRender()`; the React layer uses these instead of reaching into private fields via reflective casts
+* `SimpleViewerHandle` moved to a dedicated type module (`types/SimpleViewerHandle`), breaking the `events -> component` dependency cycle
+* `SimpleViewerHandle` is now honest: `loadModel` and `dispose` are implemented; the previously-advertised-but-unimplemented `startRendering`/`stopRendering`/`captureScreenshot` were removed (**breaking**)
+* `index.ts` now exports the option sub-types, the `ControlType` enum, and `ThreeViewerError`/`ErrorCode`/`ErrorContext`
+
+### Packaging
+* Added a `types` condition (and a `./package.json` export) to the `exports` map so types resolve under `node16`/`nodenext`/`bundler` module resolution
+* Ship **ESM + CJS** instead of ESM + UMD. The CJS bundle uses a `.cjs` extension so Node loads it as CommonJS under `"type": "module"` (a `.js` bundle was parsed as ESM, so `require()` saw no exports)
+* Externalize the `three` CORE and React only; Three.js addons (`examples/jsm/*`), `three-gpu-pathtracer` and `threedgizmo` are bundled — three's exports map can't resolve extensionless addon subpaths and they have no UMD global, so externalizing them broke both entrypoints. Bundled addons still import the consumer's `three`, so there's no duplicate core.
+* `defaultOptions` no longer reads `window` at module load (SSR/Node-import safe)
+* Bundle declarations into a single `dist/index.d.ts` (`rollupTypes`) and remove the `three` resolve-alias, so published types resolve under `nodenext`/`bundler`: no extensionless relative imports (was TS2834) and no leaked `node_modules/three/...` paths (was TS2307)
+* Removed the dead `refs`/`ThreeJSRefs` option, which was the only thing exposing concrete `OrbitControls`/`MapControls` addon types in the public surface
+* Added consumer smoke tests wired into CI: `npm run smoke` (loads the built ESM + CJS entrypoints) and `npm run type-smoke` (type-checks a consumer against the published types under `nodenext` and `bundler`)
+* Capped the `three` peer range to the tested window (`>=0.177.0 <0.184.0`)
+* Raised `engines.node` to `>=18`
+
+### Examples & docs
+* Replaced the outdated `v2-patterns` examples (which used a props API that never existed and imported non-existent subpaths) with an accurate `examples/basic-usage.tsx`, type-checked in CI (`npm run typecheck:examples`) so examples can't silently rot
+
 2.6.1
 ---
 * Fix Texture type casts for Three.js r183
@@ -174,7 +226,7 @@ Changelog
 
 2.0.0
 ---
-**Breaking Changes** - See [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) for upgrade instructions
+**Breaking Changes** — see the notes below for upgrade instructions
 
 ### New Features
 * **Event System**: Introduced event-driven architecture with typed events

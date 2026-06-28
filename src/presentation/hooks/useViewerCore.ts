@@ -17,10 +17,10 @@ export function useViewerCore(
   const [state, setState] = useState<ViewerState>(new ViewerState());
   const [isInitialized, setIsInitialized] = useState(false);
   
-  // Use stable options to prevent unnecessary recreations
-  const stableOptions = useStableOptions(options);
+  // Split options into structural (rebuild) and runtime (apply live) sets
+  const { options: stableOptions, structuralKey, runtimeKey } = useStableOptions(options);
 
-  // Create viewer instance
+  // Create viewer instance — only when a STRUCTURAL option changes
   useEffect(() => {
     if (!canvasRef.current || viewerRef.current) {
       return;
@@ -33,6 +33,10 @@ export function useViewerCore(
     const viewer = ViewerFactory.createViewer(canvasRef.current, mergedOptions);
     viewerRef.current = viewer;
 
+    // Guards against the StrictMode mount->cleanup->mount cycle (and option
+    // changes) resolving a disposed viewer's initialize() promise.
+    let cancelled = false;
+
     // Subscribe to state changes
     const unsubscribe = viewer.onStateChange((newState) => {
       setState(newState);
@@ -40,6 +44,9 @@ export function useViewerCore(
 
     // Initialize viewer
     viewer.initialize().then((result) => {
+      if (cancelled) {
+        return;
+      }
       if (result.ok) {
         setIsInitialized(true);
       } else {
@@ -49,12 +56,24 @@ export function useViewerCore(
 
     // Cleanup
     return () => {
+      cancelled = true;
       unsubscribe();
       viewer.dispose();
       viewerRef.current = null;
       setIsInitialized(false);
     };
-  }, [canvasRef, stableOptions]);
+    // Depends on structuralKey only: a runtime-only change updates stableOptions'
+    // identity but must NOT rebuild the viewer (handled by the effect below).
+  }, [canvasRef, structuralKey]);
+
+  // Apply runtime-tunable options (e.g. background color) to the live viewer
+  // without tearing it down and re-fetching the model. Keyed on runtimeKey.
+  useEffect(() => {
+    if (!viewerRef.current || !isInitialized) {
+      return;
+    }
+    viewerRef.current.updateOptions({ backgroundColor: stableOptions.backgroundColor });
+  }, [runtimeKey, isInitialized]);
 
   // Track last resize dimensions to detect actual changes
   const lastResizeRef = useRef({ width: 0, height: 0 });

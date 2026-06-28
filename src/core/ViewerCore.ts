@@ -18,12 +18,13 @@ import { ISceneSetupService, ILightingOptions, IHelperOptions } from './services
 import { IFloorAlignmentService } from './services/IFloorAlignmentService';
 import { RenderLoopManager } from './utils/RenderLoopManager';
 import { SceneSerializer } from './utils/SceneSerializer';
-import { hasGetInternalRenderer } from '../infrastructure/three/types/PathTracerTypes';
+import { hasInternalRenderer } from './interfaces/IRendererExtension';
 import { StateManager } from './managers/StateManager';
 import { ScreenshotManager } from './managers/ScreenshotManager';
 import { ModelManager } from './managers/ModelManager';
 import { ResourceManager } from './managers/ResourceManager';
 import { ViewerState } from './entities/ViewerState';
+import { DEFAULT_PATH_TRACING_SAMPLES } from './constants';
 
 export interface ViewerDependencies {
   renderer: IRenderer;
@@ -52,6 +53,7 @@ export class ViewerCore {
   private pathTracingStartTime?: number;
   private pathTracingCompleteHandled: boolean = false;
   private disposed: boolean = false;
+  private readonly pendingTimers: Set<ReturnType<typeof setTimeout>> = new Set();
 
   // Managers
   private readonly stateManager: StateManager;
@@ -64,7 +66,7 @@ export class ViewerCore {
   private readonly scene: IScene;
   private readonly camera: ICamera;
   private readonly controls: IControls;
-  private readonly options: SimpleViewerOptions;
+  private options: SimpleViewerOptions;
   private readonly rendererOptions?: IRendererOptions;
   private readonly sceneSetupService?: ISceneSetupService;
   private environmentService?: IEnvironmentService;
@@ -180,9 +182,12 @@ export class ViewerCore {
           }
         }
 
-        // Set background color only if no environment map
+        // Set background color only if nothing else will own the background
+        // (an environment map URL, or studio environment, would overwrite it and
+        // leak this gradient texture).
         const envUrl = this.options.environment?.url;
-        if (this.options.backgroundColor && !envUrl && this.sceneSetupService) {
+        const studioWillOwnBackground = this.options.helpers?.studioEnvironment ?? false;
+        if (this.options.backgroundColor && !envUrl && !studioWillOwnBackground && this.sceneSetupService) {
           // Use the scene setup service to create gradient background with single color
           const backgroundResult = this.sceneSetupService.createGradientBackground(this.scene, {
             topColor: String(this.options.backgroundColor),
@@ -260,7 +265,7 @@ export class ViewerCore {
           // Update path tracing settings
           if (this.options.pathTracing) {
             this.pathTracingService.updateSettings({
-              samples: this.options.pathTracing.maxSamples ?? 300,
+              samples: this.options.pathTracing.maxSamples ?? DEFAULT_PATH_TRACING_SAMPLES,
               bounces: this.options.pathTracing.bounces,
               transmissiveBounces: this.options.pathTracing.transmissiveBounces,
               renderScale: this.options.pathTracing.renderScale,
@@ -282,7 +287,7 @@ export class ViewerCore {
             }
             
             // Stop the render loop completely after a short delay
-            setTimeout(() => {
+            this.schedule(() => {
               this.renderLoopManager.stop();
             }, 100);
           });
@@ -397,10 +402,6 @@ export class ViewerCore {
         return;
       }
       
-      // Debug: log when render callback is called
-      if (this.frameCount % 60 === 0) { // Log every 60 frames to avoid spam
-      }
-
       const currentTime = performance.now();
       const fps = deltaTime > 0 ? 1000 / deltaTime : 0;
 
@@ -421,7 +422,7 @@ export class ViewerCore {
       // Check path tracing status BEFORE rendering
       const wasPathTracingActive = this.pathTracingService?.isEnabled() || false;
       const pathTracingSamples = this.pathTracingService?.getSampleCount() || 0;
-      const maxSamples = this.options.pathTracing?.maxSamples ?? 300;
+      const maxSamples = this.options.pathTracing?.maxSamples ?? DEFAULT_PATH_TRACING_SAMPLES;
       
       // Only render if RenderLoopManager says we need to
       // The manager already handled all the logic about when to render
@@ -433,59 +434,10 @@ export class ViewerCore {
       // Check if path tracing just completed AFTER rendering
       const currentSampleCount = this.pathTracingService?.getSampleCount() || 0;
       
-      // Path tracing just completed if we've reached max samples and haven't handled it yet
-      // Note: The path tracing service disables itself during rendering, so we need to check
-      // if we've just reached the max samples, not just the enabled state change
+      // Path tracing completes once we reach max samples (the service disables
+      // itself during rendering, so we detect the sample threshold, not state).
       if (currentSampleCount >= maxSamples && !this.pathTracingCompleteHandled && wasPathTracingActive) {
-        
-        // Mark as handled to prevent repeated events
-        this.pathTracingCompleteHandled = true;
-        
-        this.renderLoopManager.disableContinuousRendering();
-        
-        // If using always render mode, disable it when path tracing completes
-        if (!this.options.staticScene) {
-          this.renderLoopManager.setAlwaysRender(false);
-        }
-        
-        
-        // Emit completion event
-        this.events.emit('pathtracing:complete', {
-          samples: pathTracingSamples,
-          totalTime: currentTime - (this.pathTracingStartTime || 0)
-        });
-        
-        // Replace with screenshot if enabled
-        if (this.options.replaceWithScreenshotOnComplete) {
-          setTimeout(() => {
-            this.replaceWithScreenshot();
-            // Stop the render loop after screenshot to prevent disposed service renders
-            setTimeout(() => {
-              this.renderLoopManager.stop();
-            }, 200);
-          }, 100);
-        } else {
-          // Path tracing complete but not replacing with screenshot
-          // Ensure the final image stays visible by preventing any further renders
-          
-          // Request one final render to ensure the last frame is displayed
-          this.renderLoopManager.requestRender();
-          
-          // Stop the render loop after final render
-          setTimeout(() => {
-            this.renderLoopManager.stop();
-          }, 100);
-          
-          // The render loop is already stopped by disableContinuousRendering
-          // The path tracing service has disabled autoClear to preserve the image
-          // Just ensure we don't accidentally clear it
-          if (hasGetInternalRenderer(this.renderer)) {
-            const threeRenderer = this.renderer.getInternalRenderer() as { autoClear: boolean };
-            if (threeRenderer) {
-              threeRenderer.autoClear = false;
-            }
-          }
-        }
+        this.handlePathTracingComplete(pathTracingSamples, currentTime);
       }
 
       // Update render info
@@ -501,10 +453,63 @@ export class ViewerCore {
   }
 
   /**
+   * Handle path-tracing reaching its sample target: emit completion, stop
+   * continuous rendering, and either capture a screenshot or keep the final
+   * image on screen.
+   */
+  private handlePathTracingComplete(pathTracingSamples: number, currentTime: number): void {
+    this.pathTracingCompleteHandled = true;
+    this.renderLoopManager.disableContinuousRendering();
+    if (!this.options.staticScene) {
+      this.renderLoopManager.setAlwaysRender(false);
+    }
+
+    this.events.emit('pathtracing:complete', {
+      samples: pathTracingSamples,
+      totalTime: currentTime - (this.pathTracingStartTime || 0),
+    });
+
+    if (this.options.replaceWithScreenshotOnComplete) {
+      this.schedule(() => {
+        this.replaceWithScreenshot();
+        // Stop the render loop after the screenshot to avoid disposed-service renders
+        this.schedule(() => this.renderLoopManager.stop(), 200);
+      }, 100);
+      return;
+    }
+
+    // Keep the final path-traced image visible: one last render, stop the loop,
+    // and prevent autoClear from wiping the preserved buffer.
+    this.renderLoopManager.requestRender();
+    this.schedule(() => this.renderLoopManager.stop(), 100);
+    if (hasInternalRenderer(this.renderer)) {
+      const threeRenderer = this.renderer.getInternalRenderer() as { autoClear: boolean } | null;
+      if (threeRenderer) {
+        threeRenderer.autoClear = false;
+      }
+    }
+  }
+
+  /**
    * Stop the render loop
    */
   private stopRenderLoop(): void {
     this.renderLoopManager.stop();
+  }
+
+  /**
+   * Schedule a deferred callback that is automatically cancelled on dispose and
+   * never runs against a disposed viewer.
+   */
+  private schedule(callback: () => void, delayMs: number): void {
+    const id = setTimeout(() => {
+      this.pendingTimers.delete(id);
+      if (this.disposed) {
+        return;
+      }
+      callback();
+    }, delayMs);
+    this.pendingTimers.add(id);
   }
 
   /**
@@ -529,7 +534,7 @@ export class ViewerCore {
     let renderResult;
     const pathTracingActiveInRender = this.pathTracingService?.isEnabled() || false;
     const pathTracingSamples = this.pathTracingService?.getSampleCount() || 0;
-    const maxSamples = this.options.pathTracing?.maxSamples ?? 300;
+    const maxSamples = this.options.pathTracing?.maxSamples ?? DEFAULT_PATH_TRACING_SAMPLES;
     
     // Check if we should use path tracing
     // Use path tracing if it's enabled OR if it has completed (to preserve the final image)
@@ -573,6 +578,40 @@ export class ViewerCore {
   /**
    * Resize the renderer
    */
+  /**
+   * Apply runtime-tunable options to a live viewer without rebuilding it.
+   *
+   * Only options that are safe to change on a running viewer are honoured here
+   * (currently the background color). Structural options — renderer, controls
+   * type, path tracing, lighting, helpers, environment — still take effect at
+   * construction time and require a rebuild.
+   */
+  updateOptions(partial: Partial<SimpleViewerOptions>): void {
+    if (this.disposed) {
+      return;
+    }
+    this.options = { ...this.options, ...partial };
+    if (partial.backgroundColor !== undefined) {
+      this.applyBackgroundColor(partial.backgroundColor);
+    }
+  }
+
+  private applyBackgroundColor(color: string | number): void {
+    // An environment map owns the background when present; don't override it.
+    if (this.options.environment?.url || !this.sceneSetupService) {
+      return;
+    }
+    const result = this.sceneSetupService.createGradientBackground(this.scene, {
+      topColor: String(color),
+      bottomColor: String(color),
+    });
+    if (!result.ok) {
+      console.warn('Failed to update background color:', result.error);
+      return;
+    }
+    this.renderLoopManager.requestRender();
+  }
+
   resize(width: number, height: number): void {
     // Skip if dimensions haven't actually changed
     const canvas = this.renderer.getDomElement();
@@ -646,6 +685,32 @@ export class ViewerCore {
   }
 
   /**
+   * Public accessors for the engine-agnostic viewer parts. Presentation code
+   * uses these instead of reaching into private fields, so the interface
+   * boundary survives a private-field rename.
+   */
+  getRenderer(): IRenderer {
+    return this.renderer;
+  }
+
+  getScene(): IScene {
+    return this.scene;
+  }
+
+  getCamera(): ICamera {
+    return this.camera;
+  }
+
+  getControls(): IControls {
+    return this.controls;
+  }
+
+  /** Request a single render through the internal render loop. */
+  requestRender(): void {
+    this.renderLoopManager.requestRender();
+  }
+
+  /**
    * Replace the 3D scene with a screenshot
    */
   private replaceWithScreenshot(): void {
@@ -709,16 +774,18 @@ export class ViewerCore {
   dispose(): void {
     // Mark as disposed first to prevent any further operations
     this.disposed = true;
-    
+
+    // Cancel any deferred screenshot/stop callbacks so they never run after teardown
+    this.pendingTimers.forEach((id) => clearTimeout(id));
+    this.pendingTimers.clear();
+
     this.stopRenderLoop();
 
-    // Dispose managers
+    // Dispose managers (resourceManager.dispose() already disposes and detaches
+    // all scene contents, so no separate scene.clear() is needed here)
     this.modelManager.dispose();
     this.resourceManager.dispose();
     this.screenshotManager.dispose();
-
-    // Dispose scene
-    this.scene.clear();
 
     // Dispose controls
     this.controls.dispose();

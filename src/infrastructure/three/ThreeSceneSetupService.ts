@@ -15,6 +15,7 @@ import { Result } from '../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import { ThreeSceneAdapter } from './ThreeScene';
 import { ThreeObject3DAdapter } from './ThreeObject3D';
+import { disposeObject3D } from './disposal';
 import { ThreeCameraAdapter } from './ThreeCamera';
 import { ThreeOrbitControlsAdapter, ThreeMapControlsAdapter } from './ThreeControls';
 import { HexTileConfig } from './HexTileConfig';
@@ -134,7 +135,10 @@ export class ThreeSceneSetupService implements ISceneSetupService {
           existingGrids.push(child);
         }
       });
-      existingGrids.forEach(grid => threeScene.remove(grid));
+      existingGrids.forEach(grid => {
+        disposeObject3D(grid);
+        threeScene.remove(grid);
+      });
 
       // Calculate bounding box of the object
       let threeObject: THREE.Object3D;
@@ -362,7 +366,14 @@ export class ThreeSceneSetupService implements ISceneSetupService {
       const texture = new THREE.CanvasTexture(canvas);
       texture.needsUpdate = true;
 
-      // Apply as background
+      // Apply as background, disposing any previous background texture so that
+      // repeated calls (e.g. runtime background-color changes) do not leak.
+      // Guard against disposing a texture that is still in use as the scene
+      // environment (studio mode shares one PMREM texture for both).
+      const previous = threeScene.background;
+      if (previous instanceof THREE.Texture && previous !== threeScene.environment) {
+        previous.dispose();
+      }
       threeScene.background = texture;
 
       return Result.ok(undefined);

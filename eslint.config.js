@@ -22,6 +22,24 @@ export default tseslint.config(
     },
   },
   {
+    files: ['src/core/**/*.ts'],
+    ignores: ['src/core/**/__tests__/**'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          {
+            group: ['**/infrastructure/**', '**/presentation/**'],
+            message: 'Clean architecture: src/core must not depend on infrastructure or presentation. Depend on an interface in src/core instead.',
+          },
+          {
+            group: ['three', 'three/*', 'three-gpu-pathtracer'],
+            message: 'Clean architecture: src/core must stay engine-agnostic. Wrap Three.js behind an interface in src/infrastructure.',
+          },
+        ],
+      }],
+    },
+  },
+  {
     files: ['**/__tests__/**/*.ts', '**/__tests__/**/*.tsx', '**/*.test.ts', '**/*.test.tsx'],
     rules: {
       '@typescript-eslint/no-non-null-assertion': 'off',

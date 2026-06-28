@@ -1,7 +1,7 @@
 import { ThreeViewerError } from '../errors';
 import * as THREE from 'three';
 import { ControlsInstance } from '../types/CommonTypes';
-import type { SimpleViewerHandle } from '../SimpleViewerWrapper';
+import type { SimpleViewerHandle } from '../types/SimpleViewerHandle';
 
 export interface ViewerEventMap {
   // Lifecycle events

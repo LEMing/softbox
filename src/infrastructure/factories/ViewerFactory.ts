@@ -66,6 +66,13 @@ export class ViewerFactory {
     const rendererOptions = RendererOptionsConverter.convertRendererOptions(
       (options.renderer || {}) as Record<string, unknown>
     );
+
+    // The screenshot-on-complete feature reads pixels back via
+    // canvas.toDataURL(), which only returns the rendered frame when the WebGL
+    // drawing buffer is preserved. Force it on whenever the feature is enabled.
+    if (options.replaceWithScreenshotOnComplete) {
+      rendererOptions.preserveDrawingBuffer = true;
+    }
     
     // Create dependencies object
     const dependencies: ViewerDependencies = {

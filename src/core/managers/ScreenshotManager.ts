@@ -42,10 +42,16 @@ export class ScreenshotManager {
     if (this.isShowingScreenshot) return;
 
     const canvas = this.renderer.getDomElement();
-    
-    // Capture the current frame as a data URL
+
+    // Capture the current frame as a data URL. If the drawing buffer was not
+    // preserved this can come back empty ("data:,"); in that case keep the live
+    // scene rather than replacing it with a blank image and disposing resources.
     const dataURL = canvas.toDataURL('image/png');
-    
+    if (!dataURL || dataURL === 'data:,') {
+      console.warn('[ScreenshotManager] Screenshot capture produced no image, keeping live scene');
+      return;
+    }
+
     // Create an image element
     const img = document.createElement('img');
     img.src = dataURL;
@@ -90,12 +96,8 @@ export class ScreenshotManager {
       window.addEventListener('resize', resizeHandler);
       this.screenshotResizeHandler = resizeHandler;
       
-      // Only dispose scene resources if we successfully captured the screenshot
-      if (this.screenshotElement && this.screenshotElement.src) {
-        onResourcesDisposed?.();
-      } else {
-        console.warn('[ScreenshotManager] Screenshot capture failed, keeping scene resources');
-      }
+      // The capture was validated above, so it is safe to release scene resources.
+      onResourcesDisposed?.();
     }
   }
 
