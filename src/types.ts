@@ -6,8 +6,8 @@ import { GLTFLoadCallback } from './types/CommonTypes';
 export * from './types/options';
 export { SimpleViewerOptions, ThreeJSRefs } from './types/SimpleViewerOptions';
 
-// Export SimpleViewerHandle from SimpleViewerWrapper
-export type { SimpleViewerHandle } from './SimpleViewerWrapper';
+// Export SimpleViewerHandle from its dedicated type module
+export type { SimpleViewerHandle } from './types/SimpleViewerHandle';
 
 export type LoaderGLB = {
   load: (

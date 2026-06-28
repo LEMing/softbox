@@ -30,12 +30,25 @@ export default defineConfig({
       fileName: (format) => `simple-viewer.${format}.js`
     },
     rollupOptions: {
-      external: [/^react(\/.*)?$/, 'three'],
+      // Externalize peers and runtime deps (incl. three subpaths/addons) so the
+      // consumer's single copy of three is used everywhere — no addon/core skew,
+      // no double-shipping of three-gpu-pathtracer / threedgizmo.
+      external: [
+        /^react(\/.*)?$/,
+        /^react-dom(\/.*)?$/,
+        /^three(\/.*)?$/,
+        'three-gpu-pathtracer',
+        'threedgizmo',
+      ],
       output: {
-        globals: {
-          react: 'React',
-          'react/jsx-runtime': 'jsxRuntime',
-          three: 'THREE'
+        globals: (id: string) => {
+          if (id === 'react') return 'React'
+          if (id === 'react/jsx-runtime') return 'jsxRuntime'
+          if (id === 'react-dom') return 'ReactDOM'
+          if (id.startsWith('three-gpu-pathtracer')) return 'ThreeGPUPathTracer'
+          if (id.startsWith('threedgizmo')) return 'ThreeDGizmo'
+          if (id.startsWith('three')) return 'THREE'
+          return id
         }
       }
     }

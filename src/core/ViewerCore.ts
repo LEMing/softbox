@@ -696,6 +696,32 @@ export class ViewerCore {
   }
 
   /**
+   * Public accessors for the engine-agnostic viewer parts. Presentation code
+   * uses these instead of reaching into private fields, so the interface
+   * boundary survives a private-field rename.
+   */
+  getRenderer(): IRenderer {
+    return this.renderer;
+  }
+
+  getScene(): IScene {
+    return this.scene;
+  }
+
+  getCamera(): ICamera {
+    return this.camera;
+  }
+
+  getControls(): IControls {
+    return this.controls;
+  }
+
+  /** Request a single render through the internal render loop. */
+  requestRender(): void {
+    this.renderLoopManager.requestRender();
+  }
+
+  /**
    * Replace the 3D scene with a screenshot
    */
   private replaceWithScreenshot(): void {

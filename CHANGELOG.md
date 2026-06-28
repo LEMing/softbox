@@ -26,8 +26,16 @@ Changelog
 * `preserveDrawingBuffer` is forced on automatically when `replaceWithScreenshotOnComplete` is enabled, so the captured frame is no longer blank
 * Capture now validates the result before hiding the canvas and disposing scene resources
 
+### Public contract & boundaries
+* `ViewerCore` now exposes `getRenderer()/getScene()/getCamera()/getControls()/requestRender()`; the React layer uses these instead of reaching into private fields via reflective casts
+* `SimpleViewerHandle` moved to a dedicated type module (`types/SimpleViewerHandle`), breaking the `events -> component` dependency cycle
+* `SimpleViewerHandle` is now honest: `loadModel` and `dispose` are implemented; the previously-advertised-but-unimplemented `startRendering`/`stopRendering`/`captureScreenshot` were removed (**breaking**)
+* `index.ts` now exports the option sub-types, the `ControlType` enum, and `ThreeViewerError`/`ErrorCode`/`ErrorContext`
+
 ### Packaging
 * Added a `types` condition (and a `./package.json` export) to the `exports` map so types resolve under `node16`/`nodenext`/`bundler` module resolution
+* Externalized `three` subpaths/addons and the `three-gpu-pathtracer` / `threedgizmo` runtime deps instead of bundling them — the ESM bundle dropped from ~138 kB to ~26 kB gzipped and consumers no longer get a second copy of three
+* Capped the `three` peer range to the tested window (`>=0.177.0 <0.184.0`)
 * Raised `engines.node` to `>=18`
 
 2.6.1

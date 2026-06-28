@@ -5,7 +5,7 @@ import { ICamera } from '../../core/interfaces/ICamera';
 import { IControls } from '../../core/interfaces/IControls';
 import * as THREE from 'three';
 import { ControlsInstance } from '../../types/CommonTypes';
-import { SimpleViewerHandle } from '../../SimpleViewerWrapper';
+import { SimpleViewerHandle } from '../../types/SimpleViewerHandle';
 
 /**
  * Converts core event data to presentation layer event data
