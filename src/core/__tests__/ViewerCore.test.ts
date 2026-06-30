@@ -30,6 +30,19 @@ const tick = async (count = 3): Promise<void> => {
   }
 };
 
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+}
+
+const deferred = <T>(): Deferred<T> => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+};
+
 const makeVector3 = (): IVector3 => ({
   x: 0,
   y: 0,
@@ -635,6 +648,72 @@ describe('ViewerCore', () => {
 
       jest.advanceTimersByTime(150);
       expect(stopSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('initialize disposal race', () => {
+    it('aborts when disposed during environment service init', async () => {
+      const envInit = deferred<Result<void>>();
+      const bundle = makeDeps({
+        options: { environment: { url: 'env.hdr' } },
+        withEnvironment: true,
+        environmentOverrides: { initialize: jest.fn(() => envInit.promise) },
+      });
+      const viewer = new ViewerCore(bundle.deps);
+
+      const initPromise = viewer.initialize();
+      // Interleave teardown while environmentService.initialize() is still pending.
+      viewer.dispose();
+      envInit.resolve(Result.ok(undefined));
+      const result = await initPromise;
+
+      expect(result.ok).toBe(true);
+      // Bailed right after the first await: no further work against the disposed viewer.
+      expect(bundle.environmentService!.loadEnvironmentMap).not.toHaveBeenCalled();
+      expect(bundle.environmentService!.applyToScene).not.toHaveBeenCalled();
+      expect(viewer.getState().isInitialized).toBe(false);
+    });
+
+    it('aborts when disposed during environment map load', async () => {
+      const envLoad = deferred<Result<ITexture>>();
+      const bundle = makeDeps({
+        options: { environment: { url: 'env.hdr' } },
+        withEnvironment: true,
+        environmentOverrides: { loadEnvironmentMap: jest.fn(() => envLoad.promise) },
+      });
+      const viewer = new ViewerCore(bundle.deps);
+
+      const initPromise = viewer.initialize();
+      // Let env init resolve so execution parks on loadEnvironmentMap, then tear down.
+      await tick();
+      viewer.dispose();
+      envLoad.resolve(Result.ok(makeTexture()));
+      const result = await initPromise;
+
+      expect(result.ok).toBe(true);
+      expect(bundle.environmentService!.loadEnvironmentMap).toHaveBeenCalled();
+      expect(bundle.environmentService!.applyToScene).not.toHaveBeenCalled();
+      expect(viewer.getState().isInitialized).toBe(false);
+    });
+
+    it('aborts when disposed during path tracing init', async () => {
+      const ptInit = deferred<Result<void>>();
+      const bundle = makeDeps({
+        options: { pathTracing: { enabled: true, maxSamples: 50 } },
+        withPathTracing: true,
+        pathTracingOverrides: { initialize: jest.fn(() => ptInit.promise) },
+      });
+      const viewer = new ViewerCore(bundle.deps);
+
+      const initPromise = viewer.initialize();
+      viewer.dispose();
+      ptInit.resolve(Result.ok(undefined));
+      const result = await initPromise;
+
+      expect(result.ok).toBe(true);
+      // Guarded right after the await: settings never pushed to the disposed service.
+      expect(bundle.pathTracingService!.updateSettings).not.toHaveBeenCalled();
+      expect(viewer.getState().isInitialized).toBe(false);
     });
   });
 
