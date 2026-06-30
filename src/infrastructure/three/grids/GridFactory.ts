@@ -6,7 +6,7 @@ import { HexagonalGlassGrid } from './HexagonalGlassGrid';
 import { StoneTileGrid } from './StoneTileGrid';
 
 export class GridFactory {
-  private static gridStyles: Map<GridType, IGridStyle> = new Map([
+  private static gridStyles = new Map<GridType, IGridStyle>([
     [GridType.SQUARE_WIRE, new SquareWireGrid()],
     [GridType.HEXAGONAL_WIRE, new HexagonalWireGrid()],
     [GridType.HEXAGONAL_GLASS, new HexagonalGlassGrid()],
