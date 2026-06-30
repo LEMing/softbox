@@ -67,10 +67,12 @@ export class ViewerFactory {
       (options.renderer || {}) as Record<string, unknown>
     );
 
-    // The screenshot-on-complete feature reads pixels back via
-    // canvas.toDataURL(), which only returns the rendered frame when the WebGL
-    // drawing buffer is preserved. Force it on whenever the feature is enabled.
-    if (options.replaceWithScreenshotOnComplete) {
+    // Preserve the WebGL drawing buffer whenever a completed path-traced frame
+    // must persist on the canvas after the render loop stops:
+    //  - screenshot-on-complete reads it back via canvas.toDataURL();
+    //  - without screenshot replacement, the final frame stays on the canvas
+    //    (no DOM overlay), which only survives compositing when preserved.
+    if (options.replaceWithScreenshotOnComplete || options.pathTracing?.enabled) {
       rendererOptions.preserveDrawingBuffer = true;
     }
     

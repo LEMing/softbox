@@ -17,6 +17,11 @@ Changelog
 ### Tooling
 * Added enforced **coverage thresholds** (`coverageThreshold` in `jest.config.js`), so the CI `Test` step now fails on coverage regressions instead of merely collecting an unused report. Global floors lock in the current numbers; per-path floors pin the refactor-sensitive core high (`src/core/managers/` ≥95%, `src/core/ViewerCore.ts` ≥92%, `src/infrastructure/three/disposal.ts` 100%). A `text-summary` reporter now prints the totals in the CI log. Ratchet upward over time toward the 80% target.
 
+### Clean architecture (DOM out of the path tracer)
+* Removed the DOM `<img>` overlay management from `ThreePathTracingService` and the three DOM-leaked methods (`getPausedFrameBase64`, `hasImageOverlay`, `removeImageOverlay`) from the core `IPathTracingService` interface — the last clean-architecture violation, where a pixel-computing infrastructure service manipulated DOM elements and exposed them through a core contract. The service now only presents the final frame on the canvas and emits `pathtracing:paused`; the path-traced result is shown by `ScreenshotManager` (when `replaceWithScreenshotOnComplete`) or by the preserved canvas buffer. `getPausedFrameBase64` was already dead public API. Net −184 lines.
+* `ViewerFactory` now also forces `preserveDrawingBuffer` when path tracing is enabled (not only for screenshot-on-complete), so the final path-traced frame reliably persists on the canvas after the loop stops now that the stable `<img>` overlay is gone.
+* `ViewerCore.resize()` no longer reaches into the path-tracing service's overlay state; it restarts accumulation off the existing `pathTracingCompleteHandled` flag.
+
 3.0.1
 ---
 

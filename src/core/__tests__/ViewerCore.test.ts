@@ -239,9 +239,6 @@ const makePathTracingService = (
     reset: jest.fn(),
     dispose: jest.fn(),
     isSupported: jest.fn(() => true),
-    getPausedFrameBase64: jest.fn(() => null),
-    hasImageOverlay: jest.fn(() => false),
-    removeImageOverlay: jest.fn(),
   };
   return { ...base, ...overrides } as unknown as jest.Mocked<IPathTracingService>;
 };
@@ -824,23 +821,35 @@ describe('ViewerCore', () => {
       expect(bundle.renderer.render).toHaveBeenCalled();
     });
 
-    it('removes the path tracing overlay and re-enables path tracing when active', () => {
+    it('re-enables path tracing after resize when it was active', () => {
       const canvas = makeCanvas(640, 480);
       const bundle = makeDeps({
         canvas,
         withPathTracing: true,
         pathTracingOverrides: {
           isEnabled: jest.fn(() => true),
-          hasImageOverlay: jest.fn(() => true),
         },
       });
       const viewer = new ViewerCore(bundle.deps);
 
       viewer.resize(1024, 768);
 
-      expect(bundle.pathTracingService!.removeImageOverlay).toHaveBeenCalled();
-      expect(bundle.pathTracingService!.reset).toHaveBeenCalled();
       expect(bundle.pathTracingService!.setEnabled).toHaveBeenCalledWith(true);
+    });
+
+    it('resets path tracing accumulation on resize after a completed render', () => {
+      const canvas = makeCanvas(640, 480);
+      const bundle = makeDeps({ canvas, withPathTracing: true });
+      const viewer = new ViewerCore(bundle.deps);
+      // Simulate a completed path-traced render whose final frame is on the canvas.
+      (viewer as unknown as { pathTracingCompleteHandled: boolean }).pathTracingCompleteHandled = true;
+
+      viewer.resize(1024, 768);
+
+      expect(bundle.pathTracingService!.reset).toHaveBeenCalled();
+      expect(
+        (viewer as unknown as { pathTracingCompleteHandled: boolean }).pathTracingCompleteHandled
+      ).toBe(false);
     });
 
     it('silently ignores render failures during resize', () => {
