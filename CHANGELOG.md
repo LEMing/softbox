@@ -1,6 +1,13 @@
 Changelog
 =========
 
+3.3.0
+---
+
+### Loading UX
+* Added a **built-in loading overlay**. Previously, while a model was being fetched/parsed the scene was just blank with no feedback. `SimpleViewer` now shows a spinner (and an error state if loading fails) from the moment a model is provided until it is on screen. Configure via the new `loadingIndicator` option: `true`/omitted shows the default overlay, `false` disables it (render your own from the loading events), or pass `{ enabled?, label?, errorLabel?, color?, backdrop? }` to customize. The overlay is UI-only and non-interactive (`pointer-events: none`); changing the option never rebuilds the viewer.
+* `model:loading` is now actually emitted (with `{ url }`) at the start of a URL load — previously only `model:loaded` / `model:error` fired, so consumers had no "load started" signal. The new `LoadingIndicatorOptions` type is exported.
+
 3.2.0
 ---
 

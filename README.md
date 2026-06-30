@@ -316,6 +316,33 @@ const defaultOptions: SimpleViewerOptions = {
 };
 ```
 
+### Loading Indicator
+
+While a model is being fetched and parsed, `SimpleViewer` shows a built-in loading overlay (and an error state if it fails) so the scene is never just blank. It is **enabled by default**.
+
+```tsx
+// Default overlay — nothing to do.
+<SimpleViewer object="model.glb" />
+
+// Customize it:
+<SimpleViewer
+  object="model.glb"
+  options={{
+    loadingIndicator: {
+      label: 'Loading model…',
+      errorLabel: 'Could not load the model',
+      color: '#ffffff',
+      backdrop: 'rgba(15,16,20,0.38)',
+    },
+  }}
+/>
+
+// Disable the built-in overlay and render your own from the events:
+<SimpleViewer object="model.glb" options={{ loadingIndicator: false }} />
+```
+
+When disabled, drive your own UI from the viewer handle's events — `model:loading` (now emitted with `{ url }` when a URL load starts), `model:loaded`, and `model:error`. The overlay is non-interactive (`pointer-events: none`) and UI-only — changing the option never rebuilds the viewer.
+
 ### Viewport Gizmo
 
 ThreeDViewer includes an optional viewport gizmo for easy camera orientation control:
