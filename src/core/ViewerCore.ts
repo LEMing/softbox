@@ -633,16 +633,15 @@ export class ViewerCore {
 
     // Store current rendering state
     const wasPathTracingActive = this.pathTracingService?.isEnabled();
-    
-    // Check if path tracing service has an overlay displayed
-    if (this.pathTracingService && this.pathTracingService.hasImageOverlay()) {
-      // Remove the overlay to restore canvas
-      this.pathTracingService.removeImageOverlay();
-      
-      // Reset path tracing to restart with new size
+
+    // If a path-traced render had completed, its final frame is on the canvas.
+    // A resize invalidates it, so drop the accumulation and let the live scene
+    // render at the new size (matching the previous overlay-removal behavior).
+    if (this.pathTracingService && this.pathTracingCompleteHandled) {
       this.pathTracingService.reset();
+      this.pathTracingCompleteHandled = false;
     }
-    
+
     // Update camera aspect ratio first to ensure correct projection
     if (this.camera.type === 'perspective' && 'aspect' in this.camera) {
       this.camera.aspect = width / height;

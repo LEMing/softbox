@@ -63,7 +63,6 @@ const lastPathTracer = (): MockPathTracerInstance =>
 
 interface ServiceInternals {
   pathTracer: MockPathTracerInstance | null;
-  imageOverlay: HTMLImageElement | null;
   disposeTimer: ReturnType<typeof setTimeout> | null;
   convertedEnvTexture: THREE.DataTexture | null;
   sceneInitialized: boolean;
@@ -744,13 +743,11 @@ describe('ThreePathTracingService', () => {
       expect(result.ok).toBe(true);
       expect(pausedListener).toHaveBeenCalledWith({ samples: 1 });
       expect(ctx.service.isEnabled()).toBe(false);
-      expect(ctx.service.getPausedFrameBase64()).toBe('data:image/png;base64,TEST');
-      expect(ctx.service.hasImageOverlay()).toBe(true);
       expect(peek(ctx.service).disposeTimer).not.toBeNull();
 
-      const overlay = peek(ctx.service).imageOverlay;
-      overlay?.onload?.(new Event('load'));
-      expect(canvas.style.visibility).toBe('hidden');
+      // The service presents the final frame on the canvas without creating any
+      // DOM overlay or hiding the canvas — that is the presentation layer's job.
+      expect(canvas.style.visibility).toBe('');
 
       const tracer = lastPathTracer();
       jest.advanceTimersByTime(100);
@@ -868,20 +865,8 @@ describe('ThreePathTracingService', () => {
     });
   });
 
-  describe('image overlay', () => {
-    it('reports no overlay before path tracing completes', () => {
-      const service = new ThreePathTracingService();
-      expect(service.hasImageOverlay()).toBe(false);
-      expect(service.getPausedFrameBase64()).toBeNull();
-    });
-
-    it('does nothing when removing a non-existent overlay', () => {
-      const service = new ThreePathTracingService();
-      expect(() => service.removeImageOverlay()).not.toThrow();
-      expect(service.hasImageOverlay()).toBe(false);
-    });
-
-    it('removes the overlay and restores canvas visibility', async () => {
+  describe('completion does not touch the DOM', () => {
+    it('creates no <img> overlay and leaves the canvas visible on completion', async () => {
       jest.useFakeTimers();
       const parent = document.createElement('div');
       const canvas = document.createElement('canvas');
@@ -894,54 +879,10 @@ describe('ThreePathTracingService', () => {
       ctx.threeScene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
 
-      const overlay = peek(ctx.service).imageOverlay;
-      overlay?.onload?.(new Event('load'));
-      expect(ctx.service.hasImageOverlay()).toBe(true);
-
-      ctx.service.removeImageOverlay();
-
-      expect(ctx.service.hasImageOverlay()).toBe(false);
-      expect(canvas.style.visibility).toBe('visible');
-      expect(ctx.service.getPausedFrameBase64()).toBeNull();
-
-      ctx.service.dispose();
-      document.body.removeChild(parent);
-    });
-
-    it('logs when the overlay cannot be attached to a parent', async () => {
-      jest.useFakeTimers();
-      const ctx = setup();
-      await initialize(ctx, true);
-      ctx.service.updateSettings({ samples: 1 });
-      ctx.threeScene.environment = equirectTexture();
-
-      const result = await ctx.service.render(ctx.scene, ctx.camera);
-
-      expect(result.ok).toBe(true);
-      expect(console.warn).toHaveBeenCalledWith(
-        'Cannot create image overlay: canvas has no parent element'
-      );
-
-      ctx.service.dispose();
-    });
-
-    it('logs when the overlay image fails to load', async () => {
-      jest.useFakeTimers();
-      const parent = document.createElement('div');
-      const canvas = document.createElement('canvas');
-      parent.appendChild(canvas);
-      document.body.appendChild(parent);
-
-      const ctx = setup(canvas);
-      await initialize(ctx, true);
-      ctx.service.updateSettings({ samples: 1 });
-      ctx.threeScene.environment = equirectTexture();
-      await ctx.service.render(ctx.scene, ctx.camera);
-
-      const overlay = peek(ctx.service).imageOverlay;
-      overlay?.onerror?.(new Event('error'));
-
-      expect(console.error).toHaveBeenCalledWith('Failed to load path traced image overlay');
+      // DOM overlay management is the presentation layer's concern: the service
+      // presents the final frame on the canvas and emits an event, nothing more.
+      expect(parent.querySelector('img')).toBeNull();
+      expect(canvas.style.visibility).toBe('');
 
       ctx.service.dispose();
       document.body.removeChild(parent);
@@ -1010,29 +951,6 @@ describe('ThreePathTracingService', () => {
       expect(tracer.dispose).toHaveBeenCalledTimes(1);
       jest.advanceTimersByTime(200);
       expect(tracer.dispose).toHaveBeenCalledTimes(1);
-    });
-
-    it('removes a parented overlay during disposal', async () => {
-      jest.useFakeTimers();
-      const parent = document.createElement('div');
-      const canvas = document.createElement('canvas');
-      parent.appendChild(canvas);
-      document.body.appendChild(parent);
-
-      const ctx = setup(canvas);
-      await initialize(ctx, true);
-      ctx.service.updateSettings({ samples: 1 });
-      ctx.threeScene.environment = equirectTexture();
-      await ctx.service.render(ctx.scene, ctx.camera);
-      const overlay = peek(ctx.service).imageOverlay;
-      overlay?.onload?.(new Event('load'));
-
-      ctx.service.dispose();
-
-      expect(ctx.service.hasImageOverlay()).toBe(false);
-      expect(overlay?.parentElement).toBeNull();
-
-      document.body.removeChild(parent);
     });
 
     it('is safe to call twice', async () => {

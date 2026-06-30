@@ -94,8 +94,6 @@ export class ThreePathTracingService implements IPathTracingService {
   private disposeTimer: ReturnType<typeof setTimeout> | null = null;
   private convertedEnvTexture: THREE.DataTexture | null = null; // Store converted texture for reuse and disposal
   private lastResetTime: number = 0; // Track when we last reset to avoid too frequent resets
-  private pausedFrameBase64: string | null = null; // Store base64 image when pausing
-  private imageOverlay: HTMLImageElement | null = null; // Store overlay element
   public readonly events = new TypedEventEmitter<{ 'pathtracing:paused': { samples: number } }>();
 
   constructor() {
@@ -565,8 +563,10 @@ export class ThreePathTracingService implements IPathTracingService {
   }
 
   /**
-   * Path tracing reached its sample target: copy the accumulated result to the
-   * canvas, capture it as an overlay, emit completion, and schedule disposal.
+   * Path tracing reached its sample target: present the accumulated result on
+   * the canvas, emit completion, and schedule disposal. The final image stays on
+   * the canvas (kept by the renderer); presenting any DOM overlay is the
+   * presentation layer's concern, not this service's.
    */
   private captureCompletedFrame(): Result<void> {
     const threeRenderer = hasGetInternalRenderer(this.renderer)
@@ -589,15 +589,10 @@ export class ThreePathTracingService implements IPathTracingService {
           this.pathTracer.renderSample();
         }
 
-        const canvas = threeRenderer.domElement;
-        const base64Image = canvas.toDataURL('image/png');
-        this.pausedFrameBase64 = base64Image;
-        this.createImageOverlay(canvas, base64Image);
-
         threeRenderer.autoClear = originalAutoClear;
       } catch (error) {
-        // Path tracing is still complete even if the capture fails.
-        console.warn('Failed to capture path traced result:', error);
+        // Path tracing is still complete even if presenting the frame fails.
+        console.warn('Failed to present path traced result:', error);
       }
     }
 
@@ -651,56 +646,7 @@ export class ThreePathTracingService implements IPathTracingService {
   }
 
   /**
-   * Create an image overlay on top of the canvas
-   */
-  private createImageOverlay(canvas: HTMLCanvasElement, base64Image: string): void {
-    
-    // Create image element
-    const img = document.createElement('img');
-    img.src = base64Image;
-    
-    // Position image absolutely to cover the canvas
-    img.style.position = 'absolute';
-    img.style.top = '0';
-    img.style.left = '0';
-    img.style.width = '100%';
-    img.style.height = '100%';
-    img.style.pointerEvents = 'none'; // Allow interactions to pass through to canvas
-    img.style.zIndex = '1000'; // Ensure it's above the canvas
-    
-    // Store reference
-    this.imageOverlay = img;
-    
-    // Get canvas parent
-    const parent = canvas.parentElement;
-    if (parent) {
-      // Ensure parent has relative positioning for absolute child
-      const parentPosition = window.getComputedStyle(parent).position;
-      if (parentPosition === 'static') {
-        parent.style.position = 'relative';
-      }
-      
-      // Wait for image to load before showing it
-      img.onload = () => {
-        
-        // Add image overlay above canvas (but keep canvas in DOM)
-        parent.appendChild(img);
-        
-        // Hide canvas to save GPU resources but keep it in DOM
-        canvas.style.visibility = 'hidden';
-        
-      };
-      
-      img.onerror = (_error) => {
-        console.error('Failed to load path traced image overlay');
-      };
-    } else {
-      console.warn('Cannot create image overlay: canvas has no parent element');
-    }
-  }
-
-  /**
-   * Dispose of path tracing resources but keep the overlay
+   * Dispose of path tracing resources after the final frame is on screen
    */
   private disposePathTracingResources(): void {
     
@@ -746,12 +692,6 @@ export class ThreePathTracingService implements IPathTracingService {
       this.disposeTimer = null;
     }
 
-    // Remove image overlay if it exists
-    if (this.imageOverlay && this.imageOverlay.parentElement) {
-      this.imageOverlay.parentElement.removeChild(this.imageOverlay);
-      this.imageOverlay = null;
-    }
-
     // Clear the path tracing flag
     if (this.renderer) {
       const threeRenderer = hasGetInternalRenderer(this.renderer) ? this.renderer.getInternalRenderer() as PathTracingWebGLRenderer : null;
@@ -790,41 +730,5 @@ export class ThreePathTracingService implements IPathTracingService {
     const canvas = document.createElement('canvas');
     const gl = canvas.getContext('webgl2');
     return gl !== null;
-  }
-
-  /**
-   * Get the base64 image generated when pausing at the final sample
-   * @returns The base64 encoded PNG image or null if not available
-   */
-  getPausedFrameBase64(): string | null {
-    return this.pausedFrameBase64;
-  }
-
-  /**
-   * Check if an image overlay is currently displayed
-   */
-  hasImageOverlay(): boolean {
-    return this.imageOverlay !== null;
-  }
-
-  /**
-   * Remove the image overlay and restore canvas visibility
-   */
-  removeImageOverlay(): void {
-    if (this.imageOverlay && this.imageOverlay.parentElement) {
-      this.imageOverlay.parentElement.removeChild(this.imageOverlay);
-      this.imageOverlay = null;
-      
-      // Restore canvas visibility
-      if (this.renderer) {
-        const threeRenderer = hasGetInternalRenderer(this.renderer) ? this.renderer.getInternalRenderer() as PathTracingWebGLRenderer : null;
-        if (threeRenderer && threeRenderer.domElement) {
-          threeRenderer.domElement.style.visibility = 'visible';
-        }
-      }
-      
-      // Clear the base64 image as well
-      this.pausedFrameBase64 = null;
-    }
   }
 }

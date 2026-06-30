@@ -59,22 +59,6 @@ export interface IPathTracingService {
    * Check if path tracing is supported
    */
   isSupported(): boolean;
-
-  /**
-   * Get the base64 image generated when pausing at the final sample
-   * @returns The base64 encoded PNG image or null if not available
-   */
-  getPausedFrameBase64(): string | null;
-
-  /**
-   * Check if an image overlay is currently displayed
-   */
-  hasImageOverlay(): boolean;
-
-  /**
-   * Remove the image overlay without disposing other resources
-   */
-  removeImageOverlay(): void;
 }
 
 export interface IPathTracingOptions {
