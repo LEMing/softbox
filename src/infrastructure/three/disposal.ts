@@ -84,6 +84,12 @@ export function disposeSceneContents(scene: THREE.Scene, options?: DisposeSceneO
       scene.environment.dispose();
       scene.environment = null;
     }
+    // The path tracer keeps a back-reference to the equirectangular original on
+    // the scene; clear it so it can't point at a texture we just disposed.
+    const sceneWithOriginal = scene as THREE.Scene & { __originalEnvironmentTexture?: THREE.Texture };
+    if (sceneWithOriginal.__originalEnvironmentTexture) {
+      sceneWithOriginal.__originalEnvironmentTexture = undefined;
+    }
   }
 
   for (const child of [...scene.children]) {

@@ -2,14 +2,6 @@ import { ResourceManager } from '../ResourceManager';
 import { IScene } from '../../interfaces';
 import { IPathTracingService } from '../../services/IPathTracingService';
 import { IEnvironmentService } from '../../services/IEnvironmentService';
-import { MemoryMonitor } from '../../utils/MemoryMonitor';
-
-// Mock MemoryMonitor
-jest.mock('../../utils/MemoryMonitor', () => ({
-  MemoryMonitor: {
-    logMemoryUsage: jest.fn()
-  }
-}));
 
 describe('ResourceManager', () => {
   let resourceManager: ResourceManager;
@@ -113,10 +105,6 @@ describe('ResourceManager', () => {
       // screenshot can be restored
       expect(mockScene.disposeContents).toHaveBeenCalledTimes(1);
       expect(mockScene.disposeContents).toHaveBeenCalledWith({ keepBackgrounds: true });
-
-      // Should log memory usage
-      expect(MemoryMonitor.logMemoryUsage).toHaveBeenCalledWith('Before scene disposal');
-      expect(MemoryMonitor.logMemoryUsage).toHaveBeenCalledWith('After scene disposal');
     });
 
     it('should NOT dispose the environment service (its textures back the kept background/reflections)', () => {
@@ -144,18 +132,6 @@ describe('ResourceManager', () => {
       expect(mockPathTracingService.dispose).not.toHaveBeenCalled();
     });
 
-    it('should schedule memory check after delay', () => {
-      jest.useFakeTimers();
-
-      resourceManager.disposeSceneResources();
-
-      // Fast forward time
-      jest.advanceTimersByTime(2000);
-
-      expect(MemoryMonitor.logMemoryUsage).toHaveBeenCalledWith('After GC delay');
-
-      jest.useRealTimers();
-    });
 
     it('should attempt garbage collection if available', () => {
       const gcMock = jest.fn();

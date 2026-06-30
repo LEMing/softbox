@@ -55,6 +55,7 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
 
   // Recomputed only when a structural or runtime key changes, so the returned
   // reference stays stable across unrelated parent re-renders.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the keys are content hashes of `options`; depending on `options` itself would defeat the stable reference.
   const stableOptionsRef = useMemo(() => options, [structuralKey, runtimeKey]);
 
   return { options: stableOptionsRef, structuralKey, runtimeKey };

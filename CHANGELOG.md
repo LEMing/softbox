@@ -4,6 +4,11 @@ Changelog
 3.2.0
 ---
 
+### Tooling & cleanup
+* Removed the dead `MemoryMonitor` — every logging branch was an empty no-op, and it was still wired into `ResourceManager.disposeSceneResources()` including a pointless `setTimeout(…, 2000)` that scheduled another no-op on every screenshot disposal. Deleted the class and its three call sites + timer.
+* `disposeSceneContents` now clears the scene's `__originalEnvironmentTexture` back-reference (used by the path tracer) when freeing the background/environment, so it can no longer point at a just-disposed texture.
+* Added **`eslint-plugin-react-hooks`** to the lint gate (`rules-of-hooks: error`, `exhaustive-deps: warn`, enforced at `--max-warnings 0`). The handful of intentional partial dependency arrays (the structural-vs-runtime options split, ref-accessed event handlers, content-hash keys) are now documented with justified inline disables; future accidental missing deps are caught.
+
 ### Internal architecture
 * De-duplicated the two hand-synced `ViewerEventMap` interfaces (the engine-agnostic core map and the public Three.js-typed map) into a single generic `ViewerEventMap<TObject, TCamera, TControls, THandle>` in the shared events kernel. Core instantiates it with its interfaces, the public surface with concrete Three.js types — one source of truth, so the two can no longer drift. No change to the public event type's resolved shape.
 

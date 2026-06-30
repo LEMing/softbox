@@ -41,5 +41,6 @@ export function useViewerEventHandlers(
     return () => {
       cleanupFunctions.forEach(cleanup => cleanup());
     };
-  }, [viewer]); // Only depend on viewer, handlers are accessed via ref
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers are read live via handlersRef; only `viewer` should re-subscribe. Callers pass a stable (memoized) handlers object.
+  }, [viewer]);
 }

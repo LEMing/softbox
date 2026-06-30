@@ -1,7 +1,6 @@
 import { IScene } from '../interfaces';
 import { IPathTracingService } from '../services/IPathTracingService';
 import { IEnvironmentService } from '../services/IEnvironmentService';
-import { MemoryMonitor } from '../utils/MemoryMonitor';
 
 export interface ResourceManagerDependencies {
   scene: IScene;
@@ -53,19 +52,10 @@ export class ResourceManager {
    * {@link dispose}.
    */
   disposeSceneResources(_preservePathTracing: boolean = false): void {
-    MemoryMonitor.logMemoryUsage('Before scene disposal');
-
     this.scene.disposeContents({ keepBackgrounds: true });
 
     // Force garbage collection hint (works in some environments)
     this.triggerGarbageCollection();
-
-    MemoryMonitor.logMemoryUsage('After scene disposal');
-
-    // Schedule another check after potential GC
-    setTimeout(() => {
-      MemoryMonitor.logMemoryUsage('After GC delay');
-    }, 2000);
   }
 
   /**
