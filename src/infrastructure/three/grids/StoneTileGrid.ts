@@ -4,8 +4,7 @@ import { IGridStyle, IGridOptions } from './IGridStyle';
 export class StoneTileGrid implements IGridStyle {
   name = 'Stone Tile Grid';
   private textureLoader = new THREE.TextureLoader();
-  private loadedTextures: Map<string, THREE.Texture> = new Map();
-  
+
   createGrid(options: IGridOptions): THREE.Object3D {
     const group = new THREE.Group();
     
@@ -110,26 +109,16 @@ export class StoneTileGrid implements IGridStyle {
     return new THREE.MeshStandardMaterial(materialOptions);
   }
   
+  // Each grid owns the textures it loads. They are attached to the grid's
+  // material and freed exactly once by the scene's canonical disposal on
+  // teardown — never cached or shared across grids (a shared cache would hand
+  // out textures that a previous grid's teardown had already disposed).
   private loadTexture(url: string): THREE.Texture | null {
-    if (this.loadedTextures.has(url)) {
-      return this.loadedTextures.get(url) || null;
-    }
-    
     try {
-      const texture = this.textureLoader.load(url);
-      this.loadedTextures.set(url, texture);
-      return texture;
+      return this.textureLoader.load(url);
     } catch (error) {
       console.warn('Failed to load texture:', url, error);
       return null;
     }
-  }
-  
-  dispose(): void {
-    // Dispose of loaded textures
-    this.loadedTextures.forEach(texture => {
-      texture.dispose();
-    });
-    this.loadedTextures.clear();
   }
 }
