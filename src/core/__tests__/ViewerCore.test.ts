@@ -807,6 +807,21 @@ describe('ViewerCore', () => {
       expect(bundle.renderer.setSize).not.toHaveBeenCalled();
     });
 
+    it('is a no-op after dispose (prevents render against a disposed renderer)', () => {
+      const canvas = makeCanvas(640, 480);
+      const bundle = makeDeps({ canvas });
+      const viewer = new ViewerCore(bundle.deps);
+
+      viewer.dispose();
+      bundle.renderer.setSize.mockClear();
+      bundle.renderer.render.mockClear();
+
+      viewer.resize(800, 600);
+
+      expect(bundle.renderer.setSize).not.toHaveBeenCalled();
+      expect(bundle.renderer.render).not.toHaveBeenCalled();
+    });
+
     it('updates the perspective camera aspect and renderer size', () => {
       const canvas = makeCanvas(640, 480);
       const bundle = makeDeps({ canvas });

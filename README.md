@@ -290,7 +290,7 @@ const defaultOptions: SimpleViewerOptions = {
     alpha: false,
     shadowMapEnabled: true,
     pixelRatio: window.devicePixelRatio,
-    shadowMapType: 2, // THREE.PCFSoftShadowMap
+    shadowMapType: 1, // THREE.PCFShadowMap
     toneMapping: 6, // THREE.ACESFilmicToneMapping
     toneMappingExposure: 1.5,
   },

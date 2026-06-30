@@ -549,6 +549,12 @@ export class ViewerCore {
   }
 
   resize(width: number, height: number): void {
+    // A queued resize (rAF / ResizeObserver) can fire after teardown — e.g. the
+    // StrictMode unmount->remount in dev. Rendering against a disposed renderer
+    // produces WebGL "Program object expected" errors, so bail.
+    if (this.disposed) {
+      return;
+    }
     // Skip if dimensions haven't actually changed
     const canvas = this.renderer.getDomElement();
     if (canvas.width === width && canvas.height === height) {
