@@ -1,10 +1,22 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react';
+import { render, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { SimpleViewer } from '../SimpleViewer';
 import { useViewerCore, useViewerEventHandlers } from '../../hooks';
 import { Result } from '../../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../../errors';
+
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+}
+const deferred = <T,>(): Deferred<T> => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+};
 
 jest.mock('../../hooks', () => ({
   useViewerCore: jest.fn(),
@@ -71,5 +83,57 @@ describe('SimpleViewer loading overlay', () => {
     arrange(jest.fn());
     const { queryByTestId } = render(<SimpleViewer object={null} />);
     expect(queryByTestId('viewer-loading-overlay')).toBeNull();
+  });
+
+  it('ignores a superseded load when the object changes mid-load', async () => {
+    const first = deferred<Result<void>>();
+    const second = deferred<Result<void>>();
+    const loadModel = jest
+      .fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    arrange(loadModel);
+
+    const { rerender, queryByTestId } = render(<SimpleViewer object="a.glb" />);
+    expect(queryByTestId('viewer-loading-overlay')).toBeTruthy();
+
+    // Swap to a new model before the first load resolves.
+    rerender(<SimpleViewer object="b.glb" />);
+
+    // The first (now superseded) load resolving must NOT hide the overlay.
+    await act(async () => {
+      first.resolve(Result.ok(undefined));
+    });
+    expect(queryByTestId('viewer-loading-overlay')).toBeTruthy();
+
+    // The current load resolving does.
+    await act(async () => {
+      second.resolve(Result.ok(undefined));
+    });
+    await waitFor(() => expect(queryByTestId('viewer-loading-overlay')).toBeNull());
+  });
+
+  it('re-shows the overlay when a second model loads after a successful one', async () => {
+    const second = deferred<Result<void>>();
+    const loadModel = jest
+      .fn()
+      .mockReturnValueOnce(Promise.resolve(Result.ok(undefined)))
+      .mockReturnValueOnce(second.promise);
+    arrange(loadModel);
+
+    const { rerender, queryByTestId } = render(<SimpleViewer object="a.glb" />);
+    await waitFor(() => expect(queryByTestId('viewer-loading-overlay')).toBeNull());
+
+    rerender(<SimpleViewer object="b.glb" />);
+    expect(queryByTestId('viewer-loading-overlay')).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it('prefers a custom errorLabel over the raw error message', async () => {
+    arrange(jest.fn(async () => Result.err(new ThreeViewerError('raw boom', ErrorCode.MODEL_LOAD_FAILED))));
+    const { findByText, queryByText } = render(
+      <SimpleViewer object="m.glb" options={{ loadingIndicator: { errorLabel: 'Could not load' } }} />
+    );
+    expect(await findByText('Could not load')).toBeInTheDocument();
+    expect(queryByText('raw boom')).toBeNull();
   });
 });

@@ -13,6 +13,13 @@ export interface LoadingOverlayProps {
  * none) — it sits over the canvas and dismisses itself when loading resolves.
  */
 export function LoadingOverlay({ status, label, color, backdrop }: LoadingOverlayProps) {
+  // Respect the user's reduced-motion preference: show a static spinner arc
+  // rather than the rotating SMIL animation.
+  const reduceMotion =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   return (
     <div
       data-testid="viewer-loading-overlay"
@@ -39,14 +46,16 @@ export function LoadingOverlay({ status, label, color, backdrop }: LoadingOverla
         <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">
           <circle cx="22" cy="22" r="18" fill="none" stroke={color} strokeOpacity="0.25" strokeWidth="4" />
           <path d="M22 4 a18 18 0 0 1 18 18" fill="none" stroke={color} strokeWidth="4" strokeLinecap="round">
-            <animateTransform
-              attributeName="transform"
-              type="rotate"
-              from="0 22 22"
-              to="360 22 22"
-              dur="0.9s"
-              repeatCount="indefinite"
-            />
+            {!reduceMotion && (
+              <animateTransform
+                attributeName="transform"
+                type="rotate"
+                from="0 22 22"
+                to="360 22 22"
+                dur="0.9s"
+                repeatCount="indefinite"
+              />
+            )}
           </path>
         </svg>
       ) : (

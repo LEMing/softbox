@@ -12,7 +12,9 @@ const DEFAULTS: ResolvedLoadingIndicator = {
   enabled: true,
   label: 'Loading…',
   color: '#ffffff',
-  backdrop: 'rgba(15,16,20,0.38)',
+  // Scrim dark enough that the white spinner stays legible (>4.5:1) on BOTH the
+  // default light background (#f0f0f7) and dark studio mode.
+  backdrop: 'rgba(15,16,20,0.6)',
 };
 
 /**

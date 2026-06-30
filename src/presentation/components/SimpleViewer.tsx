@@ -58,10 +58,15 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
         return;
       }
 
+      let active = true;
       const objectToLoad = typeof object === 'string'
         ? object
         : new ThreeObject3DAdapter(object as THREE.Object3D);
       viewer.loadModel(objectToLoad).then((result) => {
+        // A newer object superseded this load — don't write its (now stale) result.
+        if (!active) {
+          return;
+        }
         if (result.ok) {
           setLoadState({ status: 'loaded' });
         } else {
@@ -69,12 +74,17 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
           console.error('Failed to load model:', result.error);
         }
       });
+      return () => {
+        active = false;
+      };
       // eslint-disable-next-line react-hooks/exhaustive-deps -- objectKey is the stable identity of `object`; depending on `object` would reload on every new reference with the same key.
     }, [viewer, isInitialized, objectKey]);
 
     // Memoize event handlers to prevent recreating on every render
     const eventHandlers = useMemo(() => ({
-      'model:loaded': (data: CoreViewerEventMap['model:loaded']) => 
+      'model:loading': (data: CoreViewerEventMap['model:loading']) =>
+        eventsRef.current.emit('model:loading', data),
+      'model:loaded': (data: CoreViewerEventMap['model:loaded']) =>
         eventsRef.current.emit('model:loaded', EventAdapter.convertModelLoaded(data)),
       'model:error': (data: CoreViewerEventMap['model:error']) => 
         eventsRef.current.emit('model:error', data),
