@@ -143,5 +143,28 @@ describe('disposal', () => {
       // Children are still detached/disposed.
       expect(scene.children).toHaveLength(0);
     });
+
+    it('clears the path tracer __originalEnvironmentTexture back-reference', () => {
+      const scene = new THREE.Scene() as THREE.Scene & {
+        __originalEnvironmentTexture?: THREE.Texture;
+      };
+      scene.__originalEnvironmentTexture = new THREE.Texture();
+
+      disposeSceneContents(scene);
+
+      expect(scene.__originalEnvironmentTexture).toBeUndefined();
+    });
+
+    it('keeps the __originalEnvironmentTexture back-reference when keepBackgrounds is set', () => {
+      const scene = new THREE.Scene() as THREE.Scene & {
+        __originalEnvironmentTexture?: THREE.Texture;
+      };
+      const original = new THREE.Texture();
+      scene.__originalEnvironmentTexture = original;
+
+      disposeSceneContents(scene, { keepBackgrounds: true });
+
+      expect(scene.__originalEnvironmentTexture).toBe(original);
+    });
   });
 });

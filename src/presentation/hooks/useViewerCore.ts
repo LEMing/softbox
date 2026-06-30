@@ -56,6 +56,7 @@ export function useViewerCore(
     };
     // Depends on structuralKey only: a runtime-only change updates stableOptions'
     // identity but must NOT rebuild the viewer (handled by the effect below).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- structuralKey is a content hash of the structural options; depending on stableOptions would rebuild on every change.
   }, [canvasRef, structuralKey]);
 
   // Apply runtime-tunable options (e.g. background color) to the live viewer
@@ -65,6 +66,7 @@ export function useViewerCore(
       return;
     }
     viewerRef.current.updateOptions({ backgroundColor: stableOptions.backgroundColor });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runtimeKey is a content hash of the runtime options; reading stableOptions.backgroundColor inside is intentional.
   }, [runtimeKey, isInitialized]);
 
   // Track last resize dimensions to detect actual changes
