@@ -1,6 +1,13 @@
 Changelog
 =========
 
+3.3.1
+---
+
+### Console hygiene
+* Stopped the per-frame `THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated` warning: three r183+ deprecated `PCFSoftShadowMap` and silently falls back to `PCFShadowMap`, so the default `shadowMapType` is now `1` (`PCFShadowMap`) — the value three already used, so shadows render identically, just without the warning. (Set `renderer.shadowMapType` explicitly if you want a different mode.)
+* `ViewerCore.resize()` is now a no-op after dispose. A queued resize (resize `requestAnimationFrame` / `ResizeObserver`) could fire after teardown — notably the React StrictMode unmount→remount in dev — and render against a disposed renderer, producing `GL_INVALID_VALUE: glGetProgramiv: Program object expected` errors. It now bails when disposed.
+
 3.3.0
 ---
 
