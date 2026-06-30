@@ -28,7 +28,7 @@ jobs:
       - name: Type check examples
         run: npm run typecheck:examples
 
-      - name: Test
+      - name: Test (enforces coverage thresholds)
         run: npm test
 
       - name: Build

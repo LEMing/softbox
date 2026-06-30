@@ -19,7 +19,38 @@ export default {
   collectCoverage: true,
   collectCoverageFrom: ['src/**/*.{ts,tsx}'],
   coverageDirectory: 'coverage',
-  coverageReporters: ['json', 'lcov', 'clover'],
+  coverageReporters: ['json', 'lcov', 'clover', 'text-summary'],
+  // Floors that lock in current coverage and fail CI on regressions. `global`
+  // applies to every file NOT matched by a path-specific key below (jest removes
+  // matched files from the global pool). The per-path entries pin the
+  // well-tested, refactor-sensitive core (GPU disposal, lifecycle, managers) high
+  // so future work cannot silently gut their tests. Ratchet upward over time.
+  coverageThreshold: {
+    global: {
+      statements: 48,
+      branches: 32,
+      functions: 34,
+      lines: 48,
+    },
+    './src/core/managers/': {
+      statements: 95,
+      branches: 88,
+      functions: 95,
+      lines: 95,
+    },
+    './src/core/ViewerCore.ts': {
+      statements: 92,
+      branches: 88,
+      functions: 78,
+      lines: 92,
+    },
+    './src/infrastructure/three/disposal.ts': {
+      statements: 100,
+      branches: 90,
+      functions: 100,
+      lines: 100,
+    },
+  },
   extensionsToTreatAsEsm: ['.ts', '.tsx'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   testMatch: ['**/__tests__/**/*.ts?(x)', '**/?(*.)+(spec|test).ts?(x)'],

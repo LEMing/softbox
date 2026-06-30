@@ -14,6 +14,9 @@ Changelog
 ### Lifecycle correctness
 * `ViewerCore.initialize()` now bails out after each `await` (environment service init, environment-map load, path-tracer init) if the viewer was disposed in the meantime. A StrictMode unmount or a structural-option rebuild can call `dispose()` while initialization is still in flight; previously the resumed continuation re-populated freed textures and attached resources to an orphaned scene/disposed renderer (a bounded leak). This was the only unguarded async path in the engine-agnostic core.
 
+### Tooling
+* Added enforced **coverage thresholds** (`coverageThreshold` in `jest.config.js`), so the CI `Test` step now fails on coverage regressions instead of merely collecting an unused report. Global floors lock in the current numbers; per-path floors pin the refactor-sensitive core high (`src/core/managers/` ≥95%, `src/core/ViewerCore.ts` ≥92%, `src/infrastructure/three/disposal.ts` 100%). A `text-summary` reporter now prints the totals in the CI log. Ratchet upward over time toward the 80% target.
+
 3.0.1
 ---
 
