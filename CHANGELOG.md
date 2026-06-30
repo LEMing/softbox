@@ -7,6 +7,10 @@ Changelog
 ### Resource management (GPU bug fixes)
 * Fixed a dispose-after-use on the **default** screenshot path: `ResourceManager.disposeSceneResources()` no longer disposes the environment service. Its PMREM textures are still referenced by `scene.background` / `scene.environment` (kept alive for restore via `keepBackgrounds`), and `restoreFromScreenshot` does not re-apply the environment — freeing them when the screenshot was captured left **broken reflections and a blank backdrop** once the user dismissed a path-traced screenshot (`replaceWithScreenshotOnComplete: true` + `environment.url`). Environment textures are now released exactly once, at full teardown (`dispose()`).
 
+### React integration (performance)
+* Stopped a per-frame React re-render: `useViewerCore` no longer subscribes the render loop's `onStateChange` into a `setState`. The render loop calls `updateRenderInfo()` every frame, so on non-static scenes this forced the `SimpleViewer` subtree to re-render up to ~60×/sec for a `state` value no consumer read. The reactive `state` (unused) was removed from the hook's return; per-frame render info remains available imperatively via `ViewerCore.getState()`.
+* Added the first behavioral tests for the hook layer (previously untested): the no-per-frame-subscription guarantee, plus the v3 **structural-vs-runtime options split** — a `backgroundColor` change applies via `updateOptions()` without rebuilding the viewer, while a structural change (e.g. `camera.fov`) disposes and recreates it.
+
 3.0.1
 ---
 

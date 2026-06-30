@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { ViewerCore } from '../../core/ViewerCore';
 import { ViewerFactory } from '../../infrastructure/factories/ViewerFactory';
 import { SimpleViewerOptions } from '../../types/SimpleViewerOptions';
-import { ViewerState } from '../../core/entities/ViewerState';
 import defaultOptions from '../../defaultOptions';
 import { useStableOptions } from './useStableOptions';
 
@@ -14,7 +13,6 @@ export function useViewerCore(
   options: SimpleViewerOptions
 ) {
   const viewerRef = useRef<ViewerCore | null>(null);
-  const [state, setState] = useState<ViewerState>(new ViewerState());
   const [isInitialized, setIsInitialized] = useState(false);
   
   // Split options into structural (rebuild) and runtime (apply live) sets
@@ -37,11 +35,6 @@ export function useViewerCore(
     // changes) resolving a disposed viewer's initialize() promise.
     let cancelled = false;
 
-    // Subscribe to state changes
-    const unsubscribe = viewer.onStateChange((newState) => {
-      setState(newState);
-    });
-
     // Initialize viewer
     viewer.initialize().then((result) => {
       if (cancelled) {
@@ -57,7 +50,6 @@ export function useViewerCore(
     // Cleanup
     return () => {
       cancelled = true;
-      unsubscribe();
       viewer.dispose();
       viewerRef.current = null;
       setIsInitialized(false);
@@ -144,7 +136,6 @@ export function useViewerCore(
 
   return {
     viewer: viewerRef.current,
-    state,
     isInitialized,
   };
 }
