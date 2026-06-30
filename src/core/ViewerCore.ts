@@ -206,6 +206,12 @@ export class ViewerCore {
           renderer: this.renderer,
           autoDispose: true
         });
+        // dispose() can run while an await above is pending (StrictMode unmount
+        // or a structural-option rebuild). Bail before touching the now-disposed
+        // renderer/scene/services so we don't re-populate freed resources.
+        if (this.disposed) {
+          return Result.ok(undefined);
+        }
         if (!envInitResult.ok) {
           console.warn('Failed to initialize environment service:', envInitResult.error);
         }
@@ -214,6 +220,9 @@ export class ViewerCore {
         const envUrl = this.options.environment?.url;
         if (envUrl) {
           const envResult = await this.environmentService.loadEnvironmentMap(envUrl);
+          if (this.disposed) {
+            return Result.ok(undefined);
+          }
           if (envResult.ok) {
             // Apply environment map to both background and reflections
             this.environmentService.applyToScene(this.scene, envResult.value, {
@@ -258,7 +267,10 @@ export class ViewerCore {
           enabled: true,
           renderer: this.renderer
         });
-        
+        if (this.disposed) {
+          return Result.ok(undefined);
+        }
+
         if (!pathTracingResult.ok) {
           console.warn('Failed to initialize path tracing:', pathTracingResult.error);
         } else {

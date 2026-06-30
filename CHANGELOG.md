@@ -11,6 +11,9 @@ Changelog
 * Stopped a per-frame React re-render: `useViewerCore` no longer subscribes the render loop's `onStateChange` into a `setState`. The render loop calls `updateRenderInfo()` every frame, so on non-static scenes this forced the `SimpleViewer` subtree to re-render up to ~60×/sec for a `state` value no consumer read. The reactive `state` (unused) was removed from the hook's return; per-frame render info remains available imperatively via `ViewerCore.getState()`.
 * Added the first behavioral tests for the hook layer (previously untested): the no-per-frame-subscription guarantee, plus the v3 **structural-vs-runtime options split** — a `backgroundColor` change applies via `updateOptions()` without rebuilding the viewer, while a structural change (e.g. `camera.fov`) disposes and recreates it.
 
+### Lifecycle correctness
+* `ViewerCore.initialize()` now bails out after each `await` (environment service init, environment-map load, path-tracer init) if the viewer was disposed in the meantime. A StrictMode unmount or a structural-option rebuild can call `dispose()` while initialization is still in flight; previously the resumed continuation re-populated freed textures and attached resources to an orphaned scene/disposed renderer (a bounded leak). This was the only unguarded async path in the engine-agnostic core.
+
 3.0.1
 ---
 
