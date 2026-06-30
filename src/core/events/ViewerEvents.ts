@@ -1,28 +1,12 @@
-import { ThreeViewerError } from '../../errors';
+import { ViewerEventMap as GenericViewerEventMap } from '../../events/ViewerEventMap';
 import { IObject3D } from '../interfaces/IObject3D';
 import { ICamera } from '../interfaces/ICamera';
 import { IControls } from '../interfaces/IControls';
 
-export interface ViewerEventMap {
-  // Lifecycle events
-  'initialized': { viewer: unknown }; // Viewer handle is presentation-specific
-  'disposed': { viewer: unknown };
-  
-  // Loading events
-  'model:loading': { url: string };
-  'model:loaded': { model: IObject3D; loadTime: number };
-  'model:error': { error: ThreeViewerError; url?: string };
-  
-  // Rendering events
-  'render:start': { frame: number };
-  'render:complete': { frame: number; renderTime: number; samples?: number };
-  'pathtracing:complete': { samples: number; totalTime: number };
-  'screenshot:captured': { dataUrl: string };
-  
-  // Interaction events
-  'controls:change': { type?: string; camera?: ICamera; controls?: IControls };
-  'object:selected': { object: IObject3D };
-  
-  // Error events
-  'error': { error: ThreeViewerError };
-}
+/**
+ * The core's engine-agnostic view of the viewer event contract: objects,
+ * cameras and controls are core interfaces, and the viewer handle is
+ * presentation-specific (kept as `unknown` here). Presentation translates these
+ * into the public, Three.js-typed event map via `EventAdapter`.
+ */
+export type ViewerEventMap = GenericViewerEventMap<IObject3D, ICamera, IControls, unknown>;

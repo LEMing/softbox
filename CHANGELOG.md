@@ -4,6 +4,9 @@ Changelog
 3.2.0
 ---
 
+### Internal architecture
+* De-duplicated the two hand-synced `ViewerEventMap` interfaces (the engine-agnostic core map and the public Three.js-typed map) into a single generic `ViewerEventMap<TObject, TCamera, TControls, THandle>` in the shared events kernel. Core instantiates it with its interfaces, the public surface with concrete Three.js types — one source of truth, so the two can no longer drift. No change to the public event type's resolved shape.
+
 ### Resource management (GPU bug fix)
 * Fixed a **use-after-dispose + leak** in `StoneTileGrid`. `GridFactory` holds grid styles as static singletons, and `StoneTileGrid` cached loaded textures across every grid it ever built. Because the canonical scene disposal frees the textures attached to a grid's material on teardown, the singleton then handed those **already-disposed** textures to the next stone-tile grid (a GPU use-after-dispose), while the cache itself was never cleared (`GridFactory.disposeGridStyle` is never called) — an unbounded leak. `StoneTileGrid` is now stateless like the other grid styles: each grid loads and owns its textures, which are freed exactly once by scene teardown. Added the first tests for the grids module.
 
