@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, forwardRef, useImperativeHandle, useMemo, useCallback } from 'react';
+import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle, useMemo, useCallback } from 'react';
 import { SimpleViewerHandle, SimpleViewerProps } from '../../types';
 import { ControlsInstance } from '../../types/CommonTypes';
 import { useViewerCore, useViewerEventHandlers } from '../hooks';
@@ -6,6 +6,8 @@ import { ViewerProvider } from './ViewerContext';
 import { ViewerCanvas } from './ViewerCanvas';
 import { ViewerGizmo } from './ViewerGizmo';
 import { ViewerErrorBoundary } from './ViewerErrorBoundary';
+import { LoadingOverlay } from './LoadingOverlay';
+import { resolveLoadingIndicator } from './loadingIndicatorConfig';
 import { TypedEventEmitter } from '../../events/EventEmitter';
 import { ViewerEventMap } from '../../events/ViewerEvents';
 import { ViewerEventMap as CoreViewerEventMap } from '../../core/events/ViewerEvents';
@@ -36,6 +38,19 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
       return undefined;
     }, [object]);
 
+    // Loading state drives the built-in overlay. A model that is provided but not
+    // yet on screen counts as loading from the very first frame (no blank scene).
+    const [loadState, setLoadState] = useState<{
+      status: 'idle' | 'loading' | 'loaded' | 'error';
+      error?: string;
+    }>(() => ({ status: object ? 'loading' : 'idle' }));
+
+    // Reset to loading the moment a new object identity arrives.
+    useEffect(() => {
+      setLoadState({ status: object ? 'loading' : 'idle' });
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on objectKey (object's stable identity), not the object reference.
+    }, [objectKey]);
+
     // Load object when provided and viewer is ready. Keyed on objectKey so a new
     // object identity with the same key does not trigger a reload.
     useEffect(() => {
@@ -43,20 +58,33 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
         return;
       }
 
+      let active = true;
       const objectToLoad = typeof object === 'string'
         ? object
         : new ThreeObject3DAdapter(object as THREE.Object3D);
       viewer.loadModel(objectToLoad).then((result) => {
-        if (!result.ok) {
+        // A newer object superseded this load — don't write its (now stale) result.
+        if (!active) {
+          return;
+        }
+        if (result.ok) {
+          setLoadState({ status: 'loaded' });
+        } else {
+          setLoadState({ status: 'error', error: result.error.message });
           console.error('Failed to load model:', result.error);
         }
       });
+      return () => {
+        active = false;
+      };
       // eslint-disable-next-line react-hooks/exhaustive-deps -- objectKey is the stable identity of `object`; depending on `object` would reload on every new reference with the same key.
     }, [viewer, isInitialized, objectKey]);
 
     // Memoize event handlers to prevent recreating on every render
     const eventHandlers = useMemo(() => ({
-      'model:loaded': (data: CoreViewerEventMap['model:loaded']) => 
+      'model:loading': (data: CoreViewerEventMap['model:loading']) =>
+        eventsRef.current.emit('model:loading', data),
+      'model:loaded': (data: CoreViewerEventMap['model:loaded']) =>
         eventsRef.current.emit('model:loaded', EventAdapter.convertModelLoaded(data)),
       'model:error': (data: CoreViewerEventMap['model:error']) => 
         eventsRef.current.emit('model:error', data),
@@ -126,6 +154,15 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
     const isGizmoEnabled = options.helpers?.gizmo !== undefined && options.helpers.gizmo !== false;
     const gizmoOptions = typeof options.helpers?.gizmo === 'object' ? options.helpers.gizmo : {};
 
+    // Built-in loading overlay configuration (UI-only).
+    const loadingIndicator = useMemo(
+      () => resolveLoadingIndicator(options.loadingIndicator),
+      [options.loadingIndicator]
+    );
+    const showOverlay =
+      loadingIndicator.enabled &&
+      (loadState.status === 'loading' || loadState.status === 'error');
+
     // Expose imperative handle for backward compatibility
     useImperativeHandle(ref, () => {
       return {
@@ -165,6 +202,18 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
                 render={renderScene}
                 placement={gizmoOptions.placement}
                 size={gizmoOptions.size}
+              />
+            )}
+            {showOverlay && (
+              <LoadingOverlay
+                status={loadState.status === 'error' ? 'error' : 'loading'}
+                label={
+                  loadState.status === 'error'
+                    ? (loadingIndicator.errorLabel ?? loadState.error ?? 'Failed to load model')
+                    : loadingIndicator.label
+                }
+                color={loadingIndicator.color}
+                backdrop={loadingIndicator.backdrop}
               />
             )}
           </div>

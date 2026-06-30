@@ -198,7 +198,7 @@ describe('SimpleViewer (New Architecture)', () => {
     );
 
     render(<SimpleViewer ref={ref} object={cube} options={testDefaultOptions} />);
-    
+
     await waitFor(() => {
       expect(ref.current).toBeTruthy();
       expect(ref.current?.events).toBeTruthy();

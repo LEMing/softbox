@@ -69,6 +69,7 @@ export class ModelManager {
       if (typeof source === 'string') {
         // Store URL for potential restoration
         this.lastModelUrl = source;
+        events.emit('model:loading', { url: source });
         // Load from URL
         const loadResult = await this.modelLoader.load(source);
         if (!loadResult.ok) {

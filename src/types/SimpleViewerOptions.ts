@@ -7,6 +7,7 @@ import {
   PathTracingOptions,
   RendererOptions,
   RenderingOptions,
+  LoadingIndicatorOptions,
 } from './options';
 
 export interface SimpleViewerOptions {
@@ -32,4 +33,11 @@ export interface SimpleViewerOptions {
   
   // Special features
   replaceWithScreenshotOnComplete?: boolean;
+
+  /**
+   * Built-in loading overlay shown while a model loads. `true`/omitted shows the
+   * default spinner; `false` hides it (render your own via the loading events);
+   * an object customizes it. UI-only — changing it never rebuilds the viewer.
+   */
+  loadingIndicator?: boolean | LoadingIndicatorOptions;
 }

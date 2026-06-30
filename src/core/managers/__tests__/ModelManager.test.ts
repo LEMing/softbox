@@ -170,6 +170,18 @@ describe('ModelManager', () => {
         });
       });
 
+      it('should emit model:loading with the url before model:loaded', async () => {
+        const order: string[] = [];
+        const loadingHandler = jest.fn(() => order.push('loading'));
+        mockEvents.on('model:loading', loadingHandler);
+        mockEvents.on('model:loaded', () => order.push('loaded'));
+
+        await modelManager.loadModel('test.glb', mockEvents);
+
+        expect(loadingHandler).toHaveBeenCalledWith({ url: 'test.glb' });
+        expect(order).toEqual(['loading', 'loaded']);
+      });
+
       it('should dispose previous model', async () => {
         // Load first model
         await modelManager.loadModel('model1.glb', mockEvents);

@@ -55,6 +55,9 @@ export class ViewerCore {
   private pathTracingCompleteHandled: boolean = false;
   private disposed: boolean = false;
   private readonly pendingTimers: Set<ReturnType<typeof setTimeout>> = new Set();
+  // Serializes loadModel() so rapid object changes queue (last-wins) instead of
+  // the second load being rejected while the first is still in flight.
+  private modelLoadChain: Promise<unknown> = Promise.resolve();
 
   // Managers
   private readonly stateManager: StateManager;
@@ -245,15 +248,33 @@ export class ViewerCore {
   /**
    * Load a 3D model
    */
-  async loadModel(source: string | IObject3D): Promise<Result<void>> {
+  /**
+   * Load a model. Calls are serialized: when `object` changes faster than a load
+   * resolves, the new load waits for the in-flight one and then supersedes it
+   * (last-wins), instead of being rejected as INVALID_STATE while status is
+   * 'loading' and silently dropped.
+   */
+  loadModel(source: string | IObject3D): Promise<Result<void>> {
+    const run = this.modelLoadChain.then(() => this.runLoadModel(source));
+    // Keep the chain alive even if a load rejects, so later loads still run.
+    this.modelLoadChain = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
+  private async runLoadModel(source: string | IObject3D): Promise<Result<void>> {
+    if (this.disposed) {
+      return Result.err(
+        new ThreeViewerError('Cannot load model after dispose', ErrorCode.INVALID_STATE)
+      );
+    }
     if (!this.stateManager.canLoad()) {
       return Result.err(
         new ThreeViewerError(
           'Cannot load model in current state',
           ErrorCode.INVALID_STATE,
-          { 
-            currentState: this.stateManager.getStatus(), 
-            isInitialized: this.stateManager.isInitialized() 
+          {
+            currentState: this.stateManager.getStatus(),
+            isInitialized: this.stateManager.isInitialized()
           }
         )
       );
@@ -261,7 +282,7 @@ export class ViewerCore {
 
     try {
       this.stateManager.startLoading();
-      
+
       const result = await this.modelManager.loadModel(source, this.events);
       
       if (result.ok) {
