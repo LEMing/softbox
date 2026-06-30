@@ -39,20 +39,22 @@ export class ResourceManager {
   }
 
   /**
-   * Dispose scene geometry/materials/textures (for screenshot mode).
+   * Dispose heavy scene resources for screenshot mode (model geometry,
+   * materials and their textures) while keeping the scene restorable.
    *
-   * The path-tracing service is intentionally left alive so the final rendered
-   * image stays on screen behind the screenshot overlay; only the scene graph
-   * and the environment service are released here.
+   * Both services are intentionally left alive. The path-tracing service keeps
+   * the final rendered image on screen behind the overlay. The environment
+   * service must survive too: its PMREM background/environment textures are
+   * still referenced by `scene.background` / `scene.environment` (preserved via
+   * `keepBackgrounds`), and `restoreFromScreenshot` does not re-apply the
+   * environment — disposing them here would free GPU textures that are still in
+   * use, leaving broken reflections and a blank backdrop once the screenshot is
+   * dismissed. Environment textures are released exactly once, later, by
+   * {@link dispose}.
    */
   disposeSceneResources(_preservePathTracing: boolean = false): void {
     MemoryMonitor.logMemoryUsage('Before scene disposal');
 
-    if (this.environmentService) {
-      this.environmentService.dispose();
-    }
-
-    // Keep the background texture so the scene can be restored from the screenshot.
     this.scene.disposeContents({ keepBackgrounds: true });
 
     // Force garbage collection hint (works in some environments)

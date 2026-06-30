@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.1.0
+---
+
+### Resource management (GPU bug fixes)
+* Fixed a dispose-after-use on the **default** screenshot path: `ResourceManager.disposeSceneResources()` no longer disposes the environment service. Its PMREM textures are still referenced by `scene.background` / `scene.environment` (kept alive for restore via `keepBackgrounds`), and `restoreFromScreenshot` does not re-apply the environment — freeing them when the screenshot was captured left **broken reflections and a blank backdrop** once the user dismissed a path-traced screenshot (`replaceWithScreenshotOnComplete: true` + `environment.url`). Environment textures are now released exactly once, at full teardown (`dispose()`).
+
 3.0.1
 ---
 

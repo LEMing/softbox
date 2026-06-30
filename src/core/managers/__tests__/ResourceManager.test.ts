@@ -106,7 +106,7 @@ describe('ResourceManager', () => {
   });
 
   describe('disposeSceneResources', () => {
-    it('should dispose scene contents and the environment service', () => {
+    it('should dispose scene contents while keeping backgrounds restorable', () => {
       resourceManager.disposeSceneResources();
 
       // Should delegate GPU disposal to the scene but keep the background so the
@@ -114,19 +114,26 @@ describe('ResourceManager', () => {
       expect(mockScene.disposeContents).toHaveBeenCalledTimes(1);
       expect(mockScene.disposeContents).toHaveBeenCalledWith({ keepBackgrounds: true });
 
-      // Should dispose environment service
-      expect(mockEnvironmentService.dispose).toHaveBeenCalled();
-
       // Should log memory usage
       expect(MemoryMonitor.logMemoryUsage).toHaveBeenCalledWith('Before scene disposal');
       expect(MemoryMonitor.logMemoryUsage).toHaveBeenCalledWith('After scene disposal');
+    });
+
+    it('should NOT dispose the environment service (its textures back the kept background/reflections)', () => {
+      resourceManager.disposeSceneResources();
+
+      // scene.background / scene.environment still reference the environment
+      // service's PMREM textures; disposing them here would break reflections
+      // and the backdrop once the screenshot is dismissed. They are freed later
+      // by the full dispose() path.
+      expect(mockEnvironmentService.dispose).not.toHaveBeenCalled();
     });
 
     it('should preserve the path tracing service (final image stays visible)', () => {
       resourceManager.disposeSceneResources(true);
 
       expect(mockPathTracingService.dispose).not.toHaveBeenCalled();
-      expect(mockEnvironmentService.dispose).toHaveBeenCalled();
+      expect(mockEnvironmentService.dispose).not.toHaveBeenCalled();
       expect(mockScene.disposeContents).toHaveBeenCalled();
     });
 
