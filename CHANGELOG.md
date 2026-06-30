@@ -10,6 +10,7 @@ Changelog
 * Added **`eslint-plugin-react-hooks`** to the lint gate (`rules-of-hooks: error`, `exhaustive-deps: warn`, enforced at `--max-warnings 0`). The handful of intentional partial dependency arrays (the structural-vs-runtime options split, ref-accessed event handlers, content-hash keys) are now documented with justified inline disables; future accidental missing deps are caught.
 
 ### Internal architecture
+* Began decomposing the `ViewerCore` god class: extracted the scene-dressing logic (helpers, lighting, background, and environment-map/studio setup) out of the ~214-line `initialize()` into a focused, engine-agnostic `SceneConfigurator` collaborator. `ViewerCore` drops from 813 to 716 lines and `initialize()` is now a slim orchestration; the per-`await` disposal guards are preserved via an `isDisposed` callback (behavior-identical). Added dedicated `SceneConfigurator` tests.
 * De-duplicated the two hand-synced `ViewerEventMap` interfaces (the engine-agnostic core map and the public Three.js-typed map) into a single generic `ViewerEventMap<TObject, TCamera, TControls, THandle>` in the shared events kernel. Core instantiates it with its interfaces, the public surface with concrete Three.js types — one source of truth, so the two can no longer drift. No change to the public event type's resolved shape.
 
 ### Resource management (GPU bug fix)

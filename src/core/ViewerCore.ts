@@ -14,7 +14,8 @@ import { ThreeViewerError, ErrorCode } from '../errors';
 import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
 import { IPathTracingService } from './services/IPathTracingService';
 import { IEnvironmentService } from './services/IEnvironmentService';
-import { ISceneSetupService, ILightingOptions, IHelperOptions } from './services/ISceneSetupService';
+import { ISceneSetupService } from './services/ISceneSetupService';
+import { SceneConfigurator } from './SceneConfigurator';
 import { IFloorAlignmentService } from './services/IFloorAlignmentService';
 import { RenderLoopManager } from './utils/RenderLoopManager';
 import { SceneSerializer } from './utils/SceneSerializer';
@@ -60,6 +61,7 @@ export class ViewerCore {
   private readonly screenshotManager: ScreenshotManager;
   private readonly modelManager: ModelManager;
   private readonly resourceManager: ResourceManager;
+  private readonly sceneConfigurator: SceneConfigurator;
 
   // Dependencies
   private readonly renderer: IRenderer;
@@ -109,6 +111,8 @@ export class ViewerCore {
       environmentService: this.environmentService
     });
 
+    this.sceneConfigurator = new SceneConfigurator();
+
     this.events = new TypedEventEmitter<ViewerEventMap>();
     
     // Configure render loop based on options
@@ -138,125 +142,24 @@ export class ViewerCore {
         return rendererResult;
       }
 
-      // Setup scene
+      // Setup scene (helpers, lighting, background)
       if (this.sceneSetupService) {
-        // Add helpers
-        if (this.options.helpers) {
-          const helperOptions: IHelperOptions = {
-            grid: this.options.helpers.grid,
-            axes: this.options.helpers.axes,
-            gridColor: '#AAAAAA', // Default grid color
-          };
-          const helpersResult = this.sceneSetupService.addHelpers(this.scene, helperOptions);
-          if (!helpersResult.ok) {
-            console.warn('Failed to add helpers:', helpersResult.error);
-          }
-        }
-
-        // Add lighting
-        const lightingConfig = this.options.lighting;
-        if (lightingConfig) {
-          const lightingOptions: ILightingOptions = {
-            ambient: lightingConfig.ambientLight ? {
-              color: String(lightingConfig.ambientLight.color),
-              intensity: lightingConfig.ambientLight.intensity
-            } : undefined,
-            hemisphere: lightingConfig.hemisphereLight ? {
-              skyColor: String(lightingConfig.hemisphereLight.skyColor),
-              groundColor: String(lightingConfig.hemisphereLight.groundColor),
-              intensity: lightingConfig.hemisphereLight.intensity
-            } : undefined,
-            directional: lightingConfig.directionalLight ? {
-              color: String(lightingConfig.directionalLight.color),
-              intensity: lightingConfig.directionalLight.intensity,
-              position: Array.isArray(lightingConfig.directionalLight.position) 
-                ? lightingConfig.directionalLight.position as [number, number, number]
-                : undefined,
-              castShadow: lightingConfig.directionalLight.castShadow,
-              shadow: lightingConfig.directionalLight.shadow
-            } : undefined,
-          };
-          const lightingResult = this.sceneSetupService.addLighting(this.scene, lightingOptions);
-          if (!lightingResult.ok) {
-            console.warn('Failed to add lighting:', lightingResult.error);
-          }
-        }
-
-        // Set background color only if nothing else will own the background
-        // (an environment map URL, or studio environment, would overwrite it and
-        // leak this gradient texture).
-        const envUrl = this.options.environment?.url;
-        const studioWillOwnBackground = this.options.helpers?.studioEnvironment ?? false;
-        if (this.options.backgroundColor && !envUrl && !studioWillOwnBackground && this.sceneSetupService) {
-          // Use the scene setup service to create gradient background with single color
-          const backgroundResult = this.sceneSetupService.createGradientBackground(this.scene, {
-            topColor: String(this.options.backgroundColor),
-            bottomColor: String(this.options.backgroundColor)
-          });
-          if (!backgroundResult.ok) {
-            console.warn('Failed to set background:', backgroundResult.error);
-          }
-        }
+        this.sceneConfigurator.configureScene(this.scene, this.sceneSetupService, this.options);
       }
 
-      // Setup environment
+      // Setup environment. configureEnvironment bails internally if the viewer is
+      // disposed across its awaits; re-check here before the next async step.
       if (this.environmentService) {
-        // Initialize environment service
-        const envInitResult = await this.environmentService.initialize({
-          renderer: this.renderer,
-          autoDispose: true
-        });
-        // dispose() can run while an await above is pending (StrictMode unmount
-        // or a structural-option rebuild). Bail before touching the now-disposed
-        // renderer/scene/services so we don't re-populate freed resources.
+        await this.sceneConfigurator.configureEnvironment(
+          this.scene,
+          this.environmentService,
+          this.sceneSetupService,
+          this.renderer,
+          this.options,
+          () => this.disposed
+        );
         if (this.disposed) {
           return Result.ok(undefined);
-        }
-        if (!envInitResult.ok) {
-          console.warn('Failed to initialize environment service:', envInitResult.error);
-        }
-
-        // Load environment map if specified
-        const envUrl = this.options.environment?.url;
-        if (envUrl) {
-          const envResult = await this.environmentService.loadEnvironmentMap(envUrl);
-          if (this.disposed) {
-            return Result.ok(undefined);
-          }
-          if (envResult.ok) {
-            // Apply environment map to both background and reflections
-            this.environmentService.applyToScene(this.scene, envResult.value, {
-              backgroundBlurriness: this.options.environment?.backgroundBlurriness,
-              backgroundIntensity: this.options.environment?.backgroundIntensity,
-              environmentIntensity: this.options.environment?.environmentIntensity
-            });
-          } else {
-            console.warn('Failed to load environment map:', envResult.error);
-          }
-        } else if (this.options.helpers?.studioEnvironment) {
-          // Create studio environment
-          const studioResult = this.environmentService.createStudioEnvironment();
-          if (studioResult.ok) {
-            this.environmentService.applyToScene(this.scene, studioResult.value, {
-              backgroundBlurriness: this.options.environment?.backgroundBlurriness,
-              backgroundIntensity: this.options.environment?.backgroundIntensity,
-              environmentIntensity: this.options.environment?.environmentIntensity
-            });
-            
-            // Apply dark studio mode background if enabled
-            if (this.options.helpers?.darkStudioMode && this.sceneSetupService) {
-              const darkBackgroundColor = '#1a1a1f'; // Dark blue-gray color
-              const backgroundResult = this.sceneSetupService.createGradientBackground(this.scene, {
-                topColor: darkBackgroundColor,
-                bottomColor: darkBackgroundColor
-              });
-              if (!backgroundResult.ok) {
-                console.warn('Failed to set dark studio background:', backgroundResult.error);
-              }
-            }
-          } else {
-            console.warn('Failed to create studio environment:', studioResult.error);
-          }
         }
       }
 

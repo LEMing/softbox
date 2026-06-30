@@ -1,0 +1,153 @@
+import { SceneConfigurator } from '../SceneConfigurator';
+import { IScene, ITexture, Result } from '../interfaces';
+import { ISceneSetupService } from '../services/ISceneSetupService';
+import { IEnvironmentService } from '../services/IEnvironmentService';
+import { IRenderer } from '../interfaces/IRenderer';
+import { SimpleViewerOptions } from '../../types/SimpleViewerOptions';
+
+type Overrides = Record<string, unknown>;
+
+const ok = () => Result.ok(undefined);
+
+const makeScene = (): jest.Mocked<IScene> => ({}) as unknown as jest.Mocked<IScene>;
+const makeRenderer = (): IRenderer => ({}) as unknown as IRenderer;
+const makeTexture = (): ITexture => ({ id: 't', image: null, needsUpdate: false, dispose: jest.fn() });
+
+const makeSceneSetup = (overrides: Overrides = {}): jest.Mocked<ISceneSetupService> =>
+  ({
+    addHelpers: jest.fn(() => ok()),
+    addLighting: jest.fn(() => ok()),
+    createGradientBackground: jest.fn(() => ok()),
+    ...overrides,
+  }) as unknown as jest.Mocked<ISceneSetupService>;
+
+const makeEnvironment = (): jest.Mocked<IEnvironmentService> =>
+  ({
+    initialize: jest.fn(async () => ok()),
+    loadEnvironmentMap: jest.fn(async () => Result.ok(makeTexture())),
+    applyToScene: jest.fn(() => ok()),
+    createStudioEnvironment: jest.fn(() => Result.ok(makeTexture())),
+    dispose: jest.fn(),
+  }) as unknown as jest.Mocked<IEnvironmentService>;
+
+describe('SceneConfigurator', () => {
+  let configurator: SceneConfigurator;
+
+  beforeEach(() => {
+    configurator = new SceneConfigurator();
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  describe('configureScene', () => {
+    it('applies helpers, lighting and a solid background', () => {
+      const scene = makeScene();
+      const sceneSetup = makeSceneSetup();
+      const options: SimpleViewerOptions = {
+        helpers: { grid: true, axes: true },
+        lighting: {
+          ambientLight: { color: '#fff', intensity: 1 },
+          hemisphereLight: { skyColor: '#fff', groundColor: '#000', intensity: 1 },
+          directionalLight: { color: '#fff', intensity: 1, position: [1, 2, 3] },
+        },
+        backgroundColor: '#123456',
+      };
+
+      configurator.configureScene(scene, sceneSetup, options);
+
+      expect(sceneSetup.addHelpers).toHaveBeenCalled();
+      expect(sceneSetup.addLighting).toHaveBeenCalled();
+      expect(sceneSetup.createGradientBackground).toHaveBeenCalledWith(scene, {
+        topColor: '#123456',
+        bottomColor: '#123456',
+      });
+    });
+
+    it('skips the background when an environment URL will own it', () => {
+      const sceneSetup = makeSceneSetup();
+      configurator.configureScene(makeScene(), sceneSetup, {
+        backgroundColor: '#123456',
+        environment: { url: 'env.hdr' },
+      });
+      expect(sceneSetup.createGradientBackground).not.toHaveBeenCalled();
+    });
+
+    it('skips the background when the studio environment will own it', () => {
+      const sceneSetup = makeSceneSetup();
+      configurator.configureScene(makeScene(), sceneSetup, {
+        backgroundColor: '#123456',
+        helpers: { studioEnvironment: true },
+      });
+      expect(sceneSetup.createGradientBackground).not.toHaveBeenCalled();
+    });
+
+    it('warns but does not throw when a section fails', () => {
+      const fail = () => Result.err(new Error('boom') as never);
+      const sceneSetup = makeSceneSetup({
+        addHelpers: jest.fn(fail),
+        addLighting: jest.fn(fail),
+        createGradientBackground: jest.fn(fail),
+      });
+      expect(() =>
+        configurator.configureScene(makeScene(), sceneSetup, {
+          helpers: { grid: true },
+          lighting: { ambientLight: { color: '#fff', intensity: 1 } },
+          backgroundColor: '#123456',
+        })
+      ).not.toThrow();
+      expect(console.warn).toHaveBeenCalled();
+    });
+  });
+
+  describe('configureEnvironment', () => {
+    const notDisposed = () => false;
+
+    it('initializes the service and applies a loaded environment map', async () => {
+      const scene = makeScene();
+      const env = makeEnvironment();
+      await configurator.configureEnvironment(
+        scene, env, makeSceneSetup(), makeRenderer(), { environment: { url: 'env.hdr' } }, notDisposed
+      );
+      expect(env.initialize).toHaveBeenCalled();
+      expect(env.loadEnvironmentMap).toHaveBeenCalledWith('env.hdr');
+      expect(env.applyToScene).toHaveBeenCalled();
+    });
+
+    it('applies the studio environment and a dark background when enabled', async () => {
+      const env = makeEnvironment();
+      const sceneSetup = makeSceneSetup();
+      await configurator.configureEnvironment(
+        makeScene(), env, sceneSetup, makeRenderer(),
+        { helpers: { studioEnvironment: true, darkStudioMode: true } }, notDisposed
+      );
+      expect(env.createStudioEnvironment).toHaveBeenCalled();
+      expect(env.applyToScene).toHaveBeenCalled();
+      expect(sceneSetup.createGradientBackground).toHaveBeenCalled();
+    });
+
+    it('aborts after env init when the viewer was disposed (no map load)', async () => {
+      const env = makeEnvironment();
+      await configurator.configureEnvironment(
+        makeScene(), env, makeSceneSetup(), makeRenderer(),
+        { environment: { url: 'env.hdr' } }, () => true
+      );
+      expect(env.initialize).toHaveBeenCalled();
+      expect(env.loadEnvironmentMap).not.toHaveBeenCalled();
+      expect(env.applyToScene).not.toHaveBeenCalled();
+    });
+
+    it('aborts after map load when disposed mid-load (no applyToScene)', async () => {
+      const env = makeEnvironment();
+      let calls = 0;
+      // Disposed only after the env map has loaded (second isDisposed check).
+      const isDisposed = () => calls++ >= 1;
+      await configurator.configureEnvironment(
+        makeScene(), env, makeSceneSetup(), makeRenderer(),
+        { environment: { url: 'env.hdr' } }, isDisposed
+      );
+      expect(env.loadEnvironmentMap).toHaveBeenCalled();
+      expect(env.applyToScene).not.toHaveBeenCalled();
+    });
+  });
+});
