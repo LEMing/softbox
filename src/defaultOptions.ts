@@ -37,23 +37,27 @@ const defaultOptions: SimpleViewerOptions = {
   // Set `environment.url` to an HDR/EXR/image to use a custom environment map.
   environment: {
     backgroundIntensity: 1,
-    environmentIntensity: 1,
+    // The studio environment (RoomEnvironment) is the primary light source, so
+    // keep image-based lighting moderate — at 1.0 it blows out PBR materials.
+    environmentIntensity: 0.7,
   },
 
-  // Lighting (new format with corrected spelling)
+  // Lighting: the studio environment does most of the work, so the explicit
+  // lights are subtle accents (not a second full light rig). A single directional
+  // key light gives form and shadows; ambient/hemisphere just lift the shadows.
   lighting: {
     ambientLight: {
       color: '#404040',
-      intensity: Math.PI,
+      intensity: 0.3,
     },
     hemisphereLight: {
       skyColor: '#ffffbb',
       groundColor: '#080820',
-      intensity: 1,
+      intensity: 0.3,
     },
     directionalLight: {
       color: '#ffffff',
-      intensity: Math.PI,
+      intensity: 2,
       position: [72, 72, 72],
       castShadow: true,
       shadow: {
@@ -80,7 +84,7 @@ const defaultOptions: SimpleViewerOptions = {
     pixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio : 1,
     shadowMapType: 1, // PCFShadowMap (PCFSoftShadowMap is deprecated in three r183+)
     toneMapping: 6, // ACESFilmicToneMapping
-    toneMappingExposure: 1.5,
+    toneMappingExposure: 1.1,
   },
 
   // Controls

@@ -11,41 +11,41 @@ import { ViewerPreset } from './types/options';
 export const VIEWER_PRESETS: Record<ViewerPreset, Partial<SimpleViewerOptions>> = {
   studio: {
     backgroundColor: '#f0f0f7',
-    renderer: { toneMappingExposure: 1.2 },
-    environment: { environmentIntensity: 1 },
+    renderer: { toneMappingExposure: 1.1 },
+    environment: { environmentIntensity: 0.7 },
     helpers: { studioEnvironment: true, darkStudioMode: false },
   },
   product: {
     backgroundColor: '#ffffff',
-    renderer: { toneMappingExposure: 1.4 },
-    environment: { environmentIntensity: 1.25 },
+    renderer: { toneMappingExposure: 1.25 },
+    environment: { environmentIntensity: 0.85 },
     helpers: { studioEnvironment: true, darkStudioMode: false },
   },
   neutral: {
     backgroundColor: '#d9d9de',
     renderer: { toneMappingExposure: 1 },
-    environment: { environmentIntensity: 0.9 },
+    environment: { environmentIntensity: 0.6 },
     helpers: { studioEnvironment: true, darkStudioMode: false },
   },
   dark: {
-    renderer: { toneMappingExposure: 1.3 },
-    environment: { environmentIntensity: 1.15 },
+    renderer: { toneMappingExposure: 1.1 },
+    environment: { environmentIntensity: 0.75 },
     helpers: { studioEnvironment: true, darkStudioMode: true },
   },
   outdoor: {
     backgroundColor: '#bcd4e6',
-    renderer: { toneMappingExposure: 1.3 },
-    environment: { environmentIntensity: 1.1 },
+    renderer: { toneMappingExposure: 1.15 },
+    environment: { environmentIntensity: 0.8 },
     lighting: {
-      hemisphereLight: { skyColor: '#cfe6ff', groundColor: '#4a4a44', intensity: 1.4 },
+      hemisphereLight: { skyColor: '#cfe6ff', groundColor: '#4a4a44', intensity: 0.5 },
     },
     helpers: { studioEnvironment: true, darkStudioMode: false },
   },
   photoreal: {
     pathTracing: { enabled: true },
     replaceWithScreenshotOnComplete: true,
-    renderer: { toneMappingExposure: 1.2 },
-    environment: { environmentIntensity: 1 },
+    renderer: { toneMappingExposure: 1.1 },
+    environment: { environmentIntensity: 0.7 },
     helpers: { studioEnvironment: true, darkStudioMode: false },
   },
 };

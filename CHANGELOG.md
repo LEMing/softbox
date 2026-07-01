@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.8.1
+---
+
+### Fix the over-lit default (double lighting)
+* Rebalanced the default lighting so models are no longer blown out. When the polyhaven HDRI was dropped for the procedural studio environment (3.7.0), the explicit lights were left at their old, HDRI-compensating strengths — so the bright RoomEnvironment (image-based lighting) plus a full ambient/hemisphere/directional rig plus `toneMappingExposure: 1.5` **double-lit** every scene into a washed-out overexposure. The studio environment is now treated as the primary light source and the explicit lights as subtle accents: `toneMappingExposure` `1.5 → 1.1`, `environment.environmentIntensity` `1.0 → 0.7`, ambient `π → 0.3`, hemisphere `1.0 → 0.3`, directional key `π → 2.0`. Preset exposures/intensities were rebased onto the same balanced baseline.
+
 3.8.0
 ---
 
