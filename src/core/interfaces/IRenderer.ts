@@ -15,7 +15,11 @@ export interface IRenderer extends IRendererExtension {
   
   setSize(width: number, height: number): void;
   setPixelRatio(ratio: number): void;
-  
+
+  /** Runtime-tunable rendering settings (applied live, no rebuild). */
+  setToneMappingExposure(exposure: number): void;
+  setShadowsEnabled(enabled: boolean): void;
+
   getDomElement(): HTMLCanvasElement;
   getContext(): WebGLRenderingContext | WebGL2RenderingContext | null;
   

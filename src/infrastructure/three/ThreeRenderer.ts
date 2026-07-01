@@ -157,11 +157,24 @@ export class ThreeRendererAdapter implements IRenderer {
     if (this.renderer) {
       // Use false as third parameter to prevent style updates that can cause flicker
       this.renderer.setSize(width, height, false);
-      
+
       // Manually update canvas style to maintain aspect ratio
       const canvas = this.renderer.domElement;
       canvas.style.width = '100%';
       canvas.style.height = '100%';
+    }
+  }
+
+  setToneMappingExposure(exposure: number): void {
+    if (this.renderer) {
+      this.renderer.toneMappingExposure = exposure;
+    }
+  }
+
+  setShadowsEnabled(enabled: boolean): void {
+    if (this.renderer) {
+      this.renderer.shadowMap.enabled = enabled;
+      this.renderer.shadowMap.needsUpdate = true;
     }
   }
 

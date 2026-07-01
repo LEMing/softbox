@@ -23,7 +23,11 @@ export interface IScene extends IRendererExtension {
   disposeContents(options?: { keepBackgrounds?: boolean }): void;
 
   traverse(callback: (object: IObject3D) => void): void;
-  
+
+  /** Runtime-tunable environment settings (applied live, no rebuild). */
+  setEnvironmentIntensity(intensity: number): void;
+  setBackgroundBlurriness(blurriness: number): void;
+
   // Scene properties
   background: IColor | ITexture | null;
   fog: IFog | null;

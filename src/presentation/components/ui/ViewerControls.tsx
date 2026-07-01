@@ -6,7 +6,7 @@ import { applyInteractionMode } from './interactionMode';
 import { downloadCanvasScreenshot, toggleFullscreen, isFullscreen as readFullscreen } from './viewerActions';
 import { ModelBadge } from './ModelBadge';
 import { ControlToolbar } from './ControlToolbar';
-import { SettingsPanel } from './SettingsPanel';
+import { SettingsPanel, ViewerSettings } from './SettingsPanel';
 
 export interface ViewerControlsProps {
   config: ResolvedControlsUI;
@@ -15,8 +15,8 @@ export interface ViewerControlsProps {
   getCanvas: () => HTMLCanvasElement | null;
   containerRef: React.RefObject<HTMLElement | null>;
   modelName?: string;
-  backgroundColor: string;
-  onBackgroundColorChange: (color: string) => void;
+  settings: ViewerSettings;
+  onSettingChange: <K extends keyof ViewerSettings>(key: K, value: ViewerSettings[K]) => void;
 }
 
 /**
@@ -30,8 +30,8 @@ export function ViewerControls({
   getCanvas,
   containerRef,
   modelName,
-  backgroundColor,
-  onBackgroundColorChange,
+  settings,
+  onSettingChange,
 }: ViewerControlsProps) {
   const theme = getTheme(config.theme);
   const [mode, setMode] = useState<InteractionMode>('orbit');
@@ -63,11 +63,7 @@ export function ViewerControls({
       {config.modelBadge && modelName && <ModelBadge theme={theme} name={modelName} />}
 
       {config.settings && (
-        <SettingsPanel
-          theme={theme}
-          backgroundColor={backgroundColor}
-          onBackgroundColorChange={onBackgroundColorChange}
-        />
+        <SettingsPanel theme={theme} settings={settings} onChange={onSettingChange} />
       )}
 
       {showToolbar && (

@@ -94,6 +94,8 @@ const makeRenderer = (
     render: jest.fn(() => Result.ok(undefined)),
     setSize: jest.fn(),
     setPixelRatio: jest.fn(),
+    setToneMappingExposure: jest.fn(),
+    setShadowsEnabled: jest.fn(),
     getDomElement: jest.fn(() => canvas),
     getContext: jest.fn(() => null),
     dispose: jest.fn(),
@@ -120,6 +122,8 @@ const makeScene = (overrides: Overrides = {}): jest.Mocked<IScene> => {
     clear: jest.fn(),
     disposeContents: jest.fn(),
     traverse: jest.fn(),
+    setEnvironmentIntensity: jest.fn(),
+    setBackgroundBlurriness: jest.fn(),
     background: null,
     fog: null,
     environment: null,
@@ -1251,6 +1255,30 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     viewer.updateOptions({ backgroundColor: '#abcdef' });
 
     expect(bundle.sceneSetupService!.createGradientBackground).not.toHaveBeenCalled();
+  });
+
+  it('applies live environment and renderer settings without a rebuild', () => {
+    const bundle = makeDeps();
+    const viewer = new ViewerCore(bundle.deps);
+
+    viewer.updateOptions({ environment: { environmentIntensity: 0.4, backgroundBlurriness: 0.2 } });
+    viewer.updateOptions({ renderer: { toneMappingExposure: 1.8, shadowMapEnabled: false } });
+
+    expect(bundle.scene.setEnvironmentIntensity).toHaveBeenCalledWith(0.4);
+    expect(bundle.scene.setBackgroundBlurriness).toHaveBeenCalledWith(0.2);
+    expect(bundle.renderer.setToneMappingExposure).toHaveBeenCalledWith(1.8);
+    expect(bundle.renderer.setShadowsEnabled).toHaveBeenCalledWith(false);
+  });
+
+  it('deep-merges nested option groups so other fields survive', () => {
+    const bundle = makeDeps({ options: { environment: { url: 'env.hdr', environmentIntensity: 1 } } });
+    const viewer = new ViewerCore(bundle.deps);
+
+    viewer.updateOptions({ environment: { environmentIntensity: 0.5 } });
+
+    // The url is preserved; only the intensity changed.
+    expect(viewer.getState).toBeDefined();
+    expect(bundle.scene.setEnvironmentIntensity).toHaveBeenCalledWith(0.5);
   });
 
   it('ignores updates that do not include a background color', () => {

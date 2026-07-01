@@ -18,8 +18,14 @@ const renderControls = (overrides: Partial<React.ComponentProps<typeof ViewerCon
     getCanvas: () => null,
     containerRef: { current: document.createElement('div') },
     modelName: 'Lantern.glb',
-    backgroundColor: '#112233',
-    onBackgroundColorChange: jest.fn(),
+    settings: {
+      backgroundColor: '#112233',
+      gizmo: false,
+      shadows: true,
+      exposure: 1,
+      environmentIntensity: 1,
+    },
+    onSettingChange: jest.fn(),
     ...overrides,
   };
   return { controls, props, ...render(<ViewerControls {...props} />) };
@@ -73,16 +79,22 @@ describe('ViewerControls', () => {
     expect(anchor.click).toHaveBeenCalled();
   });
 
-  it('opens the settings panel and reports background color changes', () => {
-    const onBackgroundColorChange = jest.fn();
-    const { getByLabelText, getByTestId, queryByTestId } = renderControls({ onBackgroundColorChange });
+  it('opens the settings panel and reports live setting changes', () => {
+    const onSettingChange = jest.fn();
+    const { getByLabelText, getByTestId, queryByTestId } = renderControls({ onSettingChange });
 
     expect(queryByTestId('viewer-settings-panel')).toBeNull();
     fireEvent.click(getByLabelText('Settings'));
     expect(getByTestId('viewer-settings-panel')).toBeInTheDocument();
 
     fireEvent.change(getByLabelText('Background color'), { target: { value: '#ff0000' } });
-    expect(onBackgroundColorChange).toHaveBeenCalledWith('#ff0000');
+    expect(onSettingChange).toHaveBeenCalledWith('backgroundColor', '#ff0000');
+
+    fireEvent.click(getByLabelText('Shadows'));
+    expect(onSettingChange).toHaveBeenCalledWith('shadows', false);
+
+    fireEvent.change(getByLabelText('Exposure'), { target: { value: '1.5' } });
+    expect(onSettingChange).toHaveBeenCalledWith('exposure', 1.5);
   });
 
   it('omits pieces that are turned off', () => {

@@ -526,9 +526,41 @@ export class ViewerCore {
     if (this.disposed) {
       return;
     }
-    this.options = { ...this.options, ...partial };
+    // Deep-merge the nested option groups so a partial update (e.g. one
+    // environment field) doesn't drop the others.
+    this.options = {
+      ...this.options,
+      ...partial,
+      environment: partial.environment
+        ? { ...this.options.environment, ...partial.environment }
+        : this.options.environment,
+      renderer: partial.renderer
+        ? { ...this.options.renderer, ...partial.renderer }
+        : this.options.renderer,
+    };
+
+    let changed = false;
     if (partial.backgroundColor !== undefined) {
       this.applyBackgroundColor(partial.backgroundColor);
+    }
+    if (partial.environment?.environmentIntensity !== undefined) {
+      this.scene.setEnvironmentIntensity(partial.environment.environmentIntensity);
+      changed = true;
+    }
+    if (partial.environment?.backgroundBlurriness !== undefined) {
+      this.scene.setBackgroundBlurriness(partial.environment.backgroundBlurriness);
+      changed = true;
+    }
+    if (partial.renderer?.toneMappingExposure !== undefined) {
+      this.renderer.setToneMappingExposure(partial.renderer.toneMappingExposure);
+      changed = true;
+    }
+    if (partial.renderer?.shadowMapEnabled !== undefined) {
+      this.renderer.setShadowsEnabled(partial.renderer.shadowMapEnabled);
+      changed = true;
+    }
+    if (changed) {
+      this.renderLoopManager.requestRender();
     }
   }
 

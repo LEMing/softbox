@@ -11,6 +11,7 @@ import { resolveLoadingIndicator } from './loadingIndicatorConfig';
 import { ViewerControls } from './ui/ViewerControls';
 import { resolveControlsUI } from './ui/controlsUIConfig';
 import { deriveModelName } from './ui/viewerActions';
+import { ViewerSettings } from './ui/SettingsPanel';
 import { TypedEventEmitter } from '../../events/EventEmitter';
 import { ViewerEventMap } from '../../events/ViewerEvents';
 import { ViewerEventMap as CoreViewerEventMap } from '../../core/events/ViewerEvents';
@@ -154,8 +155,7 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
       viewer?.requestRender();
     }, [viewer]);
 
-    // Check if gizmo is enabled
-    const isGizmoEnabled = options.helpers?.gizmo !== undefined && options.helpers.gizmo !== false;
+    // Gizmo visibility is driven by the live settings (seeded from options).
     const gizmoOptions = typeof options.helpers?.gizmo === 'object' ? options.helpers.gizmo : {};
 
     // Built-in loading overlay configuration (UI-only).
@@ -167,19 +167,40 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
     // Built-in control overlay (opt-in): toolbar, model badge, settings.
     const controlsUI = useMemo(() => resolveControlsUI(options.ui), [options.ui]);
     const modelName = useMemo(() => deriveModelName(object), [object]);
-    const [bgColor, setBgColor] = useState(() =>
-      typeof options.backgroundColor === 'number'
-        ? '#' + options.backgroundColor.toString(16).padStart(6, '0')
-        : (options.backgroundColor ?? '#f0f0f7')
-    );
-    const handleBackgroundColorChange = useCallback(
-      (color: string) => {
-        setBgColor(color);
-        viewer?.updateOptions({ backgroundColor: color });
+    const getCanvas = useCallback(() => canvasRef.current, []);
+
+    // Live viewer settings surfaced in the settings panel (applied via the
+    // runtime updateOptions path — no viewer rebuild).
+    const [settings, setSettings] = useState<ViewerSettings>(() => ({
+      backgroundColor:
+        typeof options.backgroundColor === 'number'
+          ? '#' + options.backgroundColor.toString(16).padStart(6, '0')
+          : (options.backgroundColor ?? '#f0f0f7'),
+      gizmo: options.helpers?.gizmo !== undefined && options.helpers.gizmo !== false,
+      shadows: options.renderer?.shadowMapEnabled ?? true,
+      exposure: options.renderer?.toneMappingExposure ?? 1,
+      environmentIntensity: options.environment?.environmentIntensity ?? 1,
+    }));
+
+    const applySetting = useCallback(
+      <K extends keyof ViewerSettings>(key: K, value: ViewerSettings[K]) => {
+        setSettings((prev) => ({ ...prev, [key]: value }));
+        if (!viewer) {
+          return;
+        }
+        if (key === 'backgroundColor') {
+          viewer.updateOptions({ backgroundColor: value as string });
+        } else if (key === 'shadows') {
+          viewer.updateOptions({ renderer: { shadowMapEnabled: value as boolean } });
+        } else if (key === 'exposure') {
+          viewer.updateOptions({ renderer: { toneMappingExposure: value as number } });
+        } else if (key === 'environmentIntensity') {
+          viewer.updateOptions({ environment: { environmentIntensity: value as number } });
+        }
+        // 'gizmo' is presentation-only — the state drives the ViewerGizmo render.
       },
       [viewer]
     );
-    const getCanvas = useCallback(() => canvasRef.current, []);
     const showOverlay =
       loadingIndicator.enabled &&
       (loadState.status === 'loading' || loadState.status === 'error');
@@ -216,7 +237,7 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
         <ViewerProvider viewer={viewer} canvasRef={canvasRef}>
           <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
             <ViewerCanvas />
-            {isGizmoEnabled && isInitialized && camera && controls && (
+            {settings.gizmo && isInitialized && camera && controls && (
               <ViewerGizmo
                 camera={camera}
                 controls={controls}
@@ -244,8 +265,8 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
                 getCanvas={getCanvas}
                 containerRef={containerRef}
                 modelName={modelName}
-                backgroundColor={bgColor}
-                onBackgroundColorChange={handleBackgroundColorChange}
+                settings={settings}
+                onSettingChange={applySetting}
               />
             )}
           </div>
