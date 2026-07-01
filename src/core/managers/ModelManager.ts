@@ -179,6 +179,7 @@ export class ModelManager {
    */
   dispose(): void {
     this.disposeCurrentModel();
+    this.modelLoader.dispose?.();
     this.lastModelUrl = undefined;
   }
 }
