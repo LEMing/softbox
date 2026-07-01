@@ -8,3 +8,4 @@ export * from './RendererOptions';
 export * from './RenderingOptions';
 export * from './LoadingIndicatorOptions';
 export * from './LoaderOptions';
+export * from './PresetOptions';

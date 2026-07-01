@@ -20,9 +20,15 @@ import * as THREE from 'three';
  * Maintains backward compatibility with existing API
  */
 export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
-  ({ object, options = {} }, ref) => {
+  ({ object, options = {}, preset }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { viewer, isInitialized } = useViewerCore(canvasRef, options);
+    // The `preset` prop is shorthand for `options.preset`; an explicit
+    // `options.preset` wins if both are provided.
+    const resolvedOptions = useMemo(
+      () => (preset !== undefined && options.preset === undefined ? { ...options, preset } : options),
+      [options, preset]
+    );
+    const { viewer, isInitialized } = useViewerCore(canvasRef, resolvedOptions);
     const eventsRef = useRef<TypedEventEmitter<ViewerEventMap>>(
       new TypedEventEmitter()
     );
