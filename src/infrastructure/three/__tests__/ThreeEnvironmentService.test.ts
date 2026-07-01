@@ -72,6 +72,19 @@ describe('ThreeEnvironmentService', () => {
     expect(scene.getThreeScene().background).not.toBeNull();
   });
 
+  it('lights the scene without a background when setBackground is false', async () => {
+    const service = await initialized();
+    const loaded = await service.loadEnvironmentMap('env.hdr');
+    if (!loaded.ok) throw loaded.error;
+
+    const scene = new ThreeSceneAdapter();
+    const result = service.applyToScene(scene, loaded.value, { setBackground: false });
+
+    expect(result.ok).toBe(true);
+    expect(scene.getThreeScene().environment).not.toBeNull();
+    expect(scene.getThreeScene().background).toBeNull();
+  });
+
   it('creates a studio environment only after initialization', async () => {
     expect(new ThreeEnvironmentService().createStudioEnvironment().ok).toBe(false);
     const service = await initialized();

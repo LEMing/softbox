@@ -32,10 +32,10 @@ const defaultOptions: SimpleViewerOptions = {
     autoFitToObject: true,
   },
 
-  // Environment
+  // Environment — no `url` by default: the procedural studio environment
+  // (helpers.studioEnvironment) lights the scene with zero network requests.
+  // Set `environment.url` to an HDR/EXR/image to use a custom environment map.
   environment: {
-    url: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/industrial_sunset_puresky.jpg',
-    backgroundBlurriness: 0.15,
     backgroundIntensity: 1,
     environmentIntensity: 1,
   },

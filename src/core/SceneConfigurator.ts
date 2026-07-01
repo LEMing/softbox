@@ -62,12 +62,14 @@ export class SceneConfigurator {
       }
     }
 
-    // Set the background color only if nothing else will own the background (an
-    // environment map URL, or studio environment, would overwrite it and leak
-    // this gradient texture).
+    // Set the background color unless something else owns the background: an
+    // environment-map URL paints the image, and dark studio mode paints its own
+    // dark scrim. The default (studio environment) lights the scene but keeps
+    // this clean background color rather than showing its raw PMREM texture.
     const envUrl = options.environment?.url;
-    const studioWillOwnBackground = options.helpers?.studioEnvironment ?? false;
-    if (options.backgroundColor && !envUrl && !studioWillOwnBackground) {
+    const darkStudioOwnsBackground =
+      (options.helpers?.studioEnvironment ?? false) && (options.helpers?.darkStudioMode ?? false);
+    if (options.backgroundColor && !envUrl && !darkStudioOwnsBackground) {
       const color = String(options.backgroundColor);
       const backgroundResult = sceneSetupService.createGradientBackground(scene, {
         topColor: color,
@@ -121,7 +123,13 @@ export class SceneConfigurator {
     } else if (options.helpers?.studioEnvironment) {
       const studioResult = environmentService.createStudioEnvironment();
       if (studioResult.ok) {
-        environmentService.applyToScene(scene, studioResult.value, applyOptions);
+        // Studio environment supplies lighting/reflections only; the background
+        // stays the clean color set in configureScene (its PMREM texture would
+        // otherwise render as a washed-out sphere).
+        environmentService.applyToScene(scene, studioResult.value, {
+          ...applyOptions,
+          setBackground: false,
+        });
 
         if (options.helpers?.darkStudioMode && sceneSetupService) {
           const backgroundResult = sceneSetupService.createGradientBackground(scene, {

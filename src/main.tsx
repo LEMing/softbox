@@ -15,15 +15,9 @@ const App = () => {
 
   const randomModel = models[Math.floor(Math.random() * models.length)];
   const MODEL_URL = randomModel || "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb";
-  const options = {
-    ...defaultOptions,
-    environment: {
-      url: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/industrial_sunset_puresky.jpg',
-      backgroundBlurriness: 0.05,
-      backgroundIntensity: 1,
-      environmentIntensity: 0.5,
-    }
-  } as const;
+  // Use the defaults as-is so the dev harness shows the zero-config default
+  // look: procedural studio lighting over a clean background, no network HDRI.
+  const options = defaultOptions;
 
   return (
     <div style={{ width: '100vw', height: '100vh', margin: 0, padding: 0 }}>
