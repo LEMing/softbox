@@ -17,6 +17,7 @@ const App = () => {
   const MODEL_URL = randomModel || "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb";
   const options = {
     ...defaultOptions,
+    ui: true,
     environment: {
       url: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/industrial_sunset_puresky.jpg',
       backgroundBlurriness: 0.05,

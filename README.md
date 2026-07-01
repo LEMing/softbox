@@ -316,6 +316,32 @@ const defaultOptions: SimpleViewerOptions = {
 };
 ```
 
+### Control Overlay (toolbar, model badge, settings)
+
+An opt-in control overlay adds a floating toolbar (Orbit / Pan / Zoom, screenshot, fullscreen), a model-name badge, and a settings button — all self-contained (inline SVG, no external CSS) and themeable.
+
+```tsx
+// Everything on:
+<SimpleViewer object="model.glb" options={{ ui: true }} />
+
+// Pick pieces (each defaults to on when the object is given):
+<SimpleViewer
+  object="model.glb"
+  options={{
+    ui: {
+      interactionModes: true, // Orbit/Pan/Zoom drag-mode toggle
+      screenshot: true,       // download the frame as PNG
+      fullscreen: true,
+      modelBadge: true,       // top-left model name
+      settings: true,         // top-right settings panel
+      theme: 'dark',          // 'dark' | 'light'
+    },
+  }}
+/>
+```
+
+It is **off by default** (no chrome is imposed on existing apps). Interaction modes remap the primary drag on `OrbitControls`/`MapControls` (rotate / pan / dolly); the screenshot button forces `preserveDrawingBuffer` so `canvas.toDataURL()` is reliable.
+
 ### Loading Indicator
 
 While a model is being fetched and parsed, `SimpleViewer` shows a built-in loading overlay (and an error state if it fails) so the scene is never just blank. It is **enabled by default**.

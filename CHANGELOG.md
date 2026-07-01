@@ -1,6 +1,17 @@
 Changelog
 =========
 
+3.4.0
+---
+
+### Built-in control overlay
+* Added an opt-in **control overlay** via the new `ui` option: a floating bottom toolbar (Orbit / Pan / Zoom interaction modes, screenshot, fullscreen), a top-left model-name badge, and a top-right settings button. Enable with `ui: true`, or pass `{ toolbar?, interactionModes?, screenshot?, fullscreen?, modelBadge?, settings?, theme? }` to pick pieces (each defaults on). Off by default — no chrome is imposed on existing consumers.
+  - **Interaction modes** remap the primary drag on `OrbitControls`/`MapControls` (`mouseButtons.LEFT` / `touches.ONE`) to rotate / pan / dolly; secondary bindings are untouched.
+  - **Screenshot** downloads the current frame as PNG (`preserveDrawingBuffer` is forced on when the screenshot button is enabled).
+  - **Fullscreen** toggles native fullscreen on the viewer container and stays in sync with Esc.
+  - **Settings** opens a small panel with a live background-color control (extensible).
+  - Self-contained (inline SVG icons, no external CSS), themeable (`dark`/`light`), and accessible (`role`/`aria` labels). The new `ControlsUIOptions` / `InteractionMode` types are exported.
+
 3.3.2
 ---
 

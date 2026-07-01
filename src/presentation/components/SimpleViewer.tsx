@@ -8,6 +8,9 @@ import { ViewerGizmo } from './ViewerGizmo';
 import { ViewerErrorBoundary } from './ViewerErrorBoundary';
 import { LoadingOverlay } from './LoadingOverlay';
 import { resolveLoadingIndicator } from './loadingIndicatorConfig';
+import { ViewerControls } from './ui/ViewerControls';
+import { resolveControlsUI } from './ui/controlsUIConfig';
+import { deriveModelName } from './ui/viewerActions';
 import { TypedEventEmitter } from '../../events/EventEmitter';
 import { ViewerEventMap } from '../../events/ViewerEvents';
 import { ViewerEventMap as CoreViewerEventMap } from '../../core/events/ViewerEvents';
@@ -22,6 +25,7 @@ import * as THREE from 'three';
 export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
   ({ object, options = {} }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
     const { viewer, isInitialized } = useViewerCore(canvasRef, options);
     const eventsRef = useRef<TypedEventEmitter<ViewerEventMap>>(
       new TypedEventEmitter()
@@ -159,6 +163,23 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
       () => resolveLoadingIndicator(options.loadingIndicator),
       [options.loadingIndicator]
     );
+
+    // Built-in control overlay (opt-in): toolbar, model badge, settings.
+    const controlsUI = useMemo(() => resolveControlsUI(options.ui), [options.ui]);
+    const modelName = useMemo(() => deriveModelName(object), [object]);
+    const [bgColor, setBgColor] = useState(() =>
+      typeof options.backgroundColor === 'number'
+        ? '#' + options.backgroundColor.toString(16).padStart(6, '0')
+        : (options.backgroundColor ?? '#f0f0f7')
+    );
+    const handleBackgroundColorChange = useCallback(
+      (color: string) => {
+        setBgColor(color);
+        viewer?.updateOptions({ backgroundColor: color });
+      },
+      [viewer]
+    );
+    const getCanvas = useCallback(() => canvasRef.current, []);
     const showOverlay =
       loadingIndicator.enabled &&
       (loadState.status === 'loading' || loadState.status === 'error');
@@ -193,7 +214,7 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
     return (
       <ViewerErrorBoundary>
         <ViewerProvider viewer={viewer} canvasRef={canvasRef}>
-          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+          <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
             <ViewerCanvas />
             {isGizmoEnabled && isInitialized && camera && controls && (
               <ViewerGizmo
@@ -214,6 +235,17 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
                 }
                 color={loadingIndicator.color}
                 backdrop={loadingIndicator.backdrop}
+              />
+            )}
+            {controlsUI.enabled && isInitialized && (
+              <ViewerControls
+                config={controlsUI}
+                controls={controls}
+                getCanvas={getCanvas}
+                containerRef={containerRef}
+                modelName={modelName}
+                backgroundColor={bgColor}
+                onBackgroundColorChange={handleBackgroundColorChange}
               />
             )}
           </div>

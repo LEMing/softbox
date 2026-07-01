@@ -7,3 +7,4 @@ export * from './PathTracingOptions';
 export * from './RendererOptions';
 export * from './RenderingOptions';
 export * from './LoadingIndicatorOptions';
+export * from './ControlsUIOptions';

@@ -67,12 +67,17 @@ export class ViewerFactory {
       (options.renderer || {}) as Record<string, unknown>
     );
 
-    // Preserve the WebGL drawing buffer whenever a completed path-traced frame
-    // must persist on the canvas after the render loop stops:
-    //  - screenshot-on-complete reads it back via canvas.toDataURL();
-    //  - without screenshot replacement, the final frame stays on the canvas
-    //    (no DOM overlay), which only survives compositing when preserved.
-    if (options.replaceWithScreenshotOnComplete || options.pathTracing?.enabled) {
+    // Preserve the WebGL drawing buffer whenever a rendered frame must be read
+    // back via canvas.toDataURL() or persist on the canvas after the loop stops:
+    //  - screenshot-on-complete reads it back;
+    //  - without screenshot replacement, the final path-traced frame stays on
+    //    the canvas (no DOM overlay), which only survives compositing when preserved;
+    //  - the control overlay's screenshot button reads it back on demand.
+    const ui = options.ui;
+    const uiScreenshotEnabled =
+      ui === true ||
+      (typeof ui === 'object' && ui !== null && (ui.enabled ?? true) && (ui.screenshot ?? true));
+    if (options.replaceWithScreenshotOnComplete || options.pathTracing?.enabled || uiScreenshotEnabled) {
       rendererOptions.preserveDrawingBuffer = true;
     }
     

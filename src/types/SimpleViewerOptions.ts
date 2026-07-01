@@ -8,6 +8,7 @@ import {
   RendererOptions,
   RenderingOptions,
   LoadingIndicatorOptions,
+  ControlsUIOptions,
 } from './options';
 
 export interface SimpleViewerOptions {
@@ -40,4 +41,11 @@ export interface SimpleViewerOptions {
    * an object customizes it. UI-only — changing it never rebuilds the viewer.
    */
   loadingIndicator?: boolean | LoadingIndicatorOptions;
+
+  /**
+   * Built-in control overlay — a floating toolbar (orbit/pan/zoom, screenshot,
+   * fullscreen), a model-name badge, and a settings button. Opt-in: omitted /
+   * `false` shows nothing, `true` enables all pieces, an object toggles them.
+   */
+  ui?: boolean | ControlsUIOptions;
 }
