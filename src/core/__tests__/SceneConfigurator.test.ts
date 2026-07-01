@@ -73,11 +73,23 @@ describe('SceneConfigurator', () => {
       expect(sceneSetup.createGradientBackground).not.toHaveBeenCalled();
     });
 
-    it('skips the background when the studio environment will own it', () => {
+    it('keeps the clean background color under the (non-dark) studio environment', () => {
       const sceneSetup = makeSceneSetup();
       configurator.configureScene(makeScene(), sceneSetup, {
         backgroundColor: '#123456',
         helpers: { studioEnvironment: true },
+      });
+      expect(sceneSetup.createGradientBackground).toHaveBeenCalledWith(expect.anything(), {
+        topColor: '#123456',
+        bottomColor: '#123456',
+      });
+    });
+
+    it('skips the background when dark studio mode will own it', () => {
+      const sceneSetup = makeSceneSetup();
+      configurator.configureScene(makeScene(), sceneSetup, {
+        backgroundColor: '#123456',
+        helpers: { studioEnvironment: true, darkStudioMode: true },
       });
       expect(sceneSetup.createGradientBackground).not.toHaveBeenCalled();
     });
@@ -114,7 +126,21 @@ describe('SceneConfigurator', () => {
       expect(env.applyToScene).toHaveBeenCalled();
     });
 
-    it('applies the studio environment and a dark background when enabled', async () => {
+    it('lights from the studio environment without painting it as the background', async () => {
+      const env = makeEnvironment();
+      await configurator.configureEnvironment(
+        makeScene(), env, makeSceneSetup(), makeRenderer(),
+        { helpers: { studioEnvironment: true } }, notDisposed
+      );
+      expect(env.createStudioEnvironment).toHaveBeenCalled();
+      expect(env.applyToScene).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ setBackground: false })
+      );
+    });
+
+    it('applies the studio environment and a dark background in dark studio mode', async () => {
       const env = makeEnvironment();
       const sceneSetup = makeSceneSetup();
       await configurator.configureEnvironment(

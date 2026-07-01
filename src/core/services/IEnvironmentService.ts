@@ -45,4 +45,11 @@ export interface IEnvironmentApplyOptions {
   backgroundBlurriness?: number;
   backgroundIntensity?: number;
   environmentIntensity?: number;
+  /**
+   * Also paint the environment map as the scene background. Default `true`.
+   * Set `false` to light/reflect from the map while keeping a separate
+   * background (e.g. the studio environment, which supplies lighting but should
+   * not put its raw PMREM texture on screen).
+   */
+  setBackground?: boolean;
 }

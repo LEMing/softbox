@@ -1,6 +1,13 @@
 Changelog
 =========
 
+3.7.0
+---
+
+### No network for the default look — and the background color works again
+* **Removed the hot-linked polyhaven HDRI** that every viewer fetched on startup. The default environment is now the **procedural studio environment** (`helpers.studioEnvironment`, already on by default): it lights the scene and supplies reflections with **zero network requests** — no CDN dependency, no CORS surface, no "grey scene until the sky downloads." Set `environment.url` to your own HDR/EXR/image to use a custom map.
+* **The background color is honored under the studio environment.** Previously the studio environment painted its raw PMREM texture as the background (a washed-out sphere) and swallowed `backgroundColor`. It now lights the scene while the clean `backgroundColor` shows through — so `backgroundColor` (build-time and the live `updateOptions` path) actually takes effect. Dark studio mode still paints its own dark scrim. `applyToScene` gained a `setBackground` flag (default `true`) to express this.
+
 3.6.0
 ---
 

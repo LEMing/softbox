@@ -202,28 +202,30 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       
       // For background, try to use the original texture if available
       // PMREM textures can cause the weird sphere effect when used as background
-      if (threeTexture.mapping === THREE.EquirectangularReflectionMapping) {
-        // Equirectangular textures can be used directly as background
-        threeScene.background = threeTexture;
-      } else if (threeTexture.mapping === THREE.CubeUVReflectionMapping) {
-        // For PMREM textures, try to find the original texture
-        // Check if we have the original texture stored
-        const originalTextures = Array.from(this.loadedTextures.entries());
-        const originalEntry = originalTextures.find(([key, tex]) => 
-          key.endsWith('_original') && tex.mapping === THREE.EquirectangularReflectionMapping
-        );
-        
-        if (originalEntry) {
-          // Use the original equirectangular texture as background
-          threeScene.background = originalEntry[1];
+      if (options?.setBackground ?? true) {
+        if (threeTexture.mapping === THREE.EquirectangularReflectionMapping) {
+          // Equirectangular textures can be used directly as background
+          threeScene.background = threeTexture;
+        } else if (threeTexture.mapping === THREE.CubeUVReflectionMapping) {
+          // For PMREM textures, try to find the original texture
+          // Check if we have the original texture stored
+          const originalTextures = Array.from(this.loadedTextures.entries());
+          const originalEntry = originalTextures.find(([key, tex]) =>
+            key.endsWith('_original') && tex.mapping === THREE.EquirectangularReflectionMapping
+          );
+
+          if (originalEntry) {
+            // Use the original equirectangular texture as background
+            threeScene.background = originalEntry[1];
+          } else {
+            // If no original available, use the PMREM texture anyway
+            // It might look weird but it's better than black
+            threeScene.background = threeTexture;
+          }
         } else {
-          // If no original available, use the PMREM texture anyway
-          // It might look weird but it's better than black
+          // For other textures, use them as background
           threeScene.background = threeTexture;
         }
-      } else {
-        // For other textures, use them as background
-        threeScene.background = threeTexture;
       }
 
       return Result.ok(undefined);
