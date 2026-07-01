@@ -27,6 +27,7 @@ export interface IScene extends IRendererExtension {
   /** Runtime-tunable environment settings (applied live, no rebuild). */
   setEnvironmentIntensity(intensity: number): void;
   setBackgroundBlurriness(blurriness: number): void;
+  setBackgroundIntensity(intensity: number): void;
 
   // Scene properties
   background: IColor | ITexture | null;

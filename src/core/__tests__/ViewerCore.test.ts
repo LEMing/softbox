@@ -124,6 +124,7 @@ const makeScene = (overrides: Overrides = {}): jest.Mocked<IScene> => {
     traverse: jest.fn(),
     setEnvironmentIntensity: jest.fn(),
     setBackgroundBlurriness: jest.fn(),
+    setBackgroundIntensity: jest.fn(),
     background: null,
     fog: null,
     environment: null,

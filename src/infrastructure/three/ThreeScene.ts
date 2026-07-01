@@ -98,6 +98,10 @@ export class ThreeSceneAdapter implements IScene {
     this.scene.backgroundBlurriness = blurriness;
   }
 
+  setBackgroundIntensity(intensity: number): void {
+    this.scene.backgroundIntensity = intensity;
+  }
+
   get background(): IColor | ITexture | null {
     if (this.scene.background instanceof THREE.Color) {
       return new ThreeColorAdapter(this.scene.background);

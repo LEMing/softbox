@@ -8,8 +8,11 @@ export interface ViewerSettings {
   backgroundColor: string;
   gizmo: boolean;
   shadows: boolean;
+  damping: boolean;
   exposure: number;
   environmentIntensity: number;
+  backgroundBlurriness: number;
+  backgroundIntensity: number;
 }
 
 export interface SettingsPanelProps {
@@ -117,6 +120,11 @@ export function SettingsPanel({ theme, settings, onChange, show }: SettingsPanel
                 <Toggle theme={theme} label="Shadows" checked={settings.shadows} onChange={(v) => onChange('shadows', v)} />
               </Row>
             )}
+            {visible('damping') && (
+              <Row label="Damping">
+                <Toggle theme={theme} label="Damping" checked={settings.damping} onChange={(v) => onChange('damping', v)} />
+              </Row>
+            )}
             {visible('exposure') && (
               <Row label="Exposure">
                 <input
@@ -141,6 +149,34 @@ export function SettingsPanel({ theme, settings, onChange, show }: SettingsPanel
                   step={0.05}
                   value={settings.environmentIntensity}
                   onChange={(e) => onChange('environmentIntensity', Number(e.target.value))}
+                  style={{ width: 110, accentColor: theme.accent }}
+                />
+              </Row>
+            )}
+            {visible('backgroundIntensity') && (
+              <Row label="Bg intensity">
+                <input
+                  type="range"
+                  aria-label="Background intensity"
+                  min={0}
+                  max={3}
+                  step={0.05}
+                  value={settings.backgroundIntensity}
+                  onChange={(e) => onChange('backgroundIntensity', Number(e.target.value))}
+                  style={{ width: 110, accentColor: theme.accent }}
+                />
+              </Row>
+            )}
+            {visible('backgroundBlurriness') && (
+              <Row label="Bg blur">
+                <input
+                  type="range"
+                  aria-label="Background blur"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={settings.backgroundBlurriness}
+                  onChange={(e) => onChange('backgroundBlurriness', Number(e.target.value))}
                   style={{ width: 110, accentColor: theme.accent }}
                 />
               </Row>

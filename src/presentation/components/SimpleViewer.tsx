@@ -167,6 +167,11 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
     // Built-in control overlay (opt-in): toolbar, model badge, settings.
     const controlsUI = useMemo(() => resolveControlsUI(options.ui), [options.ui]);
     const modelName = useMemo(() => deriveModelName(object), [object]);
+    // The settings button sits top-right; keep the gizmo out of that corner when
+    // the control overlay owns it (unless the caller pinned a placement).
+    const gizmoPlacement =
+      gizmoOptions.placement ??
+      (controlsUI.enabled && controlsUI.settings ? 'bottom-right' : 'top-right');
     const getCanvas = useCallback(() => canvasRef.current, []);
 
     // Live viewer settings surfaced in the settings panel (applied via the
@@ -178,13 +183,19 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
           : (options.backgroundColor ?? '#f0f0f7'),
       gizmo: options.helpers?.gizmo !== undefined && options.helpers.gizmo !== false,
       shadows: options.renderer?.shadowMapEnabled ?? true,
+      damping: options.controls?.enableDamping ?? true,
       exposure: options.renderer?.toneMappingExposure ?? 1,
       environmentIntensity: options.environment?.environmentIntensity ?? 1,
+      backgroundBlurriness: options.environment?.backgroundBlurriness ?? 0,
+      backgroundIntensity: options.environment?.backgroundIntensity ?? 1,
     }));
 
     const applySetting = useCallback(
       <K extends keyof ViewerSettings>(key: K, value: ViewerSettings[K]) => {
         setSettings((prev) => ({ ...prev, [key]: value }));
+        if (key === 'damping' && controls) {
+          (controls as { enableDamping?: boolean }).enableDamping = value as boolean;
+        }
         if (!viewer) {
           return;
         }
@@ -196,10 +207,14 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
           viewer.updateOptions({ renderer: { toneMappingExposure: value as number } });
         } else if (key === 'environmentIntensity') {
           viewer.updateOptions({ environment: { environmentIntensity: value as number } });
+        } else if (key === 'backgroundIntensity') {
+          viewer.updateOptions({ environment: { backgroundIntensity: value as number } });
+        } else if (key === 'backgroundBlurriness') {
+          viewer.updateOptions({ environment: { backgroundBlurriness: value as number } });
         }
         // 'gizmo' is presentation-only — the state drives the ViewerGizmo render.
       },
-      [viewer]
+      [viewer, controls]
     );
     const showOverlay =
       loadingIndicator.enabled &&
@@ -242,7 +257,7 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
                 camera={camera}
                 controls={controls}
                 render={renderScene}
-                placement={gizmoOptions.placement}
+                placement={gizmoPlacement}
                 size={gizmoOptions.size}
               />
             )}

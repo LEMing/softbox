@@ -9,7 +9,8 @@ Changelog
   - **Interaction modes** remap the primary drag on `OrbitControls`/`MapControls` (`mouseButtons.LEFT` / `touches.ONE`) to rotate / pan / dolly; secondary bindings are untouched.
   - **Screenshot** downloads the current frame as PNG (`preserveDrawingBuffer` is forced on when the screenshot button is enabled).
   - **Fullscreen** toggles native fullscreen on the viewer container and stays in sync with Esc.
-  - **Settings** opens a panel that tweaks the existing viewer options **live** (no rebuild): background color, gizmo, shadows, tone-mapping exposure, and environment intensity. `ViewerCore.updateOptions` was extended (with new `IScene`/`IRenderer` runtime setters) to apply environment/renderer changes on the fly.
+  - **Settings** opens a panel that tweaks the existing viewer options **live** (no rebuild): background color, gizmo, shadows, controls damping, tone-mapping exposure, environment intensity, background intensity, and background blur. `ViewerCore.updateOptions` was extended (with new `IScene`/`IRenderer` runtime setters) to apply environment/renderer changes on the fly.
+  - When the overlay owns the top-right corner (settings button), the viewport gizmo defaults to `bottom-right` instead of colliding with it (an explicit `helpers.gizmo.placement` still wins).
   - Self-contained (inline SVG icons, no external CSS), themeable (`dark`/`light`), and accessible (`role`/`aria` labels). The new `ControlsUIOptions` / `InteractionMode` types are exported.
 
 3.3.2

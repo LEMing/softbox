@@ -551,6 +551,10 @@ export class ViewerCore {
       this.scene.setBackgroundBlurriness(partial.environment.backgroundBlurriness);
       changed = true;
     }
+    if (partial.environment?.backgroundIntensity !== undefined) {
+      this.scene.setBackgroundIntensity(partial.environment.backgroundIntensity);
+      changed = true;
+    }
     if (partial.renderer?.toneMappingExposure !== undefined) {
       this.renderer.setToneMappingExposure(partial.renderer.toneMappingExposure);
       changed = true;
