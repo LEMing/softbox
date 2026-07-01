@@ -8,7 +8,10 @@ export class HexagonalWireGrid implements IGridStyle {
     const group = new THREE.Group();
     
     const radius = options.styleOptions?.hexRadius || Math.floor(options.divisions / 2);
-    const tileSize = options.size / (radius * 2);
+    // radius can be 0 for a single-hex grid (small objects); guard the divisor so
+    // tileSize never becomes Infinity/NaN and poisons the hex vertex positions
+    // (which then surfaces as "computeBoundingSphere(): radius is NaN").
+    const tileSize = options.size / Math.max(1, radius * 2);
     const color = new THREE.Color(options.color || 0x888888);
     const lineOpacity = options.opacity || 0.4;
     

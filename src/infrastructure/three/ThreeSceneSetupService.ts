@@ -152,6 +152,12 @@ export class ThreeSceneSetupService implements ISceneSetupService {
       const box = new THREE.Box3().setFromObject(threeObject);
       const size = box.getSize(new THREE.Vector3());
 
+      // An empty or non-finite bounding box (degenerate / NaN model geometry)
+      // would size the grid to Infinity/NaN. Skip the dynamic grid instead.
+      if (box.isEmpty() || !Number.isFinite(size.x) || !Number.isFinite(size.z)) {
+        console.warn('Skipping dynamic grid: object has an empty or non-finite bounding box');
+        return Result.ok(undefined);
+      }
 
       // For a regular hexagon: edge length = radius (center to vertex)
       // We want edge length = 1 unit
