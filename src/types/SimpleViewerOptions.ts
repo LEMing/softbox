@@ -9,9 +9,17 @@ import {
   RenderingOptions,
   LoadingIndicatorOptions,
   LoaderOptions,
+  ViewerPreset,
 } from './options';
 
 export interface SimpleViewerOptions {
+  /**
+   * A one-word visual preset (`studio`, `product`, `neutral`, `dark`, `outdoor`,
+   * `photoreal`) that sets a cohesive lighting/environment/tone look. Any other
+   * option you pass overrides the preset's values.
+   */
+  preset?: ViewerPreset;
+
   // Scene settings
   backgroundColor?: string | number;
   staticScene?: boolean;

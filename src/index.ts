@@ -4,8 +4,12 @@ export { type SimpleViewerOptions } from './types'
 export type { ControlsInstance } from './types/CommonTypes'
 export { default as defaultOptions } from './defaultOptions'
 
-// Option sub-types and the ControlType enum, so consumers can construct options
+// Option sub-types, the ControlType enum and the ViewerPreset union, so
+// consumers can construct options
 export * from './types/options'
+
+// Visual presets (the data behind the `preset` prop), for inspection/composition
+export { VIEWER_PRESETS, resolvePreset } from './presets'
 
 // Typed event system
 export { TypedEventEmitter } from './events'

@@ -23,6 +23,7 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
   const structuralKey = useMemo(
     () =>
       JSON.stringify({
+        preset: options.preset,
         pathTracing: options.pathTracing,
         staticScene: options.staticScene,
         renderer: options.renderer,
@@ -35,6 +36,7 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
         replaceWithScreenshotOnComplete: options.replaceWithScreenshotOnComplete,
       }),
     [
+      options.preset,
       options.pathTracing,
       options.staticScene,
       options.renderer,

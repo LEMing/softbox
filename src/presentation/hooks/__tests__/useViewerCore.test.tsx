@@ -103,4 +103,52 @@ describe('useViewerCore', () => {
     await waitFor(() => expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(2));
     expect(firstViewer.dispose).toHaveBeenCalled();
   });
+
+  it('deep-merges a preset over the defaults before building the viewer', async () => {
+    const canvasRef = makeCanvasRef();
+
+    const { result } = renderHook(() =>
+      useViewerCore(canvasRef, { preset: 'product' })
+    );
+
+    await waitFor(() => expect(result.current.isInitialized).toBe(true));
+
+    const builtWith = (ViewerFactory.createViewer as jest.Mock).mock.calls[0][1] as SimpleViewerOptions;
+    // Preset look applied...
+    expect(builtWith.backgroundColor).toBe('#ffffff');
+    expect(builtWith.renderer?.toneMappingExposure).toBe(1.4);
+    // ...without clobbering unrelated defaults (deep merge, not replace).
+    expect(builtWith.renderer?.shadowMapEnabled).toBe(true);
+    expect(builtWith.camera?.autoFitToObject).toBe(true);
+  });
+
+  it('lets an explicit option win over the preset', async () => {
+    const canvasRef = makeCanvasRef();
+
+    const { result } = renderHook(() =>
+      useViewerCore(canvasRef, { preset: 'product', backgroundColor: '#010203' })
+    );
+
+    await waitFor(() => expect(result.current.isInitialized).toBe(true));
+
+    const builtWith = (ViewerFactory.createViewer as jest.Mock).mock.calls[0][1] as SimpleViewerOptions;
+    expect(builtWith.backgroundColor).toBe('#010203');
+  });
+
+  it('rebuilds the viewer when the preset changes', async () => {
+    const canvasRef = makeCanvasRef();
+
+    const { result, rerender } = renderHook(
+      ({ options }: { options: SimpleViewerOptions }) => useViewerCore(canvasRef, options),
+      { initialProps: { options: { preset: 'studio' } as SimpleViewerOptions } }
+    );
+
+    await waitFor(() => expect(result.current.isInitialized).toBe(true));
+    const firstViewer = createdViewers[0];
+
+    rerender({ options: { preset: 'dark' } });
+
+    await waitFor(() => expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(2));
+    expect(firstViewer.dispose).toHaveBeenCalled();
+  });
 });

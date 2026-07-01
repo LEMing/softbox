@@ -1,6 +1,14 @@
 Changelog
 =========
 
+3.8.0
+---
+
+### Perfect first paint — one-word visual presets
+* Added a **`preset`** prop (and `options.preset`) that sets a cohesive lighting / environment / tone-mapping / background *look* in one word, so a model looks intentional on first paint with zero manual tuning: **`studio`** (clean neutral backdrop — the balanced default), **`product`** (bright high-key white for e-commerce hero shots), **`neutral`** (flat, accurate inspection), **`dark`** (dramatic dark backdrop), **`outdoor`** (daylight-leaning sky tint), and **`photoreal`** (a path-traced still). Usage: `<SimpleViewer object={url} preset="product" />`.
+* A preset is **deep-merged over the defaults**, so it only adjusts the fields that define its look and inherits everything else — camera auto-framing (`camera.autoFitToObject`, already on), controls, grid. Any explicit option you pass still wins over the preset. Combined with the procedural studio environment (3.7.0) and auto-framing, the default output is premium with no configuration.
+* Exported `ViewerPreset` (the union), `VIEWER_PRESETS` (the preset table) and `resolvePreset()` for inspection/composition, plus a reusable `deepMerge` behavior behind the layering. Changing the preset rebuilds the viewer (it is a structural option); it is not swallowed by the runtime-options fast path.
+
 3.7.0
 ---
 

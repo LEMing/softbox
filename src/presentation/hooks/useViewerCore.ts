@@ -3,6 +3,8 @@ import { ViewerCore } from '../../core/ViewerCore';
 import { ViewerFactory } from '../../infrastructure/factories/ViewerFactory';
 import { SimpleViewerOptions } from '../../types/SimpleViewerOptions';
 import defaultOptions from '../../defaultOptions';
+import { resolvePreset } from '../../presets';
+import { deepMerge } from '../../utils/deepMerge';
 import { useStableOptions } from './useStableOptions';
 
 /**
@@ -24,8 +26,11 @@ export function useViewerCore(
       return;
     }
 
-    // Merge options with defaults
-    const mergedOptions = { ...defaultOptions, ...stableOptions };
+    // Layer the look in three stages: defaults, then the chosen preset
+    // (deep-merged so it only tweaks the fields that define its look), then the
+    // caller's explicit options on top (they always win).
+    const withPreset = deepMerge(defaultOptions, resolvePreset(stableOptions.preset));
+    const mergedOptions = { ...withPreset, ...stableOptions };
     
     // Create viewer with factory
     const viewer = ViewerFactory.createViewer(canvasRef.current, mergedOptions);
