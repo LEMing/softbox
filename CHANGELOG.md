@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.3.2
+---
+
+### Bug fixes
+* Fixed `THREE.BufferGeometry.computeBoundingSphere(): Computed radius is NaN` (model-size-dependent). The dynamic grid gives small objects a single-hex layout (`hexRadius: 0` / `divisions: 1`), and `HexagonalWireGrid` then divided the grid size by `radius * 2 === 0`, producing `Infinity`/`NaN` hex vertex positions. The divisor is now floored at 1 (`StoneTileGrid` divisor likewise), and `addDynamicGrid` skips grid creation entirely for an empty or non-finite bounding box.
+
 3.3.1
 ---
 

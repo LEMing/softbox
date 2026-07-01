@@ -9,7 +9,7 @@ export class StoneTileGrid implements IGridStyle {
     const group = new THREE.Group();
     
     const size = options.size;
-    const divisions = options.divisions;
+    const divisions = Math.max(1, options.divisions);
     const tileSize = size / divisions;
     const gap = tileSize * 0.02; // 2% gap between tiles
     const actualTileSize = tileSize - gap;
