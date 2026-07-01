@@ -28,6 +28,9 @@ export interface IScene extends IRendererExtension {
   background: IColor | ITexture | null;
   fog: IFog | null;
   environment: ITexture | null;
+
+  /** Live-tunable multiplier for the environment map's lighting contribution. */
+  setEnvironmentIntensity(intensity: number): void;
 }
 
 export interface IColor {

@@ -18,6 +18,7 @@ import { ISceneSetupService } from './services/ISceneSetupService';
 import { SceneConfigurator } from './SceneConfigurator';
 import { IFloorAlignmentService } from './services/IFloorAlignmentService';
 import { RenderLoopManager } from './utils/RenderLoopManager';
+import { deepMerge } from '../utils/deepMerge';
 import { SceneSerializer } from './utils/SceneSerializer';
 import { hasInternalRenderer } from './interfaces/IRendererExtension';
 import { StateManager } from './managers/StateManager';
@@ -526,9 +527,24 @@ export class ViewerCore {
     if (this.disposed) {
       return;
     }
-    this.options = { ...this.options, ...partial };
+    this.options = deepMerge(this.options, partial);
+
+    let needsRender = false;
     if (partial.backgroundColor !== undefined) {
       this.applyBackgroundColor(partial.backgroundColor);
+    }
+    const exposure = partial.renderer?.toneMappingExposure;
+    if (exposure !== undefined) {
+      this.renderer.setToneMappingExposure(exposure);
+      needsRender = true;
+    }
+    const environmentIntensity = partial.environment?.environmentIntensity;
+    if (environmentIntensity !== undefined) {
+      this.scene.setEnvironmentIntensity(environmentIntensity);
+      needsRender = true;
+    }
+    if (needsRender) {
+      this.renderLoopManager.requestRender();
     }
   }
 

@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
 import { SimpleViewerOptions } from '../../types/SimpleViewerOptions';
+import defaultOptions from '../../defaultOptions';
+import { mergeWithPreset } from '../../presets';
 
 export interface StableOptions {
   /** Stable options reference; identity only changes when a key below changes. */
@@ -23,7 +25,6 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
   const structuralKey = useMemo(
     () =>
       JSON.stringify({
-        preset: options.preset,
         pathTracing: options.pathTracing,
         staticScene: options.staticScene,
         renderer: options.renderer,
@@ -36,7 +37,6 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
         replaceWithScreenshotOnComplete: options.replaceWithScreenshotOnComplete,
       }),
     [
-      options.preset,
       options.pathTracing,
       options.staticScene,
       options.renderer,
@@ -50,10 +50,17 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
     ]
   );
 
-  const runtimeKey = useMemo(
-    () => JSON.stringify({ backgroundColor: options.backgroundColor }),
-    [options.backgroundColor]
-  );
+  // Runtime-tunable look, resolved through the preset so switching a preset
+  // (studio → dark, …) applies live via updateOptions instead of rebuilding.
+  const runtimeKey = useMemo(() => {
+    const merged = mergeWithPreset(defaultOptions, options);
+    return JSON.stringify({
+      backgroundColor: merged.backgroundColor,
+      toneMappingExposure: merged.renderer?.toneMappingExposure,
+      environmentIntensity: merged.environment?.environmentIntensity,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the look is fully determined by these three inputs; depending on `options` would recompute on every unrelated change.
+  }, [options.preset, options.backgroundColor, options.renderer, options.environment]);
 
   // Recomputed only when a structural or runtime key changes, so the returned
   // reference stays stable across unrelated parent re-renders.

@@ -10,7 +10,10 @@ const MODELS: Record<string, string> = {
   Avocado: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb',
 };
 
-const PRESETS: ViewerPreset[] = ['studio', 'product', 'neutral', 'dark', 'outdoor', 'photoreal'];
+const PRESETS: ViewerPreset[] = ['studio', 'product', 'neutral', 'dark', 'outdoor'];
+
+const FONT =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 
 const Picker = ({
   label,
@@ -24,20 +27,35 @@ const Picker = ({
   onChange: (v: string) => void;
 }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-    <span style={{ fontSize: 12, color: '#888', minWidth: 52 }}>{label}</span>
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        letterSpacing: '0.06em',
+        textTransform: 'uppercase',
+        color: '#9a9aa5',
+        minWidth: 58,
+      }}
+    >
+      {label}
+    </span>
     {items.map((item) => (
       <button
         key={item}
         onClick={() => onChange(item)}
         style={{
-          padding: '5px 12px',
+          padding: '6px 14px',
           borderRadius: 999,
-          border: '1px solid ' + (value === item ? '#4f7cff' : '#d0d0d8'),
-          background: value === item ? '#4f7cff' : '#fff',
-          color: value === item ? '#fff' : '#333',
+          border: 'none',
+          background: value === item ? '#111318' : 'transparent',
+          color: value === item ? '#fff' : '#4a4a55',
+          fontFamily: FONT,
           fontSize: 13,
+          fontWeight: 500,
+          lineHeight: 1,
           cursor: 'pointer',
           textTransform: 'capitalize',
+          transition: 'background 120ms ease, color 120ms ease',
         }}
       >
         {item}
@@ -55,17 +73,19 @@ const App = () => {
       <div
         style={{
           position: 'absolute',
-          top: 12,
-          left: 12,
+          top: 16,
+          left: 16,
           zIndex: 10,
           display: 'flex',
           flexDirection: 'column',
-          gap: 8,
-          padding: 12,
-          borderRadius: 12,
-          background: 'rgba(255,255,255,0.85)',
-          backdropFilter: 'blur(8px)',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+          gap: 6,
+          padding: '12px 14px',
+          borderRadius: 14,
+          background: 'rgba(255,255,255,0.72)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: '1px solid rgba(0,0,0,0.06)',
+          boxShadow: '0 8px 30px rgba(0,0,0,0.10)',
         }}
       >
         <Picker label="Model" items={Object.keys(MODELS)} value={model} onChange={setModel} />

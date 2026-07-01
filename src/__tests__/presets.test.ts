@@ -1,14 +1,8 @@
-import { VIEWER_PRESETS, resolvePreset } from '../presets';
+import { VIEWER_PRESETS, resolvePreset, mergeWithPreset } from '../presets';
 import { ViewerPreset } from '../types/options';
+import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
 
-const ALL_PRESETS: ViewerPreset[] = [
-  'studio',
-  'product',
-  'neutral',
-  'dark',
-  'outdoor',
-  'photoreal',
-];
+const ALL_PRESETS: ViewerPreset[] = ['studio', 'product', 'neutral', 'dark', 'outdoor'];
 
 describe('viewer presets', () => {
   it('defines every preset in the ViewerPreset union', () => {
@@ -24,25 +18,49 @@ describe('viewer presets', () => {
     expect(resolvePreset('product')).toBe(VIEWER_PRESETS.product);
   });
 
-  it('every preset keeps the studio environment on so a model is always lit', () => {
+  it('every preset sets only the live look fields (background, exposure, env intensity)', () => {
     for (const name of ALL_PRESETS) {
-      expect(VIEWER_PRESETS[name].helpers?.studioEnvironment).toBe(true);
+      const preset = VIEWER_PRESETS[name];
+      expect(preset.backgroundColor).toEqual(expect.any(String));
+      expect(preset.renderer?.toneMappingExposure).toEqual(expect.any(Number));
+      expect(preset.environment?.environmentIntensity).toEqual(expect.any(Number));
+      // No structural fields — switching a preset must never trigger a rebuild.
+      expect(preset.pathTracing).toBeUndefined();
+      expect(preset.camera).toBeUndefined();
+      expect(preset.controls).toBeUndefined();
+      expect(preset.helpers).toBeUndefined();
+      expect(preset.lighting).toBeUndefined();
     }
   });
 
-  it('only the dark preset uses dark studio mode', () => {
-    for (const name of ALL_PRESETS) {
-      expect(VIEWER_PRESETS[name].helpers?.darkStudioMode).toBe(name === 'dark');
-    }
-  });
-
-  it('the photoreal preset enables path tracing for a hero still', () => {
-    expect(VIEWER_PRESETS.photoreal.pathTracing?.enabled).toBe(true);
-    expect(VIEWER_PRESETS.photoreal.replaceWithScreenshotOnComplete).toBe(true);
-  });
-
-  it('the product preset is the brightest and studio is neutral-light', () => {
+  it('product is the brightest and studio is the neutral-light default', () => {
     expect(VIEWER_PRESETS.product.backgroundColor).toBe('#ffffff');
     expect(VIEWER_PRESETS.studio.backgroundColor).toBe('#f0f0f7');
+    expect(VIEWER_PRESETS.dark.backgroundColor).toBe('#1a1a1f');
+  });
+});
+
+describe('mergeWithPreset', () => {
+  const defaults: SimpleViewerOptions = {
+    backgroundColor: '#000000',
+    renderer: { antialias: true, toneMappingExposure: 3 },
+    environment: { environmentIntensity: 3 },
+  };
+
+  it('layers the preset over the defaults without clobbering unrelated fields', () => {
+    const merged = mergeWithPreset(defaults, { preset: 'product' });
+    expect(merged.backgroundColor).toBe('#ffffff');
+    expect(merged.renderer?.toneMappingExposure).toBe(1.25);
+    expect(merged.renderer?.antialias).toBe(true); // preserved via deep merge
+  });
+
+  it('lets explicit options win over the preset', () => {
+    const merged = mergeWithPreset(defaults, { preset: 'product', backgroundColor: '#abcabc' });
+    expect(merged.backgroundColor).toBe('#abcabc');
+  });
+
+  it('returns the defaults when no preset is set', () => {
+    const merged = mergeWithPreset(defaults, {});
+    expect(merged.backgroundColor).toBe('#000000');
   });
 });

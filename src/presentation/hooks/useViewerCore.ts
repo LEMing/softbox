@@ -3,8 +3,7 @@ import { ViewerCore } from '../../core/ViewerCore';
 import { ViewerFactory } from '../../infrastructure/factories/ViewerFactory';
 import { SimpleViewerOptions } from '../../types/SimpleViewerOptions';
 import defaultOptions from '../../defaultOptions';
-import { resolvePreset } from '../../presets';
-import { deepMerge } from '../../utils/deepMerge';
+import { mergeWithPreset } from '../../presets';
 import { useStableOptions } from './useStableOptions';
 
 /**
@@ -26,12 +25,9 @@ export function useViewerCore(
       return;
     }
 
-    // Layer the look in three stages: defaults, then the chosen preset
-    // (deep-merged so it only tweaks the fields that define its look), then the
-    // caller's explicit options on top (they always win).
-    const withPreset = deepMerge(defaultOptions, resolvePreset(stableOptions.preset));
-    const mergedOptions = { ...withPreset, ...stableOptions };
-    
+    // Defaults + preset (deep-merged) + explicit options on top.
+    const mergedOptions = mergeWithPreset(defaultOptions, stableOptions);
+
     // Create viewer with factory
     const viewer = ViewerFactory.createViewer(canvasRef.current, mergedOptions);
     viewerRef.current = viewer;
@@ -64,14 +60,20 @@ export function useViewerCore(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- structuralKey is a content hash of the structural options; depending on stableOptions would rebuild on every change.
   }, [canvasRef, structuralKey]);
 
-  // Apply runtime-tunable options (e.g. background color) to the live viewer
-  // without tearing it down and re-fetching the model. Keyed on runtimeKey.
+  // Apply the runtime-tunable look (background, exposure, environment intensity)
+  // to the live viewer without tearing it down and re-fetching the model. This
+  // is how switching a preset takes effect. Keyed on runtimeKey.
   useEffect(() => {
     if (!viewerRef.current || !isInitialized) {
       return;
     }
-    viewerRef.current.updateOptions({ backgroundColor: stableOptions.backgroundColor });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- runtimeKey is a content hash of the runtime options; reading stableOptions.backgroundColor inside is intentional.
+    const merged = mergeWithPreset(defaultOptions, stableOptions);
+    viewerRef.current.updateOptions({
+      backgroundColor: merged.backgroundColor,
+      renderer: { toneMappingExposure: merged.renderer?.toneMappingExposure },
+      environment: { environmentIntensity: merged.environment?.environmentIntensity },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runtimeKey is a content hash of the runtime look; reading the resolved values inside is intentional.
   }, [runtimeKey, isInitialized]);
 
   // Track last resize dimensions to detect actual changes

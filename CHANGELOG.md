@@ -1,11 +1,15 @@
 Changelog
 =========
 
-3.8.1
+3.9.0
 ---
 
 ### Fix the over-lit default (double lighting)
-* Rebalanced the default lighting so models are no longer blown out. When the polyhaven HDRI was dropped for the procedural studio environment (3.7.0), the explicit lights were left at their old, HDRI-compensating strengths — so the bright RoomEnvironment (image-based lighting) plus a full ambient/hemisphere/directional rig plus `toneMappingExposure: 1.5` **double-lit** every scene into a washed-out overexposure. The studio environment is now treated as the primary light source and the explicit lights as subtle accents: `toneMappingExposure` `1.5 → 1.1`, `environment.environmentIntensity` `1.0 → 0.7`, ambient `π → 0.3`, hemisphere `1.0 → 0.3`, directional key `π → 2.0`. Preset exposures/intensities were rebased onto the same balanced baseline.
+* Rebalanced the default lighting so models are no longer blown out. When the polyhaven HDRI was dropped for the procedural studio environment (3.7.0), the explicit lights were left at their old, HDRI-compensating strengths — so the bright RoomEnvironment (image-based lighting) plus a full ambient/hemisphere/directional rig plus `toneMappingExposure: 1.5` **double-lit** every scene into a washed-out overexposure. The studio environment is now treated as the primary light source and the explicit lights as subtle accents: `toneMappingExposure` `1.5 → 1.1`, `environment.environmentIntensity` `1.0 → 0.7`, ambient `π → 0.3`, hemisphere `1.0 → 0.3`, directional key `π → 2.0`.
+
+### Presets apply live — switching one no longer breaks the scene
+* **Fixed:** switching a preset used to rebuild the whole viewer (preset was a *structural* option), which tore down the WebGL renderer, dropped the model and re-framed the camera onto the empty grid. Presets are now **runtime-only**: each sets just the background color, tone-mapping exposure and environment intensity, applied live via `updateOptions` — so switching `studio` → `dark` → `product` updates the look instantly with **no rebuild and no model reload**. Added engine-agnostic live setters (`IRenderer.setToneMappingExposure`, `IScene.setEnvironmentIntensity`) and taught `updateOptions` to apply them; preset exposures/intensities are rebased onto the balanced lighting baseline above.
+* The preset set is now `studio | product | neutral | dark | outdoor` (all live-switchable). `photoreal` was removed as a preset — path tracing is a construction-time render mode (`pathTracing.enabled`), not a look you flip between at runtime.
 
 3.8.0
 ---
