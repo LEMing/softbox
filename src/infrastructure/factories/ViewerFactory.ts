@@ -7,6 +7,7 @@ import {
   ThreeOrbitControlsAdapter,
   ThreeMapControlsAdapter,
   ModelLoaderFactory,
+  GLTFLoaderConfig,
   ThreePathTracingService,
   ThreeEnvironmentService,
   ThreeSceneSetupService,
@@ -43,8 +44,12 @@ export class ViewerFactory {
       options
     );
     
-    // Create model loader
-    const modelLoader = new ExtendedModelLoaderFactory().createDefaultLoader();
+    // Create model loader with compression decoders (DRACO/KTX2/Meshopt). The
+    // renderer is passed so KTX2 can detect GPU-supported texture formats.
+    const modelLoader = new ExtendedModelLoaderFactory().createDefaultLoader({
+      renderer: renderer.getThreeRenderer() ?? undefined,
+      ...options.loaders,
+    });
     
     // Create scene setup service
     const sceneSetupService = new ThreeSceneSetupService();
@@ -212,9 +217,7 @@ export class ViewerFactory {
  * Extended factory for model loaders
  */
 export class ExtendedModelLoaderFactory extends ModelLoaderFactory {
-  createDefaultLoader() {
-    // For now, return GLTF loader as default
-    // In the future, this could be configured
-    return ModelLoaderFactory.createLoader('model.glb');
+  createDefaultLoader(config: GLTFLoaderConfig = {}) {
+    return ModelLoaderFactory.createLoader('model.glb', config);
   }
 }

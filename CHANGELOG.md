@@ -1,6 +1,15 @@
 Changelog
 =========
 
+3.6.0
+---
+
+### Compressed models load out of the box
+* The glTF/GLB loader now wires the **DRACO**, **KTX2/Basis** and **Meshopt** decoders, so compressed assets exported by Blender, `gltfpack`, `gltf-transform`, etc. load with no extra setup — previously they failed. Configure via the new `loaders` option (`{ draco?, ktx2?, meshopt?, dracoDecoderPath?, ktx2TranscoderPath? }`): every decoder is on by default; set one to `false` to skip it, or point `dracoDecoderPath` / `ktx2TranscoderPath` at a self-hosted copy for a fully offline setup. The DRACO/KTX2 WebAssembly is fetched on demand from a jsDelivr URL pinned to the installed Three.js revision; Meshopt needs no external file. `KTX2Loader` also detects the GPU's supported texture formats via the renderer. The new `LoaderOptions` type is exported.
+
+### No bundle-size cost
+* The decoders are **imported lazily on the first model load and externalized from the build**, so the base bundle is unchanged (~147 kB gzip, vs. ~1 MB if they were bundled eagerly — each decoder embeds a multi-megabyte WebAssembly blob that Vite would inline as base64). Lazy `import()` also means the library still works when consumed from CommonJS, where a static import of these ESM-only add-ons would throw. The DRACO/KTX2 worker pools are terminated on viewer disposal.
+
 3.5.0
 ---
 

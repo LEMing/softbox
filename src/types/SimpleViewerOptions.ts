@@ -8,6 +8,7 @@ import {
   RendererOptions,
   RenderingOptions,
   LoadingIndicatorOptions,
+  LoaderOptions,
 } from './options';
 
 export interface SimpleViewerOptions {
@@ -40,4 +41,11 @@ export interface SimpleViewerOptions {
    * an object customizes it. UI-only — changing it never rebuilds the viewer.
    */
   loadingIndicator?: boolean | LoadingIndicatorOptions;
+
+  /**
+   * Compression decoders for the glTF/GLB loader (DRACO, KTX2/Basis, Meshopt).
+   * All enabled by default so compressed assets load with no setup; pass this to
+   * disable a decoder or self-host the DRACO/KTX2 WebAssembly files offline.
+   */
+  loaders?: LoaderOptions;
 }

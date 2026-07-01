@@ -35,12 +35,24 @@ export default defineConfig({
     },
     rollupOptions: {
       // Externalize the `three` CORE and React so the consumer's single copy is
-      // used. Three.js addons (examples/jsm/*), three-gpu-pathtracer and
+      // used. Most Three.js addons (examples/jsm/*), three-gpu-pathtracer and
       // threedgizmo are BUNDLED — three's exports map does not resolve
       // extensionless addon subpaths, so externalizing them would break the
       // entrypoints. The bundled addons still import the external `three` core,
       // so there is no duplicate core copy.
-      external: [/^react(\/.*)?$/, /^react-dom(\/.*)?$/, 'three']
+      //
+      // The compression decoders are the exception: they are imported lazily
+      // with explicit `.js` specifiers (which DO resolve through three's exports
+      // map) and externalized, because each embeds a multi-megabyte WebAssembly
+      // blob that Vite would otherwise inline as base64 into every consumer's
+      // bundle. Externalized, they load on demand from the consumer's own three.
+      external: [
+        /^react(\/.*)?$/,
+        /^react-dom(\/.*)?$/,
+        'three',
+        /^three\/examples\/jsm\/loaders\/(DRACOLoader|KTX2Loader)\.js$/,
+        /^three\/examples\/jsm\/libs\/meshopt_decoder\.module\.js$/,
+      ]
     }
   }
 })

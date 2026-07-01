@@ -14,6 +14,12 @@ export interface IModelLoader {
    * Check if this loader supports the given URL/file type
    */
   supports(url: string): boolean;
+
+  /**
+   * Release any resources the loader holds (e.g. decoder worker pools).
+   * Optional: loaders without external resources may omit it.
+   */
+  dispose?(): void;
 }
 
 export interface IModel {
