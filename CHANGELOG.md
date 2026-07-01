@@ -1,6 +1,16 @@
 Changelog
 =========
 
+3.5.0
+---
+
+### Compatibility (wider reach)
+* **React 18 is now supported.** The `react` / `react-dom` peer ranges widened from `^19.0.0` to `>=18.0.0 <20.0.0`. The library only uses React APIs present in both majors (standard hooks + `forwardRef` / `useImperativeHandle`), the bundled `threedgizmo` likewise uses standard hooks only, and the full test suite passes under React 18.3.1. This unblocks the large share of apps still on React 18 that previously could not install the package at all.
+* **Three.js r184 / r185 are now supported.** The `three` peer range widened from `>=0.177.0 <0.184.0` to `>=0.177.0 <0.186.0`, and the dev/build toolchain (`three`, `@types/three`) moved to r185. Typecheck and the full suite pass against r185; all bundled three add-ons (`three-gpu-pathtracer`, `three-mesh-bvh`) resolve cleanly on the wider range.
+
+### Release hygiene
+* Bumped to `3.5.0` to re-align the published version. Versions 3.1–3.4 were developed but never published to the registry (which was stuck at `3.0.1`); 3.5.0 is the first release to carry all of that work — the loading overlay (3.3.0), console-warning fixes (3.3.1), the NaN-bounding-sphere fix (3.3.2), and the compatibility widening above — to npm in one clean, correctly-labeled version.
+
 3.3.2
 ---
 
