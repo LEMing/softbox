@@ -3,7 +3,7 @@ import { IFloorAlignmentService } from '../services/IFloorAlignmentService';
 import { ISceneSetupService } from '../services/ISceneSetupService';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import { TypedEventEmitter } from '../../events/EventEmitter';
-import { ViewerEventMap } from '../events/ViewerEvents';
+import { ViewerEventMap } from '../events/CoreViewerEvents';
 
 export interface ModelManagerDependencies {
   modelLoader: IModelLoader;

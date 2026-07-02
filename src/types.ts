@@ -11,7 +11,13 @@ export { SimpleViewerOptions } from './types/SimpleViewerOptions';
 export type { SimpleViewerHandle } from './types/SimpleViewerHandle';
 
 export interface SimpleViewerProps {
-  object: THREE.Object3D | null | string; // Pass a Three.js object or an url to a glb file
+  /**
+   * A URL to a glb/gltf file, or a Three.js object. The viewer takes
+   * OWNERSHIP of objects you pass: their geometries, materials and textures
+   * are disposed when the object is replaced or the viewer unmounts. Pass a
+   * `.clone()` if you need to keep using the original elsewhere.
+   */
+  object: THREE.Object3D | null | string;
   options?: ViewerOptions;
   /**
    * Shorthand for `options.preset` — a one-word look

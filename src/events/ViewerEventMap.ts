@@ -1,4 +1,5 @@
 import { ThreeViewerError } from '../errors';
+import { Vec3Like } from '../core/interfaces/Vec3Like';
 
 /**
  * The viewer's event contract, generic over the layer-specific representations
@@ -26,7 +27,7 @@ export interface ViewerEventMap<TObject, TCamera, TControls, THandle> {
   // Interaction events
   'controls:change': { type?: string; camera?: TCamera; controls?: TControls };
   /** A click (not a drag) hit the loaded model; `point` is the world-space hit. */
-  'object:selected': { object: TObject; point: { x: number; y: number; z: number } };
+  'object:selected': { object: TObject; point: Vec3Like };
 
   // Error events
   'error': { error: ThreeViewerError };

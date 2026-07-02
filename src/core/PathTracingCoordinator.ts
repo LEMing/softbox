@@ -1,7 +1,7 @@
 import { IPathTracingService } from './services/IPathTracingService';
 import { IRenderer, IScene, ICamera, Result } from './interfaces';
 import { TypedEventEmitter } from '../events/EventEmitter';
-import { ViewerEventMap } from './events/ViewerEvents';
+import { ViewerEventMap } from './events/CoreViewerEvents';
 import { RenderLoopManager } from './utils/RenderLoopManager';
 import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
 import { hasInternalRenderer } from './interfaces/IRendererExtension';

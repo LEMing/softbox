@@ -1,10 +1,11 @@
 import { IObject3D } from '../interfaces';
 import { ICamera } from '../interfaces/ICamera';
+import { Vec3Like } from '../interfaces/Vec3Like';
 
 /** A pick result: the hit object and the world-space hit point. */
 export interface SelectionPick {
   object: IObject3D;
-  point: { x: number; y: number; z: number };
+  point: Vec3Like;
 }
 
 export interface SelectionServiceOptions {

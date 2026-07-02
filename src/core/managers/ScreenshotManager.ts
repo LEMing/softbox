@@ -147,11 +147,17 @@ export class ScreenshotManager {
       window.removeEventListener('resize', this.screenshotResizeHandler);
       this.screenshotResizeHandler = undefined;
     }
-    
+
     if (this.screenshotElement && this.screenshotElement.parentElement) {
       this.screenshotElement.parentElement.removeChild(this.screenshotElement);
     }
-    
+
+    // React rebuilds a successor viewer on the SAME canvas; disposing while a
+    // screenshot is on show must not leave that canvas display:none.
+    if (this.isShowingScreenshot) {
+      this.renderer.getDomElement().style.display = '';
+    }
+
     this.screenshotElement = null;
     this.isShowingScreenshot = false;
     this.serializedSceneState = undefined;

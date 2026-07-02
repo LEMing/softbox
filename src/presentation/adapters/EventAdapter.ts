@@ -1,4 +1,4 @@
-import { ViewerEventMap as CoreEventMap } from '../../core/events/ViewerEvents';
+import { ViewerEventMap as CoreEventMap } from '../../core/events/CoreViewerEvents';
 import { ViewerEventMap as PresentationEventMap } from '../../events/ViewerEvents';
 import { IObject3D } from '../../core/interfaces/IObject3D';
 import { ICamera } from '../../core/interfaces/ICamera';

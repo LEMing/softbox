@@ -88,7 +88,8 @@ const makeRenderer = (
   overrides: Overrides = {}
 ): jest.Mocked<IRenderer> => {
   const internalRenderer = { autoClear: true };
-  const base = {
+  // Typed as the port so interface growth breaks compilation here, not at runtime.
+  const base: IRenderer & { getInternalRenderer: jest.Mock } = {
     id: 'renderer',
     initialize: jest.fn(() => Result.ok(undefined)),
     render: jest.fn(() => Result.ok(undefined)),
@@ -230,7 +231,7 @@ const makeFloorAlignmentService = (
 const makePathTracingService = (
   overrides: Overrides = {}
 ): jest.Mocked<IPathTracingService> => {
-  const base = {
+  const base: IPathTracingService = {
     events: new TypedEventEmitter<{ 'pathtracing:paused': { samples: number } }>(),
     initialize: jest.fn(async () => Result.ok(undefined)),
     setEnabled: jest.fn(),

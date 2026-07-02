@@ -1,6 +1,16 @@
 Changelog
 =========
 
+3.16.1
+---
+
+### Disposal correctness batch + hygiene sweep (architecture roadmap items 10 & 15)
+* **Fixed:** disposing a viewer while its path-traced screenshot was on show left the shared canvas `display: none` — the successor viewer React rebuilds on the same element rendered invisibly. `ScreenshotManager.dispose()` now unhides it.
+* PMREM environment builds no longer leak one framebuffer per viewer: the render targets (not just their textures) are retained and disposed. `ThreeEnvironmentService` also refuses to cache a texture that finished loading after `dispose()` (StrictMode remounts / fast rebuilds).
+* `disposeMaterial` walks `ShaderMaterial.uniforms` for textures (they are not direct properties). `ThreePathTracingService` lost its vestigial instance registry and now clears its event listeners on dispose.
+* **Documented object ownership:** the viewer disposes geometries/materials/textures of `THREE.Object3D`s you pass when they are replaced or on unmount — pass a `.clone()` to keep the original.
+* Hygiene: `src/core/events/ViewerEvents.ts` renamed to `CoreViewerEvents.ts` (two same-named files, one directory apart, was a landmine); `deepMerge` typed with an honest `DeepPartial<T>`; shared `Vec3Like` for the selection/event point payloads; the event-forwarding hook lost its `as never` casts; `ViewerGizmo` computes a declarative style instead of an eight-property effect; the glass/font chrome tokens are shared between the built-in picker and the site; ViewerCore test mock bases are typed as their ports so interface growth breaks compilation, not runtime.
+
 3.16.0
 ---
 

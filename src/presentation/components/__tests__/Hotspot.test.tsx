@@ -7,7 +7,7 @@ import { SimpleViewer } from '../SimpleViewer';
 import { ViewerProvider } from '../ViewerContext';
 import { useViewerCore, useViewerEventHandlers } from '../../hooks';
 import { TypedEventEmitter } from '../../../events/EventEmitter';
-import { ViewerEventMap } from '../../../core/events/ViewerEvents';
+import { ViewerEventMap } from '../../../core/events/CoreViewerEvents';
 import { ViewerCore } from '../../../core/ViewerCore';
 import { buildRaycastBvh } from '../../../infrastructure/three/bvh';
 

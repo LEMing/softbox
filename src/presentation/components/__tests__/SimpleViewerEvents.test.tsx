@@ -5,7 +5,7 @@ import { SimpleViewer } from '../SimpleViewer';
 import { SimpleViewerHandle } from '../../../types';
 import { useViewerCore } from '../../hooks';
 import { TypedEventEmitter } from '../../../events/EventEmitter';
-import { ViewerEventMap } from '../../../core/events/ViewerEvents';
+import { ViewerEventMap } from '../../../core/events/CoreViewerEvents';
 import { ThreeObject3DAdapter } from '../../../infrastructure/three/ThreeObject3D';
 import * as THREE from 'three';
 
