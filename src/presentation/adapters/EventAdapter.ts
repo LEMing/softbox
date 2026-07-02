@@ -6,6 +6,7 @@ import { IControls } from '../../core/interfaces/IControls';
 import * as THREE from 'three';
 import { ControlsInstance } from '../../types/CommonTypes';
 import { SimpleViewerHandle } from '../../types/SimpleViewerHandle';
+import { toThreeCamera, toThreeControls, toThreeObject } from '../../infrastructure/three/unwrap';
 
 /**
  * Converts core event data to presentation layer event data
@@ -15,15 +16,11 @@ export class EventAdapter {
    * Convert IObject3D to THREE.Object3D
    */
   private static toThreeObject(obj: IObject3D): THREE.Object3D {
-    // Check if it has getThreeObject method
-    if ('getThreeObject' in obj && typeof obj.getThreeObject === 'function') {
-      return obj.getThreeObject() as THREE.Object3D;
+    const unwrapped = toThreeObject(obj);
+    if (unwrapped) {
+      return unwrapped;
     }
-    // If it's already a THREE.Object3D, return it
-    if (obj instanceof THREE.Object3D) {
-      return obj;
-    }
-    // Create a generic Object3D as fallback
+    // Non-adapter core object: mirror its transform onto a generic Object3D.
     const fallback = new THREE.Object3D();
     fallback.position.set(obj.position.x, obj.position.y, obj.position.z);
     fallback.rotation.set(obj.rotation.x, obj.rotation.y, obj.rotation.z);
@@ -35,28 +32,14 @@ export class EventAdapter {
    * Convert ICamera to THREE.Camera
    */
   private static toThreeCamera(camera: ICamera): THREE.Camera {
-    // Check if it has getThreeCamera method
-    if ('getThreeCamera' in camera && typeof camera.getThreeCamera === 'function') {
-      return camera.getThreeCamera() as THREE.Camera;
-    }
-    // If it's already a THREE.Camera, return it
-    if (camera instanceof THREE.Camera) {
-      return camera;
-    }
-    // Create a generic PerspectiveCamera as fallback
-    return new THREE.PerspectiveCamera();
+    return toThreeCamera(camera) ?? new THREE.PerspectiveCamera();
   }
 
   /**
    * Convert IControls to ControlsInstance
    */
   private static toThreeControls(controls: IControls): ControlsInstance {
-    // Check if it has getThreeControls method
-    if ('getThreeControls' in controls && typeof controls.getThreeControls === 'function') {
-      return controls.getThreeControls() as ControlsInstance;
-    }
-    // Return as is if it's already a ControlsInstance
-    return controls as unknown as ControlsInstance;
+    return toThreeControls(controls) ?? (controls as unknown as ControlsInstance);
   }
 
   /**

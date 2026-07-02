@@ -28,18 +28,46 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/core/**/*.ts'],
+    files: ['src/core/**/*.{ts,tsx}'],
     ignores: ['src/core/**/__tests__/**'],
     rules: {
       'no-restricted-imports': ['error', {
         patterns: [
           {
-            group: ['**/infrastructure/**', '**/presentation/**'],
-            message: 'Clean architecture: src/core must not depend on infrastructure or presentation. Depend on an interface in src/core instead.',
+            group: ['**/infrastructure/**', '**/presentation/**', '**/site/**'],
+            message: 'Clean architecture: src/core must not depend on infrastructure, presentation or the site. Depend on an interface in src/core instead.',
           },
           {
-            group: ['three', 'three/*', 'three-gpu-pathtracer'],
-            message: 'Clean architecture: src/core must stay engine-agnostic. Wrap Three.js behind an interface in src/infrastructure.',
+            group: ['three', 'three/*', 'three-gpu-pathtracer', 'three-mesh-bvh'],
+            message: 'Clean architecture: src/core must stay engine-agnostic. Wrap Three.js (and its ecosystem) behind an interface in src/infrastructure.',
+          },
+        ],
+      }],
+    },
+  },
+  {
+    files: ['src/infrastructure/**/*.{ts,tsx}'],
+    ignores: ['src/infrastructure/**/__tests__/**'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          {
+            group: ['**/presentation/**', '**/site/**'],
+            message: 'Clean architecture: infrastructure adapts engines for core; it must not depend on the React layer or the site.',
+          },
+        ],
+      }],
+    },
+  },
+  {
+    files: ['src/presentation/**/*.{ts,tsx}'],
+    ignores: ['src/presentation/**/__tests__/**'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          {
+            group: ['**/site/**'],
+            message: 'The playground site is an app on top of the library; the library must never import from it.',
           },
         ],
       }],

@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle, useMemo, useCallback } from 'react';
 import { SimpleViewerHandle, SimpleViewerProps } from '../../types';
 import { CaptureStillOptions } from '../../types/SimpleViewerHandle';
-import { ControlsInstance } from '../../types/CommonTypes';
 import { ViewerPreset } from '../../types/options';
 import { useViewerCore, useViewerEventHandlers } from '../hooks';
 import { ViewerProvider } from './ViewerContext';
@@ -15,6 +14,12 @@ import { TypedEventEmitter } from '../../events/EventEmitter';
 import { ViewerEventMap } from '../../events/ViewerEvents';
 import { ViewerEventMap as CoreViewerEventMap } from '../../core/events/ViewerEvents';
 import { ThreeObject3DAdapter } from '../../infrastructure/three/ThreeObject3D';
+import {
+  toThreeCamera,
+  toThreeControls,
+  toThreeRenderer,
+  toThreeScene,
+} from '../../infrastructure/three/unwrap';
 import { EventAdapter } from '../adapters/EventAdapter';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import defaultOptions from '../../defaultOptions';
@@ -163,51 +168,10 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
     // Forward events from ViewerCore to external events
     useViewerEventHandlers(viewer, eventHandlers);
 
-    // Helpers to unwrap the underlying Three.js object from a core adapter.
-    const unwrapScene = useCallback((adapter: unknown): THREE.Scene | null => {
-      if (adapter && typeof adapter === 'object') {
-        const obj = adapter as Record<string, unknown>;
-        if (typeof obj.getThreeScene === 'function') {
-          return obj.getThreeScene() as THREE.Scene;
-        }
-      }
-      return null;
-    }, []);
-
-    const unwrapCamera = useCallback((adapter: unknown): THREE.Camera | null => {
-      if (adapter && typeof adapter === 'object') {
-        const obj = adapter as Record<string, unknown>;
-        if (typeof obj.getThreeCamera === 'function') {
-          return obj.getThreeCamera() as THREE.Camera;
-        }
-      }
-      return null;
-    }, []);
-
-    const unwrapRenderer = useCallback((adapter: unknown): THREE.WebGLRenderer | null => {
-      if (adapter && typeof adapter === 'object') {
-        const obj = adapter as Record<string, unknown>;
-        if (typeof obj.getThreeRenderer === 'function') {
-          return obj.getThreeRenderer() as THREE.WebGLRenderer;
-        }
-      }
-      return null;
-    }, []);
-
-    const unwrapControls = useCallback((adapter: unknown): ControlsInstance | null => {
-      if (adapter && typeof adapter === 'object') {
-        const obj = adapter as Record<string, unknown>;
-        if (typeof obj.getThreeControls === 'function') {
-          return obj.getThreeControls() as ControlsInstance;
-        }
-      }
-      return null;
-    }, []);
-
     // Get Three.js objects for gizmo via ViewerCore's public accessors.
-    const camera = viewer ? unwrapCamera(viewer.getCamera()) : null;
-    const controls = viewer ? unwrapControls(viewer.getControls()) : null;
-    const renderer = viewer ? unwrapRenderer(viewer.getRenderer()) : null;
+    const camera = viewer ? toThreeCamera(viewer.getCamera()) : null;
+    const controls = viewer ? toThreeControls(viewer.getControls()) : null;
+    const renderer = viewer ? toThreeRenderer(viewer.getRenderer()) : null;
 
     // Render function for gizmo
     const renderScene = useCallback(() => {
@@ -238,7 +202,7 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
     // Expose imperative handle for backward compatibility
     useImperativeHandle(ref, () => {
       return {
-        scene: viewer ? unwrapScene(viewer.getScene()) : null,
+        scene: viewer ? toThreeScene(viewer.getScene()) : null,
         camera,
         renderer,
         controls,
@@ -269,7 +233,7 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
           viewer?.dispose();
         },
       };
-    }, [viewer, camera, renderer, controls, unwrapScene]);
+    }, [viewer, camera, renderer, controls]);
 
     // Always render the canvas, even if viewer is not ready
     return (
