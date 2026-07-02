@@ -1,6 +1,13 @@
 Changelog
 =========
 
+3.13.1
+---
+
+### Playground site demos the new APIs
+* **Click the model to pin a hotspot** — the site now listens to `object:selected` and drops a numbered `<Hotspot occlude>` pin at the hit point; click a pin to remove it, switch models to clear them.
+* **Download still** button (bottom-right) — grabs a 1920px PNG through `handle.captureStill()` and downloads it. No library code changes.
+
 3.13.0
 ---
 
