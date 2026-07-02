@@ -171,6 +171,12 @@ export class ThreeRendererAdapter implements IRenderer {
     }
   }
 
+  setToneMappingExposure(exposure: number): void {
+    if (this.renderer) {
+      this.renderer.toneMappingExposure = exposure;
+    }
+  }
+
   getDomElement(): HTMLCanvasElement {
     if (!this.renderer) {
       throw new Error('Renderer not initialized');

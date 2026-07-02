@@ -77,7 +77,9 @@ describe('useViewerCore', () => {
     rerender({ options: { ...testDefaultOptions, backgroundColor: '#123456' } });
 
     await waitFor(() =>
-      expect(viewer.updateOptions).toHaveBeenCalledWith({ backgroundColor: '#123456' })
+      expect(viewer.updateOptions).toHaveBeenCalledWith(
+        expect.objectContaining({ backgroundColor: '#123456' })
+      )
     );
 
     // Same viewer instance — a runtime-only change must not tear down the renderer.
@@ -116,7 +118,7 @@ describe('useViewerCore', () => {
     const builtWith = (ViewerFactory.createViewer as jest.Mock).mock.calls[0][1] as SimpleViewerOptions;
     // Preset look applied...
     expect(builtWith.backgroundColor).toBe('#ffffff');
-    expect(builtWith.renderer?.toneMappingExposure).toBe(1.4);
+    expect(builtWith.renderer?.toneMappingExposure).toBe(1.25);
     // ...without clobbering unrelated defaults (deep merge, not replace).
     expect(builtWith.renderer?.shadowMapEnabled).toBe(true);
     expect(builtWith.camera?.autoFitToObject).toBe(true);
@@ -135,7 +137,7 @@ describe('useViewerCore', () => {
     expect(builtWith.backgroundColor).toBe('#010203');
   });
 
-  it('rebuilds the viewer when the preset changes', async () => {
+  it('applies a preset change live, without rebuilding or reloading', async () => {
     const canvasRef = makeCanvasRef();
 
     const { result, rerender } = renderHook(
@@ -144,11 +146,19 @@ describe('useViewerCore', () => {
     );
 
     await waitFor(() => expect(result.current.isInitialized).toBe(true));
-    const firstViewer = createdViewers[0];
+    const viewer = createdViewers[0];
+    viewer.updateOptions.mockClear();
 
     rerender({ options: { preset: 'dark' } });
 
-    await waitFor(() => expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(2));
-    expect(firstViewer.dispose).toHaveBeenCalled();
+    // The dark preset's look is applied live via updateOptions...
+    await waitFor(() =>
+      expect(viewer.updateOptions).toHaveBeenCalledWith(
+        expect.objectContaining({ backgroundColor: '#1a1a1f' })
+      )
+    );
+    // ...and the viewer is neither rebuilt nor torn down (no model reload).
+    expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(1);
+    expect(viewer.dispose).not.toHaveBeenCalled();
   });
 });

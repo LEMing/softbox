@@ -15,7 +15,10 @@ export interface IRenderer extends IRendererExtension {
   
   setSize(width: number, height: number): void;
   setPixelRatio(ratio: number): void;
-  
+
+  /** Live-tunable tone-mapping exposure (applied without a rebuild). */
+  setToneMappingExposure(exposure: number): void;
+
   getDomElement(): HTMLCanvasElement;
   getContext(): WebGLRenderingContext | WebGL2RenderingContext | null;
   

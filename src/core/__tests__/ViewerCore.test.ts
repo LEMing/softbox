@@ -94,6 +94,7 @@ const makeRenderer = (
     render: jest.fn(() => Result.ok(undefined)),
     setSize: jest.fn(),
     setPixelRatio: jest.fn(),
+    setToneMappingExposure: jest.fn(),
     getDomElement: jest.fn(() => canvas),
     getContext: jest.fn(() => null),
     dispose: jest.fn(),
@@ -123,6 +124,7 @@ const makeScene = (overrides: Overrides = {}): jest.Mocked<IScene> => {
     background: null,
     fog: null,
     environment: null,
+    setEnvironmentIntensity: jest.fn(),
     getInternalRenderer: jest.fn(() => null),
   };
   return { ...base, ...overrides } as unknown as jest.Mocked<IScene>;
@@ -1261,6 +1263,29 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     viewer.updateOptions({ staticScene: true });
 
     expect(bundle.sceneSetupService!.createGradientBackground).not.toHaveBeenCalled();
+  });
+
+  it('applies tone-mapping exposure and environment intensity live', () => {
+    const bundle = makeDeps({ withSceneSetup: true });
+    const viewer = new ViewerCore(bundle.deps);
+
+    viewer.updateOptions({
+      renderer: { toneMappingExposure: 1.4 },
+      environment: { environmentIntensity: 0.6 },
+    });
+
+    expect(bundle.renderer.setToneMappingExposure).toHaveBeenCalledWith(1.4);
+    expect(bundle.scene.setEnvironmentIntensity).toHaveBeenCalledWith(0.6);
+  });
+
+  it('skips the live setters when those fields are absent', () => {
+    const bundle = makeDeps({ withSceneSetup: true });
+    const viewer = new ViewerCore(bundle.deps);
+
+    viewer.updateOptions({ renderer: {}, environment: {} });
+
+    expect(bundle.renderer.setToneMappingExposure).not.toHaveBeenCalled();
+    expect(bundle.scene.setEnvironmentIntensity).not.toHaveBeenCalled();
   });
 
   it('is a no-op after dispose', () => {

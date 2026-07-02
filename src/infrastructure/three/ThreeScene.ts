@@ -139,6 +139,10 @@ export class ThreeSceneAdapter implements IScene {
     }
   }
 
+  setEnvironmentIntensity(intensity: number): void {
+    this.scene.environmentIntensity = intensity;
+  }
+
   /**
    * Get the internal Three.js scene
    * Implementation of IRendererExtension interface
