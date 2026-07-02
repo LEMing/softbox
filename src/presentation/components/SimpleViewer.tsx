@@ -16,8 +16,12 @@ import { ViewerEventMap } from '../../events/ViewerEvents';
 import { ViewerEventMap as CoreViewerEventMap } from '../../core/events/ViewerEvents';
 import { ThreeObject3DAdapter } from '../../infrastructure/three/ThreeObject3D';
 import { EventAdapter } from '../adapters/EventAdapter';
+import { ThreeViewerError, ErrorCode } from '../../errors';
 import defaultOptions from '../../defaultOptions';
 import * as THREE from 'three';
+
+const notReadyError = () =>
+  new ThreeViewerError('Viewer is not ready yet', ErrorCode.COMPONENT_NOT_MOUNTED);
 
 /**
  * Refactored SimpleViewer component using clean architecture
@@ -241,7 +245,7 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
         events: eventsRef.current,
         loadModel: async (source: string | THREE.Object3D): Promise<void> => {
           if (!viewer) {
-            return;
+            throw notReadyError();
           }
           const toLoad = typeof source === 'string'
             ? source
@@ -253,7 +257,7 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
         },
         captureStill: async (captureOptions?: CaptureStillOptions): Promise<string> => {
           if (!viewer) {
-            throw new Error('Viewer is not ready');
+            throw notReadyError();
           }
           const result = await viewer.captureStill(captureOptions);
           if (!result.ok) {

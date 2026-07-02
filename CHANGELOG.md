@@ -1,6 +1,15 @@
 Changelog
 =========
 
+3.15.0
+---
+
+### Audit quick wins (architecture roadmap items 2, 5, 9, 11)
+* **LICENSE file added** — the package always declared MIT but shipped no license text; the standard MIT license now lives at the repo root and in the npm tarball.
+* **Unified imperative-handle errors:** `loadModel()` used to resolve silently when called before the viewer was ready, while `captureStill()` threw an untyped `Error`. Both now throw a typed `ThreeViewerError` with `ErrorCode.COMPONENT_NOT_MOUNTED`.
+* **Structural/runtime contract fixed:** directly changing `renderer.toneMappingExposure` or `environment.environmentIntensity` no longer tears the viewer down — they ride the live `updateOptions` path (previously only preset switches did). `loaders` changes now correctly rebuild the viewer (they configure the loader at construction; before they were silently ignored).
+* **Coverage ratchet turned:** global floors raised from 48/32/34/48 to 70/62/55/70 (%), with new per-path locks for `bvh.ts`, `ThreeSelectionService` and `Hotspot`. `prepublishOnly` now also runs the package smoke and type-smoke gates. Corrected the 3.5.0 CHANGELOG entry (that version never actually reached npm).
+
 3.14.1
 ---
 
@@ -102,7 +111,7 @@ Changelog
 * **Three.js r184 / r185 are now supported.** The `three` peer range widened from `>=0.177.0 <0.184.0` to `>=0.177.0 <0.186.0`, and the dev/build toolchain (`three`, `@types/three`) moved to r185. Typecheck and the full suite pass against r185; all bundled three add-ons (`three-gpu-pathtracer`, `three-mesh-bvh`) resolve cleanly on the wider range.
 
 ### Release hygiene
-* Bumped to `3.5.0` to re-align the published version. Versions 3.1–3.4 were developed but never published to the registry (which was stuck at `3.0.1`); 3.5.0 is the first release to carry all of that work — the loading overlay (3.3.0), console-warning fixes (3.3.1), the NaN-bounding-sphere fix (3.3.2), and the compatibility widening above — to npm in one clean, correctly-labeled version.
+* Bumped to `3.5.0` to re-align the published version. Versions 3.1–3.4 were developed but never published to the registry (which was stuck at `3.0.1`); 3.5.0 was intended as the first release to carry all of that work — the loading overlay (3.3.0), console-warning fixes (3.3.1), the NaN-bounding-sphere fix (3.3.2), and the compatibility widening above — in one clean, correctly-labeled version. (In the end nothing between 3.0.1 and 3.14.0 was published; 3.14.0 was the version that actually reached npm.)
 
 3.3.2
 ---

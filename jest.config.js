@@ -29,11 +29,14 @@ export default {
   // well-tested, refactor-sensitive core (GPU disposal, lifecycle, managers) high
   // so future work cannot silently gut their tests. Ratchet upward over time.
   coverageThreshold: {
+    // Global floors sit just under the remaining-pool actuals (jest subtracts
+    // the path-pinned files below) — ratcheted 2026-07-02 from the stale
+    // 48/32/34/48; re-tighten after major additions.
     global: {
-      statements: 48,
-      branches: 32,
-      functions: 34,
-      lines: 48,
+      statements: 70,
+      branches: 62,
+      functions: 55,
+      lines: 70,
     },
     './src/core/managers/': {
       statements: 95,
@@ -52,6 +55,24 @@ export default {
       branches: 90,
       functions: 100,
       lines: 100,
+    },
+    './src/infrastructure/three/bvh.ts': {
+      statements: 100,
+      branches: 85,
+      functions: 100,
+      lines: 100,
+    },
+    './src/infrastructure/three/ThreeSelectionService.ts': {
+      statements: 88,
+      branches: 80,
+      functions: 88,
+      lines: 88,
+    },
+    './src/presentation/components/Hotspot.tsx': {
+      statements: 85,
+      branches: 80,
+      functions: 85,
+      lines: 85,
     },
   },
   extensionsToTreatAsEsm: ['.ts', '.tsx'],

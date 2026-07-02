@@ -1,7 +1,7 @@
 {
   "name": "threedviewer",
   "private": false,
-  "version": "3.14.1",
+  "version": "3.15.0",
   "homepage": "https://leming.github.io/ThreeDViewer/",
   "type": "module",
   "description": "A 3D viewer based on React and Three.js",
@@ -32,7 +32,7 @@
     "knip": "knip",
     "lint": "eslint 'src/**/*.{ts,tsx}' --max-warnings 0",
     "lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix",
-    "prepublishOnly": "npm run lint && npm run typecheck && npm run build && npm run test",
+    "prepublishOnly": "npm run lint && npm run typecheck && npm run build && npm run test && npm run smoke && npm run type-smoke",
     "postpublish": "echo 'Published successfully!'"
   },
   "files": [
