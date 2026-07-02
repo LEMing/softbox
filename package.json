@@ -1,7 +1,7 @@
 {
   "name": "threedviewer",
   "private": false,
-  "version": "3.15.2",
+  "version": "3.16.0",
   "homepage": "https://leming.github.io/ThreeDViewer/",
   "type": "module",
   "description": "A 3D viewer based on React and Three.js",
