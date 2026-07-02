@@ -1609,9 +1609,14 @@ describe('ViewerCore selection wiring', () => {
     expect(onSelected).not.toHaveBeenCalled();
   });
 
-  it('exposes the loaded model via getModel', () => {
+  it('exposes the loaded model via getModel', async () => {
     const bundle = makeDeps();
     const viewer = new ViewerCore(bundle.deps);
     expect(viewer.getModel()).toBeNull();
+
+    await viewer.initialize();
+    const result = await viewer.loadModel(makeObject3D());
+    expect(result.ok).toBe(true);
+    expect(viewer.getModel()).not.toBeNull();
   });
 });

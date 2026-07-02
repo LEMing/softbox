@@ -33,8 +33,23 @@ const makeBox = (): THREE.Mesh => {
   return box;
 };
 
-const pointer = (type: string, clientX: number, clientY: number) =>
-  new MouseEvent(type, { clientX, clientY });
+interface PointerInit {
+  pointerId?: number;
+  button?: number;
+  pointerType?: string;
+}
+
+const pointer = (
+  type: string,
+  clientX: number,
+  clientY: number,
+  { pointerId = 1, button = 0, pointerType = 'mouse' }: PointerInit = {}
+) => {
+  const event = new MouseEvent(type, { clientX, clientY, button });
+  Object.defineProperty(event, 'pointerId', { value: pointerId });
+  Object.defineProperty(event, 'pointerType', { value: pointerType });
+  return event;
+};
 
 describe('ThreeSelectionService', () => {
   let canvas: HTMLCanvasElement;
@@ -74,11 +89,64 @@ describe('ThreeSelectionService', () => {
     expect((pick.object as ThreeObject3DAdapter).getThreeObject()).toBeInstanceOf(THREE.Mesh);
   });
 
+  it('treats exactly the threshold as a click and one pixel more as a drag', () => {
+    initialize(makeBox());
+
+    canvas.dispatchEvent(pointer('pointerdown', 100, 100));
+    canvas.dispatchEvent(pointer('pointerup', 105, 100));
+    expect(onPick).toHaveBeenCalledTimes(1);
+
+    canvas.dispatchEvent(pointer('pointerdown', 100, 100));
+    canvas.dispatchEvent(pointer('pointerup', 106, 100));
+    expect(onPick).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives touch a wider tap budget than mouse', () => {
+    initialize(makeBox());
+
+    canvas.dispatchEvent(pointer('pointerdown', 100, 100, { pointerType: 'touch' }));
+    canvas.dispatchEvent(pointer('pointerup', 108, 100, { pointerType: 'touch' }));
+
+    expect(onPick).toHaveBeenCalledTimes(1);
+  });
+
   it('ignores orbit drags (pointer travelled beyond the click threshold)', () => {
     initialize(makeBox());
 
     canvas.dispatchEvent(pointer('pointerdown', 100, 100));
     canvas.dispatchEvent(pointer('pointerup', 140, 100));
+
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it('ignores right and middle clicks (pan/dolly buttons)', () => {
+    initialize(makeBox());
+
+    canvas.dispatchEvent(pointer('pointerdown', 100, 100, { button: 2 }));
+    canvas.dispatchEvent(pointer('pointerup', 100, 100, { button: 2 }));
+    canvas.dispatchEvent(pointer('pointerdown', 100, 100, { button: 1 }));
+    canvas.dispatchEvent(pointer('pointerup', 100, 100, { button: 1 }));
+
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it('cancels the click when a second pointer joins (pinch zoom)', () => {
+    initialize(makeBox());
+
+    canvas.dispatchEvent(pointer('pointerdown', 100, 100, { pointerId: 1, pointerType: 'touch' }));
+    canvas.dispatchEvent(pointer('pointerdown', 104, 100, { pointerId: 2, pointerType: 'touch' }));
+    canvas.dispatchEvent(pointer('pointerup', 104, 100, { pointerId: 2, pointerType: 'touch' }));
+    canvas.dispatchEvent(pointer('pointerup', 100, 100, { pointerId: 1, pointerType: 'touch' }));
+
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it('forgets the press on pointercancel (OS gesture takeover)', () => {
+    initialize(makeBox());
+
+    canvas.dispatchEvent(pointer('pointerdown', 100, 100));
+    canvas.dispatchEvent(pointer('pointercancel', 100, 100));
+    canvas.dispatchEvent(pointer('pointerup', 100, 100));
 
     expect(onPick).not.toHaveBeenCalled();
   });

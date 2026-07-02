@@ -3,10 +3,18 @@ import { render, screen, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import * as THREE from 'three';
 import { Hotspot } from '../Hotspot';
+import { SimpleViewer } from '../SimpleViewer';
 import { ViewerProvider } from '../ViewerContext';
+import { useViewerCore, useViewerEventHandlers } from '../../hooks';
 import { TypedEventEmitter } from '../../../events/EventEmitter';
 import { ViewerEventMap } from '../../../core/events/ViewerEvents';
 import { ViewerCore } from '../../../core/ViewerCore';
+
+jest.mock('../../hooks', () => ({
+  useViewerCore: jest.fn(),
+  useViewerEventHandlers: jest.fn(),
+}));
+jest.mock('threedgizmo', () => ({ Gizmo: () => null }));
 
 const makeViewer = (model: THREE.Object3D | null = null) => {
   const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
@@ -100,5 +108,37 @@ describe('Hotspot', () => {
     renderHotspot(viewer, canvas, { position: [0, 0, 0], children: <button>Engine</button> });
 
     expect(screen.getByRole('button', { name: 'Engine' })).toBeInTheDocument();
+  });
+
+  it('falls back to the default pin when children resolve to false', () => {
+    const { viewer, canvas } = makeViewer();
+    renderHotspot(viewer, canvas, { position: [0, 0, 0], children: false });
+
+    expect(screen.getByTestId('viewer-hotspot').querySelector('span')).not.toBeNull();
+  });
+
+  it('unsubscribes from viewer events on unmount', () => {
+    const { viewer, canvas, bus } = makeViewer();
+    const { unmount } = renderHotspot(viewer, canvas, { position: [0, 0, 0] });
+    expect(bus.listenerCount('render:complete')).toBe(1);
+
+    unmount();
+
+    expect(bus.listenerCount('render:complete')).toBe(0);
+    expect(bus.listenerCount('controls:change')).toBe(0);
+    expect(bus.listenerCount('model:loaded')).toBe(0);
+  });
+
+  it('renders as a SimpleViewer child inside the overlay container', () => {
+    (useViewerCore as jest.Mock).mockReturnValue({ viewer: null, isInitialized: false });
+    (useViewerEventHandlers as jest.Mock).mockImplementation(() => {});
+
+    render(
+      <SimpleViewer object={null}>
+        <Hotspot position={[0, 0, 0]} />
+      </SimpleViewer>
+    );
+
+    expect(screen.getByTestId('viewer-hotspot')).toBeInTheDocument();
   });
 });

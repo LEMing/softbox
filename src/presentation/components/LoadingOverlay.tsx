@@ -29,6 +29,8 @@ export function LoadingOverlay({ status, label, color, backdrop }: LoadingOverla
       style={{
         position: 'absolute',
         inset: 0,
+        // Above hotspot annotations (z5) and the preset picker (z10).
+        zIndex: 20,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',

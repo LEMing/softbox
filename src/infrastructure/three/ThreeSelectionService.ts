@@ -5,17 +5,27 @@ import {
 } from '../../core/services/ISelectionService';
 import { ThreeObject3DAdapter } from './ThreeObject3D';
 
-const DRAG_THRESHOLD_PX = 5;
+// Typical tap slop is larger than mouse jitter, so touch gets a wider budget.
+const DRAG_THRESHOLD_PX = { touch: 10, default: 5 };
+
+interface PendingClick {
+  pointerId: number;
+  x: number;
+  y: number;
+  threshold: number;
+}
 
 /**
- * Raycaster-based click picking. A pointerdown → pointerup pair that stays
- * within a few pixels counts as a click; orbit drags travel further and are
- * ignored, so rotating the camera never fires a selection.
+ * Raycaster-based click picking. Only a primary-button, single-pointer
+ * press → release pair that stays within the tap threshold counts as a click:
+ * orbit drags travel further, right/middle buttons pan/dolly, and a second
+ * pointer (pinch zoom) cancels the gesture — none of them fire a selection.
  */
 export class ThreeSelectionService implements ISelectionService {
   private readonly raycaster = new THREE.Raycaster();
+  private readonly activePointers = new Set<number>();
   private options: SelectionServiceOptions | null = null;
-  private downPosition: { x: number; y: number } | null = null;
+  private pending: PendingClick | null = null;
   private detach: (() => void) | null = null;
 
   initialize(options: SelectionServiceOptions): void {
@@ -24,26 +34,52 @@ export class ThreeSelectionService implements ISelectionService {
 
     const { canvas } = options;
     const handlePointerDown = (event: PointerEvent) => {
-      this.downPosition = { x: event.clientX, y: event.clientY };
-    };
-    const handlePointerUp = (event: PointerEvent) => {
-      const down = this.downPosition;
-      this.downPosition = null;
-      if (!down) {
+      this.activePointers.add(event.pointerId);
+      // Capture so the matching pointerup reaches the canvas even when the
+      // pointer is released elsewhere (OrbitControls captures the same way).
+      try {
+        canvas.setPointerCapture(event.pointerId);
+      } catch {
+        // Unsupported environment (jsdom) — the listener pair still works.
+      }
+      // Any second concurrent pointer means a multi-touch gesture, not a click.
+      if (this.activePointers.size > 1 || event.button !== 0) {
+        this.pending = null;
         return;
       }
-      const travelled = Math.hypot(event.clientX - down.x, event.clientY - down.y);
-      if (travelled > DRAG_THRESHOLD_PX) {
+      this.pending = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        threshold:
+          event.pointerType === 'touch' ? DRAG_THRESHOLD_PX.touch : DRAG_THRESHOLD_PX.default,
+      };
+    };
+    const handlePointerUp = (event: PointerEvent) => {
+      this.activePointers.delete(event.pointerId);
+      const pending = this.pending;
+      if (!pending || pending.pointerId !== event.pointerId) {
+        return;
+      }
+      this.pending = null;
+      const travelled = Math.hypot(event.clientX - pending.x, event.clientY - pending.y);
+      if (travelled > pending.threshold) {
         return;
       }
       this.pick(event.clientX, event.clientY);
     };
+    const handlePointerCancel = (event: PointerEvent) => {
+      this.activePointers.delete(event.pointerId);
+      this.pending = null;
+    };
 
     canvas.addEventListener('pointerdown', handlePointerDown);
     canvas.addEventListener('pointerup', handlePointerUp);
+    canvas.addEventListener('pointercancel', handlePointerCancel);
     this.detach = () => {
       canvas.removeEventListener('pointerdown', handlePointerDown);
       canvas.removeEventListener('pointerup', handlePointerUp);
+      canvas.removeEventListener('pointercancel', handlePointerCancel);
     };
   }
 
@@ -113,6 +149,7 @@ export class ThreeSelectionService implements ISelectionService {
     this.detach?.();
     this.detach = null;
     this.options = null;
-    this.downPosition = null;
+    this.pending = null;
+    this.activePointers.clear();
   }
 }

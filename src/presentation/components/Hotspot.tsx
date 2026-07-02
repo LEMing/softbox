@@ -81,6 +81,13 @@ export function Hotspot({ position, occlude = false, children }: HotspotProps) {
     const cameraPosition = new THREE.Vector3();
     const toAnchor = new THREE.Vector3();
     const raycaster = new THREE.Raycaster();
+    // Skip recomputation (and the occlusion raycast) on frames where neither
+    // the camera nor the canvas size changed — the always-on render loop emits
+    // render:complete every frame even when nothing moves.
+    const lastCameraMatrix = new THREE.Matrix4();
+    let lastWidth = -1;
+    let lastHeight = -1;
+    let hasProjected = false;
 
     const update = () => {
       const camera = unwrapThreeCamera(viewer.getCamera());
@@ -88,6 +95,21 @@ export function Hotspot({ position, occlude = false, children }: HotspotProps) {
       if (!camera || !canvas) {
         return;
       }
+      const width = canvas.clientWidth || canvas.width;
+      const height = canvas.clientHeight || canvas.height;
+      if (
+        hasProjected &&
+        width === lastWidth &&
+        height === lastHeight &&
+        lastCameraMatrix.equals(camera.matrixWorld)
+      ) {
+        return;
+      }
+      lastCameraMatrix.copy(camera.matrixWorld);
+      lastWidth = width;
+      lastHeight = height;
+      hasProjected = true;
+
       anchor.set(x, y, z);
 
       // Behind-the-camera check in view space (three looks down -Z).
@@ -104,6 +126,9 @@ export function Hotspot({ position, occlude = false, children }: HotspotProps) {
           toAnchor.copy(anchor).sub(cameraPosition);
           const anchorDistance = toAnchor.length();
           raycaster.set(cameraPosition, toAnchor.normalize());
+          // Sprite.raycast reads raycaster.camera; without it a sprite in the
+          // model would throw on every frame.
+          raycaster.camera = camera;
           const hit = raycaster.intersectObject(model, true)[0];
           // A small epsilon keeps a hotspot on the model's own surface visible.
           if (hit && hit.distance < anchorDistance - 1e-3) {
@@ -114,11 +139,16 @@ export function Hotspot({ position, occlude = false, children }: HotspotProps) {
       }
 
       projected.copy(anchor).project(camera);
-      const width = canvas.clientWidth || canvas.width;
-      const height = canvas.clientHeight || canvas.height;
       element.style.visibility = 'visible';
       element.style.left = `${((projected.x + 1) / 2) * width}px`;
       element.style.top = `${((1 - projected.y) / 2) * height}px`;
+    };
+
+    // model:loaded may change occlusion without moving the camera; force a
+    // full recompute.
+    const invalidateAndUpdate = () => {
+      hasProjected = false;
+      update();
     };
 
     update();
@@ -126,12 +156,19 @@ export function Hotspot({ position, occlude = false, children }: HotspotProps) {
     const unsubscribe = [
       events.on('render:complete', update),
       events.on('controls:change', update),
-      events.on('model:loaded', update),
+      events.on('model:loaded', invalidateAndUpdate),
     ];
+    // ViewerCore.resize() renders directly (no render:complete), so track
+    // window resizes too; the size guard makes redundant calls free.
+    window.addEventListener('resize', invalidateAndUpdate);
     return () => {
       unsubscribe.forEach((off) => off());
+      window.removeEventListener('resize', invalidateAndUpdate);
     };
   }, [viewer, x, y, z, occlude]);
+
+  // false/null (e.g. `{showLabel && <Card />}`) falls back to the default pin.
+  const hasChildren = children !== undefined && children !== null && children !== false;
 
   return (
     <div
@@ -143,10 +180,14 @@ export function Hotspot({ position, occlude = false, children }: HotspotProps) {
         top: 0,
         transform: 'translate(-50%, -50%)',
         visibility: 'hidden',
-        zIndex: 10,
+        // Below the built-in chrome (preset picker z10, loading overlay z20).
+        zIndex: 5,
+        // The passive default pin must not block orbiting or click-picking;
+        // interactive custom children keep receiving pointer events.
+        pointerEvents: hasChildren ? 'auto' : 'none',
       }}
     >
-      {children ?? <DefaultPin />}
+      {hasChildren ? children : <DefaultPin />}
     </div>
   );
 }
