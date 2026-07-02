@@ -22,6 +22,8 @@ export default defineConfig({
     },
   },
   build: {
+    // public/ holds site assets (og-image); they must not ship in the library.
+    copyPublicDir: false,
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
       // ESM + CJS (not UMD): consumers use bundlers or Node `require`, never a

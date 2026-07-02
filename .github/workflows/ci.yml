@@ -34,6 +34,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Build site
+        run: npm run build:site
+
       - name: Package smoke test (ESM + CJS entrypoints)
         run: npm run smoke
 

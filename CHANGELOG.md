@@ -1,6 +1,13 @@
 Changelog
 =========
 
+3.11.1
+---
+
+### Playground site
+* Added the public playground site at **https://leming.github.io/ThreeDViewer/** — a full-viewport live viewer with sample models, window-level **drag & drop** of your own `.glb`/`.gltf`, the built-in preset picker, and copyable install/usage snippets. The site is the dev harness (`npm run dev`) built as an app (`npm run build:site`) and deployed to GitHub Pages on every push to `main`; it consumes the library from source, so it always demos the latest `main`.
+* `package.json` now points `homepage` at the site. No library code changes.
+
 3.11.0
 ---
 
