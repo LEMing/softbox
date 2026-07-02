@@ -1,238 +1,82 @@
+# threedviewer
 
-# ThreeDViewer
+[![npm version](https://img.shields.io/npm/v/threedviewer)](https://www.npmjs.com/package/threedviewer)
+[![CI](https://github.com/LEMing/ThreeDViewer/actions/workflows/ci.yml/badge.svg)](https://github.com/LEMing/ThreeDViewer/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/LEMing/ThreeDViewer/blob/main/package.json)
 
-ThreeDViewer is a React component library for easily integrating Three.js-based 3D viewers into your web applications. It provides a simple and customizable way to display and interact with 3D objects in your React projects.
+**The batteries-included React 3D viewer — any GLB looks studio-shot in one line.**
 
-![ThreeDGizmo Preview](https://github.com/LEMing/ThreeDViewer/raw/main/src/assets/cover-raytracing.png)
-![ThreeDGizmo Preview](https://github.com/LEMing/ThreeDViewer/raw/main/src/assets/cover-dark.png)
+```tsx
+<SimpleViewer object="/model.glb" />
+```
 
-## Features
+Balanced studio lighting, a glossy glass floor with a contact shadow, auto-framing, compressed-asset decoders — all on by default, zero configuration, zero external CDN requests.
 
-- Easy integration with React applications
-- Customizable viewer settings
-- Support for various 3D object formats
-- Built-in camera and map controls
-- Optional gizmo controller
-- Responsive design
-- Ability to handle external scenes and Three.js objects
-- Path tracing for high-quality rendering with customizable parameters
-- Environment map support for realistic lighting and reflections
-- Screenshot capture when rendering is complete (optional)
-- Event-driven architecture with typed events
-- Comprehensive error handling with a `Result` pattern
-- Modular, fully-typed option interfaces
+[![threedviewer playground](https://raw.githubusercontent.com/LEMing/ThreeDViewer/main/public/og-image.png)](https://leming.github.io/ThreeDViewer/)
 
-## Installation
+**▶ [Live playground](https://leming.github.io/ThreeDViewer/)** — drag & drop your own `.glb`, switch presets live, click the model to pin hotspots, download a still.
 
-To install ThreeDViewer, run the following command in your project directory:
+## Install
 
 ```bash
 npm install threedviewer
 ```
 
-or if you're using yarn:
+Peer dependencies: `react` / `react-dom` `>=18 <20`, `three` `>=0.177 <0.186`.
 
-```bash
-yarn add threedviewer
-```
-
-## Upgrading from 2.x to 3.0
-
-3.0 is a breaking release. Most apps only need to bump peers; a couple of unused APIs were removed.
-
-**Requirements**
-- React `^19` (was `^18`), `three` `>=0.177.0 <0.184.0`, Node `>=18`.
-
-**Removed APIs**
-- **`options.refs` / `ThreeJSRefs`** (external scene/camera/renderer injection) — removed. It was a no-op in 2.x (the viewer never read it). Delete any `refs: { … }` from your options.
-- **`SimpleViewerHandle.startRendering()`, `.stopRendering()`, `.captureScreenshot()`** — these were never implemented (always `undefined`) and are gone. `loadModel()` and `dispose()` are now real, implemented methods. For a screenshot, read the canvas directly:
-  ```ts
-  const dataUrl = viewerRef.current?.renderer?.domElement.toDataURL('image/png');
-  ```
-- **`OptionsValidator`** and the unofficial deep imports (`threedviewer/validation`, `threedviewer/utils`, `threedviewer/errors`) — import everything from the package root instead:
-  ```ts
-  import { SimpleViewer, defaultOptions, ControlType, ThreeViewerError, ErrorCode } from 'threedviewer';
-  ```
-
-**Packaging**
-- Ships **ESM + CJS** (no more UMD `<script>` global build). `import` / `require('threedviewer')` are unaffected; only `<script src=…>` global usage is gone. Types now resolve correctly under `nodenext` / `bundler`.
-
-**No code change needed if** you only use `<SimpleViewer object={…} options={…} />` with `defaultOptions` — the option keys are unchanged.
-
-➡️ Full details: [MIGRATION_GUIDE.md](https://github.com/LEMing/ThreeDViewer/blob/main/MIGRATION_GUIDE.md) · [CHANGELOG.md](https://github.com/LEMing/ThreeDViewer/blob/main/CHANGELOG.md)
-
-## Usage
-
-Here's a super simple example of how to use the `SimpleViewer` component in your React application:
-You just need to pass a url model and use it as a regular jsx component.
-
-```jsx
-import React from 'react';
-import { SimpleViewer } from 'threedviewer';
-
-function App() {
-   return (
-      <div style={{ width: '100%', height: '400px' }}>
-        <SimpleViewer object={'https://modelviewer.dev/shared-assets/models/RobotExpressive.glb'} />
-      </div>
-   );
-}
-
-export default App;
-
-```
-
-
-Here's a basic example of how to use the `SimpleViewer` component:
-
-```jsx
-import React from 'react';
-import { SimpleViewer } from 'threedviewer';
-import * as THREE from 'three';
-
-function App() {
-   // Create a simple cube
-   const geometry = new THREE.BoxGeometry(1, 1, 1);
-   const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-   const cube = new THREE.Mesh(geometry, material);
-
-   return (
-      <div style={{ width: '100%', height: '400px' }}>
-        <SimpleViewer object={cube} />
-      </div>
-   );
-}
-
-export default App;
-```
-
-## Advanced Usage
-
-Customize the viewer through the `options` prop and access the live Three.js objects via the imperative handle (`ref`):
+## Quick start
 
 ```tsx
-import React, { useEffect, useMemo, useRef } from 'react';
-import {
-  SimpleViewer,
-  defaultOptions,
-  type SimpleViewerOptions,
-  type SimpleViewerHandle,
-} from 'threedviewer';
+import { SimpleViewer } from 'threedviewer';
 
 function App() {
-  const viewerRef = useRef<SimpleViewerHandle>(null);
-
-  const options: SimpleViewerOptions = useMemo(() => ({
-    ...defaultOptions,
-    staticScene: false,
-    backgroundColor: '#000000',
-    camera: {
-      ...defaultOptions.camera,
-      position: [72, 72, 72],
-      target: [0, 0, 0],
-      fov: 60,
-      autoFitToObject: false,
-    },
-    lighting: {
-      ...defaultOptions.lighting,
-      ambientLight: { color: '#404040', intensity: 0.5 },
-      directionalLight: { color: '#ffffff', intensity: Math.PI, position: [10, 10, 5] },
-    },
-    helpers: {
-      ...defaultOptions.helpers,
-      axes: true,
-      gizmo: true, // Enable the viewport gizmo
-    },
-  }), []);
-
-  useEffect(() => {
-    const handle = viewerRef.current;
-    if (!handle) return;
-    // The live Three.js objects are available on the handle:
-    // handle.scene, handle.camera, handle.renderer, handle.controls
-  }, []);
-
   return (
-    <div style={{ width: '100%', height: '100vh' }}>
-      <SimpleViewer
-        ref={viewerRef}
-        object="https://modelviewer.dev/shared-assets/models/RobotExpressive.glb"
-        options={options}
-      />
+    <div style={{ width: '100%', height: '400px' }}>
+      <SimpleViewer object="https://modelviewer.dev/shared-assets/models/RobotExpressive.glb" />
     </div>
   );
 }
-
-export default App;
 ```
 
-The imperative handle exposes `scene`, `camera`, `renderer`, `controls`, `events`, `loadModel(source)` and `dispose()`.
-
-## API
-
-### SimpleViewer
-
-The main component for displaying 3D objects.
-
-Props:
-- `object` (required): A Three.js `Object3D` to be displayed in the viewer, or a URL string to a 3D model file.
-- `options` (optional): An object containing viewer options (see below).
-
-### Event System
-
-The SimpleViewer provides an event-driven API through the `events` property on the viewer handle:
+A `THREE.Object3D` works too:
 
 ```tsx
-import React, { useRef, useEffect } from 'react';
-import { SimpleViewer, type SimpleViewerHandle } from 'threedviewer';
-
-function App() {
-  const viewerRef = useRef<SimpleViewerHandle>(null);
-
-  useEffect(() => {
-    if (!viewerRef.current) return;
-
-    const { events } = viewerRef.current;
-
-    // Subscribe to events
-    events.on('model:loaded', ({ model, loadTime }) => {
-      console.log('Model loaded in', loadTime, 'ms');
-    });
-
-    events.on('render:complete', ({ frame, renderTime }) => {
-      console.log('Frame', frame, 'rendered in', renderTime, 'ms');
-    });
-
-    events.on('error', ({ error }) => {
-      console.error('Viewer error:', error);
-    });
-
-    // Cleanup
-    return () => {
-      events.removeAllListeners();
-    };
-  }, []);
-
-  return (
-    <SimpleViewer
-      ref={viewerRef}
-      object="https://modelviewer.dev/shared-assets/models/RobotExpressive.glb"
-    />
-  );
-}
+<SimpleViewer object={new THREE.Mesh(geometry, material)} />
 ```
 
-Available events:
-- `model:loaded` - Fired when a model is successfully loaded
-- `model:error` - Fired when model loading fails
-- `render:complete` - Fired after each render frame
-- `controls:change` - Fired when camera controls are updated
-- `object:selected` - Fired when a click (not an orbit drag) hits the loaded model; the payload carries the hit `object` and the world-space `point`
-- `error` - General error event
+DRACO, KTX2/Basis and Meshopt compressed assets load out of the box — the decoders are wired in and fetched lazily only when an asset actually needs them.
 
-## Hotspot Annotations
+## Visual presets
 
-Pin DOM content to a world-space point of the scene — it tracks orbiting, zooming and resizes. Combine with `object:selected` to let users place pins by clicking the model:
+One word sets a cohesive look — background, tone mapping, environment intensity. Presets switch **live**: no rebuild, no model reload.
+
+```tsx
+<SimpleViewer object={url} preset="product" />
+// studio | product | neutral | dark | outdoor
+```
+
+Let your users switch presets with the built-in picker (off by default):
+
+```tsx
+<SimpleViewer object={url} options={{ ui: { presets: true } }} />
+```
+
+## Photoreal mode & stills
+
+```tsx
+<SimpleViewer object={url} pathTraced />
+```
+
+`pathTraced` turns on progressive path tracing (a construction-time render mode). Capture a PNG programmatically — in raster mode at any resolution, in path-traced mode once the accumulation completes:
+
+```tsx
+const handle = viewerRef.current;
+const dataUrl = await handle.captureStill({ width: 1920 }); // PNG data URL
+```
+
+## Hotspot annotations & click selection
+
+Pin DOM content to a world-space point — it tracks orbiting, zooming and resizes:
 
 ```tsx
 import { SimpleViewer, Hotspot } from 'threedviewer';
@@ -241,174 +85,116 @@ import { SimpleViewer, Hotspot } from 'threedviewer';
   <Hotspot position={[0, 1.2, 0]}>
     <div className="pin">Engine</div>
   </Hotspot>
-  <Hotspot position={[0.4, 0.2, 0.8]} occlude />  {/* hidden when the model covers it */}
+  <Hotspot position={[0.4, 0.2, 0.8]} occlude /> {/* hidden when the model covers it */}
 </SimpleViewer>
 ```
 
 Without children a built-in dot pin is rendered. `occlude` hides the hotspot while the model blocks the line of sight to its anchor.
 
-## Configuration Options
-
-`SimpleViewer` accepts an `options` prop for customization. Here's an overview of available options:
-
-```ts
-import { ControlType } from 'threedviewer';
-
-const defaultOptions: SimpleViewerOptions = {
-  staticScene: false, // stop the animation loop when there are no interactions
-  backgroundColor: '#f0f0f7',
-  replaceWithScreenshotOnComplete: true, // replace the canvas with a still once path tracing finishes
-  animationLoop: null,
-
-  pathTracing: {
-    enabled: false,
-    maxSamples: 16, // sample cap before path tracing is considered complete
-    bounces: 16,
-    transmissiveBounces: 4,
-    renderScale: 0.8,
-    lowResScale: 0.25,
-    dynamicLowRes: true,
-  },
-
-  camera: {
-    position: [60, 60, 60],
-    target: [0, 0, 0],
-    fov: 45,
-    near: 0.1,
-    far: 100000,
-    autoFitToObject: true,
-  },
-
-  environment: {
-    url: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/industrial_sunset_puresky.jpg',
-    backgroundBlurriness: 0.15,
-    backgroundIntensity: 1,
-    environmentIntensity: 1,
-  },
-
-  lighting: {
-    ambientLight: { color: '#404040', intensity: Math.PI },
-    hemisphereLight: { skyColor: '#ffffbb', groundColor: '#080820', intensity: 1 },
-    directionalLight: {
-      color: '#ffffff',
-      intensity: Math.PI,
-      position: [72, 72, 72],
-      castShadow: true,
-      shadow: {
-        mapSize: { width: 4096, height: 4096 },
-        camera: { near: 0.5, far: 200, left: -50, right: 50, top: 50, bottom: -50 },
-        bias: -0.0001,
-        radius: 1,
-      },
-    },
-  },
-
-  renderer: {
-    antialias: true,
-    alpha: false,
-    shadowMapEnabled: true,
-    pixelRatio: window.devicePixelRatio,
-    shadowMapType: 1, // THREE.PCFShadowMap
-    toneMapping: 6, // THREE.ACESFilmicToneMapping
-    toneMappingExposure: 1.5,
-  },
-
-  controls: {
-    type: ControlType.OrbitControls, // OrbitControls or MapControls
-    enabled: true,
-    enableDamping: true,
-    dampingFactor: 0.25,
-    enableZoom: true,
-    enableRotate: true,
-    enablePan: true,
-  },
-
-  helpers: {
-    grid: { type: 'hexagonal_wire', size: 20, divisions: 20, colorGrid: 0x444444, opacity: 0.5 },
-    axes: false,
-    stats: false,
-    gizmo: false, // viewport gizmo is disabled by default
-    studioEnvironment: true, // studio lighting environment (set environment.url to override)
-    darkStudioMode: false,
-  },
-};
-```
-
-### Loading Indicator
-
-While a model is being fetched and parsed, `SimpleViewer` shows a built-in loading overlay (and an error state if it fails) so the scene is never just blank. It is **enabled by default**.
+A click on the model (drags and pinches are ignored) emits `object:selected` with the hit object and world-space point — feed it straight into a `<Hotspot>`:
 
 ```tsx
-// Default overlay — nothing to do.
-<SimpleViewer object="model.glb" />
-
-// Customize it:
-<SimpleViewer
-  object="model.glb"
-  options={{
-    loadingIndicator: {
-      label: 'Loading model…',
-      errorLabel: 'Could not load the model',
-      color: '#ffffff',
-      backdrop: 'rgba(15,16,20,0.38)',
-    },
-  }}
-/>
-
-// Disable the built-in overlay and render your own from the events:
-<SimpleViewer object="model.glb" options={{ loadingIndicator: false }} />
+handle.events.on('object:selected', ({ object, point }) => {
+  addPin([point.x, point.y, point.z]);
+});
 ```
 
-When disabled, drive your own UI from the viewer handle's events — `model:loading` (now emitted with `{ url }` when a URL load starts), `model:loaded`, and `model:error`. The overlay is non-interactive (`pointer-events: none`) and UI-only — changing the option never rebuilds the viewer.
+Raycasts are BVH-accelerated per loaded model (logarithmic on high-poly meshes); opt out with `options.selection = { bvh: false }`.
 
-### Viewport Gizmo
+## Events
 
-ThreeDViewer includes an optional viewport gizmo for easy camera orientation control:
+Subscribe through the imperative handle:
 
-```javascript
-const options = {
+```tsx
+const { events } = viewerRef.current;
+events.on('model:loaded', ({ model, loadTime }) => console.log('loaded in', loadTime, 'ms'));
+```
+
+| Event | Fires |
+|---|---|
+| `model:loading` / `model:loaded` / `model:error` | around every model load |
+| `render:complete` | after each rendered frame |
+| `pathtracing:complete` | once the sample cap is reached |
+| `controls:change` | when the camera controls move |
+| `object:selected` | when a click hits the loaded model (`{ object, point }`) |
+| `error` | any viewer error |
+
+## Imperative handle
+
+```tsx
+const viewerRef = useRef<SimpleViewerHandle>(null);
+<SimpleViewer ref={viewerRef} object={url} />
+```
+
+The handle exposes `scene`, `camera`, `renderer`, `controls`, `events`, `loadModel(source)`, `captureStill(options?)` and `dispose()`.
+
+## Configuration
+
+Everything is optional — the defaults are the point. Pass `options` to override any part:
+
+```ts
+import { ControlType, defaultOptions } from 'threedviewer';
+
+const options: SimpleViewerOptions = {
+  preset: 'studio',              // one-word look; explicit options below win over it
+  backgroundColor: '#f0f0f7',
+  staticScene: false,            // stop the render loop when nothing moves
+
+  camera: { position: [60, 60, 60], fov: 45, autoFitToObject: true },
+
+  // The procedural studio environment lights the scene by default (zero network
+  // requests). Point environment.url at an HDR/EXR/image to use your own.
+  environment: { environmentIntensity: 0.7 },
+
+  renderer: { antialias: true, toneMappingExposure: 1.1 },
+
+  controls: { type: ControlType.OrbitControls, enableDamping: true },
+
   helpers: {
-    gizmo: true, // Enable with default settings
-    // Or configure with options:
-    gizmo: {
-      placement: 'top-right', // 'top-left', 'top-right', 'bottom-left', 'bottom-right'
-      size: 128 // Size in pixels
-    }
-  }
+    grid: { type: 'hexagonal_glass' }, // glossy glass floor; also: hexagonal_wire, square_wire, stone_tiles
+    gizmo: false,                      // optional viewport orientation gizmo
+    studioEnvironment: true,
+  },
+
+  pathTracing: { enabled: false, maxSamples: 16 },
+
+  ui: { presets: false },        // built-in preset picker chips
+  selection: { bvh: true },      // BVH-accelerated raycasts for picking/occlusion
+  loadingIndicator: true,        // built-in loading overlay (object form customizes it)
+  loaders: {},                   // DRACO/KTX2/Meshopt decoder config (self-host paths, toggles)
 };
 ```
 
-The gizmo provides:
-- Interactive 3D orientation indicator
-- Click to snap camera to axis views
-- Visual feedback for current camera orientation
-- Synchronized with main viewport controls
+See [`defaultOptions`](https://github.com/LEMing/ThreeDViewer/blob/main/src/defaultOptions.ts) for the full annotated set and the typed option interfaces exported from the package root.
 
-### Path Tracing
+### Loading indicator
 
-ThreeDViewer supports path tracing for high-quality rendering with customizable settings via the `pathTracing` option:
+A built-in overlay shows while a model loads (and an error state if it fails) — the scene is never blank. Customize or disable it:
 
-- `enabled`: Enables the path tracing mode.
-- `maxSamples`: Caps the number of accumulated samples (path tracing completes once reached).
-- `bounces`: Number of light bounces.
-- `transmissiveBounces`: Number of transmissive bounces.
-- `lowResScale`: Low-resolution scale factor for performance optimization.
-- `renderScale`: Controls the overall rendering scale.
-- `dynamicLowRes`: Adjusts resolution dynamically based on performance.
+```tsx
+<SimpleViewer object={url} options={{ loadingIndicator: { label: 'Loading…' } }} />
+<SimpleViewer object={url} options={{ loadingIndicator: false }} /> // drive your own via events
+```
 
-### Environment Map
+### Viewport gizmo
 
-To improve lighting and reflections, ThreeDViewer supports environment maps:
+```ts
+helpers: { gizmo: { placement: 'top-right', size: 128 } }
+```
 
-- `environment.url`: You can provide a URL to an environment map. For example:
-  ```ts
-  environment: {
-    url: 'https://cdn.polyhaven.com/asset_img/primary/sunset_in_the_chalk_quarry.png',
-  }
-  ```
+Interactive orientation cube: click to snap the camera to axis views, synchronized with the controls.
 
-This will automatically load and apply the environment map to the scene. To use a built-in studio environment instead of a URL, set `helpers.studioEnvironment: true` (and optionally `helpers.darkStudioMode: true`).
+### Path tracing options
 
-### Experimental: Replace Viewer with Screenshot
+`pathTracing`: `enabled`, `maxSamples` (completion cap), `bounces`, `transmissiveBounces`, `renderScale`, `lowResScale`, `dynamicLowRes`. With `replaceWithScreenshotOnComplete: true` (default) the finished frame replaces the live canvas until the user interacts.
 
-If `replaceWithScreenshotOnComplete` is set to `true`, the viewer will be replaced with a static image once path tracing completes.
+## Upgrading
+
+- **3.x → 3.14**: additive — presets, `ui`, `pathTraced`, `captureStill`, `Hotspot`, `object:selected`, `selection` are all new surface; existing options keep working. React peer widened back to `>=18 <20`.
+- **2.x → 3.0**: breaking release (removed no-op APIs, ESM+CJS packaging). See [MIGRATION_GUIDE.md](https://github.com/LEMing/ThreeDViewer/blob/main/MIGRATION_GUIDE.md).
+
+Full history: [CHANGELOG.md](https://github.com/LEMing/ThreeDViewer/blob/main/CHANGELOG.md)
+
+## License
+
+MIT

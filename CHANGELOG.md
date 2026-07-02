@@ -1,6 +1,13 @@
 Changelog
 =========
 
+3.14.1
+---
+
+### Docs & metadata
+* README rewritten as the package's storefront: hero shot linking to the live playground, badges, and sections for everything 3.8-3.14 shipped — presets and the built-in picker, `pathTraced` + `captureStill`, `<Hotspot>` + `object:selected`, BVH selection options. The stale pre-3.9 defaults block (CDN environment URL, old lighting values) is gone.
+* `repository.url` normalized (`npm pkg fix`) so npm stops auto-correcting it at publish. Removed two unreferenced cover images. No library code changes.
+
 3.14.0
 ---
 
