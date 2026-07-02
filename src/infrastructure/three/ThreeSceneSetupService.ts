@@ -15,9 +15,8 @@ import { Result } from '../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import { ThreeSceneAdapter } from './ThreeScene';
 import { ThreeObject3DAdapter } from './ThreeObject3D';
+import { toThreeCamera, toThreeControls, toThreeObject } from './unwrap';
 import { disposeObject3D } from './disposal';
-import { ThreeCameraAdapter } from './ThreeCamera';
-import { ThreeOrbitControlsAdapter, ThreeMapControlsAdapter } from './ThreeControls';
 import { HexTileConfig } from './HexTileConfig';
 import { GridFactory } from './grids/GridFactory';
 import { GridType, IGridOptions } from './grids/IGridStyle';
@@ -397,34 +396,15 @@ export class ThreeSceneSetupService implements ISceneSetupService {
   fitCameraToObject(object: IObject3D, camera: ICamera, controls: IControls): Result<void> {
     try {
       // Get the actual Three.js object
-      let threeObject: THREE.Object3D;
-      if (object instanceof ThreeObject3DAdapter) {
-        threeObject = object.getThreeObject();
-      } else if ('getThreeObject' in object && typeof object.getThreeObject === 'function') {
-        threeObject = object.getThreeObject();
-      } else {
-        threeObject = object as unknown as THREE.Object3D;
-      }
+      const threeObject = toThreeObject(object) ?? (object as unknown as THREE.Object3D);
 
       // Get the actual Three.js camera
-      let threeCamera: THREE.PerspectiveCamera | THREE.OrthographicCamera;
-      if (camera instanceof ThreeCameraAdapter) {
-        threeCamera = camera.getThreeCamera() as THREE.PerspectiveCamera | THREE.OrthographicCamera;
-      } else if ('getThreeCamera' in camera && typeof camera.getThreeCamera === 'function') {
-        threeCamera = camera.getThreeCamera() as THREE.PerspectiveCamera | THREE.OrthographicCamera;
-      } else {
-        threeCamera = camera as unknown as THREE.PerspectiveCamera | THREE.OrthographicCamera;
-      }
+      const threeCamera = (toThreeCamera(camera) ??
+        (camera as unknown)) as THREE.PerspectiveCamera | THREE.OrthographicCamera;
 
       // Get the actual Three.js controls
-      let threeControls: OrbitControls | MapControls;
-      if (controls instanceof ThreeOrbitControlsAdapter || controls instanceof ThreeMapControlsAdapter) {
-        threeControls = controls.getThreeControls();
-      } else if ('getThreeControls' in controls && typeof controls.getThreeControls === 'function') {
-        threeControls = controls.getThreeControls();
-      } else {
-        threeControls = controls as unknown as OrbitControls | MapControls;
-      }
+      const threeControls = (toThreeControls(controls) ??
+        (controls as unknown)) as OrbitControls | MapControls;
 
       // Calculate bounding box
       const box = new THREE.Box3().setFromObject(threeObject);

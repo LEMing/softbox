@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { useViewerContext } from './ViewerContext';
+import { toThreeCamera, toThreeObject } from '../../infrastructure/three/unwrap';
 
 export interface HotspotProps {
   /** World-space anchor point, e.g. a `point` from the `object:selected` event. */
@@ -13,32 +14,6 @@ export interface HotspotProps {
   /** Pin content; without children a default dot pin is rendered. */
   children?: React.ReactNode;
 }
-
-const unwrapThreeCamera = (camera: unknown): THREE.Camera | null => {
-  if (camera && typeof camera === 'object') {
-    const candidate = camera as { getThreeCamera?: () => THREE.Camera };
-    if (typeof candidate.getThreeCamera === 'function') {
-      return candidate.getThreeCamera();
-    }
-    if (camera instanceof THREE.Camera) {
-      return camera;
-    }
-  }
-  return null;
-};
-
-const unwrapThreeObject = (object: unknown): THREE.Object3D | null => {
-  if (object && typeof object === 'object') {
-    const candidate = object as { getThreeObject?: () => THREE.Object3D };
-    if (typeof candidate.getThreeObject === 'function') {
-      return candidate.getThreeObject();
-    }
-    if (object instanceof THREE.Object3D) {
-      return object;
-    }
-  }
-  return null;
-};
 
 const DefaultPin = () => (
   <span
@@ -90,7 +65,7 @@ export function Hotspot({ position, occlude = false, children }: HotspotProps) {
     let hasProjected = false;
 
     const update = () => {
-      const camera = unwrapThreeCamera(viewer.getCamera());
+      const camera = toThreeCamera(viewer.getCamera());
       const canvas = viewer.getDomElement();
       if (!camera || !canvas) {
         return;
@@ -121,7 +96,7 @@ export function Hotspot({ position, occlude = false, children }: HotspotProps) {
       }
 
       if (occlude) {
-        const model = unwrapThreeObject(viewer.getModel());
+        const model = toThreeObject(viewer.getModel());
         if (model) {
           toAnchor.copy(anchor).sub(cameraPosition);
           const anchorDistance = toAnchor.length();

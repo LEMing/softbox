@@ -5,6 +5,7 @@ import {
 } from '../../core/services/ISelectionService';
 import { ThreeObject3DAdapter } from './ThreeObject3D';
 import { buildRaycastBvh } from './bvh';
+import { toThreeCamera, toThreeObject } from './unwrap';
 
 // Typical tap slop is larger than mouse jitter, so touch gets a wider budget.
 const DRAG_THRESHOLD_PX = { touch: 10, default: 5 };
@@ -91,8 +92,8 @@ export class ThreeSelectionService implements ISelectionService {
     const { canvas, camera, getPickRoot, onPick } = this.options;
 
     const root = getPickRoot();
-    const threeRoot = this.unwrapObject(root);
-    const threeCamera = this.unwrapCamera(camera);
+    const threeRoot = toThreeObject(root);
+    const threeCamera = toThreeCamera(camera);
     if (!threeRoot || !threeCamera) {
       onPick(null);
       return;
@@ -128,32 +129,6 @@ export class ThreeSelectionService implements ISelectionService {
       object: new ThreeObject3DAdapter(hit.object),
       point: { x: hit.point.x, y: hit.point.y, z: hit.point.z },
     });
-  }
-
-  private unwrapObject(object: unknown): THREE.Object3D | null {
-    if (object && typeof object === 'object') {
-      const candidate = object as { getThreeObject?: () => THREE.Object3D };
-      if (typeof candidate.getThreeObject === 'function') {
-        return candidate.getThreeObject();
-      }
-      if (object instanceof THREE.Object3D) {
-        return object;
-      }
-    }
-    return null;
-  }
-
-  private unwrapCamera(camera: unknown): THREE.Camera | null {
-    if (camera && typeof camera === 'object') {
-      const candidate = camera as { getThreeCamera?: () => THREE.Camera };
-      if (typeof candidate.getThreeCamera === 'function') {
-        return candidate.getThreeCamera();
-      }
-      if (camera instanceof THREE.Camera) {
-        return camera;
-      }
-    }
-    return null;
   }
 
   dispose(): void {

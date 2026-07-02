@@ -1,6 +1,13 @@
 Changelog
 =========
 
+3.15.2
+---
+
+### One unwrap module, enforced layer boundaries (architecture roadmap items 4 & 7)
+* The "call `getThreeX()` if present, else instanceof" adapter-unwrap duck-type was hand-rolled six times across two layers. It now lives once in `infrastructure/three/unwrap.ts` (`toThreeObject/Camera/Scene/Renderer/Controls`, null on miss); Hotspot, SimpleViewer, EventAdapter, ThreeSelectionService and ThreeSceneSetupService all delegate to it (EventAdapter keeps its non-null fallbacks on top).
+* ESLint boundary rules now match the architecture: core rules cover `.tsx` and additionally ban `three-mesh-bvh` and site imports; new direction rules forbid infrastructure→presentation/site and presentation→site. All rules pass with zero violations.
+
 3.15.1
 ---
 
