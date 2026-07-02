@@ -15,6 +15,7 @@ export interface IRenderer extends IRendererExtension {
   
   setSize(width: number, height: number): void;
   setPixelRatio(ratio: number): void;
+  getPixelRatio(): number;
 
   /** Live-tunable tone-mapping exposure (applied without a rebuild). */
   setToneMappingExposure(exposure: number): void;

@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle, useMemo, useCallback } from 'react';
 import { SimpleViewerHandle, SimpleViewerProps } from '../../types';
+import { CaptureStillOptions } from '../../types/SimpleViewerHandle';
 import { ControlsInstance } from '../../types/CommonTypes';
 import { ViewerPreset } from '../../types/options';
 import { useViewerCore, useViewerEventHandlers } from '../hooks';
@@ -22,7 +23,7 @@ import * as THREE from 'three';
  * Maintains backward compatibility with existing API
  */
 export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
-  ({ object, options = {}, preset }, ref) => {
+  ({ object, options = {}, preset, pathTraced }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     // The `preset` prop is shorthand for `options.preset`; an explicit
     // `options.preset` wins if both are provided.
@@ -59,10 +60,20 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
 
     const activePreset = pickedPreset ?? consumerPreset;
 
-    const resolvedOptions = useMemo(
-      () => (options.preset === activePreset ? options : { ...options, preset: activePreset }),
-      [options, activePreset]
-    );
+    // `pathTraced` is shorthand for `options.pathTracing.enabled`; an explicit
+    // `options.pathTracing` wins if both are provided.
+    const resolvedOptions = useMemo(() => {
+      const presetChanged = options.preset !== activePreset;
+      const foldPathTraced = pathTraced !== undefined && options.pathTracing === undefined;
+      if (!presetChanged && !foldPathTraced) {
+        return options;
+      }
+      return {
+        ...options,
+        ...(presetChanged ? { preset: activePreset } : {}),
+        ...(foldPathTraced ? { pathTracing: { enabled: pathTraced } } : {}),
+      };
+    }, [options, activePreset, pathTraced]);
     const { viewer, isInitialized } = useViewerCore(canvasRef, resolvedOptions);
     const eventsRef = useRef<TypedEventEmitter<ViewerEventMap>>(
       new TypedEventEmitter()
@@ -231,6 +242,16 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
           if (!result.ok) {
             throw result.error;
           }
+        },
+        captureStill: async (captureOptions?: CaptureStillOptions): Promise<string> => {
+          if (!viewer) {
+            throw new Error('Viewer is not ready');
+          }
+          const result = await viewer.captureStill(captureOptions);
+          if (!result.ok) {
+            throw result.error;
+          }
+          return result.value;
         },
         dispose: () => {
           viewer?.dispose();

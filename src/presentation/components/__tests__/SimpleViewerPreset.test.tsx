@@ -38,3 +38,26 @@ describe('SimpleViewer preset prop', () => {
     expect(optionsPassedToCore().preset).toBeUndefined();
   });
 });
+
+describe('SimpleViewer pathTraced prop', () => {
+  it('folds the pathTraced prop into the options passed to the core', () => {
+    render(<SimpleViewer object={null} pathTraced />);
+    expect(optionsPassedToCore().pathTracing).toEqual({ enabled: true });
+  });
+
+  it('lets options.pathTracing take precedence over the prop', () => {
+    render(
+      <SimpleViewer
+        object={null}
+        pathTraced
+        options={{ pathTracing: { enabled: false } }}
+      />
+    );
+    expect(optionsPassedToCore().pathTracing).toEqual({ enabled: false });
+  });
+
+  it('adds no pathTracing when neither prop nor option is set', () => {
+    render(<SimpleViewer object={null} />);
+    expect(optionsPassedToCore().pathTracing).toBeUndefined();
+  });
+});

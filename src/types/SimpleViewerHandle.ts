@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { ControlsInstance } from './CommonTypes';
 import { TypedEventEmitter } from '../events/EventEmitter';
 import { ViewerEventMap } from '../events/ViewerEvents';
+import { CaptureStillOptions } from '../core/ViewerCore';
+
+export type { CaptureStillOptions };
 
 /**
  * Imperative handle exposed via `ref` on the `SimpleViewer` component. Lives in a
@@ -15,5 +18,11 @@ export interface SimpleViewerHandle {
   controls: ControlsInstance | null;
   events: TypedEventEmitter<ViewerEventMap>;
   loadModel: (source: string | THREE.Object3D) => Promise<void>;
+  /**
+   * Capture a PNG still of the current scene (data URL). Pass `width`/`height`
+   * for a high-resolution raster capture; in path-traced mode omit them — the
+   * still is taken at canvas resolution once the accumulation completes.
+   */
+  captureStill: (options?: CaptureStillOptions) => Promise<string>;
   dispose: () => void;
 }

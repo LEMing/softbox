@@ -14,9 +14,16 @@ export interface SimpleViewerProps {
   options?: ViewerOptions;
   /**
    * Shorthand for `options.preset` — a one-word look
-   * (`studio` / `product` / `neutral` / `dark` / `outdoor` / `photoreal`).
+   * (`studio` / `product` / `neutral` / `dark` / `outdoor`).
    * `options.preset` takes precedence if both are set.
    */
   preset?: ViewerPreset;
+  /**
+   * Shorthand for `options.pathTracing.enabled` — photoreal progressive path
+   * tracing (a construction-time render mode). `options.pathTracing` takes
+   * precedence if both are set. Pair with `handle.captureStill()` for a
+   * photoreal still once the accumulation completes.
+   */
+  pathTraced?: boolean;
 }
 

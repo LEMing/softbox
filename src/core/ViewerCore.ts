@@ -28,6 +28,16 @@ import { ResourceManager } from './managers/ResourceManager';
 import { ViewerState } from './entities/ViewerState';
 import { DEFAULT_PATH_TRACING_SAMPLES } from './constants';
 
+/**
+ * Output size for `captureStill`, in pixels. When only one dimension is given
+ * the other follows the canvas aspect ratio; when both are omitted the still
+ * matches the canvas drawing buffer.
+ */
+export interface CaptureStillOptions {
+  width?: number;
+  height?: number;
+}
+
 export interface ViewerDependencies {
   renderer: IRenderer;
   scene: IScene;
@@ -665,6 +675,104 @@ export class ViewerCore {
   /** Request a single render through the internal render loop. */
   requestRender(): void {
     this.renderLoopManager.requestRender();
+  }
+
+  /**
+   * Capture a still of the current scene as a PNG data URL.
+   *
+   * Raster mode renders one fresh frame at the requested resolution (the
+   * drawing buffer is temporarily resized with pixel ratio 1, so `width` ×
+   * `height` are exact output pixels) and restores the live size afterwards —
+   * all synchronously, so nothing flickers on screen. Path-traced mode waits
+   * for the accumulation to complete and captures the canvas as-is; the
+   * accumulated samples exist only at the canvas resolution, so an explicit
+   * `width`/`height` is rejected rather than silently downgraded to a
+   * non-path-traced render.
+   */
+  async captureStill(options: CaptureStillOptions = {}): Promise<Result<string>> {
+    if (this.disposed) {
+      return Result.err(
+        new ThreeViewerError('Cannot capture a still from a disposed viewer', ErrorCode.INVALID_STATE)
+      );
+    }
+    if (this.options.pathTracing?.enabled && this.pathTracingService) {
+      return this.capturePathTracedStill(options);
+    }
+    return this.captureRasterStill(options);
+  }
+
+  private async capturePathTracedStill(options: CaptureStillOptions): Promise<Result<string>> {
+    if (options.width !== undefined || options.height !== undefined) {
+      return Result.err(
+        new ThreeViewerError(
+          'Path-traced stills are captured at the canvas resolution; omit width/height',
+          ErrorCode.INVALID_PARAMETER
+        )
+      );
+    }
+    if (!this.pathTracingCompleteHandled) {
+      await new Promise<void>((resolve) => {
+        this.events.once('pathtracing:complete', () => resolve());
+      });
+      if (this.disposed) {
+        return Result.err(
+          new ThreeViewerError('Viewer was disposed while waiting for the path tracer', ErrorCode.INVALID_STATE)
+        );
+      }
+    }
+    return this.readCanvasPng();
+  }
+
+  private captureRasterStill(options: CaptureStillOptions): Result<string> {
+    const canvas = this.renderer.getDomElement();
+    const liveWidth = canvas.clientWidth || canvas.width;
+    const liveHeight = canvas.clientHeight || canvas.height;
+    const livePixelRatio = this.renderer.getPixelRatio();
+    const aspect = liveWidth / liveHeight;
+
+    const targetWidth = Math.round(
+      options.width ?? (options.height !== undefined ? options.height * aspect : liveWidth * livePixelRatio)
+    );
+    const targetHeight = Math.round(
+      options.height ?? (options.width !== undefined ? options.width / aspect : liveHeight * livePixelRatio)
+    );
+
+    const maxSize = this.renderer.capabilities.maxTextureSize;
+    if (
+      !Number.isFinite(targetWidth) || !Number.isFinite(targetHeight) ||
+      targetWidth <= 0 || targetHeight <= 0 ||
+      targetWidth > maxSize || targetHeight > maxSize
+    ) {
+      return Result.err(
+        new ThreeViewerError(
+          `Requested still size ${targetWidth}x${targetHeight} is outside 1..${maxSize}`,
+          ErrorCode.INVALID_PARAMETER
+        )
+      );
+    }
+
+    // The whole resize → render → read → restore cycle runs in one task, so
+    // the intermediate size is never painted to screen.
+    this.renderer.setPixelRatio(1);
+    this.resize(targetWidth, targetHeight);
+    // resize() early-returns when the buffer already matches, and its own
+    // render is best-effort — render explicitly so the buffer is fresh even
+    // without preserveDrawingBuffer.
+    const rendered = this.renderer.render(this.scene, this.camera);
+    const still = rendered.ok ? this.readCanvasPng() : Result.err(rendered.error);
+    this.renderer.setPixelRatio(livePixelRatio);
+    this.resize(liveWidth, liveHeight);
+    return still;
+  }
+
+  private readCanvasPng(): Result<string> {
+    const dataUrl = this.renderer.getDomElement().toDataURL('image/png');
+    if (!dataUrl || dataUrl === 'data:,') {
+      return Result.err(
+        new ThreeViewerError('Canvas produced an empty image', ErrorCode.RENDER_FAILED)
+      );
+    }
+    return Result.ok(dataUrl);
   }
 
   /**

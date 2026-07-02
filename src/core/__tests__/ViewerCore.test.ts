@@ -94,6 +94,7 @@ const makeRenderer = (
     render: jest.fn(() => Result.ok(undefined)),
     setSize: jest.fn(),
     setPixelRatio: jest.fn(),
+    getPixelRatio: jest.fn(() => 1),
     setToneMappingExposure: jest.fn(),
     getDomElement: jest.fn(() => canvas),
     getContext: jest.fn(() => null),
@@ -1297,5 +1298,151 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     viewer.updateOptions({ backgroundColor: '#abcdef' });
 
     expect(bundle.sceneSetupService!.createGradientBackground).not.toHaveBeenCalled();
+  });
+});
+
+describe('ViewerCore.captureStill', () => {
+  const makeCaptureBundle = (config: MakeDepsConfig = {}, pixelRatio = 2) => {
+    const canvas = makeCanvas(800, 600);
+    Object.defineProperty(canvas, 'clientWidth', { value: 400, configurable: true });
+    Object.defineProperty(canvas, 'clientHeight', { value: 300, configurable: true });
+    canvas.toDataURL = jest.fn(() => 'data:image/png;base64,still');
+
+    let ratio = pixelRatio;
+    const bundle = makeDeps({
+      ...config,
+      canvas,
+      rendererOverrides: {
+        setPixelRatio: jest.fn((next: number) => {
+          ratio = next;
+        }),
+        getPixelRatio: jest.fn(() => ratio),
+        // Mirror the real renderer: the drawing buffer is the logical size
+        // scaled by the current pixel ratio.
+        setSize: jest.fn((width: number, height: number) => {
+          canvas.width = Math.floor(width * ratio);
+          canvas.height = Math.floor(height * ratio);
+        }),
+        ...config.rendererOverrides,
+      },
+    });
+    return { ...bundle, canvas };
+  };
+
+  it('renders one frame at the exact requested resolution and restores the live size', async () => {
+    const bundle = makeCaptureBundle();
+    const viewer = new ViewerCore(bundle.deps);
+
+    const result = await viewer.captureStill({ width: 1600, height: 1200 });
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value).toBe('data:image/png;base64,still');
+    // Captured with pixel ratio 1 so width/height are exact output pixels...
+    expect(bundle.renderer.setPixelRatio).toHaveBeenNthCalledWith(1, 1);
+    expect(bundle.renderer.setSize).toHaveBeenCalledWith(1600, 1200);
+    expect(bundle.renderer.render).toHaveBeenCalled();
+    // ...then the live pixel ratio and canvas size come back.
+    expect(bundle.renderer.setPixelRatio).toHaveBeenLastCalledWith(2);
+    expect(bundle.renderer.setSize).toHaveBeenLastCalledWith(400, 300);
+    expect(bundle.canvas.width).toBe(800);
+    expect(bundle.canvas.height).toBe(600);
+  });
+
+  it('defaults to the drawing-buffer size and keeps aspect for a single dimension', async () => {
+    const bundle = makeCaptureBundle();
+    const viewer = new ViewerCore(bundle.deps);
+
+    const defaulted = await viewer.captureStill();
+    expect(defaulted.ok).toBe(true);
+
+    const widthOnly = await viewer.captureStill({ width: 1000 });
+    expect(widthOnly.ok).toBe(true);
+    expect(bundle.renderer.setSize).toHaveBeenCalledWith(1000, 750);
+  });
+
+  it('rejects sizes outside the renderer limits', async () => {
+    const bundle = makeCaptureBundle();
+    const viewer = new ViewerCore(bundle.deps);
+
+    const tooBig = await viewer.captureStill({ width: 99999 });
+    expect(tooBig.ok).toBe(false);
+    expect(!tooBig.ok && tooBig.error.code).toBe(ErrorCode.INVALID_PARAMETER);
+
+    const zero = await viewer.captureStill({ width: 0 });
+    expect(zero.ok).toBe(false);
+  });
+
+  it('fails after dispose', async () => {
+    const bundle = makeCaptureBundle();
+    const viewer = new ViewerCore(bundle.deps);
+    viewer.dispose();
+
+    const result = await viewer.captureStill();
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_STATE);
+  });
+
+  it('propagates a render failure and still restores the live size', async () => {
+    const bundle = makeCaptureBundle({
+      rendererOverrides: {
+        render: jest.fn(() =>
+          Result.err(new ThreeViewerError('boom', ErrorCode.RENDER_FAILED))
+        ),
+      },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    const result = await viewer.captureStill({ width: 1024 });
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe(ErrorCode.RENDER_FAILED);
+    expect(bundle.renderer.setPixelRatio).toHaveBeenLastCalledWith(2);
+  });
+
+  it('reports an empty canvas as a render failure', async () => {
+    const bundle = makeCaptureBundle();
+    (bundle.canvas.toDataURL as jest.Mock).mockReturnValue('data:,');
+    const viewer = new ViewerCore(bundle.deps);
+
+    const result = await viewer.captureStill();
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe(ErrorCode.RENDER_FAILED);
+  });
+
+  it('rejects explicit dimensions in path-traced mode', async () => {
+    const bundle = makeCaptureBundle({
+      options: { pathTracing: { enabled: true } },
+      withPathTracing: true,
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    const result = await viewer.captureStill({ width: 2048 });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_PARAMETER);
+  });
+
+  it('waits for the path tracer to complete, then captures the canvas as-is', async () => {
+    const bundle = makeCaptureBundle({
+      options: { pathTracing: { enabled: true } },
+      withPathTracing: true,
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    let settled = false;
+    const capture = viewer.captureStill().then((result) => {
+      settled = true;
+      return result;
+    });
+
+    await tick();
+    expect(settled).toBe(false);
+
+    viewer.getEvents().emit('pathtracing:complete', { samples: 16, totalTime: 1000 });
+    const result = await capture;
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value).toBe('data:image/png;base64,still');
+    // The accumulated frame is captured directly — no resize, no re-render.
+    expect(bundle.renderer.setSize).not.toHaveBeenCalled();
   });
 });
