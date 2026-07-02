@@ -10,3 +10,4 @@ export * from './ThreeSceneSetupService';
 export * from './ThreePathTracingService';
 export * from './ThreeEnvironmentService';
 export * from './ThreeFloorAlignmentService';
+export * from './ThreeSelectionService';

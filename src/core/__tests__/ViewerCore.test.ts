@@ -1558,3 +1558,65 @@ describe('ViewerCore.captureStill', () => {
     expect(bundle.renderer.setSize).toHaveBeenCalledWith(1024, 768);
   });
 });
+
+describe('ViewerCore selection wiring', () => {
+  const makeSelectionService = () => ({
+    initialize: jest.fn(),
+    dispose: jest.fn(),
+  });
+
+  it('wires click-picking on initialize and emits object:selected on a hit', async () => {
+    const bundle = makeDeps();
+    const selectionService = makeSelectionService();
+    const viewer = new ViewerCore({ ...bundle.deps, selectionService });
+
+    await viewer.initialize();
+
+    expect(selectionService.initialize).toHaveBeenCalledTimes(1);
+    const wiring = selectionService.initialize.mock.calls[0][0];
+    expect(wiring.canvas).toBe(bundle.canvas);
+    expect(wiring.camera).toBe(bundle.camera);
+
+    const onSelected = jest.fn();
+    viewer.getEvents().on('object:selected', onSelected);
+
+    const pick = { object: makeObject3D(), point: { x: 1, y: 2, z: 3 } };
+    wiring.onPick(pick);
+    expect(onSelected).toHaveBeenCalledWith(pick);
+
+    // A miss (empty space) emits nothing.
+    wiring.onPick(null);
+    expect(onSelected).toHaveBeenCalledTimes(1);
+  });
+
+  it('detaches the selection listeners on dispose', async () => {
+    const bundle = makeDeps();
+    const selectionService = makeSelectionService();
+    const viewer = new ViewerCore({ ...bundle.deps, selectionService });
+
+    await viewer.initialize();
+    viewer.dispose();
+
+    expect(selectionService.dispose).toHaveBeenCalled();
+
+    // A pick delivered after dispose must not emit.
+    const onSelected = jest.fn();
+    viewer.getEvents().on('object:selected', onSelected);
+    selectionService.initialize.mock.calls[0][0].onPick({
+      object: makeObject3D(),
+      point: { x: 0, y: 0, z: 0 },
+    });
+    expect(onSelected).not.toHaveBeenCalled();
+  });
+
+  it('exposes the loaded model via getModel', async () => {
+    const bundle = makeDeps();
+    const viewer = new ViewerCore(bundle.deps);
+    expect(viewer.getModel()).toBeNull();
+
+    await viewer.initialize();
+    const result = await viewer.loadModel(makeObject3D());
+    expect(result.ok).toBe(true);
+    expect(viewer.getModel()).not.toBeNull();
+  });
+});

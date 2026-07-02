@@ -85,7 +85,8 @@ export class EventAdapter {
    */
   static convertObjectSelected(data: CoreEventMap['object:selected']): PresentationEventMap['object:selected'] {
     return {
-      object: this.toThreeObject(data.object)
+      object: this.toThreeObject(data.object),
+      point: data.point
     };
   }
 

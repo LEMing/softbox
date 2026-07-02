@@ -24,7 +24,7 @@ import * as THREE from 'three';
  * Maintains backward compatibility with existing API
  */
 export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
-  ({ object, options = {}, preset, pathTraced }, ref) => {
+  ({ object, options = {}, preset, pathTraced, children }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     // The `preset` prop is shorthand for `options.preset`; an explicit
     // `options.preset` wins if both are provided.
@@ -148,8 +148,10 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
         eventsRef.current.emit('model:error', data),
       'render:complete': (data: CoreViewerEventMap['render:complete']) => 
         eventsRef.current.emit('render:complete', data),
-      'controls:change': (data: CoreViewerEventMap['controls:change']) => 
+      'controls:change': (data: CoreViewerEventMap['controls:change']) =>
         eventsRef.current.emit('controls:change', EventAdapter.convertControlsChange(data)),
+      'object:selected': (data: CoreViewerEventMap['object:selected']) =>
+        eventsRef.current.emit('object:selected', EventAdapter.convertObjectSelected(data)),
       'error': (data: CoreViewerEventMap['error']) => 
         eventsRef.current.emit('error', data),
     }), []); // Empty deps as eventsRef is stable
@@ -297,6 +299,7 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
                  so with no preset set the studio chip is the honest active one. */
               <PresetPicker active={activePreset ?? 'studio'} onSelect={handlePresetSelect} />
             )}
+            {children}
           </div>
         </ViewerProvider>
       </ViewerErrorBoundary>

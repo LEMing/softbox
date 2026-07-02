@@ -227,7 +227,25 @@ Available events:
 - `model:error` - Fired when model loading fails
 - `render:complete` - Fired after each render frame
 - `controls:change` - Fired when camera controls are updated
+- `object:selected` - Fired when a click (not an orbit drag) hits the loaded model; the payload carries the hit `object` and the world-space `point`
 - `error` - General error event
+
+## Hotspot Annotations
+
+Pin DOM content to a world-space point of the scene — it tracks orbiting, zooming and resizes. Combine with `object:selected` to let users place pins by clicking the model:
+
+```tsx
+import { SimpleViewer, Hotspot } from 'threedviewer';
+
+<SimpleViewer object="/model.glb">
+  <Hotspot position={[0, 1.2, 0]}>
+    <div className="pin">Engine</div>
+  </Hotspot>
+  <Hotspot position={[0.4, 0.2, 0.8]} occlude />  {/* hidden when the model covers it */}
+</SimpleViewer>
+```
+
+Without children a built-in dot pin is rendered. `occlude` hides the hotspot while the model blocks the line of sight to its anchor.
 
 ## Configuration Options
 
