@@ -87,6 +87,49 @@ describe('useViewerCore', () => {
     expect(viewer.dispose).not.toHaveBeenCalled();
   });
 
+  it('applies a direct toneMappingExposure change live, without rebuilding', async () => {
+    const canvasRef = makeCanvasRef();
+
+    const { result, rerender } = renderHook(
+      ({ options }: { options: SimpleViewerOptions }) => useViewerCore(canvasRef, options),
+      { initialProps: { options: testDefaultOptions } }
+    );
+
+    await waitFor(() => expect(result.current.isInitialized).toBe(true));
+    const viewer = createdViewers[0];
+    viewer.updateOptions.mockClear();
+
+    rerender({
+      options: {
+        ...testDefaultOptions,
+        renderer: { ...testDefaultOptions.renderer, toneMappingExposure: 0.42 },
+      },
+    });
+
+    await waitFor(() =>
+      expect(viewer.updateOptions).toHaveBeenCalledWith(
+        expect.objectContaining({ renderer: { toneMappingExposure: 0.42 } })
+      )
+    );
+    expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(1);
+    expect(viewer.dispose).not.toHaveBeenCalled();
+  });
+
+  it('rebuilds the viewer when loader options change (the loader is built with them)', async () => {
+    const canvasRef = makeCanvasRef();
+
+    const { result, rerender } = renderHook(
+      ({ options }: { options: SimpleViewerOptions }) => useViewerCore(canvasRef, options),
+      { initialProps: { options: testDefaultOptions } }
+    );
+
+    await waitFor(() => expect(result.current.isInitialized).toBe(true));
+
+    rerender({ options: { ...testDefaultOptions, loaders: { draco: false } } });
+
+    await waitFor(() => expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(2));
+  });
+
   it('rebuilds the viewer when selection options change (the loader is built with them)', async () => {
     const canvasRef = makeCanvasRef();
 

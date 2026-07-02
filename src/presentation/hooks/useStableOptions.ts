@@ -18,6 +18,16 @@ export interface StableOptions {
  * cheap change like the background color from tearing down the WebGLRenderer and
  * re-fetching the model.
  */
+/** The sub-object without its runtime-tunable field; undefined when empty. */
+const structuralPart = <T extends object>(part: T | undefined, runtimeField: keyof T) => {
+  if (!part) {
+    return undefined;
+  }
+  const structural: Partial<T> = { ...part };
+  delete structural[runtimeField];
+  return Object.keys(structural).length > 0 ? structural : undefined;
+};
+
 export function useStableOptions(options: SimpleViewerOptions): StableOptions {
   // Construction-time options: a change requires rebuilding the viewer. Note
   // callbacks (onLoad/onProgress/onError) and animationLoop are intentionally
@@ -29,14 +39,19 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
       JSON.stringify({
         pathTracing: options.pathTracing,
         staticScene: options.staticScene,
-        renderer: options.renderer,
+        // renderer/environment minus their runtime-tunable fields: a direct
+        // toneMappingExposure / environmentIntensity change is exactly what
+        // the live updateOptions path exists for and must not rebuild.
+        renderer: structuralPart(options.renderer, 'toneMappingExposure'),
         camera: options.camera,
         controls: options.controls,
-        environment: options.environment,
+        environment: structuralPart(options.environment, 'environmentIntensity'),
         lighting: options.lighting,
         helpers: options.helpers,
         rendering: options.rendering,
         replaceWithScreenshotOnComplete: options.replaceWithScreenshotOnComplete,
+        // The loader is constructed with these — changing them needs a rebuild.
+        loaders: options.loaders,
         // Normalized so absent / {} / { bvh: true } (all "BVH on") share a key
         // and only a real opt-out change rebuilds the viewer.
         selectionBvh: options.selection?.bvh !== false,
@@ -52,6 +67,7 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
       options.helpers,
       options.rendering,
       options.replaceWithScreenshotOnComplete,
+      options.loaders,
       options.selection,
     ]
   );
