@@ -49,6 +49,7 @@ export class ViewerFactory {
     // renderer is passed so KTX2 can detect GPU-supported texture formats.
     const modelLoader = new ExtendedModelLoaderFactory().createDefaultLoader({
       renderer: renderer.getThreeRenderer() ?? undefined,
+      bvh: options.selection?.bvh,
       ...options.loaders,
     });
     

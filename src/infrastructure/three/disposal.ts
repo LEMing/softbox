@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { disposeBoundsTree } from './bvh';
 
 /**
  * Canonical Three.js resource disposal helpers.
@@ -42,6 +43,7 @@ export function disposeObject3D(object: THREE.Object3D): void {
     }>;
 
     if (renderable.geometry && typeof renderable.geometry.dispose === 'function') {
+      disposeBoundsTree(renderable.geometry);
       renderable.geometry.dispose();
     }
 

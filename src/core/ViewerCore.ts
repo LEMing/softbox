@@ -231,6 +231,7 @@ export class ViewerCore {
           canvas: this.renderer.getDomElement(),
           camera: this.camera,
           getPickRoot: () => this.modelManager.getCurrentModel(),
+          bvh: this.options.selection?.bvh,
           onPick: (pick) => {
             if (pick && !this.disposed) {
               this.events.emit('object:selected', pick);

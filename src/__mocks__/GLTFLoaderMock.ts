@@ -3,7 +3,7 @@ export const gltfInstances: GLTFLoader[] = [];
 export class GLTFLoader {
   load = jest.fn((_url: string, onLoad?: (gltf: { scene: object; animations: unknown[] }) => void) => {
     if (onLoad) {
-      onLoad({ scene: {}, animations: [] });
+      onLoad({ scene: { traverse: () => undefined }, animations: [] });
     }
   });
   setDRACOLoader = jest.fn();

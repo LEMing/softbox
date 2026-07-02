@@ -8,6 +8,7 @@ import {
 } from '../../core/interfaces/IModelLoader';
 import { LoaderOptions } from '../../types/options';
 import { Result } from '../../utils/Result';
+import { buildRaycastBvh } from './bvh';
 import { ThreeObject3DAdapter } from './ThreeObject3D';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import * as THREE from 'three';
@@ -19,6 +20,8 @@ import * as THREE from 'three';
  */
 export interface GLTFLoaderConfig extends LoaderOptions {
   renderer?: THREE.WebGLRenderer;
+  /** Build a raycast BVH for the loaded model (`selection.bvh`, default on). */
+  bvh?: boolean;
 }
 
 /**
@@ -122,6 +125,10 @@ export class ThreeGLTFLoaderAdapter implements IModelLoader {
         this.loader.load(
           url,
           (gltf) => {
+            // Accelerate click-picking/occlusion raycasts on large models.
+            if (this.config.bvh ?? true) {
+              buildRaycastBvh(gltf.scene);
+            }
             // Convert Three.js scene to our abstraction
             const model: IModel = {
               scene: new ThreeObject3DAdapter(gltf.scene),

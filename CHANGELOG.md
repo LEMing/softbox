@@ -1,6 +1,13 @@
 Changelog
 =========
 
+3.14.0
+---
+
+### BVH-accelerated raycasts
+* Click picking and hotspot occlusion now run on a **BVH** (three-mesh-bvh): each loaded model gets a bounds tree built once at load time, making raycasts logarithmic instead of linear — a 10-100x speedup on high-poly models. Models passed as raw `THREE.Object3D` get their BVH lazily on the first pick (occlusion for such models accelerates after that first pick). Both raycast sites use `firstHitOnly`, and `raycast` is patched **per mesh instance**, never on shared three.js prototypes — the consumer's own objects are untouched. Skinned, morph-target, instanced and batched meshes are excluded (they keep their stock, semantics-correct raycast). The BVH is released with the model's geometry on disposal.
+* New **`selection`** option: `selection: { bvh: false }` skips the build everywhere — load time and the lazy first-pick path (~25% extra geometry memory; the build also sorts each geometry's index in place, which is invisible to rendering but matters if you rely on triangle order). Changing it rebuilds the viewer.
+
 3.13.1
 ---
 

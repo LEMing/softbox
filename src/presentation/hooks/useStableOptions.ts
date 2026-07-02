@@ -37,6 +37,9 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
         helpers: options.helpers,
         rendering: options.rendering,
         replaceWithScreenshotOnComplete: options.replaceWithScreenshotOnComplete,
+        // Normalized so absent / {} / { bvh: true } (all "BVH on") share a key
+        // and only a real opt-out change rebuilds the viewer.
+        selectionBvh: options.selection?.bvh !== false,
       }),
     [
       options.pathTracing,
@@ -49,6 +52,7 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
       options.helpers,
       options.rendering,
       options.replaceWithScreenshotOnComplete,
+      options.selection,
     ]
   );
 

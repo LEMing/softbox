@@ -1,4 +1,4 @@
-import { ViewerFactory } from '../ViewerFactory';
+import { ViewerFactory, ExtendedModelLoaderFactory } from '../ViewerFactory';
 import { ThreeRendererAdapter } from '../../three';
 import { Result } from '../../../utils/Result';
 import { IRendererOptions } from '../../../core/interfaces/IRenderer';
@@ -43,5 +43,32 @@ describe('ViewerFactory preserveDrawingBuffer', () => {
   it('leaves preserveDrawingBuffer unset when neither feature is used', async () => {
     const opts = await capturedOptions({});
     expect(opts.preserveDrawingBuffer).toBeUndefined();
+  });
+});
+
+describe('ViewerFactory selection.bvh threading', () => {
+  let loaderSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest
+      .spyOn(ThreeRendererAdapter.prototype, 'initialize')
+      .mockReturnValue(Result.ok(undefined));
+    loaderSpy = jest.spyOn(ExtendedModelLoaderFactory.prototype, 'createDefaultLoader');
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('threads selection.bvh: false into the model loader', () => {
+    ViewerFactory.createViewer(document.createElement('canvas'), { selection: { bvh: false } });
+    expect(loaderSpy).toHaveBeenCalledWith(expect.objectContaining({ bvh: false }));
+  });
+
+  it('leaves the loader BVH default on when selection is not set', () => {
+    ViewerFactory.createViewer(document.createElement('canvas'), {});
+    expect(loaderSpy).toHaveBeenCalledWith(expect.objectContaining({ bvh: undefined }));
   });
 });

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { disposeMaterial, disposeObject3D, disposeSceneContents } from '../disposal';
+import { buildRaycastBvh } from '../bvh';
 
 describe('disposal', () => {
   describe('disposeMaterial', () => {
@@ -83,6 +84,18 @@ describe('disposal', () => {
 
       expect(geomSpy).toHaveBeenCalledTimes(1);
       expect(matSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('disposeObject3D bounds tree', () => {
+    it('releases the raycast BVH together with the geometry', () => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
+      buildRaycastBvh(mesh);
+      expect(mesh.geometry.boundsTree).toBeTruthy();
+
+      disposeObject3D(mesh);
+
+      expect(mesh.geometry.boundsTree).toBeUndefined();
     });
   });
 
