@@ -171,6 +171,10 @@ export class ThreeRendererAdapter implements IRenderer {
     }
   }
 
+  getPixelRatio(): number {
+    return this.renderer ? this.renderer.getPixelRatio() : 1;
+  }
+
   setToneMappingExposure(exposure: number): void {
     if (this.renderer) {
       this.renderer.toneMappingExposure = exposure;

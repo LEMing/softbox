@@ -12,6 +12,7 @@ import { TypedEventEmitter } from '../events/EventEmitter';
 import { ViewerEventMap } from './events/ViewerEvents';
 import { ThreeViewerError, ErrorCode } from '../errors';
 import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
+import { CaptureStillOptions } from '../types/CaptureStillOptions';
 import { IPathTracingService } from './services/IPathTracingService';
 import { IEnvironmentService } from './services/IEnvironmentService';
 import { ISceneSetupService } from './services/ISceneSetupService';
@@ -27,6 +28,10 @@ import { ModelManager } from './managers/ModelManager';
 import { ResourceManager } from './managers/ResourceManager';
 import { ViewerState } from './entities/ViewerState';
 import { DEFAULT_PATH_TRACING_SAMPLES } from './constants';
+
+export type { CaptureStillOptions };
+
+type CaptureWaitOutcome = 'complete' | 'disposed' | 'error';
 
 export interface ViewerDependencies {
   renderer: IRenderer;
@@ -55,6 +60,9 @@ export class ViewerCore {
   private pathTracingStartTime?: number;
   private pathTracingCompleteHandled: boolean = false;
   private disposed: boolean = false;
+  // Pending captureStill waiters, settled by dispose() so their promises never
+  // dangle after teardown.
+  private readonly pendingCaptureSettlers = new Set<(outcome: CaptureWaitOutcome) => void>();
   private readonly pendingTimers: Set<ReturnType<typeof setTimeout>> = new Set();
   // Serializes loadModel() so rapid object changes queue (last-wins) instead of
   // the second load being rejected while the first is still in flight.
@@ -589,10 +597,7 @@ export class ViewerCore {
     }
 
     // Update camera aspect ratio first to ensure correct projection
-    if (this.camera.type === 'perspective' && 'aspect' in this.camera) {
-      this.camera.aspect = width / height;
-    }
-    this.camera.updateProjectionMatrix();
+    this.applyCameraAspect(width / height);
     
     // Update renderer size
     this.renderer.setSize(width, height);
@@ -665,6 +670,158 @@ export class ViewerCore {
   /** Request a single render through the internal render loop. */
   requestRender(): void {
     this.renderLoopManager.requestRender();
+  }
+
+  /**
+   * Capture a still of the current scene as a PNG data URL.
+   *
+   * Raster mode renders one fresh frame at the requested resolution (the
+   * drawing buffer is temporarily resized with pixel ratio 1, so `width` ×
+   * `height` are exact output pixels) and restores the live size afterwards —
+   * all synchronously, so nothing flickers on screen. Path-traced mode waits
+   * for the accumulation to complete and captures the canvas as-is; the
+   * accumulated samples exist only at the canvas resolution, so an explicit
+   * `width`/`height` is rejected rather than silently downgraded to a
+   * non-path-traced render.
+   */
+  async captureStill(options: CaptureStillOptions = {}): Promise<Result<string>> {
+    if (this.disposed) {
+      return Result.err(
+        new ThreeViewerError('Cannot capture a still from a disposed viewer', ErrorCode.INVALID_STATE)
+      );
+    }
+    // A capture taken mid-load would show the previous scene; let queued model
+    // loads finish first.
+    await this.modelLoadChain.catch(() => undefined);
+    if (this.disposed) {
+      return Result.err(
+        new ThreeViewerError('Viewer was disposed while a model load finished', ErrorCode.INVALID_STATE)
+      );
+    }
+    if (this.options.pathTracing?.enabled && this.pathTracingService) {
+      return this.capturePathTracedStill(options);
+    }
+    return this.captureRasterStill(options);
+  }
+
+  private async capturePathTracedStill(options: CaptureStillOptions): Promise<Result<string>> {
+    if (options.width !== undefined || options.height !== undefined) {
+      return Result.err(
+        new ThreeViewerError(
+          'Path-traced stills are captured at the canvas resolution; omit width/height',
+          ErrorCode.INVALID_PARAMETER
+        )
+      );
+    }
+    // Wait only while the accumulation can still finish. A disabled service
+    // (post-completion reset, failed init, internal error) will never emit
+    // 'pathtracing:complete' again — capture the canvas as it stands instead
+    // of pending forever.
+    const accumulating =
+      Boolean(this.pathTracingService?.isEnabled()) &&
+      this.stateManager.getStatus() !== 'error';
+    if (!this.pathTracingCompleteHandled && accumulating) {
+      const outcome = await this.waitForPathTracingOutcome();
+      if (outcome === 'disposed') {
+        return Result.err(
+          new ThreeViewerError('Viewer was disposed while waiting for the path tracer', ErrorCode.INVALID_STATE)
+        );
+      }
+      if (outcome === 'error') {
+        return Result.err(
+          new ThreeViewerError('Model failed while waiting for the path tracer', ErrorCode.RENDER_FAILED)
+        );
+      }
+    }
+    return this.readCanvasPng();
+  }
+
+  private waitForPathTracingOutcome(): Promise<CaptureWaitOutcome> {
+    return new Promise<CaptureWaitOutcome>((resolve) => {
+      let offComplete = () => {};
+      let offError = () => {};
+      const settle = (outcome: CaptureWaitOutcome) => {
+        this.pendingCaptureSettlers.delete(settle);
+        offComplete();
+        offError();
+        resolve(outcome);
+      };
+      this.pendingCaptureSettlers.add(settle);
+      offComplete = this.events.once('pathtracing:complete', () => settle('complete'));
+      offError = this.events.once('model:error', () => settle('error'));
+    });
+  }
+
+  private captureRasterStill(options: CaptureStillOptions): Result<string> {
+    const canvas = this.renderer.getDomElement();
+    const livePixelRatio = this.renderer.getPixelRatio();
+    // A hidden or detached canvas has no client size; scale the drawing buffer
+    // back to logical pixels instead of mistaking buffer pixels for CSS ones.
+    const hasLayout = canvas.clientWidth > 0 && canvas.clientHeight > 0;
+    const liveWidth = hasLayout ? canvas.clientWidth : Math.round(canvas.width / livePixelRatio);
+    const liveHeight = hasLayout ? canvas.clientHeight : Math.round(canvas.height / livePixelRatio);
+    if (liveWidth <= 0 || liveHeight <= 0) {
+      return Result.err(
+        new ThreeViewerError('Cannot capture: the canvas has no size', ErrorCode.INVALID_STATE)
+      );
+    }
+    const liveAspect = liveWidth / liveHeight;
+
+    const targetWidth = Math.round(
+      options.width ?? (options.height !== undefined ? options.height * liveAspect : liveWidth * livePixelRatio)
+    );
+    const targetHeight = Math.round(
+      options.height ?? (options.width !== undefined ? options.width / liveAspect : liveHeight * livePixelRatio)
+    );
+
+    const maxSize = this.renderer.capabilities.maxTextureSize;
+    if (
+      !Number.isFinite(targetWidth) || !Number.isFinite(targetHeight) ||
+      targetWidth <= 0 || targetHeight <= 0 ||
+      targetWidth > maxSize || targetHeight > maxSize
+    ) {
+      return Result.err(
+        new ThreeViewerError(
+          `Requested still size ${targetWidth}x${targetHeight} is outside 1..${maxSize}`,
+          ErrorCode.INVALID_PARAMETER
+        )
+      );
+    }
+
+    // The whole resize → render → read → restore cycle runs in one task, so
+    // the intermediate size is never painted to screen. The renderer is driven
+    // directly rather than through resize(): its change-detection guard
+    // compares buffer pixels to logical pixels and could skip the restore.
+    this.renderer.setPixelRatio(1);
+    this.renderer.setSize(targetWidth, targetHeight);
+    this.applyCameraAspect(targetWidth / targetHeight);
+    const rendered = this.renderer.render(this.scene, this.camera);
+    const still = rendered.ok ? this.readCanvasPng() : Result.err(rendered.error);
+    // Size first, ratio second: three re-applies the last logical size when the
+    // pixel ratio changes, so this order never allocates a target×DPR buffer.
+    this.renderer.setSize(liveWidth, liveHeight);
+    this.renderer.setPixelRatio(livePixelRatio);
+    this.applyCameraAspect(liveAspect);
+    this.renderer.render(this.scene, this.camera);
+    this.renderLoopManager.requestRender();
+    return still;
+  }
+
+  private applyCameraAspect(aspect: number): void {
+    if (this.camera.type === 'perspective' && 'aspect' in this.camera) {
+      this.camera.aspect = aspect;
+    }
+    this.camera.updateProjectionMatrix();
+  }
+
+  private readCanvasPng(): Result<string> {
+    const dataUrl = this.renderer.getDomElement().toDataURL('image/png');
+    if (!dataUrl || dataUrl === 'data:,') {
+      return Result.err(
+        new ThreeViewerError('Canvas produced an empty image', ErrorCode.RENDER_FAILED)
+      );
+    }
+    return Result.ok(dataUrl);
   }
 
   /**
@@ -752,6 +909,10 @@ export class ViewerCore {
 
     // Update state
     this.stateManager.setDisposed();
+
+    // Settle any captureStill waiter so its promise resolves to INVALID_STATE
+    // instead of dangling after the listener map is cleared below.
+    [...this.pendingCaptureSettlers].forEach((settle) => settle('disposed'));
 
     // Remove all event listeners
     this.events.removeAllListeners();

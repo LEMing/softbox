@@ -94,6 +94,7 @@ const makeRenderer = (
     render: jest.fn(() => Result.ok(undefined)),
     setSize: jest.fn(),
     setPixelRatio: jest.fn(),
+    getPixelRatio: jest.fn(() => 1),
     setToneMappingExposure: jest.fn(),
     getDomElement: jest.fn(() => canvas),
     getContext: jest.fn(() => null),
@@ -1297,5 +1298,263 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     viewer.updateOptions({ backgroundColor: '#abcdef' });
 
     expect(bundle.sceneSetupService!.createGradientBackground).not.toHaveBeenCalled();
+  });
+});
+
+describe('ViewerCore.captureStill', () => {
+  const makeCaptureBundle = (config: MakeDepsConfig = {}, pixelRatio = 2) => {
+    const canvas = makeCanvas(800, 600);
+    Object.defineProperty(canvas, 'clientWidth', { value: 400, configurable: true });
+    Object.defineProperty(canvas, 'clientHeight', { value: 300, configurable: true });
+    canvas.toDataURL = jest.fn(() => 'data:image/png;base64,still');
+
+    // Mirror the real renderer: the drawing buffer is the last logical size
+    // scaled by the current pixel ratio, and setPixelRatio re-applies the last
+    // logical size (three.js WebGLRenderer semantics).
+    let ratio = pixelRatio;
+    let logicalWidth = 400;
+    let logicalHeight = 300;
+    const applyBuffer = () => {
+      canvas.width = Math.floor(logicalWidth * ratio);
+      canvas.height = Math.floor(logicalHeight * ratio);
+    };
+    const bundle = makeDeps({
+      ...config,
+      canvas,
+      rendererOverrides: {
+        setPixelRatio: jest.fn((next: number) => {
+          ratio = next;
+          applyBuffer();
+        }),
+        getPixelRatio: jest.fn(() => ratio),
+        setSize: jest.fn((width: number, height: number) => {
+          logicalWidth = width;
+          logicalHeight = height;
+          applyBuffer();
+        }),
+        ...config.rendererOverrides,
+      },
+    });
+    return { ...bundle, canvas };
+  };
+
+  it('renders one frame at the exact requested resolution and restores the live size', async () => {
+    const bundle = makeCaptureBundle();
+    const viewer = new ViewerCore(bundle.deps);
+
+    const result = await viewer.captureStill({ width: 1600, height: 1200 });
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value).toBe('data:image/png;base64,still');
+    // Captured with pixel ratio 1 so width/height are exact output pixels...
+    expect(bundle.renderer.setPixelRatio).toHaveBeenNthCalledWith(1, 1);
+    expect(bundle.renderer.setSize).toHaveBeenCalledWith(1600, 1200);
+    expect(bundle.renderer.render).toHaveBeenCalled();
+    // ...then the live pixel ratio and canvas size come back.
+    expect(bundle.renderer.setPixelRatio).toHaveBeenLastCalledWith(2);
+    expect(bundle.renderer.setSize).toHaveBeenLastCalledWith(400, 300);
+    expect(bundle.canvas.width).toBe(800);
+    expect(bundle.canvas.height).toBe(600);
+  });
+
+  it('restores the camera aspect after capturing at a different one', async () => {
+    const bundle = makeCaptureBundle();
+    const viewer = new ViewerCore(bundle.deps);
+
+    const result = await viewer.captureStill({ width: 1600, height: 400 });
+
+    expect(result.ok).toBe(true);
+    const aspect = (bundle.camera as unknown as { aspect: number }).aspect;
+    expect(aspect).toBeCloseTo(400 / 300);
+    expect(bundle.camera.updateProjectionMatrix).toHaveBeenCalled();
+  });
+
+  it('defaults to the drawing-buffer size', async () => {
+    const bundle = makeCaptureBundle();
+    const viewer = new ViewerCore(bundle.deps);
+
+    const result = await viewer.captureStill();
+
+    expect(result.ok).toBe(true);
+    // 400x300 CSS at pixel ratio 2 → an 800x600 still, rendered at ratio 1.
+    expect(bundle.renderer.setSize).toHaveBeenCalledWith(800, 600);
+  });
+
+  it('keeps the canvas aspect when only one dimension is given', async () => {
+    const bundle = makeCaptureBundle();
+    const viewer = new ViewerCore(bundle.deps);
+
+    await viewer.captureStill({ width: 1000 });
+    expect(bundle.renderer.setSize).toHaveBeenCalledWith(1000, 750);
+
+    await viewer.captureStill({ height: 900 });
+    expect(bundle.renderer.setSize).toHaveBeenCalledWith(1200, 900);
+  });
+
+  it('falls back to buffer-derived logical size when the canvas has no layout', async () => {
+    const bundle = makeCaptureBundle();
+    Object.defineProperty(bundle.canvas, 'clientWidth', { value: 0, configurable: true });
+    Object.defineProperty(bundle.canvas, 'clientHeight', { value: 0, configurable: true });
+    const viewer = new ViewerCore(bundle.deps);
+
+    const result = await viewer.captureStill();
+
+    expect(result.ok).toBe(true);
+    // Buffer 800x600 at ratio 2 → logical 400x300 → default still 800x600,
+    // and the restore must NOT inflate the buffer to 1600x1200.
+    expect(bundle.renderer.setSize).toHaveBeenLastCalledWith(400, 300);
+    expect(bundle.canvas.width).toBe(800);
+  });
+
+  it('rejects sizes outside the renderer limits', async () => {
+    const bundle = makeCaptureBundle();
+    const viewer = new ViewerCore(bundle.deps);
+
+    const tooBig = await viewer.captureStill({ width: 99999 });
+    expect(tooBig.ok).toBe(false);
+    expect(!tooBig.ok && tooBig.error.code).toBe(ErrorCode.INVALID_PARAMETER);
+
+    const zero = await viewer.captureStill({ width: 0 });
+    expect(zero.ok).toBe(false);
+  });
+
+  it('fails after dispose', async () => {
+    const bundle = makeCaptureBundle();
+    const viewer = new ViewerCore(bundle.deps);
+    viewer.dispose();
+
+    const result = await viewer.captureStill();
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_STATE);
+  });
+
+  it('propagates a render failure and still restores the live size', async () => {
+    const bundle = makeCaptureBundle({
+      rendererOverrides: {
+        render: jest.fn(() =>
+          Result.err(new ThreeViewerError('boom', ErrorCode.RENDER_FAILED))
+        ),
+      },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    const result = await viewer.captureStill({ width: 1024 });
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe(ErrorCode.RENDER_FAILED);
+    expect(bundle.renderer.setPixelRatio).toHaveBeenLastCalledWith(2);
+    expect(bundle.renderer.setSize).toHaveBeenLastCalledWith(400, 300);
+  });
+
+  it('reports an empty canvas as a render failure', async () => {
+    const bundle = makeCaptureBundle();
+    (bundle.canvas.toDataURL as jest.Mock).mockReturnValue('data:,');
+    const viewer = new ViewerCore(bundle.deps);
+
+    const result = await viewer.captureStill();
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe(ErrorCode.RENDER_FAILED);
+  });
+
+  it('rejects explicit dimensions in path-traced mode', async () => {
+    const bundle = makeCaptureBundle({
+      options: { pathTracing: { enabled: true } },
+      withPathTracing: true,
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    const result = await viewer.captureStill({ width: 2048 });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_PARAMETER);
+  });
+
+  it('waits for an active path tracer to complete, then captures the canvas as-is', async () => {
+    const bundle = makeCaptureBundle({
+      options: { pathTracing: { enabled: true } },
+      withPathTracing: true,
+      pathTracingOverrides: { isEnabled: jest.fn(() => true) },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    let settled = false;
+    const capture = viewer.captureStill().then((result) => {
+      settled = true;
+      return result;
+    });
+
+    await tick();
+    expect(settled).toBe(false);
+
+    viewer.getEvents().emit('pathtracing:complete', { samples: 16, totalTime: 1000 });
+    const result = await capture;
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value).toBe('data:image/png;base64,still');
+    // The accumulated frame is captured directly — no resize, no re-render.
+    expect(bundle.renderer.setSize).not.toHaveBeenCalled();
+  });
+
+  it('settles with INVALID_STATE when the viewer is disposed mid-wait', async () => {
+    const bundle = makeCaptureBundle({
+      options: { pathTracing: { enabled: true } },
+      withPathTracing: true,
+      pathTracingOverrides: { isEnabled: jest.fn(() => true) },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    const capture = viewer.captureStill();
+    await tick();
+    viewer.dispose();
+
+    const result = await capture;
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_STATE);
+  });
+
+  it('settles with RENDER_FAILED when the model errors mid-wait', async () => {
+    const bundle = makeCaptureBundle({
+      options: { pathTracing: { enabled: true } },
+      withPathTracing: true,
+      pathTracingOverrides: { isEnabled: jest.fn(() => true) },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    const capture = viewer.captureStill();
+    await tick();
+    viewer.getEvents().emit('model:error', {
+      error: new ThreeViewerError('load failed', ErrorCode.MODEL_LOAD_FAILED),
+      url: 'model.glb',
+    });
+
+    const result = await capture;
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe(ErrorCode.RENDER_FAILED);
+  });
+
+  it('captures the canvas as-is when the path tracer is no longer accumulating', async () => {
+    const bundle = makeCaptureBundle({
+      options: { pathTracing: { enabled: true } },
+      withPathTracing: true,
+      pathTracingOverrides: { isEnabled: jest.fn(() => false) },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    // isEnabled() is false (post-completion reset / failed init) — no waiting,
+    // no hang, just the canvas as it stands.
+    const result = await viewer.captureStill();
+    expect(result.ok).toBe(true);
+    expect(bundle.renderer.setSize).not.toHaveBeenCalled();
+  });
+
+  it('falls back to a raster capture when path tracing is enabled but unavailable', async () => {
+    const bundle = makeCaptureBundle({
+      options: { pathTracing: { enabled: true } },
+      withPathTracing: false,
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    const result = await viewer.captureStill({ width: 1024 });
+    expect(result.ok).toBe(true);
+    expect(bundle.renderer.setSize).toHaveBeenCalledWith(1024, 768);
   });
 });

@@ -1,6 +1,14 @@
 Changelog
 =========
 
+3.12.0
+---
+
+### One-line photoreal mode + programmatic stills
+* Added the **`pathTraced`** prop — `<SimpleViewer object={url} pathTraced />` turns on progressive path tracing in one word (shorthand for `options.pathTracing.enabled = true`). It composes with a partial `options.pathTracing` (your tuning fields are kept, the default tuning fills the rest); an explicit `options.pathTracing.enabled` wins. Path tracing remains a construction-time render mode.
+* Added **`handle.captureStill({ width?, height? })`** on the imperative ref: returns a PNG **data URL** of the current scene. In raster mode it renders one fresh frame at the exact requested pixel size (the drawing buffer is temporarily resized with pixel ratio 1, the camera aspect follows, and everything is restored in the same task — nothing flickers on screen); omitting a dimension keeps the canvas aspect, omitting both captures at the canvas drawing-buffer size. In **path-traced** mode it waits for the accumulation to finish (only while the tracer is actively accumulating — a completed, failed or reset tracer captures the canvas as it stands instead of waiting forever) and never dangles: disposing the viewer or a model error settles the promise with an error. Explicit `width`/`height` in path-traced mode are rejected rather than silently downgraded to a non-path-traced render. Captures also wait for any in-flight model load, so you never photograph the previous scene.
+* New `IRenderer.getPixelRatio()` on the core renderer interface; `CaptureStillOptions` exported from the package root.
+
 3.11.1
 ---
 

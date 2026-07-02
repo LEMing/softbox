@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle, useMemo, useCallback } from 'react';
 import { SimpleViewerHandle, SimpleViewerProps } from '../../types';
+import { CaptureStillOptions } from '../../types/SimpleViewerHandle';
 import { ControlsInstance } from '../../types/CommonTypes';
 import { ViewerPreset } from '../../types/options';
 import { useViewerCore, useViewerEventHandlers } from '../hooks';
@@ -15,6 +16,7 @@ import { ViewerEventMap } from '../../events/ViewerEvents';
 import { ViewerEventMap as CoreViewerEventMap } from '../../core/events/ViewerEvents';
 import { ThreeObject3DAdapter } from '../../infrastructure/three/ThreeObject3D';
 import { EventAdapter } from '../adapters/EventAdapter';
+import defaultOptions from '../../defaultOptions';
 import * as THREE from 'three';
 
 /**
@@ -22,7 +24,7 @@ import * as THREE from 'three';
  * Maintains backward compatibility with existing API
  */
 export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
-  ({ object, options = {}, preset }, ref) => {
+  ({ object, options = {}, preset, pathTraced }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     // The `preset` prop is shorthand for `options.preset`; an explicit
     // `options.preset` wins if both are provided.
@@ -59,10 +61,25 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
 
     const activePreset = pickedPreset ?? consumerPreset;
 
-    const resolvedOptions = useMemo(
-      () => (options.preset === activePreset ? options : { ...options, preset: activePreset }),
-      [options, activePreset]
-    );
+    // `pathTraced` is shorthand for `options.pathTracing.enabled = true`; an
+    // explicit `options.pathTracing.enabled` wins. The fold layers over the
+    // default path-tracing tuning (and any partial `options.pathTracing`) so
+    // enabling via the prop doesn't discard maxSamples/bounces defaults —
+    // consumer options replace default sub-objects wholesale otherwise.
+    const resolvedOptions = useMemo(() => {
+      const presetChanged = options.preset !== activePreset;
+      const foldPathTraced = pathTraced === true && options.pathTracing?.enabled === undefined;
+      if (!presetChanged && !foldPathTraced) {
+        return options;
+      }
+      return {
+        ...options,
+        ...(presetChanged ? { preset: activePreset } : {}),
+        ...(foldPathTraced
+          ? { pathTracing: { ...defaultOptions.pathTracing, ...options.pathTracing, enabled: true } }
+          : {}),
+      };
+    }, [options, activePreset, pathTraced]);
     const { viewer, isInitialized } = useViewerCore(canvasRef, resolvedOptions);
     const eventsRef = useRef<TypedEventEmitter<ViewerEventMap>>(
       new TypedEventEmitter()
@@ -231,6 +248,16 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
           if (!result.ok) {
             throw result.error;
           }
+        },
+        captureStill: async (captureOptions?: CaptureStillOptions): Promise<string> => {
+          if (!viewer) {
+            throw new Error('Viewer is not ready');
+          }
+          const result = await viewer.captureStill(captureOptions);
+          if (!result.ok) {
+            throw result.error;
+          }
+          return result.value;
         },
         dispose: () => {
           viewer?.dispose();

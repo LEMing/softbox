@@ -1,4 +1,5 @@
 export { default as SimpleViewer, type SimpleViewerHandle } from './SimpleViewerWrapper'
+export { type CaptureStillOptions } from './types/SimpleViewerHandle'
 export { type SimpleViewerProps } from './types'
 export { type SimpleViewerOptions } from './types'
 export type { ControlsInstance } from './types/CommonTypes'
