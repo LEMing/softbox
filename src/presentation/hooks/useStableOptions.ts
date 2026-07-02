@@ -22,6 +22,8 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
   // Construction-time options: a change requires rebuilding the viewer. Note
   // callbacks (onLoad/onProgress/onError) and animationLoop are intentionally
   // excluded — they are read at construction and would churn on identity change.
+  // UI-only options (loadingIndicator, ui) are also excluded on purpose: they
+  // are React chrome over the canvas and must never rebuild the viewer.
   const structuralKey = useMemo(
     () =>
       JSON.stringify({

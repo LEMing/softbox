@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import SimpleViewer from './SimpleViewerWrapper';
-import { ViewerPreset } from './types/options';
 
 const MODELS: Record<string, string> = {
   Lantern: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Lantern/glTF-Binary/Lantern.glb',
@@ -9,8 +8,6 @@ const MODELS: Record<string, string> = {
   WaterBottle: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/WaterBottle/glTF-Binary/WaterBottle.glb',
   Avocado: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb',
 };
-
-const PRESETS: ViewerPreset[] = ['studio', 'product', 'neutral', 'dark', 'outdoor'];
 
 const FONT =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
@@ -66,7 +63,6 @@ const Picker = ({
 
 const App = () => {
   const [model, setModel] = useState<string>('Lantern');
-  const [preset, setPreset] = useState<ViewerPreset>('studio');
 
   return (
     <div style={{ width: '100vw', height: '100vh', margin: 0, padding: 0, position: 'relative' }}>
@@ -89,13 +85,11 @@ const App = () => {
         }}
       >
         <Picker label="Model" items={Object.keys(MODELS)} value={model} onChange={setModel} />
-        <Picker label="Preset" items={PRESETS} value={preset} onChange={(v) => setPreset(v as ViewerPreset)} />
       </div>
 
-      {/* Only `preset` is passed — the library applies its defaults internally,
-          so switching presets actually changes the look (passing the full
-          defaultOptions here would shallow-override every preset field). */}
-      <SimpleViewer object={MODELS[model]} preset={preset} />
+      {/* Preset switching is dogfooded through the library's own opt-in picker
+          (`ui: { presets: true }`) — the same chips consumers get. */}
+      <SimpleViewer object={MODELS[model]} options={{ ui: { presets: true } }} />
     </div>
   );
 };

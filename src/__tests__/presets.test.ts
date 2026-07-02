@@ -1,4 +1,5 @@
 import { VIEWER_PRESETS, resolvePreset, mergeWithPreset } from '../presets';
+import defaultOptions from '../defaultOptions';
 import { ViewerPreset } from '../types/options';
 import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
 
@@ -31,6 +32,16 @@ describe('viewer presets', () => {
       expect(preset.helpers).toBeUndefined();
       expect(preset.lighting).toBeUndefined();
     }
+  });
+
+  it('studio mirrors the defaults — the built-in picker shows studio as active when no preset is set', () => {
+    expect(VIEWER_PRESETS.studio.backgroundColor).toBe(defaultOptions.backgroundColor);
+    expect(VIEWER_PRESETS.studio.renderer?.toneMappingExposure).toBe(
+      defaultOptions.renderer?.toneMappingExposure
+    );
+    expect(VIEWER_PRESETS.studio.environment?.environmentIntensity).toBe(
+      defaultOptions.environment?.environmentIntensity
+    );
   });
 
   it('product is the brightest and studio is the neutral-light default', () => {

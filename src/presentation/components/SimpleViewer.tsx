@@ -1,12 +1,14 @@
 import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle, useMemo, useCallback } from 'react';
 import { SimpleViewerHandle, SimpleViewerProps } from '../../types';
 import { ControlsInstance } from '../../types/CommonTypes';
+import { ViewerPreset } from '../../types/options';
 import { useViewerCore, useViewerEventHandlers } from '../hooks';
 import { ViewerProvider } from './ViewerContext';
 import { ViewerCanvas } from './ViewerCanvas';
 import { ViewerGizmo } from './ViewerGizmo';
 import { ViewerErrorBoundary } from './ViewerErrorBoundary';
 import { LoadingOverlay } from './LoadingOverlay';
+import { PresetPicker } from './PresetPicker';
 import { resolveLoadingIndicator } from './loadingIndicatorConfig';
 import { TypedEventEmitter } from '../../events/EventEmitter';
 import { ViewerEventMap } from '../../events/ViewerEvents';
@@ -24,9 +26,42 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
     const canvasRef = useRef<HTMLCanvasElement>(null);
     // The `preset` prop is shorthand for `options.preset`; an explicit
     // `options.preset` wins if both are provided.
+    const consumerPreset = options.preset ?? preset;
+
+    // A preset picked in the built-in picker overrides the consumer's preset
+    // until the consumer changes theirs — their change always wins. Picks
+    // reported via ui.onPresetChange may be echoed back into the preset
+    // prop asynchronously (persisted, then re-rendered); an echo of an older
+    // pick must not clobber a newer one, so reported picks are tracked and
+    // their echoes consumed instead of treated as consumer changes.
+    const [pickedPreset, setPickedPreset] = useState<ViewerPreset | null>(null);
+    const reportedPicksRef = useRef<Set<ViewerPreset>>(new Set());
+    useEffect(() => {
+      if (consumerPreset !== undefined && reportedPicksRef.current.has(consumerPreset)) {
+        reportedPicksRef.current.delete(consumerPreset);
+        // Echo of the current pick: the consumer caught up, hand control back.
+        setPickedPreset((picked) => (picked === consumerPreset ? null : picked));
+        return;
+      }
+      reportedPicksRef.current.clear();
+      setPickedPreset(null);
+    }, [consumerPreset]);
+
+    // Hiding the picker hands the look back to the consumer's preset — a pick
+    // must not survive the UI that made it.
+    const presetPickerEnabled = Boolean(options.ui?.presets);
+    useEffect(() => {
+      if (!presetPickerEnabled) {
+        reportedPicksRef.current.clear();
+        setPickedPreset(null);
+      }
+    }, [presetPickerEnabled]);
+
+    const activePreset = pickedPreset ?? consumerPreset;
+
     const resolvedOptions = useMemo(
-      () => (preset !== undefined && options.preset === undefined ? { ...options, preset } : options),
-      [options, preset]
+      () => (options.preset === activePreset ? options : { ...options, preset: activePreset }),
+      [options, activePreset]
     );
     const { viewer, isInitialized } = useViewerCore(canvasRef, resolvedOptions);
     const eventsRef = useRef<TypedEventEmitter<ViewerEventMap>>(
@@ -169,6 +204,14 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
       loadingIndicator.enabled &&
       (loadState.status === 'loading' || loadState.status === 'error');
 
+    const handlePresetSelect = (next: ViewerPreset) => {
+      setPickedPreset(next);
+      if (options.ui?.onPresetChange) {
+        reportedPicksRef.current.add(next);
+        options.ui.onPresetChange(next);
+      }
+    };
+
     // Expose imperative handle for backward compatibility
     useImperativeHandle(ref, () => {
       return {
@@ -221,6 +264,11 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
                 color={loadingIndicator.color}
                 backdrop={loadingIndicator.backdrop}
               />
+            )}
+            {presetPickerEnabled && (
+              /* The defaults ARE the studio look (pinned by presets.test.ts),
+                 so with no preset set the studio chip is the honest active one. */
+              <PresetPicker active={activePreset ?? 'studio'} onSelect={handlePresetSelect} />
             )}
           </div>
         </ViewerProvider>

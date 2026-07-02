@@ -9,6 +9,7 @@ import {
   RenderingOptions,
   LoadingIndicatorOptions,
   LoaderOptions,
+  UIOptions,
   ViewerPreset,
 } from './options';
 
@@ -56,4 +57,10 @@ export interface SimpleViewerOptions {
    * disable a decoder or self-host the DRACO/KTX2 WebAssembly files offline.
    */
   loaders?: LoaderOptions;
+
+  /**
+   * Built-in UI chrome over the canvas (e.g. `ui: { presets: true }` for the
+   * live preset picker). All opt-in; UI-only — never rebuilds the viewer.
+   */
+  ui?: UIOptions;
 }
