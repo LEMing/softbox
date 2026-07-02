@@ -37,6 +37,7 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
         helpers: options.helpers,
         rendering: options.rendering,
         replaceWithScreenshotOnComplete: options.replaceWithScreenshotOnComplete,
+        selection: options.selection,
       }),
     [
       options.pathTracing,
@@ -49,6 +50,7 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
       options.helpers,
       options.rendering,
       options.replaceWithScreenshotOnComplete,
+      options.selection,
     ]
   );
 

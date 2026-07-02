@@ -4,6 +4,7 @@ import {
   SelectionServiceOptions,
 } from '../../core/services/ISelectionService';
 import { ThreeObject3DAdapter } from './ThreeObject3D';
+import { buildRaycastBvh } from './bvh';
 
 // Typical tap slop is larger than mouse jitter, so touch gets a wider budget.
 const DRAG_THRESHOLD_PX = { touch: 10, default: 5 };
@@ -107,7 +108,13 @@ export class ThreeSelectionService implements ISelectionService {
       -((clientY - rect.top) / rect.height) * 2 + 1
     );
 
+    // Models loaded as raw objects bypass the loader's BVH build; make sure
+    // the pick root is accelerated before the first raycast (idempotent).
+    buildRaycastBvh(threeRoot);
+
     this.raycaster.setFromCamera(ndc, threeCamera);
+    // With a BVH, stopping at the closest hit skips the whole ordered-hits pass.
+    (this.raycaster as THREE.Raycaster & { firstHitOnly?: boolean }).firstHitOnly = true;
     const hit = this.raycaster.intersectObject(threeRoot, true)[0];
     if (!hit) {
       onPick(null);

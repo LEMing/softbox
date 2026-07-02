@@ -151,3 +151,38 @@ describe('ModelLoaderFactory', () => {
     );
   });
 });
+
+describe('ThreeGLTFLoaderAdapter BVH build', () => {
+  beforeEach(() => {
+    resetGltfMock();
+    resetDracoMock();
+    resetKtx2Mock();
+  });
+
+  const loadRealScene = async (config = {}) => {
+    const adapter = new ThreeGLTFLoaderAdapter(config);
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
+    const scene = new THREE.Group();
+    scene.add(mesh);
+    // Feed a real THREE scene through the mocked loader.
+    gltfInstances[0].load.mockImplementation(
+      (_url: string, onLoad?: (gltf: { scene: THREE.Group; animations: unknown[] }) => void) => {
+        onLoad?.({ scene, animations: [] });
+      }
+    );
+    const result = await adapter.load('model.glb');
+    return { result, mesh };
+  };
+
+  it('builds the raycast BVH by default', async () => {
+    const { mesh } = await loadRealScene();
+    expect((mesh.geometry as THREE.BufferGeometry & { boundsTree?: unknown }).boundsTree).toBeTruthy();
+  });
+
+  it('skips the BVH build when disabled', async () => {
+    const { mesh } = await loadRealScene({ bvh: false });
+    expect(
+      (mesh.geometry as THREE.BufferGeometry & { boundsTree?: unknown }).boundsTree
+    ).toBeUndefined();
+  });
+});

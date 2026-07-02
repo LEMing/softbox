@@ -9,6 +9,7 @@ import {
   RenderingOptions,
   LoadingIndicatorOptions,
   LoaderOptions,
+  SelectionOptions,
   UIOptions,
   ViewerPreset,
 } from './options';
@@ -63,4 +64,10 @@ export interface SimpleViewerOptions {
    * live preset picker). All opt-in; UI-only — never rebuilds the viewer.
    */
   ui?: UIOptions;
+
+  /**
+   * Click-picking / hotspot-occlusion raycast tuning (e.g. `selection: { bvh:
+   * false }` to skip the load-time BVH build on memory-constrained targets).
+   */
+  selection?: SelectionOptions;
 }

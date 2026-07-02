@@ -76,7 +76,8 @@ describe('ThreeSelectionService', () => {
   });
 
   it('reports the hit object and world-space point for a click on the model', () => {
-    initialize(makeBox());
+    const box = makeBox();
+    initialize(box);
 
     canvas.dispatchEvent(pointer('pointerdown', 100, 100));
     canvas.dispatchEvent(pointer('pointerup', 100, 100));
@@ -87,6 +88,11 @@ describe('ThreeSelectionService', () => {
     // The ray through the canvas center hits the box's front face at z=1.
     expect(pick.point.z).toBeCloseTo(1);
     expect((pick.object as ThreeObject3DAdapter).getThreeObject()).toBeInstanceOf(THREE.Mesh);
+    // The pick root got a lazy BVH (models loaded as raw objects bypass the
+    // loader's build) and the hit above went through the accelerated path.
+    expect(
+      (box.geometry as THREE.BufferGeometry & { boundsTree?: unknown }).boundsTree
+    ).toBeTruthy();
   });
 
   it('treats exactly the threshold as a click and one pixel more as a drag', () => {

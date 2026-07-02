@@ -87,6 +87,21 @@ describe('useViewerCore', () => {
     expect(viewer.dispose).not.toHaveBeenCalled();
   });
 
+  it('rebuilds the viewer when selection options change (the loader is built with them)', async () => {
+    const canvasRef = makeCanvasRef();
+
+    const { result, rerender } = renderHook(
+      ({ options }: { options: SimpleViewerOptions }) => useViewerCore(canvasRef, options),
+      { initialProps: { options: testDefaultOptions } }
+    );
+
+    await waitFor(() => expect(result.current.isInitialized).toBe(true));
+
+    rerender({ options: { ...testDefaultOptions, selection: { bvh: false } } });
+
+    await waitFor(() => expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(2));
+  });
+
   it('rebuilds the viewer on a structural change (camera.fov)', async () => {
     const canvasRef = makeCanvasRef();
 
