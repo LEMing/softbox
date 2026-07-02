@@ -82,4 +82,67 @@ describe('SimpleViewer built-in preset picker', () => {
     );
     expect(lastOptionsPassedToCore().preset).toBe('dark');
   });
+
+  it('renders no picker when ui.presets is explicitly false', () => {
+    render(<SimpleViewer object={null} options={{ ui: { presets: false } }} />);
+    expect(screen.queryByTestId('viewer-preset-picker')).not.toBeInTheDocument();
+  });
+
+  it('clears the picked preset when the picker is turned off', () => {
+    const { rerender } = render(
+      <SimpleViewer object={null} preset="studio" options={{ ui: { presets: true } }} />
+    );
+    fireEvent.click(screen.getByText('dark'));
+    expect(lastOptionsPassedToCore().preset).toBe('dark');
+
+    rerender(
+      <SimpleViewer object={null} preset="studio" options={{ ui: { presets: false } }} />
+    );
+    expect(screen.queryByTestId('viewer-preset-picker')).not.toBeInTheDocument();
+    expect(lastOptionsPassedToCore().preset).toBe('studio');
+  });
+
+  it('does not let an async echo of an older pick revert a newer pick', () => {
+    const onPresetChange = jest.fn();
+    const { rerender } = render(
+      <SimpleViewer
+        object={null}
+        preset="studio"
+        options={{ ui: { presets: true, onPresetChange } }}
+      />
+    );
+
+    // Two quick picks; the consumer persists asynchronously, so the echo of
+    // the FIRST pick arrives in the preset prop after the second pick.
+    fireEvent.click(screen.getByText('dark'));
+    fireEvent.click(screen.getByText('outdoor'));
+    rerender(
+      <SimpleViewer
+        object={null}
+        preset="dark"
+        options={{ ui: { presets: true, onPresetChange } }}
+      />
+    );
+    expect(lastOptionsPassedToCore().preset).toBe('outdoor');
+
+    // The echo of the newer pick hands control back to the consumer.
+    rerender(
+      <SimpleViewer
+        object={null}
+        preset="outdoor"
+        options={{ ui: { presets: true, onPresetChange } }}
+      />
+    );
+    expect(lastOptionsPassedToCore().preset).toBe('outdoor');
+
+    // A genuine consumer change afterwards still wins.
+    rerender(
+      <SimpleViewer
+        object={null}
+        preset="neutral"
+        options={{ ui: { presets: true, onPresetChange } }}
+      />
+    );
+    expect(lastOptionsPassedToCore().preset).toBe('neutral');
+  });
 });

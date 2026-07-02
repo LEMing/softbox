@@ -1,12 +1,13 @@
 import React from 'react';
 import { ViewerPreset } from '../../types/options';
+import { VIEWER_PRESETS } from '../../presets';
 
 export interface PresetPickerProps {
   active: ViewerPreset;
   onSelect: (preset: ViewerPreset) => void;
 }
 
-const PRESETS: ViewerPreset[] = ['studio', 'product', 'neutral', 'dark', 'outdoor'];
+const PRESETS = Object.keys(VIEWER_PRESETS) as ViewerPreset[];
 
 const FONT =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
@@ -32,7 +33,11 @@ export function PresetPicker({ active, onSelect }: PresetPickerProps) {
         gap: 2,
         padding: 4,
         borderRadius: 999,
-        background: 'rgba(255,255,255,0.72)',
+        // Narrow embeds (~320px) can't fit all chips; scroll inside the pill
+        // instead of bleeding past the canvas edges.
+        maxWidth: 'calc(100% - 16px)',
+        overflowX: 'auto',
+        background: 'rgba(255,255,255,0.78)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
         border: '1px solid rgba(0,0,0,0.06)',
@@ -48,13 +53,18 @@ export function PresetPicker({ active, onSelect }: PresetPickerProps) {
           style={{
             padding: '6px 14px',
             borderRadius: 999,
-            border: 'none',
+            // The active border matches the chip background, so it's invisible
+            // normally — but forced-colors mode repaints borders (and strips
+            // backgrounds), keeping the active chip distinguishable there.
+            border: preset === active ? '1px solid #111318' : '1px solid transparent',
             background: preset === active ? '#111318' : 'transparent',
-            color: preset === active ? '#fff' : '#4a4a55',
+            color: preset === active ? '#fff' : '#3f3f4a',
             fontFamily: FONT,
             fontSize: 13,
             fontWeight: 500,
             lineHeight: 1,
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
             cursor: 'pointer',
             textTransform: 'capitalize',
             transition: 'background 120ms ease, color 120ms ease',

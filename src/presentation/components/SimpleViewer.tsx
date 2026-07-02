@@ -29,11 +29,34 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
     const consumerPreset = options.preset ?? preset;
 
     // A preset picked in the built-in picker overrides the consumer's preset
-    // until the consumer changes theirs — their change always wins.
+    // until the consumer changes theirs — their change always wins. Picks
+    // reported via ui.onPresetChange may be echoed back into the preset
+    // prop asynchronously (persisted, then re-rendered); an echo of an older
+    // pick must not clobber a newer one, so reported picks are tracked and
+    // their echoes consumed instead of treated as consumer changes.
     const [pickedPreset, setPickedPreset] = useState<ViewerPreset | null>(null);
+    const reportedPicksRef = useRef<Set<ViewerPreset>>(new Set());
     useEffect(() => {
+      if (consumerPreset !== undefined && reportedPicksRef.current.has(consumerPreset)) {
+        reportedPicksRef.current.delete(consumerPreset);
+        // Echo of the current pick: the consumer caught up, hand control back.
+        setPickedPreset((picked) => (picked === consumerPreset ? null : picked));
+        return;
+      }
+      reportedPicksRef.current.clear();
       setPickedPreset(null);
     }, [consumerPreset]);
+
+    // Hiding the picker hands the look back to the consumer's preset — a pick
+    // must not survive the UI that made it.
+    const presetPickerEnabled = Boolean(options.ui?.presets);
+    useEffect(() => {
+      if (!presetPickerEnabled) {
+        reportedPicksRef.current.clear();
+        setPickedPreset(null);
+      }
+    }, [presetPickerEnabled]);
+
     const activePreset = pickedPreset ?? consumerPreset;
 
     const resolvedOptions = useMemo(
@@ -183,7 +206,10 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
 
     const handlePresetSelect = (next: ViewerPreset) => {
       setPickedPreset(next);
-      options.ui?.onPresetChange?.(next);
+      if (options.ui?.onPresetChange) {
+        reportedPicksRef.current.add(next);
+        options.ui.onPresetChange(next);
+      }
     };
 
     // Expose imperative handle for backward compatibility
@@ -239,9 +265,9 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
                 backdrop={loadingIndicator.backdrop}
               />
             )}
-            {options.ui?.presets && (
-              /* The defaults ARE the studio look, so with no preset set the
-                 studio chip is the honest active one. */
+            {presetPickerEnabled && (
+              /* The defaults ARE the studio look (pinned by presets.test.ts),
+                 so with no preset set the studio chip is the honest active one. */
               <PresetPicker active={activePreset ?? 'studio'} onSelect={handlePresetSelect} />
             )}
           </div>
