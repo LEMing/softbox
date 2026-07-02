@@ -101,7 +101,7 @@ const defaultOptions: SimpleViewerOptions = {
   // Helpers
   helpers: {
     grid: {
-      type: 'hexagonal_wire', // Options: 'square_wire', 'hexagonal_wire', 'hexagonal_glass', 'stone_tiles'
+      type: 'hexagonal_glass', // Glossy glass floor that reflects the environment and catches the model's shadow. Options: 'square_wire', 'hexagonal_wire', 'hexagonal_glass', 'stone_tiles'
       size: 20,              // Grid size (triggers default grid creation)
       divisions: 20,         // Grid divisions
       colorGrid: 0x444444,   // Grid color

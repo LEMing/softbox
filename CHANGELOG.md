@@ -1,6 +1,13 @@
 Changelog
 =========
 
+3.10.0
+---
+
+### Reflective floor with a contact shadow, by default
+* The default floor is now the **glossy glass grid** (`helpers.grid.type: 'hexagonal_glass'`) instead of the wireframe. The model sits on it (floor alignment already put the model's base at `y=0`), the tiles reflect the environment, and a new **transparent shadow-catcher** renders the model's contact shadow — so floor, reflection and shadow all read together out of the box. Set `helpers.grid.type` back to `'hexagonal_wire'` (or `'square_wire'` / `'stone_tiles'`, or disable the grid) to change it.
+* The glass tiles are transmissive, so a cast shadow barely registered on them before; the glass grid now adds a `ShadowMaterial` disc at floor level that catches the shadow clearly while staying invisible everywhere else.
+
 3.9.0
 ---
 
