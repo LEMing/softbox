@@ -110,11 +110,15 @@ export class ThreeSelectionService implements ISelectionService {
 
     // Models loaded as raw objects bypass the loader's BVH build; make sure
     // the pick root is accelerated before the first raycast (idempotent).
-    buildRaycastBvh(threeRoot);
+    // `selection.bvh: false` opts out here too — the whole point of the flag
+    // is avoiding the build cost and the in-place index sort.
+    if (this.options.bvh ?? true) {
+      buildRaycastBvh(threeRoot);
+    }
 
     this.raycaster.setFromCamera(ndc, threeCamera);
     // With a BVH, stopping at the closest hit skips the whole ordered-hits pass.
-    (this.raycaster as THREE.Raycaster & { firstHitOnly?: boolean }).firstHitOnly = true;
+    this.raycaster.firstHitOnly = true;
     const hit = this.raycaster.intersectObject(threeRoot, true)[0];
     if (!hit) {
       onPick(null);

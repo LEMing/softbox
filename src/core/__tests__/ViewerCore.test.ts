@@ -1576,6 +1576,7 @@ describe('ViewerCore selection wiring', () => {
     const wiring = selectionService.initialize.mock.calls[0][0];
     expect(wiring.canvas).toBe(bundle.canvas);
     expect(wiring.camera).toBe(bundle.camera);
+    expect(wiring.bvh).toBeUndefined();
 
     const onSelected = jest.fn();
     viewer.getEvents().on('object:selected', onSelected);
@@ -1587,6 +1588,16 @@ describe('ViewerCore selection wiring', () => {
     // A miss (empty space) emits nothing.
     wiring.onPick(null);
     expect(onSelected).toHaveBeenCalledTimes(1);
+  });
+
+  it('threads selection.bvh into the selection service wiring', async () => {
+    const bundle = makeDeps({ options: { selection: { bvh: false } } });
+    const selectionService = makeSelectionService();
+    const viewer = new ViewerCore({ ...bundle.deps, selectionService });
+
+    await viewer.initialize();
+
+    expect(selectionService.initialize.mock.calls[0][0].bvh).toBe(false);
   });
 
   it('detaches the selection listeners on dispose', async () => {

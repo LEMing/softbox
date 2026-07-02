@@ -130,7 +130,7 @@ export function Hotspot({ position, occlude = false, children }: HotspotProps) {
           // model would throw on every frame.
           raycaster.camera = camera;
           // BVH-aware short-circuit: only the closest hit matters here.
-          (raycaster as THREE.Raycaster & { firstHitOnly?: boolean }).firstHitOnly = true;
+          raycaster.firstHitOnly = true;
           const hit = raycaster.intersectObject(model, true)[0];
           // A small epsilon keeps a hotspot on the model's own surface visible.
           if (hit && hit.distance < anchorDistance - 1e-3) {

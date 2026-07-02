@@ -14,6 +14,8 @@ export interface SelectionServiceOptions {
   getPickRoot: () => IObject3D | null;
   /** Called with the pick on a hit, or null when the click hit empty space. */
   onPick: (pick: SelectionPick | null) => void;
+  /** Accelerate picks with a lazily built BVH (`selection.bvh`, default on). */
+  bvh?: boolean;
 }
 
 /**

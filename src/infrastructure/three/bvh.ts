@@ -6,22 +6,35 @@ import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
  * hotspot occlusion) run in logarithmic instead of linear time on large
  * models. `raycast` is patched per instance — never on shared prototypes, so
  * the consumer's own three.js objects are untouched. Idempotent: geometries
- * that already carry a boundsTree are skipped. Skinned meshes are excluded
- * (their BVH would describe the bind pose, not the animated surface).
+ * that already carry a boundsTree are not rebuilt.
+ *
+ * Excluded, because a static single-transform BVH cannot reproduce their
+ * stock raycast semantics:
+ * - skinned meshes (the BVH would describe the bind pose);
+ * - morph-target meshes (stock raycast applies morphTargetInfluences);
+ * - instanced/batched meshes (stock raycast iterates instances/draw ranges).
+ *
+ * Note: building sorts each geometry's index in place (triangle order changes,
+ * rendering is unaffected) and adds an index to non-indexed geometry.
  */
 export function buildRaycastBvh(root: THREE.Object3D): void {
   root.traverse((child) => {
-    const mesh = child as THREE.Mesh & { isSkinnedMesh?: boolean };
-    if (!mesh.isMesh || mesh.isSkinnedMesh) {
+    const mesh = child as THREE.Mesh & {
+      isSkinnedMesh?: boolean;
+      isInstancedMesh?: boolean;
+      isBatchedMesh?: boolean;
+    };
+    if (!mesh.isMesh || mesh.isSkinnedMesh || mesh.isInstancedMesh || mesh.isBatchedMesh) {
       return;
     }
     const geometry = mesh.geometry;
-    if (!geometry?.attributes?.position || geometry.boundsTree) {
+    if (!geometry?.attributes?.position || geometry.morphAttributes?.position?.length) {
       return;
     }
-    // three-mesh-bvh's type augmentation types `boundsTree` as the worker-built
-    // subclass; the synchronous MeshBVH is the same tree at runtime.
-    geometry.boundsTree = new MeshBVH(geometry) as NonNullable<THREE.BufferGeometry['boundsTree']>;
+    if (!geometry.boundsTree) {
+      geometry.boundsTree = new MeshBVH(geometry);
+    }
+    // Also reached for meshes SHARING an already-built geometry.
     mesh.raycast = acceleratedRaycast;
   });
 }

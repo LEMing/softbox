@@ -9,6 +9,7 @@ import { useViewerCore, useViewerEventHandlers } from '../../hooks';
 import { TypedEventEmitter } from '../../../events/EventEmitter';
 import { ViewerEventMap } from '../../../core/events/ViewerEvents';
 import { ViewerCore } from '../../../core/ViewerCore';
+import { buildRaycastBvh } from '../../../infrastructure/three/bvh';
 
 jest.mock('../../hooks', () => ({
   useViewerCore: jest.fn(),
@@ -87,6 +88,17 @@ describe('Hotspot', () => {
     const wall = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.MeshBasicMaterial());
     wall.position.set(0, 0, 2);
     wall.updateMatrixWorld();
+    const { viewer, canvas } = makeViewer(wall);
+
+    renderHotspot(viewer, canvas, { position: [0, 0, 0], occlude: true });
+    expect(screen.getByTestId('viewer-hotspot').style.visibility).toBe('hidden');
+  });
+
+  it('hides an occluded anchor behind a BVH-accelerated model too', () => {
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.MeshBasicMaterial());
+    wall.position.set(0, 0, 2);
+    wall.updateMatrixWorld();
+    buildRaycastBvh(wall);
     const { viewer, canvas } = makeViewer(wall);
 
     renderHotspot(viewer, canvas, { position: [0, 0, 0], occlude: true });
