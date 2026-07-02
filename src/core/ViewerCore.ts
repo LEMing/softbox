@@ -14,6 +14,7 @@ import { ThreeViewerError, ErrorCode } from '../errors';
 import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
 import { CaptureStillOptions } from '../types/CaptureStillOptions';
 import { IPathTracingService } from './services/IPathTracingService';
+import { ISelectionService } from './services/ISelectionService';
 import { IEnvironmentService } from './services/IEnvironmentService';
 import { ISceneSetupService } from './services/ISceneSetupService';
 import { SceneConfigurator } from './SceneConfigurator';
@@ -46,6 +47,7 @@ export interface ViewerDependencies {
   environmentService?: IEnvironmentService;
   sceneSetupService?: ISceneSetupService;
   floorAlignmentService?: IFloorAlignmentService;
+  selectionService?: ISelectionService;
 }
 
 /**
@@ -85,6 +87,7 @@ export class ViewerCore {
   private readonly sceneSetupService?: ISceneSetupService;
   private environmentService?: IEnvironmentService;
   private pathTracingService?: IPathTracingService;
+  private readonly selectionService?: ISelectionService;
 
   constructor(dependencies: ViewerDependencies) {
     this.renderer = dependencies.renderer;
@@ -96,6 +99,7 @@ export class ViewerCore {
     this.sceneSetupService = dependencies.sceneSetupService;
     this.environmentService = dependencies.environmentService;
     this.pathTracingService = dependencies.pathTracingService;
+    this.selectionService = dependencies.selectionService;
 
     // Initialize managers
     this.stateManager = new StateManager();
@@ -219,6 +223,20 @@ export class ViewerCore {
             }, 100);
           });
         }
+      }
+
+      // Click-picking on the loaded model → 'object:selected'
+      if (this.selectionService) {
+        this.selectionService.initialize({
+          canvas: this.renderer.getDomElement(),
+          camera: this.camera,
+          getPickRoot: () => this.modelManager.getCurrentModel(),
+          onPick: (pick) => {
+            if (pick && !this.disposed) {
+              this.events.emit('object:selected', pick);
+            }
+          },
+        });
       }
 
       // Update state
@@ -667,6 +685,11 @@ export class ViewerCore {
     return this.controls;
   }
 
+  /** The currently loaded model, or null while nothing is loaded. */
+  getModel(): IObject3D | null {
+    return this.modelManager.getCurrentModel();
+  }
+
   /** Request a single render through the internal render loop. */
   requestRender(): void {
     this.renderLoopManager.requestRender();
@@ -894,6 +917,9 @@ export class ViewerCore {
     this.pendingTimers.clear();
 
     this.stopRenderLoop();
+
+    // Detach click-picking listeners
+    this.selectionService?.dispose();
 
     // Dispose managers (resourceManager.dispose() already disposes and detaches
     // all scene contents, so no separate scene.clear() is needed here)

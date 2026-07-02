@@ -25,7 +25,8 @@ export interface ViewerEventMap<TObject, TCamera, TControls, THandle> {
 
   // Interaction events
   'controls:change': { type?: string; camera?: TCamera; controls?: TControls };
-  'object:selected': { object: TObject };
+  /** A click (not a drag) hit the loaded model; `point` is the world-space hit. */
+  'object:selected': { object: TObject; point: { x: number; y: number; z: number } };
 
   // Error events
   'error': { error: ThreeViewerError };

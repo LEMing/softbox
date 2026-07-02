@@ -11,7 +11,8 @@ import {
   ThreePathTracingService,
   ThreeEnvironmentService,
   ThreeSceneSetupService,
-  ThreeFloorAlignmentService
+  ThreeFloorAlignmentService,
+  ThreeSelectionService
 } from '../three';
 import { ControlType } from '../../types/options';
 import { RendererOptionsConverter } from '../converters/RendererOptionsConverter';
@@ -66,6 +67,9 @@ export class ViewerFactory {
     
     // Create floor alignment service
     const floorAlignmentService = new ThreeFloorAlignmentService();
+
+    // Create click-picking service (drives the object:selected event)
+    const selectionService = new ThreeSelectionService();
     
     // Convert renderer options
     const rendererOptions = RendererOptionsConverter.convertRendererOptions(
@@ -93,7 +97,8 @@ export class ViewerFactory {
       sceneSetupService,
       environmentService,
       pathTracingService,
-      floorAlignmentService
+      floorAlignmentService,
+      selectionService
     };
     
     // Create and return ViewerCore

@@ -1,3 +1,4 @@
+import * as React from 'react';
 import * as THREE from 'three';
 import type { SimpleViewerOptions as ViewerOptions } from './types/SimpleViewerOptions';
 import type { ViewerPreset } from './types/options';
@@ -26,5 +27,10 @@ export interface SimpleViewerProps {
    * a photoreal still once the accumulation completes.
    */
   pathTraced?: boolean;
+  /**
+   * Overlay children rendered inside the viewer container (over the canvas),
+   * e.g. `<Hotspot>` annotations.
+   */
+  children?: React.ReactNode;
 }
 

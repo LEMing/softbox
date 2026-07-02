@@ -1,6 +1,14 @@
 Changelog
 =========
 
+3.13.0
+---
+
+### Hotspot annotations + click selection
+* Added the **`<Hotspot position={[x,y,z]}>`** component: render it as a child of `SimpleViewer` to pin DOM content (your own JSX, or a built-in dot pin) to a world-space point of the scene. The anchor is projected through the camera after every rendered frame, so it tracks orbiting, zooming and resizes with no per-frame React re-renders. Anchors behind the camera are hidden; opt-in **`occlude`** also hides a hotspot when the model covers its anchor.
+* Revived the **`object:selected`** event — it was declared in the event map but nothing ever emitted it. A click on the loaded model (drags are ignored via a 5px threshold) now raycasts and emits `{ object, point }` on both the core and public buses; `point` is the world-space hit, ready to feed straight into a `<Hotspot>`. Clicks on empty space emit nothing.
+* New engine-agnostic `ISelectionService` + `ThreeSelectionService` (Raycaster) following the existing service pattern; `ViewerCore.getModel()` exposes the loaded model. `SimpleViewer` now accepts `children`, rendered as overlays inside the viewer container.
+
 3.12.0
 ---
 
