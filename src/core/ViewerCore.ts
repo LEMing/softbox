@@ -22,17 +22,16 @@ import { IFloorAlignmentService } from './services/IFloorAlignmentService';
 import { RenderLoopManager } from './utils/RenderLoopManager';
 import { deepMerge } from '../utils/deepMerge';
 import { SceneSerializer } from './utils/SceneSerializer';
-import { hasInternalRenderer } from './interfaces/IRendererExtension';
+import { applyCameraAspect } from './utils/cameraAspect';
 import { StateManager } from './managers/StateManager';
 import { ScreenshotManager } from './managers/ScreenshotManager';
 import { ModelManager } from './managers/ModelManager';
 import { ResourceManager } from './managers/ResourceManager';
+import { PathTracingCoordinator } from './PathTracingCoordinator';
+import { CaptureController } from './CaptureController';
 import { ViewerState } from './entities/ViewerState';
-import { DEFAULT_PATH_TRACING_SAMPLES } from './constants';
 
 export type { CaptureStillOptions };
-
-type CaptureWaitOutcome = 'complete' | 'disposed' | 'error';
 
 export interface ViewerDependencies {
   renderer: IRenderer;
@@ -51,31 +50,29 @@ export interface ViewerDependencies {
 }
 
 /**
- * Core business logic for the 3D viewer
- * Independent of UI framework and rendering engine
+ * Core business logic for the 3D viewer — a thin orchestrator over the
+ * managers (state, model, screenshot, resources), the path-tracing
+ * coordinator and the capture controller. Independent of UI framework and
+ * rendering engine.
  */
 export class ViewerCore {
   private readonly events: TypedEventEmitter<ViewerEventMap>;
   private readonly renderLoopManager: RenderLoopManager;
-  private lastFrameTime: number = 0;
   private frameCount: number = 0;
-  private pathTracingStartTime?: number;
-  private pathTracingCompleteHandled: boolean = false;
   private disposed: boolean = false;
-  // Pending captureStill waiters, settled by dispose() so their promises never
-  // dangle after teardown.
-  private readonly pendingCaptureSettlers = new Set<(outcome: CaptureWaitOutcome) => void>();
   private readonly pendingTimers: Set<ReturnType<typeof setTimeout>> = new Set();
   // Serializes loadModel() so rapid object changes queue (last-wins) instead of
   // the second load being rejected while the first is still in flight.
   private modelLoadChain: Promise<unknown> = Promise.resolve();
 
-  // Managers
+  // Managers & subsystems
   private readonly stateManager: StateManager;
   private readonly screenshotManager: ScreenshotManager;
   private readonly modelManager: ModelManager;
   private readonly resourceManager: ResourceManager;
   private readonly sceneConfigurator: SceneConfigurator;
+  private readonly pathTracing: PathTracingCoordinator;
+  private readonly capture: CaptureController;
 
   // Dependencies
   private readonly renderer: IRenderer;
@@ -85,8 +82,7 @@ export class ViewerCore {
   private options: SimpleViewerOptions;
   private readonly rendererOptions?: IRendererOptions;
   private readonly sceneSetupService?: ISceneSetupService;
-  private environmentService?: IEnvironmentService;
-  private pathTracingService?: IPathTracingService;
+  private readonly environmentService?: IEnvironmentService;
   private readonly selectionService?: ISelectionService;
 
   constructor(dependencies: ViewerDependencies) {
@@ -98,19 +94,17 @@ export class ViewerCore {
     this.rendererOptions = dependencies.rendererOptions;
     this.sceneSetupService = dependencies.sceneSetupService;
     this.environmentService = dependencies.environmentService;
-    this.pathTracingService = dependencies.pathTracingService;
     this.selectionService = dependencies.selectionService;
 
-    // Initialize managers
     this.stateManager = new StateManager();
-    
+
     this.screenshotManager = new ScreenshotManager({
       renderer: this.renderer,
       onRestore: async () => {
         await this.restoreFromScreenshot();
       }
     });
-    
+
     this.modelManager = new ModelManager({
       modelLoader: dependencies.modelLoader,
       scene: this.scene,
@@ -120,21 +114,20 @@ export class ViewerCore {
       sceneSetupService: this.sceneSetupService,
       autoFitToObject: this.options.camera?.autoFitToObject
     });
-    
+
     this.resourceManager = new ResourceManager({
       scene: this.scene,
-      pathTracingService: this.pathTracingService,
+      pathTracingService: dependencies.pathTracingService,
       environmentService: this.environmentService
     });
 
     this.sceneConfigurator = new SceneConfigurator();
 
     this.events = new TypedEventEmitter<ViewerEventMap>();
-    
-    // Configure render loop based on options
+
     const renderingOptions = this.options.rendering || {};
-    const defaultIdleDetection = this.options.staticScene !== false; // Default to true for static scenes
-    
+    const defaultIdleDetection = this.options.staticScene !== false;
+
     this.renderLoopManager = new RenderLoopManager({
       enableIdleDetection: renderingOptions.enableIdleDetection ?? defaultIdleDetection,
       idleDelay: renderingOptions.idleDelay,
@@ -142,29 +135,44 @@ export class ViewerCore {
       enableFrameRateLimiting: renderingOptions.enableFrameRateLimiting,
       alwaysRender: false // Will be set later based on staticScene
     });
+
+    this.pathTracing = new PathTracingCoordinator({
+      service: dependencies.pathTracingService,
+      events: this.events,
+      renderLoopManager: this.renderLoopManager,
+      renderer: this.renderer,
+      getOptions: () => this.options,
+      isDisposed: () => this.disposed,
+      schedule: (callback, delayMs) => this.schedule(callback, delayMs),
+      replaceWithScreenshot: () => this.replaceWithScreenshot(),
+    });
+
+    this.capture = new CaptureController({
+      renderer: this.renderer,
+      scene: this.scene,
+      camera: this.camera,
+      events: this.events,
+      renderLoopManager: this.renderLoopManager,
+      pathTracing: this.pathTracing,
+      getStatus: () => this.stateManager.getStatus(),
+      isDisposed: () => this.disposed,
+      awaitModelLoads: () => this.modelLoadChain,
+    });
   }
 
-  /**
-   * Initialize the viewer
-   */
   async initialize(): Promise<Result<void>> {
     try {
-      // Use provided renderer options or empty object
-      const rendererOptions = this.rendererOptions || {};
-
-      // Initialize renderer
-      const rendererResult = this.renderer.initialize(rendererOptions);
+      const rendererResult = this.renderer.initialize(this.rendererOptions || {});
       if (!rendererResult.ok) {
         return rendererResult;
       }
 
-      // Setup scene (helpers, lighting, background)
       if (this.sceneSetupService) {
         this.sceneConfigurator.configureScene(this.scene, this.sceneSetupService, this.options);
       }
 
-      // Setup environment. configureEnvironment bails internally if the viewer is
-      // disposed across its awaits; re-check here before the next async step.
+      // configureEnvironment bails internally if the viewer is disposed across
+      // its awaits; re-check here before the next async step.
       if (this.environmentService) {
         await this.sceneConfigurator.configureEnvironment(
           this.scene,
@@ -179,50 +187,9 @@ export class ViewerCore {
         }
       }
 
-      // Initialize path tracing if enabled
-      const pathTracingEnabledInit = this.options.pathTracing?.enabled ?? false;
-      if (this.pathTracingService && pathTracingEnabledInit) {
-        const pathTracingResult = await this.pathTracingService.initialize({
-          enabled: true,
-          renderer: this.renderer
-        });
-        if (this.disposed) {
-          return Result.ok(undefined);
-        }
-
-        if (!pathTracingResult.ok) {
-          console.warn('Failed to initialize path tracing:', pathTracingResult.error);
-        } else {
-          // Update path tracing settings
-          if (this.options.pathTracing) {
-            this.pathTracingService.updateSettings({
-              samples: this.options.pathTracing.maxSamples ?? DEFAULT_PATH_TRACING_SAMPLES,
-              bounces: this.options.pathTracing.bounces,
-              transmissiveBounces: this.options.pathTracing.transmissiveBounces,
-              renderScale: this.options.pathTracing.renderScale,
-              lowResScale: this.options.pathTracing.lowResScale,
-              dynamicLowRes: this.options.pathTracing.dynamicLowRes,
-              enablePathTracing: this.options.pathTracing.enabled ?? pathTracingEnabledInit
-            });
-          }
-          
-          // Listen for pathtracing:paused event
-          this.pathTracingService.events.on('pathtracing:paused', (_data) => {
-            
-            // Stop the render loop to prevent further renders
-            this.renderLoopManager.disableContinuousRendering();
-            
-            // Disable always render if it was enabled
-            if (!this.options.staticScene) {
-              this.renderLoopManager.setAlwaysRender(false);
-            }
-            
-            // Stop the render loop completely after a short delay
-            this.schedule(() => {
-              this.renderLoopManager.stop();
-            }, 100);
-          });
-        }
+      await this.pathTracing.initialize();
+      if (this.disposed) {
+        return Result.ok(undefined);
       }
 
       // Click-picking on the loaded model → 'object:selected'
@@ -240,24 +207,15 @@ export class ViewerCore {
         });
       }
 
-      // Update state
       this.stateManager.setInitialized();
-
-      // Start render loop
       this.startRenderLoop();
-      
-      // Configure render mode based on scene type
+
       if (!this.options.staticScene) {
         this.renderLoopManager.setAlwaysRender(true);
-      } else {
-        // Enable continuous rendering only if path tracing is active
-        const pathTracingEnabled = this.options.pathTracing?.enabled ?? false;
-        if (this.pathTracingService && pathTracingEnabled) {
-          this.renderLoopManager.enableContinuousRendering();
-        }
+      } else if (this.pathTracing.isEnabled()) {
+        this.renderLoopManager.enableContinuousRendering();
       }
-      
-      // Request initial render
+
       this.renderLoopManager.requestRender();
 
       return Result.ok(undefined);
@@ -273,9 +231,6 @@ export class ViewerCore {
     }
   }
 
-  /**
-   * Load a 3D model
-   */
   /**
    * Load a model. Calls are serialized: when `object` changes faster than a load
    * resolves, the new load waits for the in-flight one and then supersedes it
@@ -312,20 +267,12 @@ export class ViewerCore {
       this.stateManager.startLoading();
 
       const result = await this.modelManager.loadModel(source, this.events);
-      
+
       if (result.ok) {
         this.stateManager.setLoaded(result.value);
-        
-        // Request render after model load
         this.renderLoopManager.requestRender();
-        
-        // Reset path tracing when new model is loaded
-        const pathTracingEnabledForReset = this.options.pathTracing?.enabled ?? false;
-        if (this.pathTracingService && pathTracingEnabledForReset) {
-          this.pathTracingService.reset();
-          this.pathTracingCompleteHandled = false;
-        }
-        
+        // A new model restarts the accumulation from scratch.
+        this.pathTracing.resetAccumulation();
         return Result.ok(undefined);
       } else {
         this.stateManager.setError(result.error);
@@ -338,125 +285,56 @@ export class ViewerCore {
           ErrorCode.MODEL_LOAD_FAILED,
           { originalError: error, source }
         );
-      
+
       this.stateManager.setError(viewerError);
       return Result.err(viewerError);
     }
   }
 
-  /**
-   * Start the render loop
-   */
   private startRenderLoop(): void {
     this.renderLoopManager.start((deltaTime) => {
-      // Skip frame if disposed
       if (this.disposed) {
         this.renderLoopManager.stop();
         return;
       }
-      
-      // Skip frame if not initialized
       if (!this.stateManager.isInitialized() || this.stateManager.getStatus() === 'error') {
         return;
       }
-      
-      // Additional safety check - if renderer is disposed, stop the loop
+      // A disposed renderer must stop the loop, not render into a dead context.
       if (!this.renderer || (this.renderer as unknown as { renderer: null | unknown }).renderer === null) {
         this.renderLoopManager.stop();
         return;
       }
-      
+
       const currentTime = performance.now();
       const fps = deltaTime > 0 ? 1000 / deltaTime : 0;
 
-      // Update controls
       const controlsChanged = this.controls.update();
       if (controlsChanged) {
         this.events.emit('controls:change', { controls: this.controls });
-        // Reset path tracing accumulation when camera moves
-        const pathTracingEnabled = this.options.pathTracing?.enabled ?? false;
-        if (this.pathTracingService && pathTracingEnabled) {
-          this.pathTracingService.reset();
-          this.pathTracingCompleteHandled = false;
-        }
-        // Request render on control change
+        // A camera move invalidates the accumulated path-traced frame.
+        this.pathTracing.resetAccumulation();
         this.renderLoopManager.requestRender();
       }
 
-      // Check path tracing status BEFORE rendering
-      const wasPathTracingActive = this.pathTracingService?.isEnabled() || false;
-      const pathTracingSamples = this.pathTracingService?.getSampleCount() || 0;
-      const maxSamples = this.options.pathTracing?.maxSamples ?? DEFAULT_PATH_TRACING_SAMPLES;
-      
-      // Only render if RenderLoopManager says we need to
-      // The manager already handled all the logic about when to render
-      // Render frame
+      // Completion is detected across the frame: snapshot before, check after.
+      const frameState = this.pathTracing.beforeFrame();
+
       this.renderFrame().catch(error => {
         console.error('[ViewerCore] Render frame error:', error);
       });
-      
-      // Check if path tracing just completed AFTER rendering
-      const currentSampleCount = this.pathTracingService?.getSampleCount() || 0;
-      
-      // Path tracing completes once we reach max samples (the service disables
-      // itself during rendering, so we detect the sample threshold, not state).
-      if (currentSampleCount >= maxSamples && !this.pathTracingCompleteHandled && wasPathTracingActive) {
-        this.handlePathTracingComplete(pathTracingSamples, currentTime);
-      }
 
-      // Update render info
+      this.pathTracing.detectCompletion(frameState, currentTime);
+
       this.frameCount++;
       this.stateManager.updateRenderInfo({
         frameCount: this.frameCount,
         fps: Math.round(fps),
         lastRenderTime: performance.now() - currentTime,
       });
-      
-      this.lastFrameTime = currentTime;
     });
   }
 
-  /**
-   * Handle path-tracing reaching its sample target: emit completion, stop
-   * continuous rendering, and either capture a screenshot or keep the final
-   * image on screen.
-   */
-  private handlePathTracingComplete(pathTracingSamples: number, currentTime: number): void {
-    this.pathTracingCompleteHandled = true;
-    this.renderLoopManager.disableContinuousRendering();
-    if (!this.options.staticScene) {
-      this.renderLoopManager.setAlwaysRender(false);
-    }
-
-    this.events.emit('pathtracing:complete', {
-      samples: pathTracingSamples,
-      totalTime: currentTime - (this.pathTracingStartTime || 0),
-    });
-
-    if (this.options.replaceWithScreenshotOnComplete) {
-      this.schedule(() => {
-        this.replaceWithScreenshot();
-        // Stop the render loop after the screenshot to avoid disposed-service renders
-        this.schedule(() => this.renderLoopManager.stop(), 200);
-      }, 100);
-      return;
-    }
-
-    // Keep the final path-traced image visible: one last render, stop the loop,
-    // and prevent autoClear from wiping the preserved buffer.
-    this.renderLoopManager.requestRender();
-    this.schedule(() => this.renderLoopManager.stop(), 100);
-    if (hasInternalRenderer(this.renderer)) {
-      const threeRenderer = this.renderer.getInternalRenderer() as { autoClear: boolean } | null;
-      if (threeRenderer) {
-        threeRenderer.autoClear = false;
-      }
-    }
-  }
-
-  /**
-   * Stop the render loop
-   */
   private stopRenderLoop(): void {
     this.renderLoopManager.stop();
   }
@@ -476,49 +354,24 @@ export class ViewerCore {
     this.pendingTimers.add(id);
   }
 
-  /**
-   * Render a single frame
-   */
   private async renderFrame(): Promise<void> {
     const startTime = performance.now();
 
-    // Check if renderer is initialized
     if (!this.renderer || !this.scene || !this.camera) {
       console.warn('[ViewerCore] Cannot render - components not initialized');
       return;
     }
-    
-    // Don't render if we're showing a screenshot
+    // A screenshot replaces the live canvas; rendering under it is wasted work.
     if (this.screenshotManager.isActive()) {
       return;
     }
 
     this.stateManager.startRendering();
-    
-    let renderResult;
-    const pathTracingActiveInRender = this.pathTracingService?.isEnabled() || false;
-    const pathTracingSamples = this.pathTracingService?.getSampleCount() || 0;
-    const maxSamples = this.options.pathTracing?.maxSamples ?? DEFAULT_PATH_TRACING_SAMPLES;
-    
-    // Check if we should use path tracing
-    // Use path tracing if it's enabled OR if it has completed (to preserve the final image)
-    // BUT NOT if the service has been disposed
-    const shouldUsePathTracing = this.pathTracingService && 
-                                 !this.pathTracingService.isPathTracerDisposed() &&
-                                 (pathTracingActiveInRender || 
-                                  (pathTracingSamples >= maxSamples && pathTracingSamples > 0));
-    
-    if (shouldUsePathTracing && this.pathTracingService) {
-      // Track start time for path tracing
-      if (this.pathTracingService.getSampleCount() === 0) {
-        this.pathTracingStartTime = performance.now();
-      }
-      // Use path tracing renderer (async)
-      renderResult = await this.pathTracingService.render(this.scene, this.camera);
-    } else {
-      // Use standard renderer
-      renderResult = this.renderer.render(this.scene, this.camera);
-    }
+
+    const renderResult = await (
+      this.pathTracing.render(this.scene, this.camera) ??
+      Promise.resolve(this.renderer.render(this.scene, this.camera))
+    );
 
     if (!renderResult.ok) {
       console.error('[ViewerCore] Render failed:', renderResult.error);
@@ -526,29 +379,20 @@ export class ViewerCore {
       return;
     }
 
-    const renderTime = performance.now() - startTime;
-    const sampleCount = this.pathTracingService?.getSampleCount() || 0;
-    
     this.events.emit('render:complete', {
       frame: this.frameCount,
-      renderTime,
-      samples: sampleCount
+      renderTime: performance.now() - startTime,
+      samples: this.pathTracing.getSampleCount()
     });
-    
-    // Remove duplicate path tracing complete event
-    // This is now handled in the render loop callback to ensure proper state transitions
   }
 
-  /**
-   * Resize the renderer
-   */
   /**
    * Apply runtime-tunable options to a live viewer without rebuilding it.
    *
    * Only options that are safe to change on a running viewer are honoured here
-   * (currently the background color). Structural options — renderer, controls
-   * type, path tracing, lighting, helpers, environment — still take effect at
-   * construction time and require a rebuild.
+   * (background color, tone-mapping exposure, environment intensity).
+   * Structural options — renderer, controls type, path tracing, lighting,
+   * helpers — take effect at construction time and require a rebuild.
    */
   updateOptions(partial: Partial<SimpleViewerOptions>): void {
     if (this.disposed) {
@@ -598,69 +442,39 @@ export class ViewerCore {
     if (this.disposed) {
       return;
     }
-    // Skip if dimensions haven't actually changed
     const canvas = this.renderer.getDomElement();
     if (canvas.width === width && canvas.height === height) {
       return;
     }
 
-    // Store current rendering state
-    const wasPathTracingActive = this.pathTracingService?.isEnabled();
+    const wasPathTracingActive = this.pathTracing.onResizeStart();
 
-    // If a path-traced render had completed, its final frame is on the canvas.
-    // A resize invalidates it, so drop the accumulation and let the live scene
-    // render at the new size (matching the previous overlay-removal behavior).
-    if (this.pathTracingService && this.pathTracingCompleteHandled) {
-      this.pathTracingService.reset();
-      this.pathTracingCompleteHandled = false;
-    }
-
-    // Update camera aspect ratio first to ensure correct projection
-    this.applyCameraAspect(width / height);
-    
-    // Update renderer size
+    applyCameraAspect(this.camera, width / height);
     this.renderer.setSize(width, height);
 
-    // Immediately render a frame to prevent aspect ratio stretching
+    // Render immediately so the resized frame never shows stretched.
     try {
       this.renderer.render(this.scene, this.camera);
     } catch {
-      // Silent catch - render might fail if scene is not ready
+      // The scene may not be ready yet; the render loop repaints shortly.
     }
 
-    // Re-enable path tracing if it was active
-    if (wasPathTracingActive && this.pathTracingService) {
-      this.pathTracingService.setEnabled(true);
-    }
-
-    // Request proper render through render loop
+    this.pathTracing.onResizeEnd(wasPathTracingActive);
     this.renderLoopManager.requestRender();
   }
 
-  /**
-   * Get current state
-   */
   getState() {
     return this.stateManager.getState();
   }
 
-  /**
-   * Subscribe to state changes
-   */
   onStateChange(callback: (state: ViewerState) => void): () => void {
     return this.stateManager.onStateChange(callback);
   }
 
-  /**
-   * Get event emitter
-   */
   getEvents(): TypedEventEmitter<ViewerEventMap> {
     return this.events;
   }
 
-  /**
-   * Get renderer DOM element
-   */
   getDomElement(): HTMLCanvasElement {
     return this.renderer.getDomElement();
   }
@@ -697,198 +511,36 @@ export class ViewerCore {
   }
 
   /**
-   * Capture a still of the current scene as a PNG data URL.
-   *
-   * Raster mode renders one fresh frame at the requested resolution (the
-   * drawing buffer is temporarily resized with pixel ratio 1, so `width` ×
-   * `height` are exact output pixels) and restores the live size afterwards —
-   * all synchronously, so nothing flickers on screen. Path-traced mode waits
-   * for the accumulation to complete and captures the canvas as-is; the
-   * accumulated samples exist only at the canvas resolution, so an explicit
-   * `width`/`height` is rejected rather than silently downgraded to a
-   * non-path-traced render.
+   * Capture a still of the current scene as a PNG data URL. See
+   * {@link CaptureController} for the raster and path-traced semantics.
    */
-  async captureStill(options: CaptureStillOptions = {}): Promise<Result<string>> {
-    if (this.disposed) {
-      return Result.err(
-        new ThreeViewerError('Cannot capture a still from a disposed viewer', ErrorCode.INVALID_STATE)
-      );
-    }
-    // A capture taken mid-load would show the previous scene; let queued model
-    // loads finish first.
-    await this.modelLoadChain.catch(() => undefined);
-    if (this.disposed) {
-      return Result.err(
-        new ThreeViewerError('Viewer was disposed while a model load finished', ErrorCode.INVALID_STATE)
-      );
-    }
-    if (this.options.pathTracing?.enabled && this.pathTracingService) {
-      return this.capturePathTracedStill(options);
-    }
-    return this.captureRasterStill(options);
+  captureStill(options: CaptureStillOptions = {}): Promise<Result<string>> {
+    return this.capture.captureStill(options);
   }
 
-  private async capturePathTracedStill(options: CaptureStillOptions): Promise<Result<string>> {
-    if (options.width !== undefined || options.height !== undefined) {
-      return Result.err(
-        new ThreeViewerError(
-          'Path-traced stills are captured at the canvas resolution; omit width/height',
-          ErrorCode.INVALID_PARAMETER
-        )
-      );
-    }
-    // Wait only while the accumulation can still finish. A disabled service
-    // (post-completion reset, failed init, internal error) will never emit
-    // 'pathtracing:complete' again — capture the canvas as it stands instead
-    // of pending forever.
-    const accumulating =
-      Boolean(this.pathTracingService?.isEnabled()) &&
-      this.stateManager.getStatus() !== 'error';
-    if (!this.pathTracingCompleteHandled && accumulating) {
-      const outcome = await this.waitForPathTracingOutcome();
-      if (outcome === 'disposed') {
-        return Result.err(
-          new ThreeViewerError('Viewer was disposed while waiting for the path tracer', ErrorCode.INVALID_STATE)
-        );
-      }
-      if (outcome === 'error') {
-        return Result.err(
-          new ThreeViewerError('Model failed while waiting for the path tracer', ErrorCode.RENDER_FAILED)
-        );
-      }
-    }
-    return this.readCanvasPng();
-  }
-
-  private waitForPathTracingOutcome(): Promise<CaptureWaitOutcome> {
-    return new Promise<CaptureWaitOutcome>((resolve) => {
-      let offComplete = () => {};
-      let offError = () => {};
-      const settle = (outcome: CaptureWaitOutcome) => {
-        this.pendingCaptureSettlers.delete(settle);
-        offComplete();
-        offError();
-        resolve(outcome);
-      };
-      this.pendingCaptureSettlers.add(settle);
-      offComplete = this.events.once('pathtracing:complete', () => settle('complete'));
-      offError = this.events.once('model:error', () => settle('error'));
-    });
-  }
-
-  private captureRasterStill(options: CaptureStillOptions): Result<string> {
-    const canvas = this.renderer.getDomElement();
-    const livePixelRatio = this.renderer.getPixelRatio();
-    // A hidden or detached canvas has no client size; scale the drawing buffer
-    // back to logical pixels instead of mistaking buffer pixels for CSS ones.
-    const hasLayout = canvas.clientWidth > 0 && canvas.clientHeight > 0;
-    const liveWidth = hasLayout ? canvas.clientWidth : Math.round(canvas.width / livePixelRatio);
-    const liveHeight = hasLayout ? canvas.clientHeight : Math.round(canvas.height / livePixelRatio);
-    if (liveWidth <= 0 || liveHeight <= 0) {
-      return Result.err(
-        new ThreeViewerError('Cannot capture: the canvas has no size', ErrorCode.INVALID_STATE)
-      );
-    }
-    const liveAspect = liveWidth / liveHeight;
-
-    const targetWidth = Math.round(
-      options.width ?? (options.height !== undefined ? options.height * liveAspect : liveWidth * livePixelRatio)
-    );
-    const targetHeight = Math.round(
-      options.height ?? (options.width !== undefined ? options.width / liveAspect : liveHeight * livePixelRatio)
-    );
-
-    const maxSize = this.renderer.capabilities.maxTextureSize;
-    if (
-      !Number.isFinite(targetWidth) || !Number.isFinite(targetHeight) ||
-      targetWidth <= 0 || targetHeight <= 0 ||
-      targetWidth > maxSize || targetHeight > maxSize
-    ) {
-      return Result.err(
-        new ThreeViewerError(
-          `Requested still size ${targetWidth}x${targetHeight} is outside 1..${maxSize}`,
-          ErrorCode.INVALID_PARAMETER
-        )
-      );
-    }
-
-    // The whole resize → render → read → restore cycle runs in one task, so
-    // the intermediate size is never painted to screen. The renderer is driven
-    // directly rather than through resize(): its change-detection guard
-    // compares buffer pixels to logical pixels and could skip the restore.
-    this.renderer.setPixelRatio(1);
-    this.renderer.setSize(targetWidth, targetHeight);
-    this.applyCameraAspect(targetWidth / targetHeight);
-    const rendered = this.renderer.render(this.scene, this.camera);
-    const still = rendered.ok ? this.readCanvasPng() : Result.err(rendered.error);
-    // Size first, ratio second: three re-applies the last logical size when the
-    // pixel ratio changes, so this order never allocates a target×DPR buffer.
-    this.renderer.setSize(liveWidth, liveHeight);
-    this.renderer.setPixelRatio(livePixelRatio);
-    this.applyCameraAspect(liveAspect);
-    this.renderer.render(this.scene, this.camera);
-    this.renderLoopManager.requestRender();
-    return still;
-  }
-
-  private applyCameraAspect(aspect: number): void {
-    if (this.camera.type === 'perspective' && 'aspect' in this.camera) {
-      this.camera.aspect = aspect;
-    }
-    this.camera.updateProjectionMatrix();
-  }
-
-  private readCanvasPng(): Result<string> {
-    const dataUrl = this.renderer.getDomElement().toDataURL('image/png');
-    if (!dataUrl || dataUrl === 'data:,') {
-      return Result.err(
-        new ThreeViewerError('Canvas produced an empty image', ErrorCode.RENDER_FAILED)
-      );
-    }
-    return Result.ok(dataUrl);
-  }
-
-  /**
-   * Replace the 3D scene with a screenshot
-   */
   private replaceWithScreenshot(): void {
     const lastModelUrl = this.modelManager.getLastModelUrl();
-    
+
     this.screenshotManager.captureAndReplace(
       this.camera,
       this.controls,
       lastModelUrl,
       () => {
-        // Dispose scene resources
         this.modelManager.disposeCurrentModel();
         this.resourceManager.disposeSceneResources(true);
       }
     );
   }
 
-  /**
-   * Restore the 3D scene from screenshot
-   */
   private async restoreFromScreenshot(): Promise<void> {
     const serializedState = this.screenshotManager.getSerializedState();
-    
-    // Renderer is still available - no need to re-initialize
-    
-    // Re-create services if they were disposed
-    if (!this.pathTracingService && this.options.pathTracing?.enabled) {
-      // Note: This is a limitation - we can't recreate the service here
-      // Would need factory access or dependency injection
-      console.warn('[ViewerCore] Cannot recreate path tracing service - feature disabled');
-    }
-    
-    // Restore scene state
+
     if (serializedState) {
       await SceneSerializer.restore(
         serializedState,
         this.camera,
         this.controls,
         async (url) => {
-          // Reload the model
           const result = await this.loadModel(url);
           if (!result.ok) {
             console.error('[ViewerCore] Failed to reload model:', result.error);
@@ -896,52 +548,37 @@ export class ViewerCore {
         }
       );
     }
-    
-    // Start render loop again
+
     if (!this.renderLoopManager.isRunning()) {
       this.startRenderLoop();
     }
-    
-    // Request immediate render
     this.renderLoopManager.requestRender();
   }
 
-  /**
-   * Dispose of all resources
-   */
   dispose(): void {
     // Mark as disposed first to prevent any further operations
     this.disposed = true;
 
-    // Cancel any deferred screenshot/stop callbacks so they never run after teardown
     this.pendingTimers.forEach((id) => clearTimeout(id));
     this.pendingTimers.clear();
 
     this.stopRenderLoop();
-
-    // Detach click-picking listeners
     this.selectionService?.dispose();
 
-    // Dispose managers (resourceManager.dispose() already disposes and detaches
-    // all scene contents, so no separate scene.clear() is needed here)
+    // resourceManager.dispose() already disposes and detaches all scene
+    // contents, so no separate scene.clear() is needed here.
     this.modelManager.dispose();
     this.resourceManager.dispose();
     this.screenshotManager.dispose();
-
-    // Dispose controls
     this.controls.dispose();
-
-    // Dispose renderer
     this.renderer.dispose();
 
-    // Update state
     this.stateManager.setDisposed();
 
     // Settle any captureStill waiter so its promise resolves to INVALID_STATE
     // instead of dangling after the listener map is cleared below.
-    [...this.pendingCaptureSettlers].forEach((settle) => settle('disposed'));
+    this.capture.settleOnDispose();
 
-    // Remove all event listeners
     this.events.removeAllListeners();
     this.stateManager.clearCallbacks();
   }

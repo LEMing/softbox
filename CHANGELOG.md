@@ -1,6 +1,13 @@
 Changelog
 =========
 
+3.15.1
+---
+
+### ViewerCore decomposed (architecture roadmap item 1)
+* `ViewerCore` shrank from 947 to 585 lines by extracting two focused core modules, with **zero public-API changes**: **`PathTracingCoordinator`** owns the path-tracing lifecycle around the render loop (initialization, accumulation resets, PT-aware frame rendering, completion detection and its side effects), and **`CaptureController`** owns the whole `captureStill` subsystem (raster resize-render-restore cycle, the path-traced wait state machine, dispose settlement). Both are pinned with per-path coverage locks.
+* Shared helpers extracted on the way: `applyCameraAspect` (used by resize and capture) and `canvasToPngDataUrl` (the empty-buffer guard, now shared with `ScreenshotManager` instead of duplicated). Dead `lastFrameTime` bookkeeping, an unreachable service-recreation branch and duplicated jsdocs are gone; the remaining service fields are `readonly`.
+
 3.15.0
 ---
 

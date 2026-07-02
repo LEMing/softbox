@@ -860,14 +860,15 @@ describe('ViewerCore', () => {
       const bundle = makeDeps({ canvas, withPathTracing: true });
       const viewer = new ViewerCore(bundle.deps);
       // Simulate a completed path-traced render whose final frame is on the canvas.
-      (viewer as unknown as { pathTracingCompleteHandled: boolean }).pathTracingCompleteHandled = true;
+      const coordinator = (viewer as unknown as {
+        pathTracing: { completeHandled: boolean };
+      }).pathTracing;
+      coordinator.completeHandled = true;
 
       viewer.resize(1024, 768);
 
       expect(bundle.pathTracingService!.reset).toHaveBeenCalled();
-      expect(
-        (viewer as unknown as { pathTracingCompleteHandled: boolean }).pathTracingCompleteHandled
-      ).toBe(false);
+      expect(coordinator.completeHandled).toBe(false);
     });
 
     it('silently ignores render failures during resize', () => {

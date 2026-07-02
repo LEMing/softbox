@@ -50,6 +50,18 @@ export default {
       functions: 78,
       lines: 92,
     },
+    './src/core/CaptureController.ts': {
+      statements: 92,
+      branches: 88,
+      functions: 78,
+      lines: 92,
+    },
+    './src/core/PathTracingCoordinator.ts': {
+      statements: 95,
+      branches: 88,
+      functions: 95,
+      lines: 95,
+    },
     './src/infrastructure/three/disposal.ts': {
       statements: 100,
       branches: 90,
