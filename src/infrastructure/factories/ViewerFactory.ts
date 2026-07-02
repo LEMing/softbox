@@ -8,7 +8,7 @@ import {
   ThreeMapControlsAdapter,
   ModelLoaderFactory,
   GLTFLoaderConfig,
-  ThreePathTracingService,
+  LazyPathTracingService,
   ThreeEnvironmentService,
   ThreeSceneSetupService,
   ThreeFloorAlignmentService,
@@ -63,7 +63,7 @@ export class ViewerFactory {
     let pathTracingService;
     const pathTracingEnabled = options.pathTracing?.enabled ?? false;
     if (pathTracingEnabled) {
-      pathTracingService = new ThreePathTracingService();
+      pathTracingService = new LazyPathTracingService();
     }
     
     // Create floor alignment service

@@ -1,6 +1,13 @@
 Changelog
 =========
 
+3.16.0
+---
+
+### Path tracer no longer weighs down every consumer (architecture roadmap item 6)
+* `three-gpu-pathtracer` was eagerly bundled into the entry chunk — ~49 kB gzip, about 40% of the payload — even for the vast majority of consumers who never enable path tracing. The tracer now lives in its own chunk behind a **dynamic import**: the new `LazyPathTracingService` facade loads the real service inside `initialize()` and delegates from then on (settings applied before the load finishes are replayed). **Base bundle: ~154 → ~105 kB gzip.** Same mechanism as the compression decoders; no API changes — `pathTracing.enabled` works exactly as before, the chunk just loads on demand.
+* `ThreePathTracingService` is intentionally no longer re-exported from the infrastructure barrel (a static re-export would drag the tracer back into the entry chunk).
+
 3.15.2
 ---
 
