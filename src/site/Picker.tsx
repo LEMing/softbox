@@ -10,14 +10,14 @@ export interface PickerProps {
 
 /** A labelled row of chip buttons (site chrome, not library UI). */
 export const Picker = ({ label, items, value, onChange }: PickerProps) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+  <div role="group" aria-label={label} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
     <span
       style={{
         fontSize: 11,
         fontWeight: 600,
         letterSpacing: '0.06em',
         textTransform: 'uppercase',
-        color: '#9a9aa5',
+        color: '#7a7a85',
         minWidth: 58,
       }}
     >
@@ -26,11 +26,15 @@ export const Picker = ({ label, items, value, onChange }: PickerProps) => (
     {items.map((item) => (
       <button
         key={item}
+        type="button"
+        aria-pressed={value === item}
         onClick={() => onChange(item)}
         style={{
           padding: '6px 14px',
           borderRadius: 999,
-          border: 'none',
+          // Invisible normally; forced-colors mode repaints borders, keeping
+          // the active chip distinguishable there.
+          border: value === item ? '1px solid #111318' : '1px solid transparent',
           background: value === item ? '#111318' : 'transparent',
           color: value === item ? '#fff' : '#3f3f4a',
           fontFamily: FONT,

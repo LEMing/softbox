@@ -4,9 +4,22 @@ import { FONT, MONO_FONT, glassPanel } from './siteTheme';
 const INSTALL = 'npm install threedviewer';
 const USAGE = `import { SimpleViewer } from 'threedviewer';
 
-<SimpleViewer object="/model.glb" options={{ ui: { presets: true } }} />`;
+<SimpleViewer
+  object="/model.glb"
+  options={{ ui: { presets: true } }}
+/>`;
 
-const Line = ({ code, onCopy, copied }: { code: string; onCopy: () => void; copied: boolean }) => (
+const Line = ({
+  code,
+  label,
+  onCopy,
+  copied,
+}: {
+  code: string;
+  label: string;
+  onCopy: () => void;
+  copied: boolean;
+}) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
     <pre
       style={{
@@ -24,7 +37,7 @@ const Line = ({ code, onCopy, copied }: { code: string; onCopy: () => void; copi
     </pre>
     <button
       onClick={onCopy}
-      aria-label="Copy to clipboard"
+      aria-label={label}
       style={{
         border: 'none',
         borderRadius: 8,
@@ -44,7 +57,7 @@ const Line = ({ code, onCopy, copied }: { code: string; onCopy: () => void; copi
   </div>
 );
 
-/** Install + one-liner usage, each with a copy button. */
+/** Install + usage snippets, each with a copy button. */
 export function CodeSnippet() {
   const [copied, setCopied] = useState<'install' | 'usage' | null>(null);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -59,13 +72,18 @@ export function CodeSnippet() {
   );
 
   const copy = (which: 'install' | 'usage', text: string) => {
-    navigator.clipboard?.writeText(text).then(() => {
-      setCopied(which);
-      if (resetTimerRef.current) {
-        clearTimeout(resetTimerRef.current);
-      }
-      resetTimerRef.current = setTimeout(() => setCopied(null), 1600);
-    });
+    navigator.clipboard
+      ?.writeText(text)
+      .then(() => {
+        setCopied(which);
+        if (resetTimerRef.current) {
+          clearTimeout(resetTimerRef.current);
+        }
+        resetTimerRef.current = setTimeout(() => setCopied(null), 1600);
+      })
+      .catch(() => {
+        // Clipboard permission denied — the button simply stays "Copy".
+      });
   };
 
   return (
@@ -76,11 +94,24 @@ export function CodeSnippet() {
         flexDirection: 'column',
         gap: 8,
         padding: '12px 14px',
-        maxWidth: 520,
+        maxWidth: 'calc(100vw - 32px)',
       }}
     >
-      <Line code={INSTALL} copied={copied === 'install'} onCopy={() => copy('install', INSTALL)} />
-      <Line code={USAGE} copied={copied === 'usage'} onCopy={() => copy('usage', USAGE)} />
+      <Line
+        code={INSTALL}
+        label="Copy install command"
+        copied={copied === 'install'}
+        onCopy={() => copy('install', INSTALL)}
+      />
+      <Line
+        code={USAGE}
+        label="Copy usage code"
+        copied={copied === 'usage'}
+        onCopy={() => copy('usage', USAGE)}
+      />
+      <span role="status" aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)' }}>
+        {copied ? 'Copied to clipboard' : ''}
+      </span>
     </div>
   );
 }

@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import SimpleViewer from '../SimpleViewerWrapper';
 import { Picker } from './Picker';
 import { CodeSnippet } from './CodeSnippet';
 import { useDropModel } from './useDropModel';
+import { useMediaQuery } from './useMediaQuery';
 import { FONT, glassPanel } from './siteTheme';
 
 const SAMPLE_MODELS: Record<string, string> = {
@@ -23,11 +24,13 @@ const GitHubMark = () => (
 /**
  * The playground site: a full-viewport viewer as the hero, the library's own
  * preset picker as the controls, plus site chrome — brand, sample-model picker,
- * install snippet and window-level .glb drag & drop.
+ * install snippet, and your own .glb via drag & drop or the file browser.
  */
 export function SiteApp() {
-  const { dropped, isDragging } = useDropModel();
+  const { dropped, isDragging, rejectedName, loadFile } = useDropModel();
   const [selected, setSelected] = useState<string>('Lantern');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const showSnippet = useMediaQuery('(min-width: 840px)');
 
   // A fresh drop always takes the stage.
   useEffect(() => {
@@ -39,8 +42,17 @@ export function SiteApp() {
   const pickerItems = dropped ? [...Object.keys(SAMPLE_MODELS), DROPPED_KEY] : Object.keys(SAMPLE_MODELS);
   const modelUrl = selected === DROPPED_KEY && dropped ? dropped.url : SAMPLE_MODELS[selected];
 
+  const handleFileChosen = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      loadFile(file);
+    }
+    // Allow re-choosing the same file.
+    event.target.value = '';
+  };
+
   return (
-    <div style={{ width: '100vw', height: '100vh', margin: 0, padding: 0, position: 'relative', fontFamily: FONT }}>
+    <div style={{ width: '100%', height: '100%', margin: 0, padding: 0, position: 'relative', fontFamily: FONT }}>
       <div
         style={{
           position: 'absolute',
@@ -51,10 +63,11 @@ export function SiteApp() {
           flexDirection: 'column',
           gap: 10,
           padding: '14px 16px',
+          maxWidth: 'calc(100vw - 32px)',
           ...glassPanel,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: '#111318' }}>
             threedviewer
           </span>
@@ -66,20 +79,53 @@ export function SiteApp() {
             target="_blank"
             rel="noreferrer"
             aria-label="GitHub repository"
-            style={{ color: '#3f3f4a', display: 'inline-flex', alignSelf: 'center' }}
+            style={{ color: '#3f3f4a', display: 'inline-flex', alignSelf: 'center', padding: 6, margin: -6 }}
           >
             <GitHubMark />
           </a>
         </div>
         <Picker label="Model" items={pickerItems} value={selected} onChange={setSelected} />
-        <div style={{ fontSize: 11.5, color: '#9a9aa5' }}>
-          Drag &amp; drop a <code style={{ fontSize: 11 }}>.glb</code> anywhere to view your own model
+        <div style={{ fontSize: 11.5, color: rejectedName ? '#b3261e' : '#7a7a85' }} role="status">
+          {rejectedName ? (
+            <>Only self-contained <code style={{ fontSize: 11 }}>.glb</code> models are supported</>
+          ) : (
+            <>
+              Drag &amp; drop a <code style={{ fontSize: 11 }}>.glb</code> anywhere — or{' '}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  padding: 0,
+                  fontFamily: FONT,
+                  fontSize: 11.5,
+                  color: '#3f3f4a',
+                  fontWeight: 600,
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                }}
+              >
+                browse
+              </button>
+            </>
+          )}
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".glb"
+          onChange={handleFileChosen}
+          aria-label="Choose a .glb model file"
+          style={{ display: 'none' }}
+        />
       </div>
 
-      <div style={{ position: 'absolute', bottom: 16, left: 16, zIndex: 10 }}>
-        <CodeSnippet />
-      </div>
+      {showSnippet && (
+        <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}>
+          <CodeSnippet />
+        </div>
+      )}
 
       <SimpleViewer object={modelUrl} options={{ ui: { presets: true } }} />
 
