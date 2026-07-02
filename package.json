@@ -1,7 +1,8 @@
 {
   "name": "threedviewer",
   "private": false,
-  "version": "3.11.0",
+  "version": "3.11.1",
+  "homepage": "https://leming.github.io/ThreeDViewer/",
   "type": "module",
   "description": "A 3D viewer based on React and Three.js",
   "keywords": [
@@ -21,6 +22,7 @@
   "scripts": {
     "dev": "vite",
     "build": "NODE_ENV=production tsc --noEmit && vite build",
+    "build:site": "vite build --config vite.site.config.ts",
     "preview": "vite preview",
     "test": "jest --runInBand",
     "typecheck": "tsc --noEmit",
