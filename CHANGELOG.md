@@ -1,6 +1,14 @@
 Changelog
 =========
 
+3.11.0
+---
+
+### Built-in preset picker (opt-in)
+* Added an opt-in **preset picker** rendered by the library itself: `options.ui = { presets: true }` shows a row of curated chips (`studio | product | neutral | dark | outdoor`) floating bottom-center over the canvas. Picking a chip switches the visual preset **live** — same runtime path as the `preset` prop, so no rebuild and no model reload. Off by default; consumers who render their own chrome see no change.
+* A picked preset overrides the consumer's `preset` prop/option until the consumer changes theirs — an updated `preset` from props always wins. `ui.onPresetChange` reports picks (e.g. to persist the choice). With no preset set, the `studio` chip shows as active, since the defaults are the studio look.
+* New `UIOptions` type (`options.ui`) reserved for built-in UI chrome; UI-only, so toggling it never rebuilds the viewer. The dev harness now dogfoods the built-in picker instead of its own preset row.
+
 3.10.0
 ---
 
