@@ -19,10 +19,11 @@ export interface SimpleViewerProps {
    */
   preset?: ViewerPreset;
   /**
-   * Shorthand for `options.pathTracing.enabled` — photoreal progressive path
-   * tracing (a construction-time render mode). `options.pathTracing` takes
-   * precedence if both are set. Pair with `handle.captureStill()` for a
-   * photoreal still once the accumulation completes.
+   * Shorthand for `options.pathTracing.enabled = true` — photoreal progressive
+   * path tracing (a construction-time render mode). Composes with a partial
+   * `options.pathTracing` (tuning fields are kept); an explicit
+   * `options.pathTracing.enabled` wins. Pair with `handle.captureStill()` for
+   * a photoreal still once the accumulation completes.
    */
   pathTraced?: boolean;
 }

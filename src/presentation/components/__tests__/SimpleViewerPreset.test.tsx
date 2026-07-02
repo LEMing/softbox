@@ -4,6 +4,7 @@ import '@testing-library/jest-dom';
 import { SimpleViewer } from '../SimpleViewer';
 import { useViewerCore, useViewerEventHandlers } from '../../hooks';
 import { SimpleViewerOptions } from '../../../types/SimpleViewerOptions';
+import defaultOptions from '../../../defaultOptions';
 
 jest.mock('../../hooks', () => ({
   useViewerCore: jest.fn(),
@@ -40,12 +41,30 @@ describe('SimpleViewer preset prop', () => {
 });
 
 describe('SimpleViewer pathTraced prop', () => {
-  it('folds the pathTraced prop into the options passed to the core', () => {
+  it('folds the pathTraced prop over the default path-tracing tuning', () => {
     render(<SimpleViewer object={null} pathTraced />);
-    expect(optionsPassedToCore().pathTracing).toEqual({ enabled: true });
+    expect(optionsPassedToCore().pathTracing).toEqual({
+      ...defaultOptions.pathTracing,
+      enabled: true,
+    });
   });
 
-  it('lets options.pathTracing take precedence over the prop', () => {
+  it('composes with a partial options.pathTracing (tuning kept, enabled set)', () => {
+    render(
+      <SimpleViewer
+        object={null}
+        pathTraced
+        options={{ pathTracing: { maxSamples: 64 } }}
+      />
+    );
+    expect(optionsPassedToCore().pathTracing).toEqual({
+      ...defaultOptions.pathTracing,
+      maxSamples: 64,
+      enabled: true,
+    });
+  });
+
+  it('lets an explicit options.pathTracing.enabled win over the prop', () => {
     render(
       <SimpleViewer
         object={null}
@@ -54,6 +73,11 @@ describe('SimpleViewer pathTraced prop', () => {
       />
     );
     expect(optionsPassedToCore().pathTracing).toEqual({ enabled: false });
+  });
+
+  it('folds nothing for pathTraced={false} (same as omitting the prop)', () => {
+    render(<SimpleViewer object={null} pathTraced={false} />);
+    expect(optionsPassedToCore().pathTracing).toBeUndefined();
   });
 
   it('adds no pathTracing when neither prop nor option is set', () => {

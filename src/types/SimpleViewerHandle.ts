@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { ControlsInstance } from './CommonTypes';
 import { TypedEventEmitter } from '../events/EventEmitter';
 import { ViewerEventMap } from '../events/ViewerEvents';
-import { CaptureStillOptions } from '../core/ViewerCore';
+import { CaptureStillOptions } from './CaptureStillOptions';
 
 export type { CaptureStillOptions };
 

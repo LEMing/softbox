@@ -16,6 +16,7 @@ import { ViewerEventMap } from '../../events/ViewerEvents';
 import { ViewerEventMap as CoreViewerEventMap } from '../../core/events/ViewerEvents';
 import { ThreeObject3DAdapter } from '../../infrastructure/three/ThreeObject3D';
 import { EventAdapter } from '../adapters/EventAdapter';
+import defaultOptions from '../../defaultOptions';
 import * as THREE from 'three';
 
 /**
@@ -60,18 +61,23 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
 
     const activePreset = pickedPreset ?? consumerPreset;
 
-    // `pathTraced` is shorthand for `options.pathTracing.enabled`; an explicit
-    // `options.pathTracing` wins if both are provided.
+    // `pathTraced` is shorthand for `options.pathTracing.enabled = true`; an
+    // explicit `options.pathTracing.enabled` wins. The fold layers over the
+    // default path-tracing tuning (and any partial `options.pathTracing`) so
+    // enabling via the prop doesn't discard maxSamples/bounces defaults —
+    // consumer options replace default sub-objects wholesale otherwise.
     const resolvedOptions = useMemo(() => {
       const presetChanged = options.preset !== activePreset;
-      const foldPathTraced = pathTraced !== undefined && options.pathTracing === undefined;
+      const foldPathTraced = pathTraced === true && options.pathTracing?.enabled === undefined;
       if (!presetChanged && !foldPathTraced) {
         return options;
       }
       return {
         ...options,
         ...(presetChanged ? { preset: activePreset } : {}),
-        ...(foldPathTraced ? { pathTracing: { enabled: pathTraced } } : {}),
+        ...(foldPathTraced
+          ? { pathTracing: { ...defaultOptions.pathTracing, ...options.pathTracing, enabled: true } }
+          : {}),
       };
     }, [options, activePreset, pathTraced]);
     const { viewer, isInitialized } = useViewerCore(canvasRef, resolvedOptions);
