@@ -1,4 +1,5 @@
 import { IRenderer, ICamera, IControls } from '../interfaces';
+import { canvasToPngDataUrl } from '../utils/canvasPng';
 import { SceneSerializer, SerializedSceneState } from '../utils/SceneSerializer';
 
 export interface ScreenshotManagerDependencies {
@@ -43,11 +44,11 @@ export class ScreenshotManager {
 
     const canvas = this.renderer.getDomElement();
 
-    // Capture the current frame as a data URL. If the drawing buffer was not
-    // preserved this can come back empty ("data:,"); in that case keep the live
-    // scene rather than replacing it with a blank image and disposing resources.
-    const dataURL = canvas.toDataURL('image/png');
-    if (!dataURL || dataURL === 'data:,') {
+    // If the drawing buffer was not preserved the capture comes back empty;
+    // keep the live scene rather than replacing it with a blank image and
+    // disposing resources.
+    const dataURL = canvasToPngDataUrl(canvas);
+    if (!dataURL) {
       console.warn('[ScreenshotManager] Screenshot capture produced no image, keeping live scene');
       return;
     }
