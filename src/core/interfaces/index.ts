@@ -8,3 +8,4 @@ export * from './IControls';
 
 // Re-export Result for convenience
 export { Result } from '../../utils/Result';
+export * from './Vec3Like';

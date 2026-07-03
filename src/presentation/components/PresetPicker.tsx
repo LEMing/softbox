@@ -1,6 +1,7 @@
 import React from 'react';
 import { ViewerPreset } from '../../types/options';
 import { VIEWER_PRESETS } from '../../presets';
+import { FONT, glassSurface } from './theme';
 
 export interface PresetPickerProps {
   active: ViewerPreset;
@@ -8,9 +9,6 @@ export interface PresetPickerProps {
 }
 
 const PRESETS = Object.keys(VIEWER_PRESETS) as ViewerPreset[];
-
-const FONT =
-  '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 
 /**
  * Built-in preset picker: a curated row of chips floating over the canvas that
@@ -37,11 +35,7 @@ export function PresetPicker({ active, onSelect }: PresetPickerProps) {
         // instead of bleeding past the canvas edges.
         maxWidth: 'calc(100% - 16px)',
         overflowX: 'auto',
-        background: 'rgba(255,255,255,0.78)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        border: '1px solid rgba(0,0,0,0.06)',
-        boxShadow: '0 8px 30px rgba(0,0,0,0.10)',
+        ...glassSurface,
       }}
     >
       {PRESETS.map((preset) => (

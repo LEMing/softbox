@@ -281,6 +281,15 @@ describe('ScreenshotManager', () => {
     it('should handle dispose when not active', () => {
       expect(() => screenshotManager.dispose()).not.toThrow();
     });
+
+    it('unhides the canvas so a successor viewer on the same element is visible', () => {
+      screenshotManager.captureAndReplace(mockCamera, mockControls, 'test.glb', jest.fn());
+      expect(mockCanvas.style.display).toBe('none');
+
+      screenshotManager.dispose();
+
+      expect(mockCanvas.style.display).toBe('');
+    });
   });
 
   describe('window resize handling', () => {

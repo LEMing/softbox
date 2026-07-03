@@ -21,6 +21,10 @@ type SceneWithOriginalTexture = THREE.Scene & {
 export class ThreeEnvironmentService implements IEnvironmentService {
   private pmremGenerator: THREE.PMREMGenerator | null = null;
   private loadedTextures: Map<string, THREE.Texture> = new Map();
+  // PMREM outputs live in render targets; disposing only their .texture leaks
+  // one FBO per build, so the targets themselves are retained and freed.
+  private renderTargets: THREE.WebGLRenderTarget[] = [];
+  private disposed = false;
 
   constructor() {
     // PMREMGenerator will be created when initialize is called with a renderer
@@ -113,12 +117,27 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         );
       });
 
+      // The service can be torn down while the fetch is in flight (StrictMode
+      // remount, fast structural rebuild) — don't cache into a disposed store.
+      if (this.disposed) {
+        texture.dispose();
+        return Result.err(
+          new ThreeViewerError(
+            'Environment service was disposed during the load',
+            ErrorCode.INVALID_STATE,
+            { url }
+          )
+        );
+      }
+
       // Process with PMREM for environment mapping
       if (this.pmremGenerator) {
         // Set the mapping for equirectangular projection
         texture.mapping = THREE.EquirectangularReflectionMapping;
-        
-        const pmremTexture = this.pmremGenerator.fromEquirectangular(texture).texture;
+
+        const renderTarget = this.pmremGenerator.fromEquirectangular(texture);
+        this.renderTargets.push(renderTarget);
+        const pmremTexture = renderTarget.texture;
         // Keep the original texture for path tracing
         // texture.dispose(); // Don't dispose - path tracer needs the original
         
@@ -261,7 +280,9 @@ export class ThreeEnvironmentService implements IEnvironmentService {
 
       // Create RoomEnvironment scene
       const roomEnvironment = new RoomEnvironment();
-      const roomTexture = this.pmremGenerator.fromScene(roomEnvironment).texture;
+      const renderTarget = this.pmremGenerator.fromScene(roomEnvironment);
+      this.renderTargets.push(renderTarget);
+      const roomTexture = renderTarget.texture;
 
       // Clean up
       roomEnvironment.dispose();
@@ -279,9 +300,15 @@ export class ThreeEnvironmentService implements IEnvironmentService {
   }
 
   dispose(): void {
+    this.disposed = true;
     this.loadedTextures.forEach(texture => texture.dispose());
     this.loadedTextures.clear();
-    
+
+    // Render-target dispose also frees its texture; texture.dispose above is
+    // idempotent, so the double call is harmless.
+    this.renderTargets.forEach(target => target.dispose());
+    this.renderTargets = [];
+
     if (this.pmremGenerator) {
       this.pmremGenerator.dispose();
       this.pmremGenerator = null;

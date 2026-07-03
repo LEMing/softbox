@@ -87,6 +87,20 @@ describe('disposal', () => {
     });
   });
 
+  describe('disposeMaterial shader uniforms', () => {
+    it('disposes textures held inside ShaderMaterial uniforms', () => {
+      const texture = new THREE.Texture();
+      const disposeSpy = jest.spyOn(texture, 'dispose');
+      const material = new THREE.ShaderMaterial({
+        uniforms: { map: { value: texture }, strength: { value: 0.5 } },
+      });
+
+      disposeMaterial(material);
+
+      expect(disposeSpy).toHaveBeenCalled();
+    });
+  });
+
   describe('disposeObject3D bounds tree', () => {
     it('releases the raycast BVH together with the geometry', () => {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());

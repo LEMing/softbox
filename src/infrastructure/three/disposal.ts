@@ -26,6 +26,16 @@ export function disposeMaterial(material: THREE.Material): void {
       value.dispose();
     }
   }
+  // Shader materials keep their textures inside uniforms.<name>.value, not as
+  // direct properties — walk those too.
+  const shader = material as THREE.ShaderMaterial;
+  if (shader.isShaderMaterial && shader.uniforms) {
+    for (const uniform of Object.values(shader.uniforms)) {
+      if (uniform?.value instanceof THREE.Texture) {
+        uniform.value.dispose();
+      }
+    }
+  }
   material.dispose();
 }
 

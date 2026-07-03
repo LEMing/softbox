@@ -20,9 +20,6 @@ import {
 } from './types/PathTracerTypes';
 import { TypedEventEmitter } from '../../events/EventEmitter';
 
-let instanceCount = 0;
-const activeInstances = new Set<ThreePathTracingService>();
-
 export class ThreePathTracingService implements IPathTracingService {
   /**
    * Convert an HTMLImageElement-based texture to a DataTexture for path tracing
@@ -79,7 +76,6 @@ export class ThreePathTracingService implements IPathTracingService {
     return dataTexture;
   }
 
-  private instanceId: number;
   private pathTracer: ExtendedWebGLPathTracer | null = null;
   private settings: IPathTracingSettings;
   private enabled: boolean = false;
@@ -97,8 +93,6 @@ export class ThreePathTracingService implements IPathTracingService {
   public readonly events = new TypedEventEmitter<{ 'pathtracing:paused': { samples: number } }>();
 
   constructor() {
-    this.instanceId = ++instanceCount;
-    activeInstances.add(this);
     this.settings = {
       samples: DEFAULT_PATH_TRACING_SAMPLES,
       bounces: 4, // Reduce bounces for better performance
@@ -685,7 +679,7 @@ export class ThreePathTracingService implements IPathTracingService {
 
   dispose(): void {
     this.disposed = true;
-    activeInstances.delete(this);
+    this.events.removeAllListeners();
 
     if (this.disposeTimer !== null) {
       clearTimeout(this.disposeTimer);

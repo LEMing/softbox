@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { ViewerCore } from '../../core/ViewerCore';
-import { ViewerEventMap } from '../../core/events/ViewerEvents';
+import { ViewerEventMap } from '../../core/events/CoreViewerEvents';
 
 /**
  * Hook to subscribe to multiple viewer events
@@ -22,19 +22,19 @@ export function useViewerEventHandlers(
     const events = viewer.getEvents();
     const cleanupFunctions: (() => void)[] = [];
 
-    // Subscribe to all provided handlers
+    // One generically-typed subscription per provided handler; reading the
+    // handler through the ref keeps the latest callback without resubscribing.
+    const subscribe = <K extends keyof ViewerEventMap>(event: K): (() => void) => {
+      const wrappedHandler = (data: ViewerEventMap[K]) => {
+        handlersRef.current[event]?.(data);
+      };
+      events.on(event, wrappedHandler);
+      return () => events.off(event, wrappedHandler);
+    };
+
     (Object.keys(handlers) as Array<keyof ViewerEventMap>).forEach((event) => {
-      const handler = handlers[event];
-      if (handler) {
-        const wrappedHandler = (data: unknown) => {
-          const currentHandler = handlersRef.current[event];
-          if (currentHandler) {
-            currentHandler(data as never);
-          }
-        };
-        
-        events.on(event, wrappedHandler as never);
-        cleanupFunctions.push(() => events.off(event, wrappedHandler as never));
+      if (handlers[event]) {
+        cleanupFunctions.push(subscribe(event));
       }
     });
 

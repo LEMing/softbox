@@ -12,7 +12,7 @@ import { PresetPicker } from './PresetPicker';
 import { resolveLoadingIndicator } from './loadingIndicatorConfig';
 import { TypedEventEmitter } from '../../events/EventEmitter';
 import { ViewerEventMap } from '../../events/ViewerEvents';
-import { ViewerEventMap as CoreViewerEventMap } from '../../core/events/ViewerEvents';
+import { ViewerEventMap as CoreViewerEventMap } from '../../core/events/CoreViewerEvents';
 import { ThreeObject3DAdapter } from '../../infrastructure/three/ThreeObject3D';
 import {
   toThreeCamera,

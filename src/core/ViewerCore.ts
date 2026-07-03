@@ -9,7 +9,7 @@ import {
   Result
 } from './interfaces';
 import { TypedEventEmitter } from '../events/EventEmitter';
-import { ViewerEventMap } from './events/ViewerEvents';
+import { ViewerEventMap } from './events/CoreViewerEvents';
 import { ThreeViewerError, ErrorCode } from '../errors';
 import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
 import { CaptureStillOptions } from '../types/CaptureStillOptions';

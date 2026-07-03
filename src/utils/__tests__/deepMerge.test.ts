@@ -1,4 +1,4 @@
-import { deepMerge } from '../deepMerge';
+import { deepMerge, DeepPartial } from '../deepMerge';
 
 describe('deepMerge', () => {
   it('merges nested plain objects key-by-key without clobbering siblings', () => {
@@ -20,18 +20,22 @@ describe('deepMerge', () => {
   it('does not mutate either input', () => {
     const base = { nested: { x: 1 } };
     const override = { nested: { y: 2 } };
-    const result = deepMerge(base, override);
+    // Shape-divergent on purpose: the runtime tolerates overrides the type
+    // would reject, and these tests pin that defensive behavior.
+    const result = deepMerge(base, override as DeepPartial<typeof base>);
     expect(base).toEqual({ nested: { x: 1 } });
     expect(override).toEqual({ nested: { y: 2 } });
     expect(result).toEqual({ nested: { x: 1, y: 2 } });
   });
 
   it('overrides a primitive base with an object and vice versa', () => {
-    expect(deepMerge({ a: 1 }, { a: { deep: true } })).toEqual({ a: { deep: true } });
-    expect(deepMerge({ a: { deep: true } }, { a: 1 })).toEqual({ a: 1 });
+    const objectOverride = { a: { deep: true } } as unknown as DeepPartial<{ a: number }>;
+    expect(deepMerge({ a: 1 }, objectOverride)).toEqual({ a: { deep: true } });
+    const primitiveOverride = { a: 1 } as unknown as DeepPartial<{ a: { deep: boolean } }>;
+    expect(deepMerge({ a: { deep: true } }, primitiveOverride)).toEqual({ a: 1 });
   });
 
   it('returns the override when the base is not a plain object', () => {
-    expect(deepMerge(5 as unknown, { a: 1 })).toEqual({ a: 1 });
+    expect(deepMerge(5 as unknown, { a: 1 } as never)).toEqual({ a: 1 });
   });
 });

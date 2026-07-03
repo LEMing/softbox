@@ -7,8 +7,8 @@ jest.mock('three', () => {
   };
   class MockPMREMGenerator {
     compileEquirectangularShader = jest.fn();
-    fromEquirectangular = jest.fn(() => ({ texture: pmremTexture() }));
-    fromScene = jest.fn(() => ({ texture: pmremTexture() }));
+    fromEquirectangular = jest.fn(() => ({ texture: pmremTexture(), dispose: jest.fn() }));
+    fromScene = jest.fn(() => ({ texture: pmremTexture(), dispose: jest.fn() }));
     dispose = jest.fn();
   }
   return { ...actual, PMREMGenerator: MockPMREMGenerator };
@@ -108,5 +108,37 @@ describe('ThreeEnvironmentService', () => {
     expect(pmremDispose).toHaveBeenCalled();
     expect(originalDispose).toHaveBeenCalled();
     expect(service.getOriginalEnvironmentTexture('env.hdr')).toBeNull();
+  });
+});
+
+describe('ThreeEnvironmentService render-target lifecycle', () => {
+  const stubRenderer = (): IRenderer =>
+    ({ renderer: {} as THREE.WebGLRenderer }) as unknown as IRenderer;
+
+  it('disposes the PMREM render targets, not just their textures', async () => {
+    const service = new ThreeEnvironmentService();
+    await service.initialize({ renderer: stubRenderer() });
+    const studio = service.createStudioEnvironment();
+    expect(studio.ok).toBe(true);
+
+    const generator = (service as unknown as {
+      pmremGenerator: { fromScene: jest.Mock };
+    }).pmremGenerator;
+    const renderTarget = generator.fromScene.mock.results[0].value;
+
+    service.dispose();
+
+    expect(renderTarget.dispose).toHaveBeenCalled();
+  });
+
+  it('refuses to cache a texture loaded after dispose', async () => {
+    const service = new ThreeEnvironmentService();
+    await service.initialize({ renderer: stubRenderer() });
+
+    const pending = service.loadEnvironmentMap('https://example.com/env.hdr');
+    service.dispose();
+    const result = await pending;
+
+    expect(result.ok).toBe(false);
   });
 });
