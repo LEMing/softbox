@@ -8,23 +8,25 @@ import { defineConfig } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './render-smoke',
-  timeout: 60_000,
+  // SwiftShader on a 2-core CI runner takes tens of seconds per first frame;
+  // these timeouts are sized for that, not for local machines.
+  timeout: 240_000,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['list'], ['github']] : 'list',
   use: {
     baseURL: 'http://localhost:5199',
-    viewport: { width: 800, height: 600 },
+    viewport: { width: 480, height: 360 },
     launchOptions: {
       // Chromium >= 128 disables software WebGL unless explicitly allowed;
-      // CI runners have no GPU.
-      args: ['--enable-unsafe-swiftshader'],
+      // CI runners have no GPU, so pin the ANGLE backend to SwiftShader.
+      args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader'],
     },
   },
   webServer: {
     command: 'npm run dev -- --port 5199 --strictPort',
     url: 'http://localhost:5199/render-smoke/index.html',
     reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
+    timeout: 90_000,
   },
 });

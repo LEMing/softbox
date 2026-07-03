@@ -19,20 +19,37 @@ declare global {
   interface Window {
     __renderedFrames: number;
     __modelLoaded: boolean;
+    __pageErrors: string[];
     __captureStill: () => Promise<string>;
   }
 }
 
 window.__renderedFrames = 0;
 window.__modelLoaded = false;
+// Surfaced to the tests so a broken page fails fast with the reason instead
+// of timing out silently waiting for a frame that will never come.
+window.__pageErrors = [];
+window.addEventListener('error', (event) => {
+  window.__pageErrors.push(`error: ${event.message}`);
+});
+window.addEventListener('unhandledrejection', (event) => {
+  window.__pageErrors.push(`unhandledrejection: ${String(event.reason)}`);
+});
+const originalConsoleError = console.error.bind(console);
+console.error = (...args: unknown[]) => {
+  window.__pageErrors.push(`console.error: ${args.map(String).join(' ')}`);
+  originalConsoleError(...args);
+};
 
 const params = new URLSearchParams(window.location.search);
 const preset = (params.get('preset') as ViewerPreset | null) ?? undefined;
 const withHotspot = params.get('hotspot') === '1';
 
 const makeModel = () => {
+  // Coarse tessellation on purpose: every triangle costs real time on the
+  // software rasterizer CI renders with.
   const mesh = new THREE.Mesh(
-    new THREE.TorusKnotGeometry(1, 0.35, 128, 24),
+    new THREE.TorusKnotGeometry(1, 0.35, 64, 12),
     new THREE.MeshStandardMaterial({ color: '#c2410c', roughness: 0.35, metalness: 0.15 })
   );
   mesh.name = 'smoke-torus-knot';

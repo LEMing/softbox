@@ -60,11 +60,19 @@ const collectPageErrors = (page: Page): string[] => {
 const openScene = async (page: Page, query = '') => {
   const errors = collectPageErrors(page);
   await page.goto(`${HARNESS}${query}`);
+  // Also stop waiting the moment the page reports an error, so a broken
+  // WebGL context fails with the reason instead of a mute timeout.
   await page.waitForFunction(
-    () => window.__modelLoaded && window.__renderedFrames > 0,
+    () =>
+      (window.__modelLoaded && window.__renderedFrames > 0) ||
+      window.__pageErrors.length > 0,
     undefined,
-    { timeout: 30_000 }
+    { timeout: 180_000 }
   );
+  const pageErrors = await page.evaluate(() => window.__pageErrors);
+  if (pageErrors.length > 0) {
+    throw new Error(`harness page reported errors:\n${pageErrors.join('\n')}`);
+  }
   return errors;
 };
 
@@ -94,7 +102,11 @@ test('dark preset paints a clearly darker background than the default look', asy
   const defaultBackground = luminance(pixelAt(await screenshotCanvas(page), 2, 2));
 
   await page.goto(`${HARNESS}?preset=dark`);
-  await page.waitForFunction(() => window.__modelLoaded && window.__renderedFrames > 0);
+  await page.waitForFunction(
+    () => window.__modelLoaded && window.__renderedFrames > 0,
+    undefined,
+    { timeout: 180_000 }
+  );
   const darkPng = await screenshotCanvas(page);
   const darkBackground = luminance(pixelAt(darkPng, 2, 2));
 
@@ -141,8 +153,8 @@ test('captureStill returns a substantial PNG data URL', async ({ page }) => {
 
   const dataUrl = await page.evaluate(() => window.__captureStill());
   expect(dataUrl).toMatch(/^data:image\/png;base64,/);
-  // A blank 800x600 PNG compresses to almost nothing; a real frame does not.
-  expect(dataUrl.length).toBeGreaterThan(20_000);
+  // A blank 480x360 PNG compresses to almost nothing; a real frame does not.
+  expect(dataUrl.length).toBeGreaterThan(10_000);
 
   expect(errors).toEqual([]);
 });
