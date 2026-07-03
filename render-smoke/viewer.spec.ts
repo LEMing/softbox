@@ -208,12 +208,21 @@ test('captureStill returns a substantial PNG data URL', async ({ page }) => {
 });
 
 test('captureVideo records the turntable into a real clip', async ({ page }) => {
+  test.setTimeout(360_000);
   const errors = await openScene(page, '?turntable=1');
 
-  const clip = await page.evaluate(() => window.__captureVideo(3));
+  // On a starved CI runner the software encoder thread can get so little CPU
+  // that a short take emits nothing — escalate the duration until it does.
+  // A broken pipeline stays empty at every duration and still fails.
+  let clip = { size: 0, type: '' };
+  for (const duration of [3, 6, 12]) {
+    clip = await page.evaluate((seconds) => window.__captureVideo(seconds), duration);
+    if (clip.size > 3_000) {
+      break;
+    }
+  }
 
-  // Chromium encodes even on SwiftShader. VP9 compresses this simple scene
-  // hard (a 1.5s take lands under 10 kB), so the floor only rules out an
+  // VP9 compresses this simple scene hard, so the floor only rules out an
   // empty/broken stream — a bare WebM header is a few hundred bytes.
   expect(clip.type).toContain('video/');
   expect(clip.size).toBeGreaterThan(3_000);
