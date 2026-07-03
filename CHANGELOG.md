@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.16.6
+---
+
+### Tag-triggered npm release workflow (architecture roadmap item 3, final piece)
+* New `Release` GitHub Actions workflow: pushing a `vX.Y.Z` tag publishes to npm (through the full `prepublishOnly` gate) and creates the GitHub release. It refuses to publish when the tag and `package.json` version disagree. Requires the `NPM_TOKEN` repository secret (npm automation token); until that secret exists the workflow is inert.
+
 3.16.5
 ---
 
