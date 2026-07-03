@@ -90,6 +90,8 @@ export default {
   extensionsToTreatAsEsm: ['.ts', '.tsx'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   testMatch: ['**/__tests__/**/*.ts?(x)', '**/?(*.)+(spec|test).ts?(x)'],
+  // The Playwright render-smoke suite runs real WebGL via `npm run test:render`.
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/render-smoke/'],
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
   transformIgnorePatterns: [
     'node_modules/(?!(three|three-gpu-pathtracer)/)'

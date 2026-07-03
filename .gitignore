@@ -25,3 +25,7 @@ site-dist
 *.sln
 *.sw?
 *.tgz
+
+# Playwright render-smoke artifacts
+test-results
+playwright-report
