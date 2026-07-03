@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.16.4
+---
+
+### Hotspot projection math moved behind a core port (architecture roadmap item 12)
+* `Hotspot` no longer imports Three.js. The per-frame work — projecting the anchor to canvas pixels, the behind-the-camera check and the occlusion raycast — moved to `ThreeAnchorProjector` (infrastructure) behind the new engine-agnostic `IAnchorProjector` port, obtained via `viewer.createAnchorProjector()`. The component is now pure React: it wires viewer events to DOM styles. Same view-state memoization (camera matrix + canvas size) and identical behavior; no API changes.
+
 3.16.3
 ---
 

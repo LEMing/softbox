@@ -12,7 +12,8 @@ import {
   ThreeEnvironmentService,
   ThreeSceneSetupService,
   ThreeFloorAlignmentService,
-  ThreeSelectionService
+  ThreeSelectionService,
+  ThreeAnchorProjectionService
 } from '../three';
 import { ControlType } from '../../types/options';
 import { RendererOptionsConverter } from '../converters/RendererOptionsConverter';
@@ -71,6 +72,9 @@ export class ViewerFactory {
 
     // Create click-picking service (drives the object:selected event)
     const selectionService = new ThreeSelectionService();
+
+    // Create anchor projection service (drives DOM annotations like Hotspot)
+    const anchorProjectionService = new ThreeAnchorProjectionService();
     
     // Convert renderer options
     const rendererOptions = RendererOptionsConverter.convertRendererOptions(
@@ -99,7 +103,8 @@ export class ViewerFactory {
       environmentService,
       pathTracingService,
       floorAlignmentService,
-      selectionService
+      selectionService,
+      anchorProjectionService
     };
     
     // Create and return ViewerCore

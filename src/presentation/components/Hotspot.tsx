@@ -1,7 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import * as THREE from 'three';
 import { useViewerContext } from './ViewerContext';
-import { toThreeCamera, toThreeObject } from '../../infrastructure/three/unwrap';
 
 export interface HotspotProps {
   /** World-space anchor point, e.g. a `point` from the `object:selected` event. */
@@ -35,7 +33,8 @@ const DefaultPin = () => (
  * a child of `SimpleViewer`; the anchor is projected through the camera after
  * every rendered frame, so it tracks orbiting, zooming and resizes. Points
  * behind the camera are hidden; `occlude` also hides it when the model covers
- * the anchor.
+ * the anchor. The projection math lives behind the viewer's anchor-projection
+ * port — this component only wires events to DOM styles.
  */
 export function Hotspot({ position, occlude = false, children }: HotspotProps) {
   const { viewer } = useViewerContext();
@@ -50,81 +49,31 @@ export function Hotspot({ position, occlude = false, children }: HotspotProps) {
     if (!element) {
       return;
     }
+    const projector = viewer.createAnchorProjector();
+    if (!projector) {
+      return;
+    }
 
-    const anchor = new THREE.Vector3();
-    const projected = new THREE.Vector3();
-    const cameraPosition = new THREE.Vector3();
-    const toAnchor = new THREE.Vector3();
-    const raycaster = new THREE.Raycaster();
-    // Skip recomputation (and the occlusion raycast) on frames where neither
-    // the camera nor the canvas size changed — the always-on render loop emits
-    // render:complete every frame even when nothing moves.
-    const lastCameraMatrix = new THREE.Matrix4();
-    let lastWidth = -1;
-    let lastHeight = -1;
-    let hasProjected = false;
-
+    const anchor = { x, y, z };
     const update = () => {
-      const camera = toThreeCamera(viewer.getCamera());
-      const canvas = viewer.getDomElement();
-      if (!camera || !canvas) {
+      const projection = projector.project(anchor, occlude);
+      if (!projection) {
+        // Nothing affecting the projection changed — keep the placement.
         return;
       }
-      const width = canvas.clientWidth || canvas.width;
-      const height = canvas.clientHeight || canvas.height;
-      if (
-        hasProjected &&
-        width === lastWidth &&
-        height === lastHeight &&
-        lastCameraMatrix.equals(camera.matrixWorld)
-      ) {
-        return;
-      }
-      lastCameraMatrix.copy(camera.matrixWorld);
-      lastWidth = width;
-      lastHeight = height;
-      hasProjected = true;
-
-      anchor.set(x, y, z);
-
-      // Behind-the-camera check in view space (three looks down -Z).
-      camera.getWorldPosition(cameraPosition);
-      projected.copy(anchor).applyMatrix4(camera.matrixWorldInverse);
-      if (projected.z >= 0) {
+      if (!projection.visible) {
         element.style.visibility = 'hidden';
         return;
       }
-
-      if (occlude) {
-        const model = toThreeObject(viewer.getModel());
-        if (model) {
-          toAnchor.copy(anchor).sub(cameraPosition);
-          const anchorDistance = toAnchor.length();
-          raycaster.set(cameraPosition, toAnchor.normalize());
-          // Sprite.raycast reads raycaster.camera; without it a sprite in the
-          // model would throw on every frame.
-          raycaster.camera = camera;
-          // BVH-aware short-circuit: only the closest hit matters here.
-          raycaster.firstHitOnly = true;
-          const hit = raycaster.intersectObject(model, true)[0];
-          // A small epsilon keeps a hotspot on the model's own surface visible.
-          if (hit && hit.distance < anchorDistance - 1e-3) {
-            element.style.visibility = 'hidden';
-            return;
-          }
-        }
-      }
-
-      projected.copy(anchor).project(camera);
       element.style.visibility = 'visible';
-      element.style.left = `${((projected.x + 1) / 2) * width}px`;
-      element.style.top = `${((1 - projected.y) / 2) * height}px`;
+      element.style.left = `${projection.left}px`;
+      element.style.top = `${projection.top}px`;
     };
 
     // model:loaded may change occlusion without moving the camera; force a
     // full recompute.
     const invalidateAndUpdate = () => {
-      hasProjected = false;
+      projector.invalidate();
       update();
     };
 

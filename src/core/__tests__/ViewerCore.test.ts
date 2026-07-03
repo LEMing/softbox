@@ -8,6 +8,8 @@ import {
   IObject3D,
   IVector3,
   ITexture,
+  IAnchorProjectionService,
+  IAnchorProjector,
   Result,
 } from '../interfaces';
 import { IPathTracingService } from '../services/IPathTracingService';
@@ -912,6 +914,31 @@ describe('ViewerCore', () => {
       unsubscribe();
       await viewer.loadModel(makeObject3D());
       expect(listener).not.toHaveBeenCalled();
+    });
+
+    it('createAnchorProjector returns null without an anchor projection service', () => {
+      const bundle = makeDeps();
+      const viewer = new ViewerCore(bundle.deps);
+
+      expect(viewer.createAnchorProjector()).toBeNull();
+    });
+
+    it('createAnchorProjector wires the viewer camera, canvas and model into the service', () => {
+      const bundle = makeDeps();
+      const projector: IAnchorProjector = {
+        project: jest.fn(() => null),
+        invalidate: jest.fn(),
+      };
+      const service: IAnchorProjectionService = {
+        createProjector: jest.fn(() => projector),
+      };
+      const viewer = new ViewerCore({ ...bundle.deps, anchorProjectionService: service });
+
+      expect(viewer.createAnchorProjector()).toBe(projector);
+      const sources = (service.createProjector as jest.Mock).mock.calls[0][0];
+      expect(sources.camera).toBe(bundle.camera);
+      expect(sources.getCanvas()).toBe(bundle.canvas);
+      expect(sources.getModel()).toBeNull();
     });
   });
 
