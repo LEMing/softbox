@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.16.5
+---
+
+### Browser render-smoke CI (architecture roadmap item 8)
+* New Playwright suite (`npm run test:render`) drives a self-contained harness page — the real viewer on a procedural torus knot, no network — in headless Chromium with software WebGL and asserts on **actual rendered pixels**: the default look paints a light background with the model covering a sane fraction of the frame, the dark preset is measurably darker than the default (range assertions, never exact pixels, so they hold across rasterizers), a `Hotspot` anchored at the origin lands horizontally centered on the model base, and `captureStill()` returns a substantial PNG. Any `console.error`/page error fails the suite. Runs as a parallel CI job; jest stays fast and jsdom-only. This closes the audit's "zero pixel observation" gap — a black-screen regression in the real Three.js adapters now fails CI instead of shipping.
+
 3.16.4
 ---
 
