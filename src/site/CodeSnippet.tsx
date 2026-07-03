@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { FONT, MONO_FONT, glassPanel } from './siteTheme';
 
 const INSTALL = 'npm install threedviewer';
-const USAGE = `import { SimpleViewer } from 'threedviewer';
+const DEFAULT_USAGE = `import { SimpleViewer } from 'threedviewer';
 
 <SimpleViewer
   object="/model.glb"
@@ -57,8 +57,12 @@ const Line = ({
   </div>
 );
 
-/** Install + usage snippets, each with a copy button. */
-export function CodeSnippet() {
+/**
+ * Install + usage snippets, each with a copy button. The usage code is a prop
+ * so the site can keep it in sync with the live toggles — the snippet IS the
+ * documentation for what the user is currently seeing.
+ */
+export function CodeSnippet({ usage = DEFAULT_USAGE }: { usage?: string }) {
   const [copied, setCopied] = useState<'install' | 'usage' | null>(null);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -104,10 +108,10 @@ export function CodeSnippet() {
         onCopy={() => copy('install', INSTALL)}
       />
       <Line
-        code={USAGE}
+        code={usage}
         label="Copy usage code"
         copied={copied === 'usage'}
-        onCopy={() => copy('usage', USAGE)}
+        onCopy={() => copy('usage', usage)}
       />
       <span role="status" aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)' }}>
         {copied ? 'Copied to clipboard' : ''}
