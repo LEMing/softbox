@@ -7,6 +7,7 @@ import { SimpleViewerOptions } from '../../../types/SimpleViewerOptions';
 import defaultOptions from '../../../defaultOptions';
 
 jest.mock('../../hooks', () => ({
+  ...jest.requireActual('../../hooks'),
   useViewerCore: jest.fn(),
   useViewerEventHandlers: jest.fn(),
 }));

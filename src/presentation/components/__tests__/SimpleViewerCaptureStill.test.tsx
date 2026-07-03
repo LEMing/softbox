@@ -5,9 +5,11 @@ import { SimpleViewer } from '../SimpleViewer';
 import { useViewerCore, useViewerEventHandlers } from '../../hooks';
 import { SimpleViewerHandle } from '../../../types';
 import { Result } from '../../../utils/Result';
+import { TypedEventEmitter } from '../../../events/EventEmitter';
 import { ThreeViewerError, ErrorCode } from '../../../errors';
 
 jest.mock('../../hooks', () => ({
+  ...jest.requireActual('../../hooks'),
   useViewerCore: jest.fn(),
   useViewerEventHandlers: jest.fn(),
 }));
@@ -20,6 +22,7 @@ const makeViewer = (captureStill: jest.Mock) => ({
   getCamera: jest.fn(() => null),
   getRenderer: jest.fn(() => null),
   getControls: jest.fn(() => null),
+  getEvents: jest.fn(() => new TypedEventEmitter()),
   requestRender: jest.fn(),
   loadModel: jest.fn(async () => Result.ok(undefined)),
   captureStill,

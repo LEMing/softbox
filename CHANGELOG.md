@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.16.3
+---
+
+### SimpleViewer decomposed into focused hooks (architecture roadmap item 14)
+* `SimpleViewer` shrank from 279 to 152 lines by lifting its four separable concerns into named, individually-tested hooks — no behavior or API change: **`usePickedPreset`** (the built-in picker's echo-aware selection state machine), **`useResolvedOptions`** (the `preset`/`pathTraced` prop-shorthand fold), **`useModelLoader`** (the keyed load effect + overlay load state) and **`useForwardedEvents`** (core→public event bridge). The component is now a thin composition over hooks plus the imperative handle and overlay chrome.
+
 3.16.2
 ---
 

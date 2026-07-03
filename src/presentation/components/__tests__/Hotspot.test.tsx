@@ -12,6 +12,7 @@ import { ViewerCore } from '../../../core/ViewerCore';
 import { buildRaycastBvh } from '../../../infrastructure/three/bvh';
 
 jest.mock('../../hooks', () => ({
+  ...jest.requireActual('../../hooks'),
   useViewerCore: jest.fn(),
   useViewerEventHandlers: jest.fn(),
 }));
