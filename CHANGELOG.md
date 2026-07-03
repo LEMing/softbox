@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.18.1
+---
+
+### README refresh
+* Scannable **"What you get"** feature index; bundle-size badge + payload facts in the hero (~105 kB gzip core, lazy tracer/decoder chunks, pixel-asserting CI); **Next.js / SSR** dynamic-import recipe; imperative-handle and configuration docs caught up with the animation API; upgrading notes collapsed to "3.x → latest is additive".
+
 3.18.0
 ---
 

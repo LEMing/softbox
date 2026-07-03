@@ -1,8 +1,9 @@
 # threedviewer
 
 [![npm version](https://img.shields.io/npm/v/threedviewer)](https://www.npmjs.com/package/threedviewer)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/threedviewer)](https://bundlephobia.com/package/threedviewer)
 [![CI](https://github.com/LEMing/ThreeDViewer/actions/workflows/ci.yml/badge.svg)](https://github.com/LEMing/ThreeDViewer/actions/workflows/ci.yml)
-[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/LEMing/ThreeDViewer/blob/main/package.json)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/LEMing/ThreeDViewer/blob/main/LICENSE)
 
 **The batteries-included React 3D viewer — any GLB looks studio-shot in one line.**
 
@@ -10,11 +11,22 @@
 <SimpleViewer object="/model.glb" />
 ```
 
-Balanced studio lighting, a glossy glass floor with a contact shadow, auto-framing, compressed-asset decoders — all on by default, zero configuration, zero external CDN requests.
+Balanced studio lighting, a glossy glass floor with a contact shadow, auto-framing, compressed-asset decoders — all on by default, zero configuration, zero external CDN requests. The core is ~105 kB gzip; the path tracer and the decoders live in lazy chunks that load only when actually used. Every release is gated by 470+ unit tests plus a Playwright suite that asserts **real WebGL pixels** in CI.
 
 [![threedviewer playground](https://raw.githubusercontent.com/LEMing/ThreeDViewer/main/public/og-image.png)](https://leming.github.io/ThreeDViewer/)
 
 **▶ [Live playground](https://leming.github.io/ThreeDViewer/)** — drag & drop your own `.glb`, switch presets live, click the model to pin hotspots, download a still.
+
+## What you get
+
+- **[Visual presets](#visual-presets)** — `studio · product · neutral · dark · outdoor`, one word, switched live
+- **[Turntable](#turntable)** — one-word showcase auto-rotate that pauses while the user drags
+- **[Animations](#animations)** — GLTF clips autoplay with one word; play/pause/clip-picker API
+- **[Photoreal mode](#photoreal-mode--stills)** — progressive path tracing + `captureStill()` PNG export
+- **[Hotspots & click selection](#hotspot-annotations--click-selection)** — DOM pins on world-space points, BVH-accelerated picking
+- **Compressed assets** — DRACO, KTX2/Basis and Meshopt decoders wired in, fetched lazily
+- **Built-in chrome** — loading overlay, preset picker, viewport gizmo — all optional, all off-or-subtle by default
+- **Typed end to end** — every option, event payload and handle method ships TypeScript types
 
 ## Install
 
@@ -43,8 +55,6 @@ A `THREE.Object3D` works too:
 ```tsx
 <SimpleViewer object={new THREE.Mesh(geometry, material)} />
 ```
-
-DRACO, KTX2/Basis and Meshopt compressed assets load out of the box — the decoders are wired in and fetched lazily only when an asset actually needs them.
 
 ## Visual presets
 
@@ -87,6 +97,8 @@ viewerRef.current.getAnimationNames(); // ['Walk', 'Idle', ...]
 viewerRef.current.pauseAnimations();
 viewerRef.current.playAnimations('Idle');
 ```
+
+Turntable and animations compose — a spinning, walking robot is two words.
 
 ## Photoreal mode & stills
 
@@ -153,7 +165,7 @@ const viewerRef = useRef<SimpleViewerHandle>(null);
 <SimpleViewer ref={viewerRef} object={url} />
 ```
 
-The handle exposes `scene`, `camera`, `renderer`, `controls`, `events`, `loadModel(source)`, `captureStill(options?)` and `dispose()`.
+The handle exposes `scene`, `camera`, `renderer`, `controls`, `events`, `loadModel(source)`, `captureStill(options?)`, `getAnimationNames()`, `playAnimations(name?)`, `pauseAnimations()` and `dispose()`.
 
 ## Configuration
 
@@ -175,7 +187,9 @@ const options: SimpleViewerOptions = {
 
   renderer: { antialias: true, toneMappingExposure: 1.1 },
 
-  controls: { type: ControlType.OrbitControls, enableDamping: true },
+  controls: { type: ControlType.OrbitControls, enableDamping: true, autoRotate: false },
+
+  animations: { autoplay: true, speed: 1 }, // GLTF clip playback
 
   helpers: {
     grid: { type: 'hexagonal_glass' }, // glossy glass floor; also: hexagonal_wire, square_wire, stone_tiles
@@ -215,9 +229,23 @@ Interactive orientation cube: click to snap the camera to axis views, synchroniz
 
 `pathTracing`: `enabled`, `maxSamples` (completion cap), `bounces`, `transmissiveBounces`, `renderScale`, `lowResScale`, `dynamicLowRes`. With `replaceWithScreenshotOnComplete: true` (default) the finished frame replaces the live canvas until the user interacts.
 
+## Next.js / SSR
+
+The viewer renders into a WebGL canvas, so it is client-only. In Next.js, load it dynamically:
+
+```tsx
+'use client';
+import dynamic from 'next/dynamic';
+
+const SimpleViewer = dynamic(
+  () => import('threedviewer').then((m) => m.SimpleViewer),
+  { ssr: false }
+);
+```
+
 ## Upgrading
 
-- **3.x → 3.14**: additive — presets, `ui`, `pathTraced`, `captureStill`, `Hotspot`, `object:selected`, `selection` are all new surface; existing options keep working. React peer widened back to `>=18 <20`.
+- **3.x → latest**: additive all the way — presets, `ui`, `pathTraced`, `captureStill`, `Hotspot`, `object:selected`, `selection`, `turntable`, `animations` are new surface on top of 3.0; existing options keep working. React peer is `>=18 <20`.
 - **2.x → 3.0**: breaking release (removed no-op APIs, ESM+CJS packaging). See [MIGRATION_GUIDE.md](https://github.com/LEMing/ThreeDViewer/blob/main/MIGRATION_GUIDE.md).
 
 Full history: [CHANGELOG.md](https://github.com/LEMing/ThreeDViewer/blob/main/CHANGELOG.md)
