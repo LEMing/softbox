@@ -140,6 +140,17 @@ export class CaptureController {
       );
     }
 
+    // Under heavy rAF throttling (contended CI, background tabs) auto-capture
+    // can push zero frames into the stream; explicitly forward every rendered
+    // frame where the platform supports it.
+    const videoTrack = stream.getVideoTracks()[0] as
+      | (MediaStreamTrack & { requestFrame?: () => void })
+      | undefined;
+    const requestFrame = videoTrack?.requestFrame?.bind(videoTrack);
+    const offRenderComplete = requestFrame
+      ? this.deps.events.on('render:complete', () => requestFrame())
+      : () => {};
+
     this.deps.renderLoopManager.requireContinuous('video-capture');
     this.deps.reviveRenderLoop();
     this.deps.renderLoopManager.requestRender();
@@ -155,6 +166,7 @@ export class CaptureController {
         }
         settled = true;
         this.pendingSettlers.delete(onDispose);
+        offRenderComplete();
         if (stopTimer !== null) {
           clearTimeout(stopTimer);
         }
@@ -195,7 +207,9 @@ export class CaptureController {
         );
       };
 
-      recorder.start();
+      // A timeslice flushes chunks periodically, so a slow encoder still
+      // materializes data by the time the take ends.
+      recorder.start(250);
       stopTimer = setTimeout(() => {
         if (recorder.state !== 'inactive') {
           recorder.stop();

@@ -98,6 +98,8 @@ test('renders the model on the default look without page errors', async ({ page 
 });
 
 test('dark preset paints a clearly darker background than the default look', async ({ page }) => {
+  // Two full scene loads in one test — give a starved CI runner extra room.
+  test.setTimeout(360_000);
   const errors = await openScene(page);
   const defaultBackground = luminance(pixelAt(await screenshotCanvas(page), 2, 2));
 
@@ -208,7 +210,7 @@ test('captureStill returns a substantial PNG data URL', async ({ page }) => {
 test('captureVideo records the turntable into a real clip', async ({ page }) => {
   const errors = await openScene(page, '?turntable=1');
 
-  const clip = await page.evaluate(() => window.__captureVideo(1.5));
+  const clip = await page.evaluate(() => window.__captureVideo(3));
 
   // Chromium encodes even on SwiftShader. VP9 compresses this simple scene
   // hard (a 1.5s take lands under 10 kB), so the floor only rules out an

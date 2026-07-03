@@ -1,6 +1,7 @@
 import { CaptureController, CaptureControllerDependencies } from '../CaptureController';
 import { RenderLoopManager } from '../utils/RenderLoopManager';
 import { TypedEventEmitter } from '../../events/EventEmitter';
+import { ViewerEventMap } from '../events/CoreViewerEvents';
 import { ErrorCode, ThreeViewerError } from '../../errors';
 
 class FakeMediaRecorder {
@@ -46,7 +47,10 @@ const tick = async (count = 4): Promise<void> => {
 const makeController = (overrides: Partial<CaptureControllerDependencies> = {}) => {
   const canvas = document.createElement('canvas');
   const track = { stop: jest.fn() };
-  const captureStream = jest.fn(() => ({ getTracks: () => [track] }));
+  const captureStream = jest.fn(() => ({
+    getTracks: () => [track],
+    getVideoTracks: () => [track],
+  }));
   Object.assign(canvas, { captureStream });
 
   const renderLoopManager = new RenderLoopManager();
@@ -105,6 +109,34 @@ describe('CaptureController.captureVideo', () => {
     }
     expect(releaseSpy).toHaveBeenCalledWith('video-capture');
     expect(track.stop).toHaveBeenCalled();
+  });
+
+  it('forwards every rendered frame into the stream and unsubscribes at the end', async () => {
+    const requestFrame = jest.fn();
+    const canvas = document.createElement('canvas');
+    const track = { stop: jest.fn(), requestFrame };
+    Object.assign(canvas, {
+      captureStream: jest.fn(() => ({
+        getTracks: () => [track],
+        getVideoTracks: () => [track],
+      })),
+    });
+    const events = new TypedEventEmitter<ViewerEventMap>();
+    const { controller } = makeController({
+      renderer: { getDomElement: () => canvas },
+      events,
+    } as unknown as Partial<CaptureControllerDependencies>);
+
+    const capture = controller.captureVideo({ duration: 1 });
+    await tick();
+    events.emit('render:complete', { frame: 1, renderTime: 0 });
+    events.emit('render:complete', { frame: 2, renderTime: 0 });
+    expect(requestFrame).toHaveBeenCalledTimes(2);
+
+    jest.advanceTimersByTime(1000);
+    await capture;
+    events.emit('render:complete', { frame: 3, renderTime: 0 });
+    expect(requestFrame).toHaveBeenCalledTimes(2); // unsubscribed after finish
   });
 
   it('prefers the requested mimeType when supported, falls back otherwise', async () => {

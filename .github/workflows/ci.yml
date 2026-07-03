@@ -48,7 +48,8 @@ jobs:
 
   render-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Contended runners rasterize in software 5-10x slower than average ones.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
