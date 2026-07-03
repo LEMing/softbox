@@ -1,5 +1,5 @@
 export { default as SimpleViewer, type SimpleViewerHandle } from './SimpleViewerWrapper'
-export { type CaptureStillOptions } from './types/SimpleViewerHandle'
+export { type CaptureStillOptions, type CaptureVideoOptions } from './types/SimpleViewerHandle'
 
 // World-anchored DOM annotations, rendered as SimpleViewer children
 export { Hotspot, type HotspotProps } from './presentation/components/Hotspot'

@@ -15,6 +15,7 @@ import { ViewerEventMap } from './events/CoreViewerEvents';
 import { ThreeViewerError, ErrorCode } from '../errors';
 import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
 import { CaptureStillOptions } from '../types/CaptureStillOptions';
+import { CaptureVideoOptions } from '../types/CaptureVideoOptions';
 import { IPathTracingService } from './services/IPathTracingService';
 import { ISelectionService } from './services/ISelectionService';
 import { IAnimationService } from './services/IAnimationService';
@@ -166,6 +167,7 @@ export class ViewerCore {
       getStatus: () => this.stateManager.getStatus(),
       isDisposed: () => this.disposed,
       awaitModelLoads: () => this.modelLoadChain,
+      reviveRenderLoop: () => this.reviveRenderLoop(),
     });
   }
 
@@ -635,6 +637,14 @@ export class ViewerCore {
    */
   captureStill(options: CaptureStillOptions = {}): Promise<Result<string>> {
     return this.capture.captureStill(options);
+  }
+
+  /**
+   * Record the live canvas for a few seconds and resolve with the encoded
+   * clip. See {@link CaptureController.captureVideo}.
+   */
+  captureVideo(options: CaptureVideoOptions = {}): Promise<Result<Blob>> {
+    return this.capture.captureVideo(options);
   }
 
   private replaceWithScreenshot(): void {

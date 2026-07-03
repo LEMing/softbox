@@ -1,6 +1,6 @@
 import React, { useRef, forwardRef, useImperativeHandle, useMemo, useCallback } from 'react';
 import { SimpleViewerHandle, SimpleViewerProps } from '../../types';
-import { CaptureStillOptions } from '../../types/SimpleViewerHandle';
+import { CaptureStillOptions, CaptureVideoOptions } from '../../types/SimpleViewerHandle';
 import {
   useViewerCore,
   usePickedPreset,
@@ -104,6 +104,16 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
             throw notReadyError();
           }
           const result = await viewer.captureStill(captureOptions);
+          if (!result.ok) {
+            throw result.error;
+          }
+          return result.value;
+        },
+        captureVideo: async (videoOptions?: CaptureVideoOptions): Promise<Blob> => {
+          if (!viewer) {
+            throw notReadyError();
+          }
+          const result = await viewer.captureVideo(videoOptions);
           if (!result.ok) {
             throw result.error;
           }

@@ -3,6 +3,7 @@ import { TypedEventEmitter } from '../events/EventEmitter';
 import { ViewerEventMap } from './events/CoreViewerEvents';
 import { ThreeViewerError, ErrorCode } from '../errors';
 import { CaptureStillOptions } from '../types/CaptureStillOptions';
+import { CaptureVideoOptions } from '../types/CaptureVideoOptions';
 import { RenderLoopManager } from './utils/RenderLoopManager';
 import { PathTracingCoordinator } from './PathTracingCoordinator';
 import { applyCameraAspect } from './utils/cameraAspect';
@@ -20,7 +21,25 @@ export interface CaptureControllerDependencies {
   getStatus: () => string;
   isDisposed: () => boolean;
   awaitModelLoads: () => Promise<unknown>;
+  /** Restarts a render loop that idle detection has stopped (staticScene). */
+  reviveRenderLoop: () => void;
 }
+
+type StreamingCanvas = HTMLCanvasElement & {
+  captureStream?: (frameRate?: number) => MediaStream;
+};
+
+/** Best supported container/codec, preferring the caller's choice. */
+const pickVideoMimeType = (preferred?: string): string | undefined => {
+  const candidates = [
+    preferred,
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm',
+    'video/mp4',
+  ].filter((candidate): candidate is string => Boolean(candidate));
+  return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate));
+};
 
 /**
  * The captureStill subsystem, extracted from ViewerCore.
@@ -67,6 +86,122 @@ export class CaptureController {
   /** Resolve any pending waiters so their capture promises settle. */
   settleOnDispose(): void {
     [...this.pendingSettlers].forEach((settle) => settle('disposed'));
+  }
+
+  /**
+   * Records the live canvas for `duration` seconds via MediaRecorder and
+   * resolves with the encoded clip (WebM in Chromium/Firefox, MP4 in Safari).
+   * The render loop is held continuous for the whole take, so turntable and
+   * animation motion make it into the clip even on otherwise static scenes.
+   */
+  async captureVideo(options: CaptureVideoOptions = {}): Promise<Result<Blob>> {
+    if (this.deps.isDisposed()) {
+      return Result.err(
+        new ThreeViewerError('Cannot capture video from a disposed viewer', ErrorCode.INVALID_STATE)
+      );
+    }
+    await this.deps.awaitModelLoads().catch(() => undefined);
+    if (this.deps.isDisposed()) {
+      return Result.err(
+        new ThreeViewerError('Viewer was disposed while a model load finished', ErrorCode.INVALID_STATE)
+      );
+    }
+
+    const duration = options.duration ?? 3;
+    if (!(duration > 0)) {
+      return Result.err(
+        new ThreeViewerError('Video duration must be a positive number of seconds', ErrorCode.INVALID_PARAMETER)
+      );
+    }
+
+    const canvas = this.deps.renderer.getDomElement() as StreamingCanvas;
+    if (typeof MediaRecorder === 'undefined' || typeof canvas.captureStream !== 'function') {
+      return Result.err(
+        new ThreeViewerError(
+          'Video capture needs MediaRecorder and canvas.captureStream support',
+          ErrorCode.UNSUPPORTED_FORMAT
+        )
+      );
+    }
+
+    const stream = canvas.captureStream(options.fps ?? 30);
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(stream, {
+        mimeType: pickVideoMimeType(options.mimeType),
+        videoBitsPerSecond: options.videoBitsPerSecond,
+      });
+    } catch (error) {
+      stream.getTracks().forEach((track) => track.stop());
+      return Result.err(
+        new ThreeViewerError('Failed to start the video recorder', ErrorCode.OPERATION_FAILED, {
+          originalError: error,
+        })
+      );
+    }
+
+    this.deps.renderLoopManager.requireContinuous('video-capture');
+    this.deps.reviveRenderLoop();
+    this.deps.renderLoopManager.requestRender();
+
+    return new Promise<Result<Blob>>((resolve) => {
+      const chunks: BlobPart[] = [];
+      let stopTimer: ReturnType<typeof setTimeout> | null = null;
+      let settled = false;
+
+      const finish = (result: Result<Blob>) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        this.pendingSettlers.delete(onDispose);
+        if (stopTimer !== null) {
+          clearTimeout(stopTimer);
+        }
+        this.deps.renderLoopManager.releaseContinuous('video-capture');
+        stream.getTracks().forEach((track) => track.stop());
+        resolve(result);
+      };
+
+      const onDispose = () => {
+        // Settle FIRST: whether the recorder fires its stop event sync or
+        // async, the partial clip must not win over the dispose error.
+        finish(
+          Result.err(
+            new ThreeViewerError('Viewer was disposed during video capture', ErrorCode.INVALID_STATE)
+          )
+        );
+        try {
+          recorder.stop();
+        } catch {
+          // Already inactive — nothing to stop.
+        }
+      };
+      this.pendingSettlers.add(onDispose);
+
+      recorder.ondataavailable = (event: BlobEvent) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+      recorder.onstop = () => {
+        finish(Result.ok(new Blob(chunks, { type: recorder.mimeType || 'video/webm' })));
+      };
+      recorder.onerror = () => {
+        finish(
+          Result.err(
+            new ThreeViewerError('Video recording failed', ErrorCode.OPERATION_FAILED)
+          )
+        );
+      };
+
+      recorder.start();
+      stopTimer = setTimeout(() => {
+        if (recorder.state !== 'inactive') {
+          recorder.stop();
+        }
+      }, duration * 1000);
+    });
   }
 
   private async capturePathTracedStill(options: CaptureStillOptions): Promise<Result<string>> {

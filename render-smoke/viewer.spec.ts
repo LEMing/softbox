@@ -204,3 +204,17 @@ test('captureStill returns a substantial PNG data URL', async ({ page }) => {
 
   expect(errors).toEqual([]);
 });
+
+test('captureVideo records the turntable into a real clip', async ({ page }) => {
+  const errors = await openScene(page, '?turntable=1');
+
+  const clip = await page.evaluate(() => window.__captureVideo(1.5));
+
+  // Chromium encodes even on SwiftShader. VP9 compresses this simple scene
+  // hard (a 1.5s take lands under 10 kB), so the floor only rules out an
+  // empty/broken stream — a bare WebM header is a few hundred bytes.
+  expect(clip.type).toContain('video/');
+  expect(clip.size).toBeGreaterThan(3_000);
+
+  expect(errors).toEqual([]);
+});
