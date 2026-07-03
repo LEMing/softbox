@@ -24,6 +24,11 @@ export interface IControls {
   maxPolarAngle: number;
   minAzimuthAngle: number;
   maxAzimuthAngle: number;
+
+  // Turntable: orbit the camera around the target each update(); pauses
+  // automatically while the user interacts.
+  autoRotate: boolean;
+  autoRotateSpeed: number;
   
   // Pan settings
   panSpeed: number;
@@ -44,8 +49,6 @@ export interface IControls {
 
 export interface IOrbitControls extends IControls {
   type: 'orbit';
-  autoRotate: boolean;
-  autoRotateSpeed: number;
 }
 
 export interface IMapControls extends IControls {

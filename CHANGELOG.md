@@ -1,6 +1,15 @@
 Changelog
 =========
 
+3.17.0
+---
+
+### Turntable auto-rotate
+* New **`turntable`** prop on `SimpleViewer` — a one-word showcase mode that slowly orbits the camera around the model: `<SimpleViewer object={url} turntable />`. Equivalent to `options.controls.autoRotate: true` (which finally works — the option existed but was never applied); speed via `options.controls.autoRotateSpeed` (2 ≈ one orbit per 30 s). Rotation pauses automatically while the user drags and resumes on release. Toggling is **live** — like presets, flipping `turntable` (or `controls.autoRotate` / `autoRotateSpeed`) never rebuilds the viewer or reloads the model.
+* The render loop now tracks continuous-rendering demand by named reason (path tracing, turntable), so one subsystem finishing cannot silently freeze another — a completed path-traced frame no longer stops a spinning turntable's loop.
+* **Fixed:** with `staticScene: true`, a live option change (preset switch, background, turntable) arriving after idle detection had stopped the render loop repainted nothing — the dead frame chain ignored the request. `updateOptions` now revives the loop.
+* Render-smoke now proves the rotation on real pixels: frames captured 1.5 s apart must differ.
+
 3.16.6
 ---
 

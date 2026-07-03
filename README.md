@@ -61,6 +61,15 @@ Let your users switch presets with the built-in picker (off by default):
 <SimpleViewer object={url} options={{ ui: { presets: true } }} />
 ```
 
+## Turntable
+
+One word puts the model on a slowly rotating showcase turntable. It pauses while the user drags and resumes on release; toggling is live, like presets.
+
+```tsx
+<SimpleViewer object={url} turntable />
+// speed: options.controls.autoRotateSpeed (2 ≈ one orbit / 30 s)
+```
+
 ## Photoreal mode & stills
 
 ```tsx

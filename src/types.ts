@@ -34,6 +34,14 @@ export interface SimpleViewerProps {
    */
   pathTraced?: boolean;
   /**
+   * Shorthand for `options.controls.autoRotate = true` — a showcase turntable
+   * that slowly orbits the camera around the model. Toggling it never rebuilds
+   * the viewer (applied live), and rotation pauses automatically while the
+   * user is dragging. Speed is tuned via `options.controls.autoRotateSpeed`
+   * (2 ≈ one orbit per 30s). An explicit `options.controls.autoRotate` wins.
+   */
+  turntable?: boolean;
+  /**
    * Overlay children rendered inside the viewer container (over the canvas),
    * e.g. `<Hotspot>` annotations.
    */

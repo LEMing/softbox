@@ -191,6 +191,10 @@ export class ViewerFactory {
     controls.enableZoom = controlsOptions.enableZoom ?? true;
     controls.enableRotate = controlsOptions.enableRotate ?? true;
     controls.enablePan = controlsOptions.enablePan ?? true;
+    controls.autoRotate = controlsOptions.autoRotate ?? false;
+    if (controlsOptions.autoRotateSpeed !== undefined) {
+      controls.autoRotateSpeed = controlsOptions.autoRotateSpeed;
+    }
     
     // Apply zoom settings
     if (controlsOptions.minDistance !== undefined) {
