@@ -1,12 +1,13 @@
-import * as THREE from 'three';
-
 export interface RendererOptions {
   antialias?: boolean;
   alpha?: boolean;
   shadowMapEnabled?: boolean;
   pixelRatio?: number;
-  shadowMapType?: THREE.ShadowMapType;
-  toneMapping?: THREE.ToneMapping;
+  /** A `THREE.ShadowMapType` constant (e.g. `THREE.PCFShadowMap` === 1). */
+  shadowMapType?: number;
+  /** A `THREE.ToneMapping` constant (e.g. `THREE.ACESFilmicToneMapping` === 6). */
+  toneMapping?: number;
   toneMappingExposure?: number;
-  outputColorSpace?: THREE.ColorSpace;
+  /** A `THREE.ColorSpace` value (e.g. `'srgb'`, `'srgb-linear'`). */
+  outputColorSpace?: string;
 }
