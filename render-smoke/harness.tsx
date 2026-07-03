@@ -15,6 +15,7 @@ import {
  *   ?preset=studio|product|neutral|dark|outdoor   (default: none = defaults)
  *   ?hotspot=1                                    (anchor a hotspot at the origin)
  *   ?turntable=1                                  (auto-rotate the camera)
+ *   ?animate=1                                    (play a clip on the model)
  */
 declare global {
   interface Window {
@@ -46,6 +47,7 @@ const params = new URLSearchParams(window.location.search);
 const preset = (params.get('preset') as ViewerPreset | null) ?? undefined;
 const withHotspot = params.get('hotspot') === '1';
 const turntable = params.get('turntable') === '1' || undefined;
+const animate = params.get('animate') === '1' || undefined;
 
 const makeModel = () => {
   // Coarse tessellation on purpose: every triangle costs real time on the
@@ -55,6 +57,14 @@ const makeModel = () => {
     new THREE.MeshStandardMaterial({ color: '#c2410c', roughness: 0.35, metalness: 0.15 })
   );
   mesh.name = 'smoke-torus-knot';
+  if (animate) {
+    // A full turn in 4s — plenty of pixel change between spaced screenshots.
+    mesh.animations = [
+      new THREE.AnimationClip('Turn', 4, [
+        new THREE.NumberKeyframeTrack('smoke-torus-knot.rotation[y]', [0, 4], [0, Math.PI * 2]),
+      ]),
+    ];
+  }
   return mesh;
 };
 
@@ -83,7 +93,13 @@ const Harness = () => {
   }, []);
 
   return (
-    <SimpleViewer ref={viewerRef} object={model.current} preset={preset} turntable={turntable}>
+    <SimpleViewer
+      ref={viewerRef}
+      object={model.current}
+      preset={preset}
+      turntable={turntable}
+      animations={animate}
+    >
       {withHotspot && <Hotspot position={[0, 0, 0]} />}
     </SimpleViewer>
   );

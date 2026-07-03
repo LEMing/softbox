@@ -944,6 +944,93 @@ describe('ViewerCore', () => {
       expect(requireSpy).toHaveBeenCalledWith('turntable');
     });
 
+    it('loadModel attaches animations and autoplays when configured', async () => {
+      const animationService = {
+        attach: jest.fn(),
+        getClipNames: jest.fn(() => ['Walk']),
+        play: jest.fn(),
+        pause: jest.fn(),
+        isPlaying: jest.fn(() => true),
+        setSpeed: jest.fn(),
+        update: jest.fn(),
+        detach: jest.fn(),
+      };
+      const bundle = makeDeps({ options: { animations: { autoplay: 'Walk', speed: 2 } } });
+      const requireSpy = jest.spyOn(RenderLoopManager.prototype, 'requireContinuous');
+      const viewer = new ViewerCore({ ...bundle.deps, animationService });
+      await viewer.initialize();
+
+      await viewer.loadModel(makeObject3D());
+
+      expect(animationService.attach).toHaveBeenCalled();
+      expect(animationService.setSpeed).toHaveBeenCalledWith(2);
+      expect(animationService.play).toHaveBeenCalledWith('Walk');
+      expect(requireSpy).toHaveBeenCalledWith('animations');
+      expect(viewer.getAnimationNames()).toEqual(['Walk']);
+    });
+
+    it('pauseAnimations releases the continuous demand; playAnimations re-holds it', async () => {
+      let playing = false;
+      const animationService = {
+        attach: jest.fn(),
+        getClipNames: jest.fn(() => []),
+        play: jest.fn(() => {
+          playing = true;
+        }),
+        pause: jest.fn(() => {
+          playing = false;
+        }),
+        isPlaying: jest.fn(() => playing),
+        setSpeed: jest.fn(),
+        update: jest.fn(),
+        detach: jest.fn(),
+      };
+      const bundle = makeDeps();
+      const requireSpy = jest.spyOn(RenderLoopManager.prototype, 'requireContinuous');
+      const releaseSpy = jest.spyOn(RenderLoopManager.prototype, 'releaseContinuous');
+      const viewer = new ViewerCore({ ...bundle.deps, animationService });
+      await viewer.initialize();
+
+      viewer.playAnimations();
+      expect(requireSpy).toHaveBeenCalledWith('animations');
+
+      viewer.pauseAnimations();
+      expect(animationService.pause).toHaveBeenCalled();
+      expect(releaseSpy).toHaveBeenCalledWith('animations');
+    });
+
+    it('updateOptions toggles autoplay live but ignores an unchanged re-send', async () => {
+      let playing = false;
+      const animationService = {
+        attach: jest.fn(),
+        getClipNames: jest.fn(() => []),
+        play: jest.fn(() => {
+          playing = true;
+        }),
+        pause: jest.fn(() => {
+          playing = false;
+        }),
+        isPlaying: jest.fn(() => playing),
+        setSpeed: jest.fn(),
+        update: jest.fn(),
+        detach: jest.fn(),
+      };
+      const bundle = makeDeps();
+      const viewer = new ViewerCore({ ...bundle.deps, animationService });
+      await viewer.initialize();
+
+      viewer.updateOptions({ animations: { autoplay: true } });
+      expect(animationService.play).toHaveBeenCalledTimes(1);
+
+      // The runtime-options effect re-sends the full set on every look change.
+      viewer.updateOptions({ animations: { autoplay: true } });
+      expect(animationService.play).toHaveBeenCalledTimes(1);
+
+      viewer.updateOptions({ animations: { autoplay: false, speed: 0.5 } });
+      expect(animationService.pause).toHaveBeenCalledTimes(1);
+      expect(animationService.setSpeed).toHaveBeenCalledWith(0.5);
+    });
+
     it('createAnchorProjector returns null without an anchor projection service', () => {
       const bundle = makeDeps();
       const viewer = new ViewerCore(bundle.deps);

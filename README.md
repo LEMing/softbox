@@ -70,6 +70,24 @@ One word puts the model on a slowly rotating showcase turntable. It pauses while
 // speed: options.controls.autoRotateSpeed (2 ≈ one orbit / 30 s)
 ```
 
+## Animations
+
+One word plays everything the GLTF carries — all clips, looped, from the moment the model loads.
+
+```tsx
+<SimpleViewer object={url} animations />
+```
+
+Pick one clip, tune the speed, or build your own play/pause UI via the handle:
+
+```tsx
+<SimpleViewer object={url} options={{ animations: { autoplay: 'Walk', speed: 1.5 } }} />
+
+viewerRef.current.getAnimationNames(); // ['Walk', 'Idle', ...]
+viewerRef.current.pauseAnimations();
+viewerRef.current.playAnimations('Idle');
+```
+
 ## Photoreal mode & stills
 
 ```tsx

@@ -11,3 +11,4 @@ export * from './LoaderOptions';
 export * from './PresetOptions';
 export * from './UIOptions';
 export * from './SelectionOptions';
+export * from './AnimationOptions';

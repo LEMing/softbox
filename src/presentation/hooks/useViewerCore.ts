@@ -76,6 +76,10 @@ export function useViewerCore(
         autoRotate: merged.controls?.autoRotate,
         autoRotateSpeed: merged.controls?.autoRotateSpeed,
       },
+      animations: {
+        autoplay: merged.animations?.autoplay,
+        speed: merged.animations?.speed,
+      },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runtimeKey is a content hash of the runtime look; reading the resolved values inside is intentional.
   }, [runtimeKey, isInitialized]);

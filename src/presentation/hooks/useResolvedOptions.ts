@@ -17,14 +17,17 @@ export function useResolvedOptions(
   options: SimpleViewerOptions,
   activePreset: ViewerPreset | undefined,
   pathTraced: boolean | undefined,
-  turntable: boolean | undefined
+  turntable: boolean | undefined,
+  animations: boolean | undefined
 ): SimpleViewerOptions {
   return useMemo(() => {
     const presetChanged = options.preset !== activePreset;
     const foldPathTraced = pathTraced === true && options.pathTracing?.enabled === undefined;
     const foldTurntable =
       turntable !== undefined && options.controls?.autoRotate === undefined;
-    if (!presetChanged && !foldPathTraced && !foldTurntable) {
+    const foldAnimations =
+      animations !== undefined && options.animations?.autoplay === undefined;
+    if (!presetChanged && !foldPathTraced && !foldTurntable && !foldAnimations) {
       return options;
     }
     return {
@@ -36,6 +39,9 @@ export function useResolvedOptions(
       ...(foldTurntable
         ? { controls: { ...options.controls, autoRotate: turntable } }
         : {}),
+      ...(foldAnimations
+        ? { animations: { ...options.animations, autoplay: animations } }
+        : {}),
     };
-  }, [options, activePreset, pathTraced, turntable]);
+  }, [options, activePreset, pathTraced, turntable, animations]);
 }

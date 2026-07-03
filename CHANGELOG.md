@@ -1,6 +1,16 @@
 Changelog
 =========
 
+3.18.0
+---
+
+### GLTF animation playback
+* New **`animations`** prop on `SimpleViewer` — `<SimpleViewer object={url} animations />` plays ALL of the model's animation clips, looped, as soon as it loads. Works for GLTF files and for passed `THREE.Object3D`s carrying clips on `.animations`.
+* **`options.animations`** for tuning: `autoplay: true | 'ClipName'` (one clip or all) and `speed` (playback rate, applied live). Toggling autoplay is live — pause/resume without a rebuild, like presets and the turntable.
+* **Imperative control on the handle:** `getAnimationNames()`, `playAnimations(name?)`, `pauseAnimations()` — enough to build play/pause UI or clip pickers.
+* Architecture: playback lives in `ThreeAnimationService` (an `AnimationMixer` behind the engine-agnostic `IAnimationService` port); the render loop holds an `'animations'` continuous-rendering reason while playing, composing with the turntable and path tracing instead of fighting them. The loader now copies `gltf.animations` onto the model root (the standard three convention).
+* Render-smoke proves playback on real pixels: with `animations` on, frames captured 1 s apart must differ.
+
 3.17.0
 ---
 
