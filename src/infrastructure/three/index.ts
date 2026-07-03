@@ -14,4 +14,5 @@ export * from './LazyPathTracingService';
 export * from './ThreeEnvironmentService';
 export * from './ThreeFloorAlignmentService';
 export * from './ThreeSelectionService';
+export * from './ThreeAnchorProjector';
 export * from './unwrap';

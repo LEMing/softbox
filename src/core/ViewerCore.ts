@@ -6,6 +6,8 @@ import {
   ICamera,
   IControls,
   IObject3D,
+  IAnchorProjectionService,
+  IAnchorProjector,
   Result
 } from './interfaces';
 import { TypedEventEmitter } from '../events/EventEmitter';
@@ -47,6 +49,7 @@ export interface ViewerDependencies {
   sceneSetupService?: ISceneSetupService;
   floorAlignmentService?: IFloorAlignmentService;
   selectionService?: ISelectionService;
+  anchorProjectionService?: IAnchorProjectionService;
 }
 
 /**
@@ -84,6 +87,7 @@ export class ViewerCore {
   private readonly sceneSetupService?: ISceneSetupService;
   private readonly environmentService?: IEnvironmentService;
   private readonly selectionService?: ISelectionService;
+  private readonly anchorProjectionService?: IAnchorProjectionService;
 
   constructor(dependencies: ViewerDependencies) {
     this.renderer = dependencies.renderer;
@@ -95,6 +99,7 @@ export class ViewerCore {
     this.sceneSetupService = dependencies.sceneSetupService;
     this.environmentService = dependencies.environmentService;
     this.selectionService = dependencies.selectionService;
+    this.anchorProjectionService = dependencies.anchorProjectionService;
 
     this.stateManager = new StateManager();
 
@@ -508,6 +513,22 @@ export class ViewerCore {
   /** Request a single render through the internal render loop. */
   requestRender(): void {
     this.renderLoopManager.requestRender();
+  }
+
+  /**
+   * Creates a projector that maps a world-space anchor to canvas pixels (the
+   * engine math behind DOM annotations like `Hotspot`), or null when the
+   * viewer was assembled without an anchor-projection service.
+   */
+  createAnchorProjector(): IAnchorProjector | null {
+    if (!this.anchorProjectionService) {
+      return null;
+    }
+    return this.anchorProjectionService.createProjector({
+      camera: this.camera,
+      getCanvas: () => this.renderer.getDomElement(),
+      getModel: () => this.getModel(),
+    });
   }
 
   /**
