@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import { Vec3Like } from '../../core/interfaces/Vec3Like';
 
 export interface AmbientLightOptions {
   color?: string | number;
@@ -14,7 +14,7 @@ export interface HemisphereLightOptions {
 export interface DirectionalLightOptions {
   color?: string | number;
   intensity?: number;
-  position?: THREE.Vector3 | [number, number, number];
+  position?: Vec3Like | [number, number, number];
   castShadow?: boolean;
   shadow?: {
     mapSize?: {

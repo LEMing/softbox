@@ -46,6 +46,22 @@ export default tseslint.config(
     },
   },
   {
+    // The public option types are consumed by engine-agnostic core (via
+    // SimpleViewerOptions), so they must not drag Three.js types into it.
+    files: ['src/types/options/**/*.ts'],
+    ignores: ['src/types/options/**/__tests__/**'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          {
+            group: ['three', 'three/*', 'three-gpu-pathtracer', 'three-mesh-bvh'],
+            message: 'Option types feed engine-agnostic core; use primitives or a Vec3Like, not Three.js types.',
+          },
+        ],
+      }],
+    },
+  },
+  {
     files: ['src/infrastructure/**/*.{ts,tsx}'],
     ignores: ['src/infrastructure/**/__tests__/**'],
     rules: {

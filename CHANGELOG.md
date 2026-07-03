@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.16.2
+---
+
+### Core type purity (architecture roadmap item 13)
+* `RendererOptions` and `LightingOptions` no longer import `three`: `shadowMapType`/`toneMapping` are documented `number`s (the same THREE constants you already pass), `outputColorSpace` is a `string`, and a directional light's `position` is a shared `Vec3Like | [number, number, number]`. This stops the engine-agnostic core from transitively importing Three.js types through `SimpleViewerOptions` — and a new ESLint rule forbids `three` imports under `src/types/options` so it can't regress. Fully backward compatible: a `THREE.Vector3` or `THREE.PCFSoftShadowMap` still assigns exactly as before (pinned by a test).
+
 3.16.1
 ---
 
