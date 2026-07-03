@@ -12,13 +12,28 @@ jest.mock('../../SimpleViewerWrapper', () => {
   const captureStill = jest.fn();
   const MockViewer = ReactActual.forwardRef(
     (
-      { object, children }: { object?: string; children?: React.ReactNode },
+      {
+        object,
+        turntable,
+        animations,
+        children,
+      }: {
+        object?: string;
+        turntable?: boolean;
+        animations?: boolean;
+        children?: React.ReactNode;
+      },
       ref: React.Ref<unknown>
     ) => {
       ReactActual.useImperativeHandle(ref, () => ({ events, captureStill }));
       return ReactActual.createElement(
         'div',
-        { 'data-testid': 'viewer', 'data-object': String(object) },
+        {
+          'data-testid': 'viewer',
+          'data-object': String(object),
+          'data-turntable': String(turntable ?? false),
+          'data-animations': String(animations ?? false),
+        },
         children
       );
     }
@@ -148,6 +163,40 @@ describe('SiteApp hotspot pins', () => {
     clickModel();
     fireEvent.click(screen.getByText('Helmet'));
     expect(screen.queryByTestId('site-pin')).not.toBeInTheDocument();
+  });
+});
+
+describe('SiteApp motion toggles', () => {
+  it('flips the turntable prop on the live viewer', () => {
+    render(<SiteApp />);
+    const chip = screen.getByRole('button', { name: 'turntable' });
+
+    fireEvent.click(chip);
+    expect(screen.getByTestId('viewer')).toHaveAttribute('data-turntable', 'true');
+    expect(chip).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(chip);
+    expect(screen.getByTestId('viewer')).toHaveAttribute('data-turntable', 'false');
+  });
+
+  it('flips the animations prop and offers the animated Fox sample', () => {
+    render(<SiteApp />);
+    expect(screen.getByText('Fox')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'animations' }));
+    expect(screen.getByTestId('viewer')).toHaveAttribute('data-animations', 'true');
+  });
+
+  it('keeps the usage snippet in sync with the enabled toggles', () => {
+    render(<SiteApp />);
+    expect(screen.queryByText(/turntable/, { selector: 'pre' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'turntable' }));
+    fireEvent.click(screen.getByRole('button', { name: 'animations' }));
+
+    const snippet = screen.getByText(/SimpleViewer/, { selector: 'pre' });
+    expect(snippet).toHaveTextContent('turntable');
+    expect(snippet).toHaveTextContent('animations');
   });
 });
 

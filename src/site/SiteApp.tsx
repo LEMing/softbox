@@ -3,6 +3,7 @@ import SimpleViewer from '../SimpleViewerWrapper';
 import { Hotspot } from '../presentation/components/Hotspot';
 import type { SimpleViewerHandle } from '../types/SimpleViewerHandle';
 import { Picker } from './Picker';
+import { Toggles } from './Toggles';
 import { CodeSnippet } from './CodeSnippet';
 import { useDropModel } from './useDropModel';
 import { useMediaQuery } from './useMediaQuery';
@@ -13,6 +14,8 @@ const SAMPLE_MODELS: Record<string, string> = {
   Helmet: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
   WaterBottle: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/WaterBottle/glTF-Binary/WaterBottle.glb',
   Avocado: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb',
+  // Animated (Survey/Walk/Run clips) — the `animations` toggle's showcase.
+  Fox: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Fox/glTF-Binary/Fox.glb',
 };
 
 const DROPPED_KEY = 'yours';
@@ -44,6 +47,8 @@ const downloadDataUrl = (dataUrl: string, filename: string) => {
 export function SiteApp() {
   const { dropped, isDragging, rejectedName, loadFile } = useDropModel();
   const [selected, setSelected] = useState<string>('Lantern');
+  const [turntable, setTurntable] = useState(false);
+  const [animations, setAnimations] = useState(false);
   const [pins, setPins] = useState<Pin[]>([]);
   const [stillState, setStillState] = useState<'idle' | 'capturing' | 'failed'>('idle');
   const pinIdRef = useRef(0);
@@ -143,6 +148,13 @@ export function SiteApp() {
           </a>
         </div>
         <Picker label="Model" items={pickerItems} value={selected} onChange={setSelected} />
+        <Toggles
+          label="Motion"
+          items={[
+            { key: 'turntable', label: 'turntable', active: turntable, onToggle: setTurntable },
+            { key: 'animations', label: 'animations', active: animations, onToggle: setAnimations },
+          ]}
+        />
         <div style={{ fontSize: 11.5, color: rejectedName ? '#b3261e' : '#7a7a85' }} role="status">
           {rejectedName ? (
             <>Only self-contained <code style={{ fontSize: 11 }}>.glb</code> models are supported</>
@@ -182,7 +194,18 @@ export function SiteApp() {
 
       {showSnippet && (
         <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}>
-          <CodeSnippet />
+          <CodeSnippet
+            usage={[
+              "import { SimpleViewer } from 'threedviewer';",
+              '',
+              '<SimpleViewer',
+              '  object="/model.glb"',
+              ...(turntable ? ['  turntable'] : []),
+              ...(animations ? ['  animations'] : []),
+              '  options={{ ui: { presets: true } }}',
+              '/>',
+            ].join('\n')}
+          />
         </div>
       )}
 
@@ -210,7 +233,13 @@ export function SiteApp() {
         </button>
       )}
 
-      <SimpleViewer ref={viewerRef} object={modelUrl} options={{ ui: { presets: true } }}>
+      <SimpleViewer
+        ref={viewerRef}
+        object={modelUrl}
+        turntable={turntable}
+        animations={animations}
+        options={{ ui: { presets: true } }}
+      >
         {pins.map((pin, index) => (
           <Hotspot key={pin.id} position={pin.point} occlude>
             <button

@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.18.2
+---
+
+### Playground: motion demo
+* The playground grew a **Motion** row — `turntable` and `animations` toggle chips that flip the live viewer props (no rebuild), plus the animated Khronos **Fox** sample (Survey/Walk/Run clips) to give the animations toggle something to show. The usage snippet is now live: it reflects the toggles you have on, so what you copy is what you see. Site-only change — nothing in the published package.
+
 3.18.1
 ---
 
