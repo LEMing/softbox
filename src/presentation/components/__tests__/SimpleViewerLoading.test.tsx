@@ -5,6 +5,7 @@ import { SimpleViewer } from '../SimpleViewer';
 import { useViewerCore, useViewerEventHandlers } from '../../hooks';
 import { Result } from '../../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../../errors';
+import { TypedEventEmitter } from '../../../events/EventEmitter';
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -19,6 +20,7 @@ const deferred = <T,>(): Deferred<T> => {
 };
 
 jest.mock('../../hooks', () => ({
+  ...jest.requireActual('../../hooks'),
   useViewerCore: jest.fn(),
   useViewerEventHandlers: jest.fn(),
 }));
@@ -33,6 +35,7 @@ const makeViewer = (loadModel: jest.Mock) =>
     getCamera: () => null,
     getControls: () => null,
     getRenderer: () => null,
+    getEvents: () => new TypedEventEmitter(),
     requestRender: jest.fn(),
     loadModel,
     dispose: jest.fn(),
