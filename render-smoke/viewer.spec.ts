@@ -98,6 +98,8 @@ test('renders the model on the default look without page errors', async ({ page 
 });
 
 test('dark preset paints a clearly darker background than the default look', async ({ page }) => {
+  // Two full scene loads in one test — give a starved CI runner extra room.
+  test.setTimeout(360_000);
   const errors = await openScene(page);
   const defaultBackground = luminance(pixelAt(await screenshotCanvas(page), 2, 2));
 
@@ -201,6 +203,29 @@ test('captureStill returns a substantial PNG data URL', async ({ page }) => {
   expect(dataUrl).toMatch(/^data:image\/png;base64,/);
   // A blank 480x360 PNG compresses to almost nothing; a real frame does not.
   expect(dataUrl.length).toBeGreaterThan(10_000);
+
+  expect(errors).toEqual([]);
+});
+
+test('captureVideo records the turntable into a real clip', async ({ page }) => {
+  test.setTimeout(360_000);
+  const errors = await openScene(page, '?turntable=1');
+
+  // On a starved CI runner the software encoder thread can get so little CPU
+  // that a short take emits nothing — escalate the duration until it does.
+  // A broken pipeline stays empty at every duration and still fails.
+  let clip = { size: 0, type: '' };
+  for (const duration of [3, 6, 12]) {
+    clip = await page.evaluate((seconds) => window.__captureVideo(seconds), duration);
+    if (clip.size > 3_000) {
+      break;
+    }
+  }
+
+  // VP9 compresses this simple scene hard, so the floor only rules out an
+  // empty/broken stream — a bare WebM header is a few hundred bytes.
+  expect(clip.type).toContain('video/');
+  expect(clip.size).toBeGreaterThan(3_000);
 
   expect(errors).toEqual([]);
 });

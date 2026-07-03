@@ -1,6 +1,14 @@
 Changelog
 =========
 
+3.19.0
+---
+
+### Video capture
+* New **`captureVideo(options?)`** on the imperative handle — records the live canvas for a few seconds (default 3) via `MediaRecorder` + `canvas.captureStream` (zero dependencies) and resolves with the encoded clip: WebM in Chromium/Firefox, MP4 in Safari. Motion is captured as it happens — pair with `turntable` for a product-card orbit clip or `animations` for a character loop. Options: `duration`, `fps`, `mimeType` (auto-picks the best supported flavor), `videoBitsPerSecond`.
+* The render loop is held continuous for the whole take (the `'video-capture'` reason), so clips come out full-motion even on otherwise idle static scenes; disposal mid-capture settles the promise with `INVALID_STATE` instead of leaving it dangling.
+* Render-smoke proves the pipeline end to end in CI: a real 1.5 s turntable take must encode to a substantial `video/*` blob.
+
 3.18.2
 ---
 

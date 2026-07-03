@@ -23,6 +23,7 @@ Balanced studio lighting, a glossy glass floor with a contact shadow, auto-frami
 - **[Turntable](#turntable)** — one-word showcase auto-rotate that pauses while the user drags
 - **[Animations](#animations)** — GLTF clips autoplay with one word; play/pause/clip-picker API
 - **[Photoreal mode](#photoreal-mode--stills)** — progressive path tracing + `captureStill()` PNG export
+- **[Video capture](#video-capture)** — `captureVideo()` records the canvas to WebM/MP4, zero dependencies
 - **[Hotspots & click selection](#hotspot-annotations--click-selection)** — DOM pins on world-space points, BVH-accelerated picking
 - **Compressed assets** — DRACO, KTX2/Basis and Meshopt decoders wired in, fetched lazily
 - **Built-in chrome** — loading overlay, preset picker, viewport gizmo — all optional, all off-or-subtle by default
@@ -113,6 +114,17 @@ const handle = viewerRef.current;
 const dataUrl = await handle.captureStill({ width: 1920 }); // PNG data URL
 ```
 
+## Video capture
+
+Record the live canvas into a clip — no dependencies, straight through `MediaRecorder` (WebM in Chromium/Firefox, MP4 in Safari). Motion is captured as it happens, so `turntable` + `captureVideo` is a ready-made product-card orbit:
+
+```tsx
+<SimpleViewer ref={viewerRef} object={url} turntable />
+
+const blob = await viewerRef.current.captureVideo({ duration: 5 }); // Blob
+// also: fps, mimeType, videoBitsPerSecond
+```
+
 ## Hotspot annotations & click selection
 
 Pin DOM content to a world-space point — it tracks orbiting, zooming and resizes:
@@ -165,7 +177,7 @@ const viewerRef = useRef<SimpleViewerHandle>(null);
 <SimpleViewer ref={viewerRef} object={url} />
 ```
 
-The handle exposes `scene`, `camera`, `renderer`, `controls`, `events`, `loadModel(source)`, `captureStill(options?)`, `getAnimationNames()`, `playAnimations(name?)`, `pauseAnimations()` and `dispose()`.
+The handle exposes `scene`, `camera`, `renderer`, `controls`, `events`, `loadModel(source)`, `captureStill(options?)`, `captureVideo(options?)`, `getAnimationNames()`, `playAnimations(name?)`, `pauseAnimations()` and `dispose()`.
 
 ## Configuration
 

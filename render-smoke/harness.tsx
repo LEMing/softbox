@@ -23,6 +23,7 @@ declare global {
     __modelLoaded: boolean;
     __pageErrors: string[];
     __captureStill: () => Promise<string>;
+    __captureVideo: (duration: number) => Promise<{ size: number; type: string }>;
   }
 }
 
@@ -80,6 +81,11 @@ const Harness = () => {
     // Read the ref at call time: the handle is recreated once the core viewer
     // initializes, and only the late one has a live captureStill.
     window.__captureStill = async () => viewerRef.current!.captureStill();
+    // Blobs don't cross page.evaluate — hand the test size + type instead.
+    window.__captureVideo = async (duration: number) => {
+      const blob = await viewerRef.current!.captureVideo({ duration });
+      return { size: blob.size, type: blob.type };
+    };
     const offRender = handle.events.on('render:complete', () => {
       window.__renderedFrames += 1;
     });

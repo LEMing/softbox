@@ -3,8 +3,9 @@ import { ControlsInstance } from './CommonTypes';
 import { TypedEventEmitter } from '../events/EventEmitter';
 import { ViewerEventMap } from '../events/ViewerEvents';
 import { CaptureStillOptions } from './CaptureStillOptions';
+import { CaptureVideoOptions } from './CaptureVideoOptions';
 
-export type { CaptureStillOptions };
+export type { CaptureStillOptions, CaptureVideoOptions };
 
 /**
  * Imperative handle exposed via `ref` on the `SimpleViewer` component. Lives in a
@@ -24,6 +25,12 @@ export interface SimpleViewerHandle {
    * still is taken at canvas resolution once the accumulation completes.
    */
   captureStill: (options?: CaptureStillOptions) => Promise<string>;
+  /**
+   * Record the live canvas for a few seconds (default 3) and resolve with the
+   * encoded clip — WebM in Chromium/Firefox, MP4 in Safari. Motion (turntable,
+   * animations, user orbiting) is captured as it happens.
+   */
+  captureVideo: (options?: CaptureVideoOptions) => Promise<Blob>;
   /** Clip names of the loaded model, in file order (empty when none). */
   getAnimationNames: () => string[];
   /** Plays one clip by name, or ALL clips when no name is given (looped). */
