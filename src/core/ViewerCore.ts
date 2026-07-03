@@ -218,7 +218,10 @@ export class ViewerCore {
       if (!this.options.staticScene) {
         this.renderLoopManager.setAlwaysRender(true);
       } else if (this.pathTracing.isEnabled()) {
-        this.renderLoopManager.enableContinuousRendering();
+        this.renderLoopManager.requireContinuous('path-tracing');
+      }
+      if (this.options.controls?.autoRotate) {
+        this.renderLoopManager.requireContinuous('turntable');
       }
 
       this.renderLoopManager.requestRender();
@@ -419,7 +422,25 @@ export class ViewerCore {
       this.scene.setEnvironmentIntensity(environmentIntensity);
       needsRender = true;
     }
+    const autoRotate = partial.controls?.autoRotate;
+    if (autoRotate !== undefined) {
+      this.controls.autoRotate = autoRotate;
+      if (autoRotate) {
+        this.renderLoopManager.requireContinuous('turntable');
+      } else {
+        this.renderLoopManager.releaseContinuous('turntable');
+      }
+      needsRender = true;
+    }
+    const autoRotateSpeed = partial.controls?.autoRotateSpeed;
+    if (autoRotateSpeed !== undefined) {
+      this.controls.autoRotateSpeed = autoRotateSpeed;
+      needsRender = true;
+    }
     if (needsRender) {
+      // An option change must repaint even after idle detection stopped the
+      // loop (staticScene) — a dead rAF chain ignores the needsRender flag.
+      this.reviveRenderLoop();
       this.renderLoopManager.requestRender();
     }
   }
@@ -513,6 +534,16 @@ export class ViewerCore {
   /** Request a single render through the internal render loop. */
   requestRender(): void {
     this.renderLoopManager.requestRender();
+  }
+
+  /**
+   * With staticScene idle detection the loop STOPS when idle; waking flags
+   * alone cannot restart a dead requestAnimationFrame chain.
+   */
+  private reviveRenderLoop(): void {
+    if (this.stateManager.isInitialized() && !this.renderLoopManager.isRunning()) {
+      this.startRenderLoop();
+    }
   }
 
   /**

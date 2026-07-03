@@ -177,6 +177,8 @@ const makeControls = (overrides: Overrides = {}): jest.Mocked<IControls> => {
     maxAzimuthAngle: Infinity,
     panSpeed: 1,
     screenSpacePanning: true,
+    autoRotate: false,
+    autoRotateSpeed: 2,
     target: makeVector3(),
     update: jest.fn(() => false),
     reset: jest.fn(),
@@ -479,7 +481,7 @@ describe('ViewerCore', () => {
       });
       const enableContinuousSpy = jest.spyOn(
         RenderLoopManager.prototype,
-        'enableContinuousRendering'
+        'requireContinuous'
       );
       const viewer = new ViewerCore(bundle.deps);
 
@@ -634,7 +636,7 @@ describe('ViewerCore', () => {
       });
       const disableContinuousSpy = jest.spyOn(
         RenderLoopManager.prototype,
-        'disableContinuousRendering'
+        'releaseContinuous'
       );
       const setAlwaysRenderSpy = jest.spyOn(
         RenderLoopManager.prototype,
@@ -914,6 +916,32 @@ describe('ViewerCore', () => {
       unsubscribe();
       await viewer.loadModel(makeObject3D());
       expect(listener).not.toHaveBeenCalled();
+    });
+
+    it('updateOptions applies the turntable live and holds continuous rendering', async () => {
+      const bundle = makeDeps();
+      const requireSpy = jest.spyOn(RenderLoopManager.prototype, 'requireContinuous');
+      const releaseSpy = jest.spyOn(RenderLoopManager.prototype, 'releaseContinuous');
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+
+      viewer.updateOptions({ controls: { autoRotate: true, autoRotateSpeed: 4 } });
+      expect(bundle.controls.autoRotate).toBe(true);
+      expect(bundle.controls.autoRotateSpeed).toBe(4);
+      expect(requireSpy).toHaveBeenCalledWith('turntable');
+
+      viewer.updateOptions({ controls: { autoRotate: false } });
+      expect(bundle.controls.autoRotate).toBe(false);
+      expect(releaseSpy).toHaveBeenCalledWith('turntable');
+    });
+
+    it('initialize holds continuous rendering when options enable the turntable', async () => {
+      const bundle = makeDeps({ options: { staticScene: true, controls: { autoRotate: true } } });
+      const requireSpy = jest.spyOn(RenderLoopManager.prototype, 'requireContinuous');
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+
+      expect(requireSpy).toHaveBeenCalledWith('turntable');
     });
 
     it('createAnchorProjector returns null without an anchor projection service', () => {

@@ -148,6 +148,34 @@ test('hotspot projects the origin anchor onto the model base', async ({ page }) 
   expect(errors).toEqual([]);
 });
 
+test('turntable keeps the scene moving: frames apart in time differ', async ({ page }) => {
+  const errors = await openScene(page, '?turntable=1');
+
+  const before = await screenshotCanvas(page);
+  // Turntable speed 2 ≈ 12°/s; even SwiftShader accumulates a visible
+  // rotation over a second of wall-clock.
+  await page.waitForTimeout(1500);
+  const after = await screenshotCanvas(page);
+
+  let differing = 0;
+  const total = before.width * before.height;
+  for (let i = 0; i < total; i += 1) {
+    const offset = i << 2;
+    const delta =
+      Math.abs(before.data[offset] - after.data[offset]) +
+      Math.abs(before.data[offset + 1] - after.data[offset + 1]) +
+      Math.abs(before.data[offset + 2] - after.data[offset + 2]);
+    if (delta > 45) {
+      differing += 1;
+    }
+  }
+  // A frozen turntable yields ~0 differing pixels; a turning one repaints a
+  // solid share of the model silhouette.
+  expect(differing / total).toBeGreaterThan(0.005);
+
+  expect(errors).toEqual([]);
+});
+
 test('captureStill returns a substantial PNG data URL', async ({ page }) => {
   const errors = await openScene(page);
 

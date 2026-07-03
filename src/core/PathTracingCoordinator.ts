@@ -86,13 +86,18 @@ export class PathTracingCoordinator {
       });
     }
 
-    // The service pauses itself when accumulation stalls; wind the loop down.
+    // The service pauses itself when accumulation stalls; wind the loop down —
+    // unless another subsystem (turntable, animations) still needs frames.
     service.events.on('pathtracing:paused', () => {
-      renderLoopManager.disableContinuousRendering();
+      renderLoopManager.releaseContinuous('path-tracing');
       if (!getOptions().staticScene) {
         renderLoopManager.setAlwaysRender(false);
       }
-      schedule(() => renderLoopManager.stop(), 100);
+      schedule(() => {
+        if (!renderLoopManager.hasContinuousDemand()) {
+          renderLoopManager.stop();
+        }
+      }, 100);
     });
   }
 
@@ -154,7 +159,7 @@ export class PathTracingCoordinator {
   private handleComplete(samples: number, currentTime: number): void {
     const { events, renderLoopManager, getOptions, schedule, replaceWithScreenshot, renderer } = this.deps;
     this.completeHandled = true;
-    renderLoopManager.disableContinuousRendering();
+    renderLoopManager.releaseContinuous('path-tracing');
     if (!getOptions().staticScene) {
       renderLoopManager.setAlwaysRender(false);
     }
@@ -164,11 +169,19 @@ export class PathTracingCoordinator {
       totalTime: currentTime - (this.startTime || 0),
     });
 
+    // Stopping the loop freezes the final frame; only legal while nothing
+    // else (turntable, animations) still needs it running.
+    const stopUnlessDemanded = () => {
+      if (!renderLoopManager.hasContinuousDemand()) {
+        renderLoopManager.stop();
+      }
+    };
+
     if (getOptions().replaceWithScreenshotOnComplete) {
       schedule(() => {
         replaceWithScreenshot();
         // Stop the render loop after the screenshot to avoid disposed-service renders
-        schedule(() => renderLoopManager.stop(), 200);
+        schedule(stopUnlessDemanded, 200);
       }, 100);
       return;
     }
@@ -176,7 +189,7 @@ export class PathTracingCoordinator {
     // Keep the final path-traced image visible: one last render, stop the loop,
     // and prevent autoClear from wiping the preserved buffer.
     renderLoopManager.requestRender();
-    schedule(() => renderLoopManager.stop(), 100);
+    schedule(stopUnlessDemanded, 100);
     if (hasInternalRenderer(renderer)) {
       const threeRenderer = renderer.getInternalRenderer() as { autoClear: boolean } | null;
       if (threeRenderer) {

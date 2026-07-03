@@ -23,6 +23,7 @@ export class RenderLoopManager {
   // Tracking what needs rendering
   private needsRender: boolean = true;
   private continuousRenderingEnabled: boolean = false;
+  private readonly continuousReasons: Set<string> = new Set();
   private alwaysRender: boolean = false;
   
   constructor(options: RenderLoopOptions = {}) {
@@ -44,18 +45,25 @@ export class RenderLoopManager {
   }
   
   /**
-   * Enable continuous rendering (e.g., for animations)
+   * Demand continuous rendering for a named reason (path tracing, turntable,
+   * animations). The loop stays continuous while ANY reason is held, so one
+   * subsystem finishing cannot silently stall another.
    */
-  enableContinuousRendering(): void {
+  requireContinuous(reason: string): void {
+    this.continuousReasons.add(reason);
     this.continuousRenderingEnabled = true;
     this.wakeUp();
   }
-  
-  /**
-   * Disable continuous rendering
-   */
-  disableContinuousRendering(): void {
-    this.continuousRenderingEnabled = false;
+
+  /** Release one reason; continuous rendering stops when none remain. */
+  releaseContinuous(reason: string): void {
+    this.continuousReasons.delete(reason);
+    this.continuousRenderingEnabled = this.continuousReasons.size > 0;
+  }
+
+  /** Whether any subsystem still demands continuous rendering. */
+  hasContinuousDemand(): boolean {
+    return this.continuousReasons.size > 0;
   }
   
   /**
@@ -159,6 +167,7 @@ export class RenderLoopManager {
     this.isIdle = false;
     this.needsRender = false;
     this.continuousRenderingEnabled = false;
+    this.continuousReasons.clear();
     this.alwaysRender = false;
   }
   

@@ -72,6 +72,10 @@ export function useViewerCore(
       backgroundColor: merged.backgroundColor,
       renderer: { toneMappingExposure: merged.renderer?.toneMappingExposure },
       environment: { environmentIntensity: merged.environment?.environmentIntensity },
+      controls: {
+        autoRotate: merged.controls?.autoRotate,
+        autoRotateSpeed: merged.controls?.autoRotateSpeed,
+      },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runtimeKey is a content hash of the runtime look; reading the resolved values inside is intentional.
   }, [runtimeKey, isInitialized]);

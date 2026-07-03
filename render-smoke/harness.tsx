@@ -14,6 +14,7 @@ import {
  * actual WebGL pixels in CI. Scenarios are selected via query params:
  *   ?preset=studio|product|neutral|dark|outdoor   (default: none = defaults)
  *   ?hotspot=1                                    (anchor a hotspot at the origin)
+ *   ?turntable=1                                  (auto-rotate the camera)
  */
 declare global {
   interface Window {
@@ -44,6 +45,7 @@ console.error = (...args: unknown[]) => {
 const params = new URLSearchParams(window.location.search);
 const preset = (params.get('preset') as ViewerPreset | null) ?? undefined;
 const withHotspot = params.get('hotspot') === '1';
+const turntable = params.get('turntable') === '1' || undefined;
 
 const makeModel = () => {
   // Coarse tessellation on purpose: every triangle costs real time on the
@@ -81,7 +83,7 @@ const Harness = () => {
   }, []);
 
   return (
-    <SimpleViewer ref={viewerRef} object={model.current} preset={preset}>
+    <SimpleViewer ref={viewerRef} object={model.current} preset={preset} turntable={turntable}>
       {withHotspot && <Hotspot position={[0, 0, 0]} />}
     </SimpleViewer>
   );

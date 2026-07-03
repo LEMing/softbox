@@ -36,7 +36,7 @@ const notReadyError = () =>
  * imperative handle and the overlay chrome.
  */
 export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
-  ({ object, options = {}, preset, pathTraced, children }, ref) => {
+  ({ object, options = {}, preset, pathTraced, turntable, children }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     // The `preset` prop is shorthand for `options.preset`; an explicit
@@ -47,7 +47,7 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
       options.ui
     );
 
-    const resolvedOptions = useResolvedOptions(options, activePreset, pathTraced);
+    const resolvedOptions = useResolvedOptions(options, activePreset, pathTraced, turntable);
     const { viewer, isInitialized } = useViewerCore(canvasRef, resolvedOptions);
 
     const loadState = useModelLoader(viewer, isInitialized, object);

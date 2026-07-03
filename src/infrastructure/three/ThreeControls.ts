@@ -168,6 +168,23 @@ abstract class ThreeControlsAdapter {
     this.controls.dispose();
   }
 
+  // MapControls extends OrbitControls, so both flavors support the turntable.
+  get autoRotate(): boolean {
+    return this.controls.autoRotate;
+  }
+
+  set autoRotate(value: boolean) {
+    this.controls.autoRotate = value;
+  }
+
+  get autoRotateSpeed(): number {
+    return this.controls.autoRotateSpeed;
+  }
+
+  set autoRotateSpeed(value: number) {
+    this.controls.autoRotateSpeed = value;
+  }
+
   getThreeControls(): OrbitControls | MapControls {
     return this.controls;
   }
@@ -177,32 +194,12 @@ abstract class ThreeControlsAdapter {
  * Adapter for Three.js OrbitControls
  */
 export class ThreeOrbitControlsAdapter extends ThreeControlsAdapter implements IOrbitControls {
-  private orbitControls: OrbitControls;
-
   constructor(camera: THREE.Camera, domElement: HTMLElement) {
-    const controls = new OrbitControls(camera, domElement);
-    super(controls);
-    this.orbitControls = controls;
+    super(new OrbitControls(camera, domElement));
   }
 
   get type(): 'orbit' {
     return 'orbit';
-  }
-
-  get autoRotate(): boolean {
-    return this.orbitControls.autoRotate;
-  }
-
-  set autoRotate(value: boolean) {
-    this.orbitControls.autoRotate = value;
-  }
-
-  get autoRotateSpeed(): number {
-    return this.orbitControls.autoRotateSpeed;
-  }
-
-  set autoRotateSpeed(value: number) {
-    this.orbitControls.autoRotateSpeed = value;
   }
 }
 

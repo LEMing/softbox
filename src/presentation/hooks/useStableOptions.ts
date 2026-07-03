@@ -18,13 +18,15 @@ export interface StableOptions {
  * cheap change like the background color from tearing down the WebGLRenderer and
  * re-fetching the model.
  */
-/** The sub-object without its runtime-tunable field; undefined when empty. */
-const structuralPart = <T extends object>(part: T | undefined, runtimeField: keyof T) => {
+/** The sub-object without its runtime-tunable fields; undefined when empty. */
+const structuralPart = <T extends object>(part: T | undefined, ...runtimeFields: (keyof T)[]) => {
   if (!part) {
     return undefined;
   }
   const structural: Partial<T> = { ...part };
-  delete structural[runtimeField];
+  for (const field of runtimeFields) {
+    delete structural[field];
+  }
   return Object.keys(structural).length > 0 ? structural : undefined;
 };
 
@@ -44,7 +46,9 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
         // the live updateOptions path exists for and must not rebuild.
         renderer: structuralPart(options.renderer, 'toneMappingExposure'),
         camera: options.camera,
-        controls: options.controls,
+        // The turntable fields toggle live (updateOptions), like the look
+        // fields — flipping auto-rotate must not reload the model.
+        controls: structuralPart(options.controls, 'autoRotate', 'autoRotateSpeed'),
         environment: structuralPart(options.environment, 'environmentIntensity'),
         lighting: options.lighting,
         helpers: options.helpers,
@@ -80,9 +84,11 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
       backgroundColor: merged.backgroundColor,
       toneMappingExposure: merged.renderer?.toneMappingExposure,
       environmentIntensity: merged.environment?.environmentIntensity,
+      autoRotate: merged.controls?.autoRotate,
+      autoRotateSpeed: merged.controls?.autoRotateSpeed,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the look is fully determined by these three inputs; depending on `options` would recompute on every unrelated change.
-  }, [options.preset, options.backgroundColor, options.renderer, options.environment]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the runtime set is fully determined by these inputs; depending on `options` would recompute on every unrelated change.
+  }, [options.preset, options.backgroundColor, options.renderer, options.environment, options.controls]);
 
   // Recomputed only when a structural or runtime key changes, so the returned
   // reference stays stable across unrelated parent re-renders.
