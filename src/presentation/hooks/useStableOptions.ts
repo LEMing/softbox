@@ -86,9 +86,11 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
       environmentIntensity: merged.environment?.environmentIntensity,
       autoRotate: merged.controls?.autoRotate,
       autoRotateSpeed: merged.controls?.autoRotateSpeed,
+      animationsAutoplay: merged.animations?.autoplay,
+      animationsSpeed: merged.animations?.speed,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the runtime set is fully determined by these inputs; depending on `options` would recompute on every unrelated change.
-  }, [options.preset, options.backgroundColor, options.renderer, options.environment, options.controls]);
+  }, [options.preset, options.backgroundColor, options.renderer, options.environment, options.controls, options.animations]);
 
   // Recomputed only when a structural or runtime key changes, so the returned
   // reference stays stable across unrelated parent re-renders.

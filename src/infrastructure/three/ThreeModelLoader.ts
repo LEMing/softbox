@@ -129,6 +129,9 @@ export class ThreeGLTFLoaderAdapter implements IModelLoader {
             if (this.config.bvh ?? true) {
               buildRaycastBvh(gltf.scene);
             }
+            // GLTFLoader keeps clips off the scene; the animation service
+            // reads them from the model root (the standard three convention).
+            gltf.scene.animations = gltf.animations;
             // Convert Three.js scene to our abstraction
             const model: IModel = {
               scene: new ThreeObject3DAdapter(gltf.scene),

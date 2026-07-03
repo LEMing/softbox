@@ -42,6 +42,13 @@ export interface SimpleViewerProps {
    */
   turntable?: boolean;
   /**
+   * Shorthand for `options.animations.autoplay = true` — plays ALL of the
+   * model's animation clips, looped, as soon as it loads. Toggling is live
+   * (pause/resume without a rebuild). Pick a single clip or tune the speed
+   * via `options.animations`; an explicit `options.animations.autoplay` wins.
+   */
+  animations?: boolean;
+  /**
    * Overlay children rendered inside the viewer container (over the canvas),
    * e.g. `<Hotspot>` annotations.
    */

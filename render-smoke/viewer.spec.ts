@@ -148,15 +148,8 @@ test('hotspot projects the origin anchor onto the model base', async ({ page }) 
   expect(errors).toEqual([]);
 });
 
-test('turntable keeps the scene moving: frames apart in time differ', async ({ page }) => {
-  const errors = await openScene(page, '?turntable=1');
-
-  const before = await screenshotCanvas(page);
-  // Turntable speed 2 ≈ 12°/s; even SwiftShader accumulates a visible
-  // rotation over a second of wall-clock.
-  await page.waitForTimeout(1500);
-  const after = await screenshotCanvas(page);
-
+/** Fraction of pixels that clearly changed between two frames. */
+const changedFraction = (before: PNG, after: PNG): number => {
   let differing = 0;
   const total = before.width * before.height;
   for (let i = 0; i < total; i += 1) {
@@ -169,9 +162,34 @@ test('turntable keeps the scene moving: frames apart in time differ', async ({ p
       differing += 1;
     }
   }
+  return differing / total;
+};
+
+test('turntable keeps the scene moving: frames apart in time differ', async ({ page }) => {
+  const errors = await openScene(page, '?turntable=1');
+
+  const before = await screenshotCanvas(page);
+  // Turntable speed 2 ≈ 12°/s; even SwiftShader accumulates a visible
+  // rotation over a second of wall-clock.
+  await page.waitForTimeout(1500);
+  const after = await screenshotCanvas(page);
+
   // A frozen turntable yields ~0 differing pixels; a turning one repaints a
   // solid share of the model silhouette.
-  expect(differing / total).toBeGreaterThan(0.005);
+  expect(changedFraction(before, after)).toBeGreaterThan(0.005);
+
+  expect(errors).toEqual([]);
+});
+
+test('animations prop plays the model clip: the model itself moves', async ({ page }) => {
+  const errors = await openScene(page, '?animate=1');
+
+  const before = await screenshotCanvas(page);
+  // The harness clip turns the knot 90° in this window.
+  await page.waitForTimeout(1000);
+  const after = await screenshotCanvas(page);
+
+  expect(changedFraction(before, after)).toBeGreaterThan(0.005);
 
   expect(errors).toEqual([]);
 });

@@ -13,7 +13,8 @@ import {
   ThreeSceneSetupService,
   ThreeFloorAlignmentService,
   ThreeSelectionService,
-  ThreeAnchorProjectionService
+  ThreeAnchorProjectionService,
+  ThreeAnimationService
 } from '../three';
 import { ControlType } from '../../types/options';
 import { RendererOptionsConverter } from '../converters/RendererOptionsConverter';
@@ -75,6 +76,9 @@ export class ViewerFactory {
 
     // Create anchor projection service (drives DOM annotations like Hotspot)
     const anchorProjectionService = new ThreeAnchorProjectionService();
+
+    // Create animation service (GLTF clip playback)
+    const animationService = new ThreeAnimationService();
     
     // Convert renderer options
     const rendererOptions = RendererOptionsConverter.convertRendererOptions(
@@ -104,7 +108,8 @@ export class ViewerFactory {
       pathTracingService,
       floorAlignmentService,
       selectionService,
-      anchorProjectionService
+      anchorProjectionService,
+      animationService
     };
     
     // Create and return ViewerCore

@@ -17,6 +17,7 @@ import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
 import { CaptureStillOptions } from '../types/CaptureStillOptions';
 import { IPathTracingService } from './services/IPathTracingService';
 import { ISelectionService } from './services/ISelectionService';
+import { IAnimationService } from './services/IAnimationService';
 import { IEnvironmentService } from './services/IEnvironmentService';
 import { ISceneSetupService } from './services/ISceneSetupService';
 import { SceneConfigurator } from './SceneConfigurator';
@@ -50,6 +51,7 @@ export interface ViewerDependencies {
   floorAlignmentService?: IFloorAlignmentService;
   selectionService?: ISelectionService;
   anchorProjectionService?: IAnchorProjectionService;
+  animationService?: IAnimationService;
 }
 
 /**
@@ -88,6 +90,7 @@ export class ViewerCore {
   private readonly environmentService?: IEnvironmentService;
   private readonly selectionService?: ISelectionService;
   private readonly anchorProjectionService?: IAnchorProjectionService;
+  private readonly animationService?: IAnimationService;
 
   constructor(dependencies: ViewerDependencies) {
     this.renderer = dependencies.renderer;
@@ -100,6 +103,7 @@ export class ViewerCore {
     this.environmentService = dependencies.environmentService;
     this.selectionService = dependencies.selectionService;
     this.anchorProjectionService = dependencies.anchorProjectionService;
+    this.animationService = dependencies.animationService;
 
     this.stateManager = new StateManager();
 
@@ -278,6 +282,7 @@ export class ViewerCore {
 
       if (result.ok) {
         this.stateManager.setLoaded(result.value);
+        this.attachAnimations(result.value);
         this.renderLoopManager.requestRender();
         // A new model restarts the accumulation from scratch.
         this.pathTracing.resetAccumulation();
@@ -323,6 +328,10 @@ export class ViewerCore {
         // A camera move invalidates the accumulated path-traced frame.
         this.pathTracing.resetAccumulation();
         this.renderLoopManager.requestRender();
+      }
+
+      if (this.animationService?.isPlaying()) {
+        this.animationService.update(deltaTime / 1000);
       }
 
       // Completion is detected across the frame: snapshot before, check after.
@@ -406,6 +415,7 @@ export class ViewerCore {
     if (this.disposed) {
       return;
     }
+    const previousAutoplay = this.options.animations?.autoplay;
     this.options = deepMerge(this.options, partial);
 
     let needsRender = false;
@@ -435,6 +445,22 @@ export class ViewerCore {
     const autoRotateSpeed = partial.controls?.autoRotateSpeed;
     if (autoRotateSpeed !== undefined) {
       this.controls.autoRotateSpeed = autoRotateSpeed;
+      needsRender = true;
+    }
+    const autoplay = partial.animations?.autoplay;
+    // Guarded against re-sends of an unchanged value: play() restarts clips
+    // from t=0, and the runtime-options effect re-sends the whole set.
+    if (autoplay !== undefined && autoplay !== previousAutoplay) {
+      if (autoplay) {
+        this.playAnimations(typeof autoplay === 'string' ? autoplay : undefined);
+      } else {
+        this.pauseAnimations();
+      }
+      needsRender = true;
+    }
+    const animationSpeed = partial.animations?.speed;
+    if (animationSpeed !== undefined) {
+      this.animationService?.setSpeed(animationSpeed);
       needsRender = true;
     }
     if (needsRender) {
@@ -546,6 +572,47 @@ export class ViewerCore {
     }
   }
 
+  /** Clip names of the loaded model, in file order (empty when none). */
+  getAnimationNames(): string[] {
+    return this.animationService?.getClipNames() ?? [];
+  }
+
+  /** Plays one clip by name, or ALL clips when no name is given (looped). */
+  playAnimations(clipName?: string): void {
+    if (!this.animationService) {
+      return;
+    }
+    this.animationService.play(clipName);
+    if (this.animationService.isPlaying()) {
+      this.renderLoopManager.requireContinuous('animations');
+      this.reviveRenderLoop();
+      this.renderLoopManager.requestRender();
+    }
+  }
+
+  /** Freezes playback on the current pose; play() resumes. */
+  pauseAnimations(): void {
+    this.animationService?.pause();
+    this.renderLoopManager.releaseContinuous('animations');
+  }
+
+  private attachAnimations(model: IObject3D): void {
+    if (!this.animationService) {
+      return;
+    }
+    // The previous model's playback (and its loop demand) dies with it.
+    this.renderLoopManager.releaseContinuous('animations');
+    this.animationService.attach(model);
+    const animationOptions = this.options.animations;
+    if (animationOptions?.speed !== undefined) {
+      this.animationService.setSpeed(animationOptions.speed);
+    }
+    const autoplay = animationOptions?.autoplay;
+    if (autoplay) {
+      this.playAnimations(typeof autoplay === 'string' ? autoplay : undefined);
+    }
+  }
+
   /**
    * Creates a projector that maps a world-space anchor to canvas pixels (the
    * engine math behind DOM annotations like `Hotspot`), or null when the
@@ -616,6 +683,7 @@ export class ViewerCore {
 
     this.stopRenderLoop();
     this.selectionService?.dispose();
+    this.animationService?.detach();
 
     // resourceManager.dispose() already disposes and detaches all scene
     // contents, so no separate scene.clear() is needed here.

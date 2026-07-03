@@ -24,5 +24,11 @@ export interface SimpleViewerHandle {
    * still is taken at canvas resolution once the accumulation completes.
    */
   captureStill: (options?: CaptureStillOptions) => Promise<string>;
+  /** Clip names of the loaded model, in file order (empty when none). */
+  getAnimationNames: () => string[];
+  /** Plays one clip by name, or ALL clips when no name is given (looped). */
+  playAnimations: (clipName?: string) => void;
+  /** Freezes playback on the current pose; playAnimations() resumes. */
+  pauseAnimations: () => void;
   dispose: () => void;
 }

@@ -12,6 +12,7 @@ import {
   SelectionOptions,
   UIOptions,
   ViewerPreset,
+  AnimationOptions,
 } from './options';
 
 export interface SimpleViewerOptions {
@@ -27,6 +28,8 @@ export interface SimpleViewerOptions {
   staticScene?: boolean;
 
   // Component options
+  /** GLTF animation playback (autoplay, speed). */
+  animations?: AnimationOptions;
   camera?: CameraOptions;
   controls?: ControlsOptions;
   environment?: EnvironmentOptions;
