@@ -98,10 +98,10 @@ beforeEach(() => {
 });
 
 describe('SiteApp', () => {
-  it('shows the sample models and starts on the Lantern', () => {
+  it('shows the sample models and starts on the Motorhome', () => {
     render(<SiteApp />);
     expect(screen.getByText('Lantern')).toBeInTheDocument();
-    expect(viewerObject()).toContain('Lantern.glb');
+    expect(viewerObject()).toContain('motorhome.glb');
   });
 
   it('switches the viewer to the picked sample model', () => {
@@ -136,7 +136,7 @@ describe('SiteApp', () => {
     render(<SiteApp />);
     dropFile('scene.gltf');
     expect(screen.getByText(/Only self-contained/)).toBeInTheDocument();
-    expect(viewerObject()).toContain('Lantern.glb');
+    expect(viewerObject()).toContain('motorhome.glb');
   });
 });
 

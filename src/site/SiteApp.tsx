@@ -10,6 +10,7 @@ import { useMediaQuery } from './useMediaQuery';
 import { FONT, glassPanel } from './siteTheme';
 
 const SAMPLE_MODELS: Record<string, string> = {
+  Motorhome: '/motorhome.glb',
   Lantern: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Lantern/glTF-Binary/Lantern.glb',
   Helmet: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
   WaterBottle: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/WaterBottle/glTF-Binary/WaterBottle.glb',
@@ -46,7 +47,7 @@ const downloadDataUrl = (dataUrl: string, filename: string) => {
  */
 export function SiteApp() {
   const { dropped, isDragging, rejectedName, loadFile } = useDropModel();
-  const [selected, setSelected] = useState<string>('Lantern');
+  const [selected, setSelected] = useState<string>('Motorhome');
   const [turntable, setTurntable] = useState(false);
   const [animations, setAnimations] = useState(false);
   const [pins, setPins] = useState<Pin[]>([]);
