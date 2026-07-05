@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.19.6
+---
+
+### Bug fix
+* **Fixed:** `pauseAnimations()` followed by `playAnimations()` restarted every clip from t=0 instead of resuming from the paused pose, contradicting the documented contract. `play()` now only restarts via `stopAllAction()` when starting a new clip selection; resuming with no clip name just lets playback continue from where it paused.
+
 3.19.5
 ---
 

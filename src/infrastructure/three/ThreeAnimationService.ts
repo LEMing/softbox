@@ -11,6 +11,9 @@ import { toThreeObject } from './unwrap';
 export class ThreeAnimationService implements IAnimationService {
   private mixer: THREE.AnimationMixer | null = null;
   private clips: THREE.AnimationClip[] = [];
+  // The actions play() last started, so a bare resume can pick them back up
+  // instead of restarting them from t=0.
+  private activeActions: THREE.AnimationAction[] = [];
   private playing = false;
   private speed = 1;
 
@@ -35,16 +38,28 @@ export class ThreeAnimationService implements IAnimationService {
     if (!this.mixer) {
       return;
     }
+
+    // Resuming after pause(): update() has been skipped, so the actions are
+    // still sitting at their paused pose — just let update() advance them
+    // again instead of restarting via stopAllAction().
+    if (!this.playing && this.activeActions.length > 0 && clipName === undefined) {
+      this.playing = true;
+      return;
+    }
+
     const toPlay = clipName
       ? this.clips.filter((clip) => clip.name === clipName)
       : this.clips;
     if (toPlay.length === 0) {
       return;
     }
-    this.mixer.stopAllAction();
-    for (const clip of toPlay) {
-      this.mixer.clipAction(clip).play();
-    }
+    const mixer = this.mixer;
+    mixer.stopAllAction();
+    this.activeActions = toPlay.map((clip) => {
+      const action = mixer.clipAction(clip);
+      action.play();
+      return action;
+    });
     this.playing = true;
   }
 
@@ -77,6 +92,7 @@ export class ThreeAnimationService implements IAnimationService {
     }
     this.mixer = null;
     this.clips = [];
+    this.activeActions = [];
     this.playing = false;
   }
 }
