@@ -423,12 +423,20 @@ describe('ThreePathTracingService', () => {
       await initialize(ctx, true);
       ctx.threeScene.environment = equirectTexture();
       PathTracerStatics.shouldThrow = true;
+      const pausedListener = jest.fn();
+      ctx.service.events.on('pathtracing:paused', pausedListener);
 
       const result = await ctx.service.render(ctx.scene, ctx.camera);
 
       expect(result.ok).toBe(true);
       expect(ctx.service.isEnabled()).toBe(false);
       expect(ctx.rendererHandle.render).toHaveBeenCalled();
+      // A self-disable must notify like a normal completion, or the render
+      // loop's 'path-tracing' continuous demand leaks forever and a pending
+      // captureStill() never settles.
+      expect(pausedListener).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'gave-up' })
+      );
     });
 
     it('returns the renderer error when fatal creation fallback also fails', async () => {
@@ -480,12 +488,17 @@ describe('ThreePathTracingService', () => {
       const ctx = setup();
       await initialize(ctx, true);
       peek(ctx.service).maxEnvironmentWaitFrames = 1;
+      const pausedListener = jest.fn();
+      ctx.service.events.on('pathtracing:paused', pausedListener);
 
       const result = await ctx.service.render(ctx.scene, ctx.camera);
 
       expect(result.ok).toBe(true);
       expect(ctx.service.isEnabled()).toBe(false);
       expect(peek(ctx.service).environmentWaitFrames).toBe(0);
+      expect(pausedListener).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'gave-up' })
+      );
     });
 
     it('initializes the scene from an existing equirectangular environment', async () => {
@@ -741,7 +754,7 @@ describe('ThreePathTracingService', () => {
       const result = await ctx.service.render(ctx.scene, ctx.camera);
 
       expect(result.ok).toBe(true);
-      expect(pausedListener).toHaveBeenCalledWith({ samples: 1 });
+      expect(pausedListener).toHaveBeenCalledWith({ samples: 1, reason: 'completed' });
       expect(ctx.service.isEnabled()).toBe(false);
       expect(peek(ctx.service).disposeTimer).not.toBeNull();
 

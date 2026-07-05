@@ -168,6 +168,7 @@ export class ViewerCore {
       isDisposed: () => this.disposed,
       awaitModelLoads: () => this.modelLoadChain,
       reviveRenderLoop: () => this.reviveRenderLoop(),
+      isAutoRotating: () => this.controls.autoRotate,
     });
   }
 

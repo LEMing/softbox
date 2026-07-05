@@ -12,7 +12,7 @@ import {
   IAnchorProjector,
   Result,
 } from '../interfaces';
-import { IPathTracingService } from '../services/IPathTracingService';
+import { IPathTracingService, PathTracingPausedEvent } from '../services/IPathTracingService';
 import { IEnvironmentService } from '../services/IEnvironmentService';
 import { ISceneSetupService } from '../services/ISceneSetupService';
 import { IFloorAlignmentService } from '../services/IFloorAlignmentService';
@@ -237,7 +237,7 @@ const makePathTracingService = (
   overrides: Overrides = {}
 ): jest.Mocked<IPathTracingService> => {
   const base: IPathTracingService = {
-    events: new TypedEventEmitter<{ 'pathtracing:paused': { samples: number } }>(),
+    events: new TypedEventEmitter<{ 'pathtracing:paused': PathTracingPausedEvent }>(),
     initialize: jest.fn(async () => Result.ok(undefined)),
     setEnabled: jest.fn(),
     updateSettings: jest.fn(),
@@ -647,7 +647,7 @@ describe('ViewerCore', () => {
       const viewer = new ViewerCore(bundle.deps);
       await viewer.initialize();
 
-      bundle.pathTracingService!.events.emit('pathtracing:paused', { samples: 50 });
+      bundle.pathTracingService!.events.emit('pathtracing:paused', { samples: 50, reason: 'completed' });
 
       expect(disableContinuousSpy).toHaveBeenCalled();
       expect(setAlwaysRenderSpy).toHaveBeenCalledWith(false);
@@ -1674,6 +1674,50 @@ describe('ViewerCore.captureStill', () => {
     const result = await capture;
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error.code).toBe(ErrorCode.RENDER_FAILED);
+  });
+
+  it('settles instead of hanging when the path tracer gives up mid-wait', async () => {
+    const bundle = makeCaptureBundle({
+      options: { pathTracing: { enabled: true } },
+      withPathTracing: true,
+      pathTracingOverrides: { isEnabled: jest.fn(() => true) },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+    // PathTracingCoordinator only wires its 'pathtracing:paused' -> self-pause
+    // forwarding during initialize().
+    await viewer.initialize();
+
+    let settled = false;
+    const capture = viewer.captureStill().then((result) => {
+      settled = true;
+      return result;
+    });
+
+    await tick();
+    expect(settled).toBe(false);
+
+    // The tracer abandoned this accumulation (renderer never ready / env
+    // never arrived) without ever reaching the sample target — no
+    // 'pathtracing:complete' will ever fire for it.
+    bundle.pathTracingService!.events.emit('pathtracing:paused', { samples: 3, reason: 'gave-up' });
+    const result = await capture;
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value).toBe('data:image/png;base64,still');
+  });
+
+  it('rejects with INVALID_STATE when the turntable is spinning during path tracing', async () => {
+    const bundle = makeCaptureBundle({
+      options: { pathTracing: { enabled: true } },
+      withPathTracing: true,
+      controlsOverrides: { autoRotate: true },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    const result = await viewer.captureStill();
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_STATE);
   });
 
   it('captures the canvas as-is when the path tracer is no longer accumulating', async () => {

@@ -4,11 +4,25 @@ import { IScene } from '../interfaces/IScene';
 import { ICamera } from '../interfaces/ICamera';
 import { TypedEventEmitter } from '../../events/EventEmitter';
 
+/**
+ * 'completed' — the sample target was reached; the final frame is on screen.
+ * 'gave-up' — the service abandoned the CURRENT accumulation on its own
+ * (renderer never became ready, environment texture never arrived) without
+ * reaching the target; the canvas holds whatever the standard-renderer
+ * fallback last drew.
+ */
+export type PathTracingPausedReason = 'completed' | 'gave-up';
+
+export interface PathTracingPausedEvent {
+  samples: number;
+  reason: PathTracingPausedReason;
+}
+
 export interface IPathTracingService {
   /**
    * Event emitter for path tracing events
    */
-  readonly events: TypedEventEmitter<{ 'pathtracing:paused': { samples: number } }>;
+  readonly events: TypedEventEmitter<{ 'pathtracing:paused': PathTracingPausedEvent }>;
   
   /**
    * Initialize path tracing with given options
