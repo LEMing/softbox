@@ -92,7 +92,6 @@ interface StubThreeRenderer {
   toneMapping: THREE.ToneMapping;
   toneMappingExposure: number;
   autoClear: boolean;
-  __pathTracingActive?: boolean;
   domElement: HTMLCanvasElement;
   setRenderTarget: jest.Mock;
   getRenderTarget: jest.Mock;
@@ -104,7 +103,6 @@ function createStubThreeRenderer(domElement?: HTMLCanvasElement): StubThreeRende
     toneMapping: THREE.NoToneMapping,
     toneMappingExposure: 1,
     autoClear: true,
-    __pathTracingActive: false,
     domElement: domElement ?? document.createElement('canvas'),
     setRenderTarget: jest.fn(),
     getRenderTarget: jest.fn(() => null),
@@ -307,13 +305,11 @@ describe('ThreePathTracingService', () => {
     it('resets renderer flags when disabling with a renderer present', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.internal.__pathTracingActive = true;
       ctx.internal.autoClear = false;
 
       ctx.service.setEnabled(false);
 
       expect(ctx.service.isEnabled()).toBe(false);
-      expect(ctx.internal.__pathTracingActive).toBe(false);
       expect(ctx.internal.autoClear).toBe(true);
       expect(peek(ctx.service).sceneInitialized).toBe(false);
     });
@@ -628,12 +624,20 @@ describe('ThreePathTracingService', () => {
       const ctx = setup();
       await initialize(ctx, true);
       ctx.threeScene.environment = new THREE.Texture();
+      const pausedListener = jest.fn();
+      ctx.service.events.on('pathtracing:paused', pausedListener);
 
       const result = await ctx.service.render(ctx.scene, ctx.camera);
 
       expect(result.ok).toBe(true);
       expect(ctx.service.isEnabled()).toBe(false);
       expect(peek(ctx.service).sceneInitialized).toBe(false);
+      // This self-disable must notify the same way as the other give-up
+      // paths, or the render loop's 'path-tracing' continuous demand leaks
+      // forever and a pending captureStill() never settles.
+      expect(pausedListener).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'gave-up' })
+      );
     });
 
     it('falls back when setScene throws during initialization', async () => {
@@ -930,7 +934,6 @@ describe('ThreePathTracingService', () => {
 
       expect(tracer.dispose).toHaveBeenCalled();
       expect(convertedSpy).toHaveBeenCalled();
-      expect(ctx.internal.__pathTracingActive).toBe(false);
       expect(ctx.service.isPathTracerDisposed()).toBe(true);
       expect(ctx.service.getSampleCount()).toBe(0);
     });

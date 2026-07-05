@@ -1,6 +1,14 @@
 Changelog
 =========
 
+3.19.8
+---
+
+### Code health + bug fix
+* Refactored `ThreePathTracingService.render()` out of god-method territory (233 lines down to a ~40-line orchestrator): extracted `ensurePathTracerCreated`, `extractThreeObjects`, `initializeSceneForPathTracing` and `accumulateSample` as focused private methods. Removed dead code found along the way: a commented-out block in `initialize()`, a retry loop in `createPathTracer()` that could never actually iterate more than once, and a duplicate `return` in the creation-retry fallback. Deleted the `__pathTracingActive` renderer flag entirely — it was read and cleared in several places but never actually set, so the branch it gated in `ThreeRenderer.render()` was unreachable dead code.
+* **Fixed:** a third self-disable path (PMREM environment texture with no original equirectangular source) set `enabled = false` directly instead of going through the `pathtracing:paused` notification added for the other self-disable paths — so, like those, it could leak the render loop's `'path-tracing'` continuous-render demand forever and leave a pending `captureStill()` hanging. It now notifies consistently.
+* No other behavior change — verified via the full test suite (497 tests, all passing unchanged except updates for the removed dead code) plus a full local run of the Playwright render-smoke suite on real WebGL pixels.
+
 3.19.7
 ---
 

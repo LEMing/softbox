@@ -121,14 +121,8 @@ export class ThreePathTracingService implements IPathTracingService {
         );
       }
 
-      // Defer path tracer creation until first render when renderer is ready
-      // if (this.enabled) {
-      //   const result = this.createPathTracer();
-      //   if (!result.ok) {
-      //     return result;
-      //   }
-      // }
-
+      // Path tracer creation is deferred until the first render(), once the
+      // renderer is guaranteed ready.
       return Result.ok(undefined);
     } catch (error) {
       return Result.err(
@@ -152,33 +146,16 @@ export class ThreePathTracingService implements IPathTracingService {
     }
 
     try {
-      // Get the Three.js renderer using the type-safe interface
-      let threeRenderer: THREE.WebGLRenderer | null = null;
-
-
-      // Try multiple times to get the renderer in case it's still initializing
-      let attempts = 0;
-      while (!threeRenderer && attempts < 3) {
-        if (hasGetInternalRenderer(this.renderer)) {
-          threeRenderer = this.renderer.getInternalRenderer() as THREE.WebGLRenderer;
-        }
-
-        if (!threeRenderer && attempts < 2) {
-          // Wait a bit for renderer to initialize
-          return Result.err(
-            new ThreeViewerError(
-              'Renderer not ready, will retry',
-              ErrorCode.RENDERER_NOT_INITIALIZED
-            )
-          );
-        }
-        attempts++;
-      }
-
+      // Get the Three.js renderer using the type-safe interface. The renderer
+      // may not be ready on the very first render() call after initialize();
+      // the caller (ensurePathTracerCreated) retries on subsequent frames.
+      const threeRenderer = hasGetInternalRenderer(this.renderer)
+        ? this.renderer.getInternalRenderer() as THREE.WebGLRenderer
+        : null;
       if (!threeRenderer) {
         return Result.err(
           new ThreeViewerError(
-            'Three.js renderer not available',
+            'Renderer not ready, will retry',
             ErrorCode.RENDERER_NOT_INITIALIZED
           )
         );
@@ -242,10 +219,8 @@ export class ThreePathTracingService implements IPathTracingService {
       this.reset();
       this.sceneInitialized = false;
 
-      // Clear the path tracing flag so standard renderer can work again
       const threeRenderer = hasGetInternalRenderer(this.renderer) ? this.renderer.getInternalRenderer() as PathTracingWebGLRenderer : null;
       if (threeRenderer) {
-        threeRenderer.__pathTracingActive = false;
         threeRenderer.autoClear = true; // Re-enable autoClear for standard rendering
       }
     }
@@ -294,14 +269,12 @@ export class ThreePathTracingService implements IPathTracingService {
   }
 
   async render(scene: IScene, camera: ICamera): Promise<Result<void>> {
-    // Check if instance is disposed
     if (this.disposed) {
       return Result.ok(undefined);
     }
 
-
-    // Check if we have a renderer for fallback
-    if (!this.renderer) {
+    const renderer = this.renderer;
+    if (!renderer) {
       return Result.ok(undefined);
     }
 
@@ -309,55 +282,16 @@ export class ThreePathTracingService implements IPathTracingService {
       return this.renderWhileDisabled(scene, camera);
     }
 
-    // Create path tracer on first render if not already created
     if (!this.pathTracer) {
-
-      // Increment attempts
-      this.createAttempts++;
-
-      const createResult = this.createPathTracer();
-      if (!createResult.ok) {
-
-        // If we haven't exceeded max attempts and it's a "not ready" error, keep trying
-        if (this.createAttempts < this.maxCreateAttempts &&
-            createResult.error?.message === 'Renderer not ready, will retry') {
-          // Fallback to standard renderer for this frame
-          return this.renderer.render(scene, camera);
-        } else {
-          // Max attempts reached or different error, disable path tracing
-          this.disableAfterSelfPause('gave-up');
-          this.createAttempts = 0;
-
-          // Fallback to standard renderer
-          const rendererResult = this.renderer.render(scene, camera);
-          if (!rendererResult.ok) {
-            // Return the error result from the standard renderer
-            return rendererResult;
-          }
-          return rendererResult;
-        }
+      const creationOutcome = this.ensurePathTracerCreated(renderer, scene, camera);
+      if (creationOutcome) {
+        return creationOutcome;
       }
-
-      // Reset attempts on success
-      this.createAttempts = 0;
     }
 
     try {
-      // Extract Three.js objects from adapters using type-safe interface
-      let threeScene: THREE.Scene | null = null;
-      let threeCamera: THREE.Camera | null = null;
-
-      // Get Three.js scene
-      if (scene && hasInternalRenderer<THREE.Scene>(scene)) {
-        threeScene = scene.getInternalRenderer() as THREE.Scene;
-      }
-
-      // Get Three.js camera
-      if (camera && hasInternalRenderer<THREE.Camera>(camera)) {
-        threeCamera = camera.getInternalRenderer() as THREE.Camera;
-      }
-
-      if (!threeScene || !threeCamera) {
+      const objects = this.extractThreeObjects(scene, camera);
+      if (!objects) {
         return Result.err(
           new ThreeViewerError(
             'Could not extract Three.js scene or camera',
@@ -365,157 +299,25 @@ export class ThreePathTracingService implements IPathTracingService {
           )
         );
       }
+      const { threeScene, threeCamera } = objects;
 
-      // Initialize scene if not already done or if environment wasn't ready before
       if (!this.sceneInitialized) {
-
-        try {
-          // Check if environment texture is available
-          const originalEnvTexture = (threeScene as PathTracingScene).__originalEnvironmentTexture;
-          if (!threeScene.environment && !originalEnvTexture) {
-            this.environmentWaitFrames++;
-
-            // If we've waited too long, disable path tracing
-            if (this.environmentWaitFrames >= this.maxEnvironmentWaitFrames) {
-              this.disableAfterSelfPause('gave-up');
-              this.environmentWaitFrames = 0;
-            }
-
-            // Don't fail - just skip this frame and render with standard renderer
-            // Keep trying on subsequent frames until environment is loaded
-            return this.renderer.render(scene, camera);
-          }
-
-          this.environmentWaitFrames = 0; // Reset counter
-
-          // Use the original equirectangular texture for path tracing if available
-          let textureForPathTracing: THREE.Texture | null = null;
-          if (originalEnvTexture && originalEnvTexture.mapping === THREE.EquirectangularReflectionMapping) {
-
-            // Convert HTMLImageElement texture to DataTexture if needed
-            textureForPathTracing = originalEnvTexture;
-            if (originalEnvTexture.image instanceof HTMLImageElement) {
-              // Reuse existing converted texture if available
-              if (this.convertedEnvTexture) {
-                textureForPathTracing = this.convertedEnvTexture;
-              } else {
-                const dataTexture = this.convertToDataTexture(originalEnvTexture);
-                if (dataTexture) {
-                  this.convertedEnvTexture = dataTexture; // Store for reuse
-                  textureForPathTracing = dataTexture;
-                } else {
-                  throw new Error('Failed to convert environment texture to DataTexture');
-                }
-              }
-            }
-
-            // Temporarily set the environment to the converted texture for path tracing
-            const currentEnv = threeScene.environment;
-            threeScene.environment = textureForPathTracing;
-
-            try {
-              // Log scene contents before setting
-
-              // For JPEG/PNG textures loaded via TextureLoader, ensure the image is loaded
-              const texImage = originalEnvTexture.image as HTMLImageElement | (ImageData & { data?: unknown }) | null;
-              if (texImage && !("data" in texImage && texImage.data)) {
-
-                // If it's an HTMLImageElement, wait for it to load
-                if (texImage instanceof HTMLImageElement && !texImage.complete) {
-                  await new Promise<void>((resolve) => {
-                    texImage.onload = () => {
-                      originalEnvTexture.needsUpdate = true;
-                      resolve();
-                    };
-                    texImage.onerror = (_error: Event | string) => {
-                      resolve();
-                    };
-                    // If already loading, it should fire the onload event
-                    if (texImage.complete) {
-                      resolve();
-                    }
-                  });
-                }
-              }
-
-              if (this.pathTracer) {
-                this.pathTracer.setScene(threeScene, threeCamera);
-              }
-              this.sceneInitialized = true;
-
-              // Restore the PMREM environment for regular rendering
-              threeScene.environment = currentEnv;
-
-              // Don't dispose the DataTexture here - we'll reuse it
-            } catch (setSceneError) {
-              // Restore environment on error too
-              threeScene.environment = currentEnv;
-
-              throw setSceneError;
-            }
-          } else if (threeScene.environment?.mapping === THREE.EquirectangularReflectionMapping) {
-            // Already have equirectangular texture
-            // Log scene contents before setting
-            if (this.pathTracer) {
-              this.pathTracer.setScene(threeScene, threeCamera);
-            }
-            this.sceneInitialized = true;
-          } else {
-            // PMREM texture but no original available - this will likely fail
-            // Disable path tracing
-            this.enabled = false;
-            return this.renderer.render(scene, camera);
-          }
-        } catch (error) {
-          // Don't disable path tracing yet - we might succeed on next try
-          // Just fallback to standard renderer for this frame
-          console.warn('Scene initialization error:', error);
-          return this.renderer.render(scene, camera);
+        const initOutcome = await this.initializeSceneForPathTracing(
+          renderer, scene, camera, threeScene, threeCamera
+        );
+        if (initOutcome) {
+          return initOutcome;
         }
       }
 
-      // Only proceed with path tracing if scene was successfully initialized
-      if (this.sceneInitialized) {
-        // Update lights on first sample
-        if (this.sampleCount === 0) {
-
-          // Update lights
-          try {
-            if (this.pathTracer) {
-              this.pathTracer.updateLights();
-            }
-          } catch (lightError) {
-            // Continue even if light update fails - path tracing can still work
-            console.warn('Failed to update lights for path tracing:', lightError);
-          }
-        }
-
-        // First, render with standard renderer to show immediate feedback
-        
-        // Render with standard renderer first
-        const standardRenderResult = this.renderer.render(scene, camera);
-        if (!standardRenderResult.ok) {
-          return standardRenderResult;
-        }
-        
-        // Accumulate one path-tracing sample into the internal buffer
-        this.accumulateOneSample();
-
-        // Only increment sample count after a successful render
-        this.sampleCount++;
-
-        if (this.sampleCount === this.settings.samples) {
-          return this.captureCompletedFrame();
-        }
-      } else {
+      if (!this.sceneInitialized) {
         // Scene not initialized yet - fallback to standard renderer
-        return this.renderer.render(scene, camera);
+        return renderer.render(scene, camera);
       }
 
-      // CRITICAL: The path tracer has rendered to the canvas
-      // We must NOT call the standard renderer after this or it will overwrite the path traced output
-      // Mark that we've handled the rendering completely
-      return Result.ok(undefined);
+      // The path tracer renders to the canvas itself; the standard renderer
+      // must not run again this frame or it will overwrite the accumulated output.
+      return this.accumulateSample(renderer, scene, camera);
     } catch (error) {
       return Result.err(
         new ThreeViewerError(
@@ -525,6 +327,186 @@ export class ThreePathTracingService implements IPathTracingService {
         )
       );
     }
+  }
+
+  /**
+   * Creates the path tracer lazily on first use (it needs a ready renderer,
+   * which may not exist yet on the very first render() call). Returns null to
+   * continue into this frame's render once a tracer exists; returns a Result
+   * when render() should return it immediately instead — a fallback frame
+   * while still waiting for the renderer, or after giving up and disabling.
+   */
+  private ensurePathTracerCreated(
+    renderer: IRenderer, scene: IScene, camera: ICamera
+  ): Result<void> | null {
+    this.createAttempts++;
+    const createResult = this.createPathTracer();
+    if (createResult.ok) {
+      this.createAttempts = 0;
+      return null;
+    }
+
+    if (
+      this.createAttempts < this.maxCreateAttempts &&
+      createResult.error?.message === 'Renderer not ready, will retry'
+    ) {
+      return renderer.render(scene, camera);
+    }
+
+    this.disableAfterSelfPause('gave-up');
+    this.createAttempts = 0;
+    return renderer.render(scene, camera);
+  }
+
+  /** Unwraps the Three.js scene/camera from their adapters, or null if either fails. */
+  private extractThreeObjects(
+    scene: IScene, camera: ICamera
+  ): { threeScene: THREE.Scene; threeCamera: THREE.Camera } | null {
+    let threeScene: THREE.Scene | null = null;
+    let threeCamera: THREE.Camera | null = null;
+
+    if (hasInternalRenderer<THREE.Scene>(scene)) {
+      threeScene = scene.getInternalRenderer() as THREE.Scene;
+    }
+    if (hasInternalRenderer<THREE.Camera>(camera)) {
+      threeCamera = camera.getInternalRenderer() as THREE.Camera;
+    }
+
+    if (!threeScene || !threeCamera) {
+      return null;
+    }
+    return { threeScene, threeCamera };
+  }
+
+  /**
+   * First-frame setup: waits for an environment texture, converts an
+   * equirectangular one to a format the tracer can read if needed, and calls
+   * pathTracer.setScene() once ready. Returns null to continue into
+   * accumulation this frame (sceneInitialized just became true); returns a
+   * Result when render() should return it immediately instead — still
+   * waiting, or the environment shape isn't one the tracer can use.
+   */
+  private async initializeSceneForPathTracing(
+    renderer: IRenderer,
+    scene: IScene,
+    camera: ICamera,
+    threeScene: THREE.Scene,
+    threeCamera: THREE.Camera
+  ): Promise<Result<void> | null> {
+    try {
+      const originalEnvTexture = (threeScene as PathTracingScene).__originalEnvironmentTexture;
+      if (!threeScene.environment && !originalEnvTexture) {
+        this.environmentWaitFrames++;
+        if (this.environmentWaitFrames >= this.maxEnvironmentWaitFrames) {
+          this.disableAfterSelfPause('gave-up');
+          this.environmentWaitFrames = 0;
+        }
+        // Don't fail - just skip this frame and render with the standard
+        // renderer. Keep trying on subsequent frames until the environment loads.
+        return renderer.render(scene, camera);
+      }
+
+      this.environmentWaitFrames = 0;
+
+      if (originalEnvTexture && originalEnvTexture.mapping === THREE.EquirectangularReflectionMapping) {
+        // Use the original equirectangular texture for path tracing, converting
+        // an HTMLImageElement-backed texture to a DataTexture the tracer can read.
+        let textureForPathTracing: THREE.Texture = originalEnvTexture;
+        if (originalEnvTexture.image instanceof HTMLImageElement) {
+          if (this.convertedEnvTexture) {
+            textureForPathTracing = this.convertedEnvTexture;
+          } else {
+            const dataTexture = this.convertToDataTexture(originalEnvTexture);
+            if (!dataTexture) {
+              throw new Error('Failed to convert environment texture to DataTexture');
+            }
+            this.convertedEnvTexture = dataTexture;
+            textureForPathTracing = dataTexture;
+          }
+        }
+
+        // Temporarily set the environment to the converted texture for path tracing.
+        const currentEnv = threeScene.environment;
+        threeScene.environment = textureForPathTracing;
+
+        try {
+          // For JPEG/PNG textures loaded via TextureLoader, ensure the image is loaded.
+          const texImage = originalEnvTexture.image as HTMLImageElement | (ImageData & { data?: unknown }) | null;
+          if (texImage && !("data" in texImage && texImage.data)) {
+            if (texImage instanceof HTMLImageElement && !texImage.complete) {
+              await new Promise<void>((resolve) => {
+                texImage.onload = () => {
+                  originalEnvTexture.needsUpdate = true;
+                  resolve();
+                };
+                texImage.onerror = () => {
+                  resolve();
+                };
+                if (texImage.complete) {
+                  resolve();
+                }
+              });
+            }
+          }
+
+          this.pathTracer?.setScene(threeScene, threeCamera);
+          this.sceneInitialized = true;
+
+          // Restore the PMREM environment for regular rendering. Don't dispose
+          // the DataTexture here - it's reused across frames.
+          threeScene.environment = currentEnv;
+        } catch (setSceneError) {
+          threeScene.environment = currentEnv;
+          throw setSceneError;
+        }
+      } else if (threeScene.environment?.mapping === THREE.EquirectangularReflectionMapping) {
+        // Already an equirectangular texture — usable as-is.
+        this.pathTracer?.setScene(threeScene, threeCamera);
+        this.sceneInitialized = true;
+      } else {
+        // PMREM texture with no original equirectangular source: the tracer
+        // can't consume it, so this accumulation can never start.
+        this.disableAfterSelfPause('gave-up');
+        return renderer.render(scene, camera);
+      }
+    } catch (error) {
+      // Don't disable path tracing yet - we might succeed on the next try.
+      console.warn('Scene initialization error:', error);
+      return renderer.render(scene, camera);
+    }
+
+    return null;
+  }
+
+  /**
+   * Accumulates one more sample once the scene is ready to path-trace: updates
+   * lights on the very first sample, renders a standard frame for immediate
+   * feedback, accumulates a tracer sample, and detects completion.
+   */
+  private accumulateSample(renderer: IRenderer, scene: IScene, camera: ICamera): Result<void> {
+    if (this.sampleCount === 0) {
+      try {
+        this.pathTracer?.updateLights();
+      } catch (lightError) {
+        // Continue even if light update fails - path tracing can still work.
+        console.warn('Failed to update lights for path tracing:', lightError);
+      }
+    }
+
+    // Render with the standard renderer first for immediate feedback.
+    const standardRenderResult = renderer.render(scene, camera);
+    if (!standardRenderResult.ok) {
+      return standardRenderResult;
+    }
+
+    this.accumulateOneSample();
+    this.sampleCount++;
+
+    if (this.sampleCount === this.settings.samples) {
+      return this.captureCompletedFrame();
+    }
+
+    return Result.ok(undefined);
   }
 
   /**
@@ -675,20 +657,18 @@ export class ThreePathTracingService implements IPathTracingService {
       this.convertedEnvTexture = null;
     }
     
-    // Clear the path tracing flag
+    // Re-enable autoClear for standard rendering.
     if (this.renderer) {
       const threeRenderer = hasGetInternalRenderer(this.renderer) ? this.renderer.getInternalRenderer() as PathTracingWebGLRenderer : null;
       if (threeRenderer) {
-        threeRenderer.__pathTracingActive = false;
-        // Re-enable autoClear for standard rendering
         threeRenderer.autoClear = true;
       }
     }
-    
+
     // Reset state
     this.sceneInitialized = false;
     this.createAttempts = 0;
-    
+
   }
 
   dispose(): void {
@@ -700,16 +680,8 @@ export class ThreePathTracingService implements IPathTracingService {
       this.disposeTimer = null;
     }
 
-    // Clear the path tracing flag
-    if (this.renderer) {
-      const threeRenderer = hasGetInternalRenderer(this.renderer) ? this.renderer.getInternalRenderer() as PathTracingWebGLRenderer : null;
-      if (threeRenderer) {
-        threeRenderer.__pathTracingActive = false;
-        // Don't re-enable autoClear here - it causes the screen to clear to white
-        // The renderer's autoClear state should be managed by the ViewerCore
-        // threeRenderer.autoClear = true;
-      }
-    }
+    // Note: autoClear is NOT re-enabled here — that causes the screen to
+    // clear to white. The renderer's autoClear state is managed by ViewerCore.
 
     if (this.pathTracer) {
       try {
