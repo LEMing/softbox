@@ -48,7 +48,7 @@ describe('ThreeAnimationService', () => {
     expect(mesh.position.y).toBeCloseTo(2.5);
   });
 
-  it('pause() freezes the pose and play() resumes', () => {
+  it('pause() freezes the pose and play() resumes without restarting', () => {
     const { mesh, adapter } = makeAnimatedModel();
     const service = new ThreeAnimationService();
     service.attach(adapter);
@@ -59,6 +59,29 @@ describe('ThreeAnimationService', () => {
     service.update(0.25); // ignored while paused
     expect(mesh.position.x).toBeCloseTo(2.5);
     expect(service.isPlaying()).toBe(false);
+
+    service.play();
+    service.update(0.25);
+    // Continues from the paused pose (2.5 -> 5), not restarted from t=0.
+    expect(mesh.position.x).toBeCloseTo(5);
+    expect(service.isPlaying()).toBe(true);
+  });
+
+  it('play(differentClip) after pause() switches instead of resuming the old clip', () => {
+    const { mesh, adapter } = makeAnimatedModel();
+    const service = new ThreeAnimationService();
+    service.attach(adapter);
+
+    service.play('Spin');
+    service.update(0.25);
+    service.pause();
+
+    service.play('Bounce');
+    service.update(0.25);
+
+    // Bounce started fresh from t=0, not from wherever Spin had paused.
+    expect(mesh.position.y).toBeCloseTo(1.25);
+    expect(service.isPlaying()).toBe(true);
   });
 
   it('setSpeed scales playback', () => {
