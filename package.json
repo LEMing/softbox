@@ -1,7 +1,7 @@
 {
   "name": "threedviewer",
   "private": false,
-  "version": "3.19.3",
+  "version": "3.19.4",
   "homepage": "https://leming.github.io/ThreeDViewer/",
   "type": "module",
   "description": "A 3D viewer based on React and Three.js",
@@ -22,6 +22,7 @@
   "scripts": {
     "dev": "vite",
     "build": "NODE_ENV=production tsc --noEmit && vite build",
+    "postbuild": "node scripts/copy-cjs-types.mjs",
     "build:site": "vite build --config vite.site.config.ts",
     "preview": "vite preview",
     "test": "jest --runInBand",
@@ -31,10 +32,11 @@
     "test:render": "playwright test",
     "smoke": "node scripts/smoke.mjs",
     "type-smoke": "node scripts/type-smoke.mjs",
+    "attw": "attw --pack .",
     "knip": "knip",
     "lint": "eslint 'src/**/*.{ts,tsx}' --max-warnings 0",
     "lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix",
-    "prepublishOnly": "npm run lint && npm run typecheck && npm run build && npm run test && npm run smoke && npm run type-smoke",
+    "prepublishOnly": "npm run lint && npm run typecheck && npm run build && npm run test && npm run smoke && npm run type-smoke && npm run attw",
     "postpublish": "echo 'Published successfully!'"
   },
   "files": [
@@ -45,9 +47,14 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/simple-viewer.es.js",
-      "require": "./dist/simple-viewer.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/simple-viewer.es.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/simple-viewer.cjs"
+      }
     },
     "./package.json": "./package.json"
   },
@@ -55,6 +62,7 @@
     "access": "public"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.4",
     "@eslint/js": "^9.30.1",
     "@playwright/test": "^1.61.1",
     "@testing-library/jest-dom": "^6.4.8",

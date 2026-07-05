@@ -43,6 +43,9 @@ jobs:
       - name: Type smoke test (nodenext + bundler consumers)
         run: npm run type-smoke
 
+      - name: Are the types wrong (packaging correctness)
+        run: npm run attw
+
       - name: Dead-code check
         run: npm run knip
 
