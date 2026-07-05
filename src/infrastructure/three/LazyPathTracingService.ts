@@ -2,6 +2,7 @@ import {
   IPathTracingService,
   IPathTracingOptions,
   IPathTracingSettings,
+  PathTracingPausedEvent,
 } from '../../core/services/IPathTracingService';
 import { IScene, ICamera, Result } from '../../core/interfaces';
 import { TypedEventEmitter } from '../../events/EventEmitter';
@@ -17,7 +18,7 @@ import { TypedEventEmitter } from '../../events/EventEmitter';
  * an idle tracer would report (0 samples, disabled, not disposed).
  */
 export class LazyPathTracingService implements IPathTracingService {
-  readonly events = new TypedEventEmitter<{ 'pathtracing:paused': { samples: number } }>();
+  readonly events = new TypedEventEmitter<{ 'pathtracing:paused': PathTracingPausedEvent }>();
 
   private inner?: IPathTracingService;
   private disposed = false;

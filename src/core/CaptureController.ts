@@ -23,6 +23,8 @@ export interface CaptureControllerDependencies {
   awaitModelLoads: () => Promise<unknown>;
   /** Restarts a render loop that idle detection has stopped (staticScene). */
   reviveRenderLoop: () => void;
+  /** Whether the turntable is currently spinning the camera. */
+  isAutoRotating: () => boolean;
 }
 
 type StreamingCanvas = HTMLCanvasElement & {
@@ -227,6 +229,17 @@ export class CaptureController {
         )
       );
     }
+    // A spinning turntable resets the accumulation on every frame the camera
+    // moves, so it can never reach the sample target — waiting below would
+    // hang forever. Fail fast instead of guessing at a degraded capture.
+    if (this.deps.isAutoRotating()) {
+      return Result.err(
+        new ThreeViewerError(
+          'Cannot capture a path-traced still while the turntable is spinning — pause autoRotate first',
+          ErrorCode.INVALID_STATE
+        )
+      );
+    }
     // Wait only while the accumulation can still finish. A disabled service
     // (post-completion reset, failed init, internal error) will never emit
     // 'pathtracing:complete' again — capture the canvas as it stands instead
@@ -253,15 +266,22 @@ export class CaptureController {
     return new Promise<CaptureWaitOutcome>((resolve) => {
       let offComplete = () => {};
       let offError = () => {};
+      let offSelfPause = () => {};
       const settle = (outcome: CaptureWaitOutcome) => {
         this.pendingSettlers.delete(settle);
         offComplete();
         offError();
+        offSelfPause();
         resolve(outcome);
       };
       this.pendingSettlers.add(settle);
       offComplete = this.deps.events.once('pathtracing:complete', () => settle('complete'));
       offError = this.deps.events.once('model:error', () => settle('error'));
+      // The tracer can give up on the accumulation without ever completing
+      // (renderer never ready, environment never arrived, or the camera kept
+      // moving and reset it every frame). The canvas still holds a valid
+      // standard-render fallback frame, so capture it rather than hang.
+      offSelfPause = this.deps.pathTracing.onSelfPause(() => settle('complete'));
     });
   }
 

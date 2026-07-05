@@ -53,5 +53,5 @@ export function mergeWithPreset(
   defaults: SimpleViewerOptions,
   options: SimpleViewerOptions
 ): SimpleViewerOptions {
-  return { ...deepMerge(defaults, resolvePreset(options.preset)), ...options };
+  return deepMerge(deepMerge(defaults, resolvePreset(options.preset)), options);
 }

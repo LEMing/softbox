@@ -1,6 +1,14 @@
 Changelog
 =========
 
+3.19.2
+---
+
+### Bug fixes
+* **Fixed:** `captureStill()` in path-traced mode could hang forever if the tracer gave up on the accumulation on its own (renderer never became ready, or the environment texture never arrived) instead of reaching its sample target — the service now notifies that give-up the same way it notifies a normal completion, so the pending capture settles and returns the canvas as it stands instead of never resolving.
+* **Fixed:** combining `turntable` (or any live `controls.autoRotate`) with path tracing made `captureStill()` hang forever — every camera move resets the accumulation, so it could never reach the sample target. It now rejects with `INVALID_STATE` instead of waiting on a completion that will never come; pause `autoRotate` before capturing a path-traced still.
+* **Fixed:** `mergeWithPreset` shallow-spread the caller's explicit options onto the deep-merged defaults+preset, so any partial sub-object override (e.g. `renderer: { antialias: false }`) silently wiped out the rest of that sub-object (tone mapping, exposure, etc.) instead of overriding just the given field. Presets and defaults now survive partial overrides correctly.
+
 3.19.1
 ---
 

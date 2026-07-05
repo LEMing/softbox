@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import {
   IPathTracingService,
   IPathTracingOptions,
-  IPathTracingSettings
+  IPathTracingSettings,
+  PathTracingPausedEvent
 } from '../../core/services/IPathTracingService';
 import { IRenderer } from '../../core/interfaces/IRenderer';
 import { IScene } from '../../core/interfaces/IScene';
@@ -90,7 +91,7 @@ export class ThreePathTracingService implements IPathTracingService {
   private disposeTimer: ReturnType<typeof setTimeout> | null = null;
   private convertedEnvTexture: THREE.DataTexture | null = null; // Store converted texture for reuse and disposal
   private lastResetTime: number = 0; // Track when we last reset to avoid too frequent resets
-  public readonly events = new TypedEventEmitter<{ 'pathtracing:paused': { samples: number } }>();
+  public readonly events = new TypedEventEmitter<{ 'pathtracing:paused': PathTracingPausedEvent }>();
 
   constructor() {
     this.settings = {
@@ -251,6 +252,20 @@ export class ThreePathTracingService implements IPathTracingService {
     // Path tracer will be created on first render if enabled
   }
 
+  /**
+   * The service gives up on the CURRENT accumulation on its own (sample
+   * target reached, renderer never became ready, environment texture never
+   * arrived) — as opposed to `setEnabled(false)`, which is the consumer
+   * turning path tracing off entirely. Every such self-pause must emit
+   * 'pathtracing:paused' so PathTracingCoordinator releases the 'path-tracing'
+   * continuous-render reason; skipping it left the render loop demanding
+   * frames forever and callers awaiting 'pathtracing:complete' hanging.
+   */
+  private disableAfterSelfPause(reason: PathTracingPausedEvent['reason']): void {
+    this.enabled = false;
+    this.events.emit('pathtracing:paused', { samples: this.sampleCount, reason });
+  }
+
   updateSettings(settings: Partial<IPathTracingSettings>): void {
     this.settings = { ...this.settings, ...settings };
 
@@ -310,7 +325,7 @@ export class ThreePathTracingService implements IPathTracingService {
           return this.renderer.render(scene, camera);
         } else {
           // Max attempts reached or different error, disable path tracing
-          this.enabled = false;
+          this.disableAfterSelfPause('gave-up');
           this.createAttempts = 0;
 
           // Fallback to standard renderer
@@ -362,7 +377,7 @@ export class ThreePathTracingService implements IPathTracingService {
 
             // If we've waited too long, disable path tracing
             if (this.environmentWaitFrames >= this.maxEnvironmentWaitFrames) {
-              this.enabled = false;
+              this.disableAfterSelfPause('gave-up');
               this.environmentWaitFrames = 0;
             }
 
@@ -590,8 +605,7 @@ export class ThreePathTracingService implements IPathTracingService {
       }
     }
 
-    this.enabled = false;
-    this.events.emit('pathtracing:paused', { samples: this.sampleCount });
+    this.disableAfterSelfPause('completed');
 
     // Dispose path-tracing resources shortly after, once the image is displayed.
     this.disposeTimer = setTimeout(() => {

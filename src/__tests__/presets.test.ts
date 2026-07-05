@@ -70,6 +70,14 @@ describe('mergeWithPreset', () => {
     expect(merged.backgroundColor).toBe('#abcabc');
   });
 
+  it('deep-merges a partial explicit sub-object instead of replacing defaults+preset wholesale', () => {
+    // Regression: a shallow-spread merge let `{ renderer: { antialias: false } }`
+    // wipe out the preset's toneMappingExposure entirely.
+    const merged = mergeWithPreset(defaults, { preset: 'product', renderer: { antialias: false } });
+    expect(merged.renderer?.antialias).toBe(false);
+    expect(merged.renderer?.toneMappingExposure).toBe(1.25);
+  });
+
   it('returns the defaults when no preset is set', () => {
     const merged = mergeWithPreset(defaults, {});
     expect(merged.backgroundColor).toBe('#000000');

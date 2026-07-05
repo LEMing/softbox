@@ -1,6 +1,5 @@
 import { renderHook } from '@testing-library/react';
 import { useResolvedOptions } from '../useResolvedOptions';
-import defaultOptions from '../../../defaultOptions';
 import { SimpleViewerOptions } from '../../../types/SimpleViewerOptions';
 
 describe('useResolvedOptions', () => {
@@ -18,14 +17,10 @@ describe('useResolvedOptions', () => {
     expect(result.current.preset).toBe('dark');
   });
 
-  it('folds pathTraced over the default tuning, keeping a partial options.pathTracing', () => {
+  it('folds pathTraced into pathTracing.enabled, keeping the rest partial (defaults merge downstream via mergeWithPreset)', () => {
     const options: SimpleViewerOptions = { pathTracing: { maxSamples: 64 } };
     const { result } = renderHook(() => useResolvedOptions(options, undefined, true, undefined, undefined));
-    expect(result.current.pathTracing).toEqual({
-      ...defaultOptions.pathTracing,
-      maxSamples: 64,
-      enabled: true,
-    });
+    expect(result.current.pathTracing).toEqual({ maxSamples: 64, enabled: true });
   });
 
   it('lets an explicit pathTracing.enabled win over the prop', () => {

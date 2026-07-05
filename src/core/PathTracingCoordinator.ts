@@ -34,6 +34,7 @@ export class PathTracingCoordinator {
   private readonly deps: PathTracingCoordinatorDependencies;
   private startTime?: number;
   private completeHandled = false;
+  private readonly selfPauseListeners = new Set<() => void>();
 
   constructor(deps: PathTracingCoordinatorDependencies) {
     this.deps = deps;
@@ -56,6 +57,17 @@ export class PathTracingCoordinator {
   /** The accumulation is still able to finish (the service is running). */
   isAccumulating(): boolean {
     return Boolean(this.deps.service?.isEnabled());
+  }
+
+  /**
+   * Notified when the service gives up on its current accumulation without
+   * reaching the sample target (as opposed to a normal completion). Lets a
+   * caller awaiting `'pathtracing:complete'` (e.g. captureStill) settle
+   * instead of waiting on an event that will never fire.
+   */
+  onSelfPause(callback: () => void): () => void {
+    this.selfPauseListeners.add(callback);
+    return () => this.selfPauseListeners.delete(callback);
   }
 
   async initialize(): Promise<void> {
@@ -88,7 +100,7 @@ export class PathTracingCoordinator {
 
     // The service pauses itself when accumulation stalls; wind the loop down —
     // unless another subsystem (turntable, animations) still needs frames.
-    service.events.on('pathtracing:paused', () => {
+    service.events.on('pathtracing:paused', ({ reason }) => {
       renderLoopManager.releaseContinuous('path-tracing');
       if (!getOptions().staticScene) {
         renderLoopManager.setAlwaysRender(false);
@@ -98,6 +110,9 @@ export class PathTracingCoordinator {
           renderLoopManager.stop();
         }
       }, 100);
+      if (reason === 'gave-up') {
+        this.selfPauseListeners.forEach((callback) => callback());
+      }
     });
   }
 

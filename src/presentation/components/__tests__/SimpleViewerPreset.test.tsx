@@ -4,7 +4,6 @@ import '@testing-library/jest-dom';
 import { SimpleViewer } from '../SimpleViewer';
 import { useViewerCore, useViewerEventHandlers } from '../../hooks';
 import { SimpleViewerOptions } from '../../../types/SimpleViewerOptions';
-import defaultOptions from '../../../defaultOptions';
 
 jest.mock('../../hooks', () => ({
   ...jest.requireActual('../../hooks'),
@@ -42,12 +41,9 @@ describe('SimpleViewer preset prop', () => {
 });
 
 describe('SimpleViewer pathTraced prop', () => {
-  it('folds the pathTraced prop over the default path-tracing tuning', () => {
+  it('folds the pathTraced prop into pathTracing.enabled (defaults merge downstream via mergeWithPreset)', () => {
     render(<SimpleViewer object={null} pathTraced />);
-    expect(optionsPassedToCore().pathTracing).toEqual({
-      ...defaultOptions.pathTracing,
-      enabled: true,
-    });
+    expect(optionsPassedToCore().pathTracing).toEqual({ enabled: true });
   });
 
   it('composes with a partial options.pathTracing (tuning kept, enabled set)', () => {
@@ -59,7 +55,6 @@ describe('SimpleViewer pathTraced prop', () => {
       />
     );
     expect(optionsPassedToCore().pathTracing).toEqual({
-      ...defaultOptions.pathTracing,
       maxSamples: 64,
       enabled: true,
     });
