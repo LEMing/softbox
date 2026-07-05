@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.19.7
+---
+
+### Code health
+* Centralized the runtime-tunable option list (background color, tone-mapping exposure, environment intensity, turntable, animation autoplay/speed) into `src/types/runtimeOptions.ts` — a `pickRuntimeOptions()` helper plus shared field-name constants, now consumed by `useStableOptions` (structural/runtime key split) and `useViewerCore` (the runtime-apply effect), instead of each hand-listing the same fields separately. No behavior change.
+
 3.19.6
 ---
 

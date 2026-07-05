@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ViewerCore } from '../../core/ViewerCore';
 import { ViewerFactory } from '../../infrastructure/factories/ViewerFactory';
 import { SimpleViewerOptions } from '../../types/SimpleViewerOptions';
+import { pickRuntimeOptions } from '../../types/runtimeOptions';
 import defaultOptions from '../../defaultOptions';
 import { mergeWithPreset } from '../../presets';
 import { useStableOptions } from './useStableOptions';
@@ -68,19 +69,7 @@ export function useViewerCore(
       return;
     }
     const merged = mergeWithPreset(defaultOptions, stableOptions);
-    viewerRef.current.updateOptions({
-      backgroundColor: merged.backgroundColor,
-      renderer: { toneMappingExposure: merged.renderer?.toneMappingExposure },
-      environment: { environmentIntensity: merged.environment?.environmentIntensity },
-      controls: {
-        autoRotate: merged.controls?.autoRotate,
-        autoRotateSpeed: merged.controls?.autoRotateSpeed,
-      },
-      animations: {
-        autoplay: merged.animations?.autoplay,
-        speed: merged.animations?.speed,
-      },
-    });
+    viewerRef.current.updateOptions(pickRuntimeOptions(merged));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runtimeKey is a content hash of the runtime look; reading the resolved values inside is intentional.
   }, [runtimeKey, isInitialized]);
 
