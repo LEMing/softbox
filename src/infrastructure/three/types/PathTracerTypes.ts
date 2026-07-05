@@ -16,11 +16,9 @@ export type ExtendedWebGLPathTracer = WebGLPathTracer & {
 }
 
 /**
- * Extended WebGLRenderer interface with path tracing flag
+ * Alias kept for call-site clarity where a WebGLRenderer is used for path tracing.
  */
-export interface PathTracingWebGLRenderer extends THREE.WebGLRenderer {
-  __pathTracingActive?: boolean;
-}
+export type PathTracingWebGLRenderer = THREE.WebGLRenderer;
 
 /**
  * Extended Three.js Scene with original environment texture

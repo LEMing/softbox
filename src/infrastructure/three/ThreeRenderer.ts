@@ -10,7 +10,6 @@ import { Result } from '../../utils/Result';
 import { ThreeSceneAdapter } from './ThreeScene';
 import { ThreeCameraAdapter } from './ThreeCamera';
 import { ThreeViewerError, ErrorCode } from '../../errors';
-import { PathTracingWebGLRenderer } from './types/PathTracerTypes';
 import { generateUUID } from '../../utils/uuid';
 
 /**
@@ -132,13 +131,6 @@ export class ThreeRendererAdapter implements IRenderer {
 
       const threeScene = scene.getThreeScene();
       const threeCamera = camera.getThreeCamera();
-
-      // Check if we should skip rendering because path tracing is active
-      // This prevents the standard renderer from overwriting path traced output
-      const isPathTracingActive = (this.renderer as PathTracingWebGLRenderer).__pathTracingActive;
-      if (isPathTracingActive) {
-        return Result.ok(undefined);
-      }
 
       this.renderer.render(threeScene, threeCamera);
       return Result.ok(undefined);
