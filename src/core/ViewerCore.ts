@@ -316,7 +316,7 @@ export class ViewerCore {
         return;
       }
       // A disposed renderer must stop the loop, not render into a dead context.
-      if (!this.renderer || (this.renderer as unknown as { renderer: null | unknown }).renderer === null) {
+      if (!this.renderer || this.renderer.isDisposed()) {
         this.renderLoopManager.stop();
         return;
       }

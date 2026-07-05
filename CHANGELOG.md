@@ -1,6 +1,13 @@
 Changelog
 =========
 
+3.19.1
+---
+
+### Bug fixes
+* **Fixed:** the render loop's idle detection could never re-arm after `releaseContinuous` dropped demand on a frame that rendered nothing (e.g. right after `captureVideo`/`pauseAnimations` finish on a `staticScene: true` viewer) — the idle timer is now armed based on current demand, not on whether that specific frame rendered, so the loop reliably idles out again instead of spinning forever.
+* Replaced a structural double-cast that let `ViewerCore` peek at `ThreeRendererAdapter`'s private field to detect a torn-down renderer with a proper `IRenderer.isDisposed()` port method — closes an engine-agnostic-core boundary leak found in the 2026-07-05 re-audit (see `docs/AUDIT_2026-07-05.md`).
+
 3.19.0
 ---
 
