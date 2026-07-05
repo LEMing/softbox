@@ -17,6 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so the main-containment check below can walk
+          # ancestry back from origin/main.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -33,6 +37,14 @@ jobs:
           TAG_VERSION="${GITHUB_REF_NAME#v}"
           if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
             echo "Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION" >&2
+            exit 1
+          fi
+
+      - name: Verify the tag is reachable from main
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Tag $GITHUB_REF_NAME (commit $GITHUB_SHA) is not on main — refusing to publish a side-branch tag." >&2
             exit 1
           fi
 
