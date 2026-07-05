@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.19.9
+---
+
+### Release workflow hardening
+* The tag-triggered release workflow now requires npm provenance (`npm publish --provenance`, gated on a new `id-token: write` permission) and refuses to publish a tag that isn't reachable from `main` — closing two gaps where a compromised token or a stray tag on a side branch could have shipped an unverifiable or unintended release.
+
 3.19.8
 ---
 
