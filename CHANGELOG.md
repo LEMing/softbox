@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.19.4
+---
+
+### Packaging fix
+* **Fixed:** CJS consumers under `moduleResolution: node16`/`nodenext` got ESM-flavored type declarations through the `require` condition (arethetypeswrong's "Masquerading as ESM") — the build now emits a `dist/index.d.cts` twin and the exports map serves it to `require()`, matching the `.cjs` runtime file. `npm run attw` (`@arethetypeswrong/cli --pack`) is now part of `prepublishOnly` and CI so this class of packaging regression is caught automatically.
+
 3.19.3
 ---
 
