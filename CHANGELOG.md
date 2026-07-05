@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.19.3
+---
+
+### Bug fix
+* **Fixed:** overlapping `captureVideo()` calls shared the same `'video-capture'` render-loop continuous-rendering reason, so the first take to finish released it out from under a still-recording second take, starving its frame forwarding. Each take now holds its own uniquely-tagged reason, so concurrent captures no longer interfere with each other.
+
 3.19.2
 ---
 
