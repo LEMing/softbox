@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.19.9
+---
+
+### Playground: new default model
+* The playground now opens on a low-poly GMC motorhome by default instead of the Lantern sample, alongside the existing Lantern/Helmet/WaterBottle/Avocado/Fox picker options. Site-only change — nothing in the published package.
+
 3.19.8
 ---
 
