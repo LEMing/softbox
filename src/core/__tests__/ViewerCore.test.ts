@@ -5,6 +5,7 @@ import {
   ICamera,
   IControls,
   IModelLoader,
+  IModel,
   IObject3D,
   IVector3,
   ITexture,
@@ -802,6 +803,30 @@ describe('ViewerCore', () => {
       if (!result.ok) {
         expect(result.error).toBe(original);
       }
+    });
+
+    it('disposes an orphaned model instead of installing it when dispose() runs mid-load', async () => {
+      const bundle = makeDeps();
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+
+      const modelLoad = deferred<Result<IModel>>();
+      bundle.modelLoader.load.mockReturnValue(modelLoad.promise);
+
+      const load = viewer.loadModel('model.glb');
+      await tick();
+      viewer.dispose();
+
+      const loadedModel = makeObject3D();
+      modelLoad.resolve(Result.ok({ scene: loadedModel }));
+      const result = await load;
+
+      expect(result.ok).toBe(false);
+      expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_STATE);
+      // The model manager already added it to the scene and set it as
+      // current before this call returned — it must be torn down here,
+      // since dispose() already ran and will never call this again.
+      expect(loadedModel.dispose).toHaveBeenCalled();
     });
   });
 
@@ -1745,6 +1770,18 @@ describe('ViewerCore.captureStill', () => {
     const result = await viewer.captureStill({ width: 1024 });
     expect(result.ok).toBe(true);
     expect(bundle.renderer.setSize).toHaveBeenCalledWith(1024, 768);
+  });
+
+  it('rejects with INVALID_STATE while a screenshot is replacing the canvas', async () => {
+    jest.spyOn(ScreenshotManager.prototype, 'isActive').mockReturnValue(true);
+    const bundle = makeCaptureBundle();
+    const viewer = new ViewerCore(bundle.deps);
+
+    const result = await viewer.captureStill();
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_STATE);
+    expect(bundle.renderer.setSize).not.toHaveBeenCalled();
   });
 });
 

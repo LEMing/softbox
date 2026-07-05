@@ -1,6 +1,13 @@
 Changelog
 =========
 
+3.19.5
+---
+
+### Bug fixes
+* **Fixed:** `captureStill()`/`captureVideo()` did not check for an active screenshot replacement — calling either while the canvas was hidden behind a captured screenshot image (and its scene resources possibly already released) silently captured a stale or meaningless frame. Both now reject with `INVALID_STATE` while a screenshot is active.
+* **Fixed:** `dispose()` racing an in-flight `loadModel()` let the freshly-loaded model be added to a scene nobody renders, with no future `dispose()` call left to reclaim its GPU resources. The load now detects the race after it resolves and disposes the orphaned model instead of installing it, returning `INVALID_STATE`.
+
 3.19.4
 ---
 

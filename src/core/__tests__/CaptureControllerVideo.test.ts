@@ -65,6 +65,7 @@ const makeController = (overrides: Partial<CaptureControllerDependencies> = {}) 
     isDisposed: () => false,
     awaitModelLoads: () => Promise.resolve(),
     reviveRenderLoop: jest.fn(),
+    isScreenshotActive: () => false,
     ...overrides,
   } as unknown as CaptureControllerDependencies;
 
@@ -208,6 +209,17 @@ describe('CaptureController.captureVideo', () => {
     if (!result.ok) {
       expect((result.error as ThreeViewerError).code).toBe(ErrorCode.INVALID_STATE);
     }
+  });
+
+  it('refuses to capture while a screenshot is replacing the canvas', async () => {
+    const { controller } = makeController({ isScreenshotActive: () => true });
+    const result = await controller.captureVideo();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect((result.error as ThreeViewerError).code).toBe(ErrorCode.INVALID_STATE);
+    }
+    expect(requireSpy).not.toHaveBeenCalled();
   });
 
   it('settles with INVALID_STATE when the viewer is disposed mid-capture', async () => {
