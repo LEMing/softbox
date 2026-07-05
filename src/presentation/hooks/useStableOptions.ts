@@ -1,5 +1,11 @@
 import { useMemo } from 'react';
 import { SimpleViewerOptions } from '../../types/SimpleViewerOptions';
+import {
+  RUNTIME_RENDERER_FIELDS,
+  RUNTIME_ENVIRONMENT_FIELDS,
+  RUNTIME_CONTROLS_FIELDS,
+  pickRuntimeOptions,
+} from '../../types/runtimeOptions';
 import defaultOptions from '../../defaultOptions';
 import { mergeWithPreset } from '../../presets';
 
@@ -44,12 +50,12 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
         // renderer/environment minus their runtime-tunable fields: a direct
         // toneMappingExposure / environmentIntensity change is exactly what
         // the live updateOptions path exists for and must not rebuild.
-        renderer: structuralPart(options.renderer, 'toneMappingExposure'),
+        renderer: structuralPart(options.renderer, ...RUNTIME_RENDERER_FIELDS),
         camera: options.camera,
         // The turntable fields toggle live (updateOptions), like the look
         // fields — flipping auto-rotate must not reload the model.
-        controls: structuralPart(options.controls, 'autoRotate', 'autoRotateSpeed'),
-        environment: structuralPart(options.environment, 'environmentIntensity'),
+        controls: structuralPart(options.controls, ...RUNTIME_CONTROLS_FIELDS),
+        environment: structuralPart(options.environment, ...RUNTIME_ENVIRONMENT_FIELDS),
         lighting: options.lighting,
         helpers: options.helpers,
         rendering: options.rendering,
@@ -80,15 +86,7 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
   // (studio → dark, …) applies live via updateOptions instead of rebuilding.
   const runtimeKey = useMemo(() => {
     const merged = mergeWithPreset(defaultOptions, options);
-    return JSON.stringify({
-      backgroundColor: merged.backgroundColor,
-      toneMappingExposure: merged.renderer?.toneMappingExposure,
-      environmentIntensity: merged.environment?.environmentIntensity,
-      autoRotate: merged.controls?.autoRotate,
-      autoRotateSpeed: merged.controls?.autoRotateSpeed,
-      animationsAutoplay: merged.animations?.autoplay,
-      animationsSpeed: merged.animations?.speed,
-    });
+    return JSON.stringify(pickRuntimeOptions(merged));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the runtime set is fully determined by these inputs; depending on `options` would recompute on every unrelated change.
   }, [options.preset, options.backgroundColor, options.renderer, options.environment, options.controls, options.animations]);
 
