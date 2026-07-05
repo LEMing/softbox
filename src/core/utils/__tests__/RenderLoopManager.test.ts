@@ -80,4 +80,30 @@ describe('RenderLoopManager continuous-rendering reasons', () => {
     manager.stop();
     expect(manager.hasContinuousDemand()).toBe(false);
   });
+
+  it('idles out after a bare releaseContinuous with no following render request', () => {
+    // Regression: releaseContinuous() can drop demand to zero on a frame that
+    // renders nothing (needsRender was already false going in). The idle timer
+    // must still arm on that exact frame, not only on frames that rendered.
+    const manager = makeIdleManager();
+    const render = jest.fn();
+    manager.start(render);
+    pumpFrame(); // initial needsRender
+    render.mockClear();
+
+    manager.requireContinuous('video-capture');
+    pumpFrame();
+    expect(render).toHaveBeenCalledTimes(1);
+
+    manager.releaseContinuous('video-capture');
+    pumpFrame(); // nothing demands a render on this frame — must still arm idle
+    render.mockClear();
+    pumpFrame();
+    expect(render).not.toHaveBeenCalled();
+
+    jest.advanceTimersByTime(60);
+    pumpFrame();
+    expect(rafCallbacks).toHaveLength(0);
+    expect(manager.isRunning()).toBe(false);
+  });
 });

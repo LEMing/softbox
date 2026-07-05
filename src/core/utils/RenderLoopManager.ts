@@ -112,25 +112,28 @@ export class RenderLoopManager {
       
       // Check if we need to render
       const shouldRender = this.alwaysRender || this.needsRender || this.continuousRenderingEnabled;
-      
+
       if (shouldRender) {
         renderCallback(deltaTime);
         this.lastRenderTime = currentTime;
         this.needsRender = false;
-        
-        // Reset idle timer only if idle detection is enabled
-        if (this.enableIdleDetection && !this.alwaysRender) {
+      }
+
+      // Idle-timer arming must track current demand, not whether THIS frame
+      // rendered: releaseContinuous() can drop demand to zero on a frame that
+      // renders nothing (needsRender was already false), and gating the arm
+      // behind `shouldRender` left that frame — and every frame after it —
+      // with no timer ever set, so isIdle never flips and the loop spins forever.
+      if (this.enableIdleDetection && !this.alwaysRender) {
+        if (this.continuousRenderingEnabled || this.needsRender) {
           this.wakeUp();
-          
-          // Set up idle detection
-          if (!this.continuousRenderingEnabled) {
-            this.idleTimeout = window.setTimeout(() => {
-              this.isIdle = true;
-            }, this.idleDelay);
-          }
+        } else if (this.idleTimeout === null && !this.isIdle) {
+          this.idleTimeout = window.setTimeout(() => {
+            this.isIdle = true;
+          }, this.idleDelay);
         }
       }
-      
+
       // Continue loop based on mode and idle state
       const shouldContinue = this.alwaysRender || 
                            !this.enableIdleDetection || 

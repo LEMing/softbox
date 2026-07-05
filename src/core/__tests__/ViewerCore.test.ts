@@ -102,6 +102,7 @@ const makeRenderer = (
     getDomElement: jest.fn(() => canvas),
     getContext: jest.fn(() => null),
     dispose: jest.fn(),
+    isDisposed: jest.fn(() => false),
     capabilities: {
       maxTextureSize: 4096,
       maxCubemapSize: 4096,
@@ -1108,7 +1109,7 @@ describe('ViewerCore', () => {
       const bundle = makeDeps({
         canvas,
         options: { staticScene: true },
-        rendererOverrides: { renderer: null },
+        rendererOverrides: { isDisposed: jest.fn(() => true) },
       });
       const viewer = new ViewerCore(bundle.deps);
       await viewer.initialize();

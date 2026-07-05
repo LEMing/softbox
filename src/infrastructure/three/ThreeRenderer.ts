@@ -227,6 +227,10 @@ export class ThreeRendererAdapter implements IRenderer {
     }
   }
 
+  isDisposed(): boolean {
+    return this.renderer === null;
+  }
+
   /**
    * Get the internal Three.js renderer
    * Implementation of IRendererExtension interface

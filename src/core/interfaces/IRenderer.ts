@@ -22,9 +22,12 @@ export interface IRenderer extends IRendererExtension {
 
   getDomElement(): HTMLCanvasElement;
   getContext(): WebGLRenderingContext | WebGL2RenderingContext | null;
-  
+
   dispose(): void;
-  
+
+  /** Whether dispose() has already torn down the underlying rendering context. */
+  isDisposed(): boolean;
+
   // Renderer capabilities
   capabilities: IRendererCapabilities;
 }
