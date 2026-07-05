@@ -169,6 +169,7 @@ export class ViewerCore {
       awaitModelLoads: () => this.modelLoadChain,
       reviveRenderLoop: () => this.reviveRenderLoop(),
       isAutoRotating: () => this.controls.autoRotate,
+      isScreenshotActive: () => this.screenshotManager.isActive(),
     });
   }
 
@@ -282,6 +283,18 @@ export class ViewerCore {
       this.stateManager.startLoading();
 
       const result = await this.modelManager.loadModel(source, this.events);
+
+      if (this.disposed) {
+        // dispose() ran while the load was in flight: the model manager
+        // already added the freshly-loaded model to a scene nobody renders
+        // and nothing else will ever call dispose() again to reclaim it.
+        if (result.ok) {
+          this.modelManager.disposeCurrentModel();
+        }
+        return Result.err(
+          new ThreeViewerError('Viewer was disposed while the model was loading', ErrorCode.INVALID_STATE)
+        );
+      }
 
       if (result.ok) {
         this.stateManager.setLoaded(result.value);

@@ -26,6 +26,8 @@ export interface CaptureControllerDependencies {
   reviveRenderLoop: () => void;
   /** Whether the turntable is currently spinning the camera. */
   isAutoRotating: () => boolean;
+  /** Whether the canvas is currently hidden behind a captured screenshot image. */
+  isScreenshotActive: () => boolean;
 }
 
 type StreamingCanvas = HTMLCanvasElement & {
@@ -80,6 +82,17 @@ export class CaptureController {
         new ThreeViewerError('Viewer was disposed while a model load finished', ErrorCode.INVALID_STATE)
       );
     }
+    // A screenshot replaces the canvas with a plain <img>; the live scene
+    // behind it may already be torn down (resources released once the
+    // capture was validated), so reading the canvas would be meaningless.
+    if (this.deps.isScreenshotActive()) {
+      return Result.err(
+        new ThreeViewerError(
+          'Cannot capture a still while a screenshot is replacing the canvas',
+          ErrorCode.INVALID_STATE
+        )
+      );
+    }
     if (this.deps.pathTracing.isEnabled()) {
       return this.capturePathTracedStill(options);
     }
@@ -107,6 +120,14 @@ export class CaptureController {
     if (this.deps.isDisposed()) {
       return Result.err(
         new ThreeViewerError('Viewer was disposed while a model load finished', ErrorCode.INVALID_STATE)
+      );
+    }
+    if (this.deps.isScreenshotActive()) {
+      return Result.err(
+        new ThreeViewerError(
+          'Cannot capture video while a screenshot is replacing the canvas',
+          ErrorCode.INVALID_STATE
+        )
       );
     }
 
