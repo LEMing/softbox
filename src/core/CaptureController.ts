@@ -8,6 +8,7 @@ import { RenderLoopManager } from './utils/RenderLoopManager';
 import { PathTracingCoordinator } from './PathTracingCoordinator';
 import { applyCameraAspect } from './utils/cameraAspect';
 import { canvasToPngDataUrl } from './utils/canvasPng';
+import { generateUUID } from '../utils/uuid';
 
 type CaptureWaitOutcome = 'complete' | 'disposed' | 'error';
 
@@ -153,7 +154,11 @@ export class CaptureController {
       ? this.deps.events.on('render:complete', () => requestFrame())
       : () => {};
 
-    this.deps.renderLoopManager.requireContinuous('video-capture');
+    // A unique reason per take: two overlapping captureVideo() calls must not
+    // share one 'video-capture' string, or the first to finish releases it out
+    // from under the other, starving its still-recording frame forwarding.
+    const continuousReason = `video-capture:${generateUUID()}`;
+    this.deps.renderLoopManager.requireContinuous(continuousReason);
     this.deps.reviveRenderLoop();
     this.deps.renderLoopManager.requestRender();
 
@@ -172,7 +177,7 @@ export class CaptureController {
         if (stopTimer !== null) {
           clearTimeout(stopTimer);
         }
-        this.deps.renderLoopManager.releaseContinuous('video-capture');
+        this.deps.renderLoopManager.releaseContinuous(continuousReason);
         stream.getTracks().forEach((track) => track.stop());
         resolve(result);
       };

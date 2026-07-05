@@ -95,7 +95,7 @@ describe('CaptureController.captureVideo', () => {
 
     const capture = controller.captureVideo({ duration: 1, fps: 24 });
     await tick();
-    expect(requireSpy).toHaveBeenCalledWith('video-capture');
+    expect(requireSpy).toHaveBeenCalledWith(expect.stringMatching(/^video-capture:/));
     expect(deps.reviveRenderLoop).toHaveBeenCalled();
     expect(captureStream).toHaveBeenCalledWith(24);
 
@@ -107,8 +107,31 @@ describe('CaptureController.captureVideo', () => {
       expect(result.value.type).toContain('video/webm');
       expect(result.value.size).toBeGreaterThan(0);
     }
-    expect(releaseSpy).toHaveBeenCalledWith('video-capture');
+    expect(releaseSpy).toHaveBeenCalledWith(expect.stringMatching(/^video-capture:/));
     expect(track.stop).toHaveBeenCalled();
+  });
+
+  it('keeps continuous demand for a still-running capture when a shorter overlapping one finishes first', async () => {
+    const { controller, deps } = makeController();
+
+    const shortCapture = controller.captureVideo({ duration: 1 });
+    await tick();
+    const longCapture = controller.captureVideo({ duration: 5 });
+    await tick();
+
+    expect(deps.renderLoopManager.hasContinuousDemand()).toBe(true);
+
+    jest.advanceTimersByTime(1000);
+    await shortCapture;
+
+    // The long capture is still recording — its own reason must still be
+    // held, not deleted by the short capture releasing a shared string.
+    expect(deps.renderLoopManager.hasContinuousDemand()).toBe(true);
+
+    jest.advanceTimersByTime(4000);
+    await longCapture;
+
+    expect(deps.renderLoopManager.hasContinuousDemand()).toBe(false);
   });
 
   it('forwards every rendered frame into the stream and unsubscribes at the end', async () => {
@@ -199,7 +222,7 @@ describe('CaptureController.captureVideo', () => {
     if (!result.ok) {
       expect((result.error as ThreeViewerError).code).toBe(ErrorCode.INVALID_STATE);
     }
-    expect(releaseSpy).toHaveBeenCalledWith('video-capture');
+    expect(releaseSpy).toHaveBeenCalledWith(expect.stringMatching(/^video-capture:/));
     expect(track.stop).toHaveBeenCalled();
   });
 
@@ -227,6 +250,6 @@ describe('CaptureController.captureVideo', () => {
     if (!result.ok) {
       expect((result.error as ThreeViewerError).code).toBe(ErrorCode.OPERATION_FAILED);
     }
-    expect(releaseSpy).toHaveBeenCalledWith('video-capture');
+    expect(releaseSpy).toHaveBeenCalledWith(expect.stringMatching(/^video-capture:/));
   });
 });
