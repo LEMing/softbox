@@ -48,6 +48,10 @@ describe('ModelManager', () => {
 
     mockSceneSetupService = {
       addDynamicGrid: jest.fn().mockReturnValue(Result.ok(undefined)),
+      snapObjectToFloor: jest.fn().mockReturnValue(Result.ok(undefined)),
+      fitShadowCameraToObject: jest.fn().mockReturnValue(Result.ok(undefined)),
+      bakeContactShadow: jest.fn().mockReturnValue(Result.ok(undefined)),
+      setContactShadowMode: jest.fn().mockReturnValue(Result.ok(undefined)),
       fitCameraToObject: jest.fn().mockReturnValue(Result.ok(undefined))
     } as unknown as jest.Mocked<ISceneSetupService>;
 
@@ -132,6 +136,61 @@ describe('ModelManager', () => {
           mockModel,
           2
         );
+      });
+
+      it('should bake the contact shadow after fitting the shadow camera when a renderer is available', async () => {
+        const mockRenderer = { getInternalRenderer: jest.fn(() => null) } as unknown as import('../../interfaces').IRenderer;
+        modelManager = new ModelManager({
+          modelLoader: mockModelLoader,
+          scene: mockScene,
+          camera: mockCamera,
+          controls: mockControls,
+          sceneSetupService: mockSceneSetupService,
+          renderer: mockRenderer
+        });
+
+        await modelManager.loadModel('test.glb', mockEvents);
+
+        expect(mockSceneSetupService.bakeContactShadow).toHaveBeenCalledWith(
+          mockScene,
+          mockModel,
+          mockRenderer
+        );
+        const fitOrder = mockSceneSetupService.fitShadowCameraToObject.mock.invocationCallOrder[0];
+        const bakeOrder = mockSceneSetupService.bakeContactShadow.mock.invocationCallOrder[0];
+        expect(bakeOrder).toBeGreaterThan(fitOrder);
+      });
+
+      it('should skip contact-shadow baking without a renderer', async () => {
+        await modelManager.loadModel('test.glb', mockEvents);
+
+        expect(mockSceneSetupService.bakeContactShadow).not.toHaveBeenCalled();
+      });
+
+      it('should warn but still succeed when contact-shadow baking fails', async () => {
+        const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+        const mockRenderer = { getInternalRenderer: jest.fn(() => null) } as unknown as import('../../interfaces').IRenderer;
+        mockSceneSetupService.bakeContactShadow.mockReturnValue(
+          Result.err(new ThreeViewerError('Bake failed', ErrorCode.OPERATION_FAILED))
+        );
+        modelManager = new ModelManager({
+          modelLoader: mockModelLoader,
+          scene: mockScene,
+          camera: mockCamera,
+          controls: mockControls,
+          sceneSetupService: mockSceneSetupService,
+          renderer: mockRenderer
+        });
+
+        const result = await modelManager.loadModel('test.glb', mockEvents);
+
+        expect(result.ok).toBe(true);
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          'Failed to bake contact shadow:',
+          expect.any(ThreeViewerError)
+        );
+
+        consoleWarnSpy.mockRestore();
       });
 
       it('should fit camera to object when autoFit is true', async () => {

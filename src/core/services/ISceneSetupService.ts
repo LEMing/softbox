@@ -3,6 +3,14 @@ import { IScene } from '../interfaces/IScene';
 import { IObject3D } from '../interfaces/IObject3D';
 import { ICamera } from '../interfaces/ICamera';
 import { IControls } from '../interfaces/IControls';
+import { IRenderer } from '../interfaces/IRenderer';
+
+/**
+ * Which contact-shadow representation is shown on the floor: the baked
+ * area-light texture (static scenes) or the real-time shadow catcher
+ * (playing animations, where a baked snapshot would lag the model).
+ */
+export type ContactShadowMode = 'baked' | 'live';
 
 /**
  * Service for setting up scene elements like helpers, lighting, and backgrounds
@@ -32,6 +40,46 @@ export interface ISceneSetupService {
    * Add dynamic grid based on object size
    */
   addDynamicGrid(scene: IScene, object: IObject3D, scaleFactor?: number): Result<void>;
+
+  /**
+   * Drop the object onto the floor by raycasting down from above its
+   * footprint against both the object's own meshes and the floor/grid
+   * meshes already in the scene, then shifting it by the smallest gap
+   * found. Corrects models whose overall bounding box (used by the initial,
+   * cheaper floor alignment) doesn't represent their true lowest contact
+   * point — e.g. a baked ground-shadow decal or reference plane that sits
+   * lower than the wheels/feet that actually touch down.
+   */
+  snapObjectToFloor(scene: IScene, object: IObject3D): Result<void>;
+
+  /**
+   * Resize the key directional light's shadow-camera frustum to fit the
+   * loaded object. The frustum bounds are otherwise a fixed world-space
+   * size set once at scene construction, before any model exists — fine
+   * for a car-sized object, but a small object (e.g. a 6cm avocado) then
+   * occupies only a handful of shadow-map texels, so its shadow renders
+   * blocky/quantized instead of smooth. Called after the object's final
+   * position is known (i.e. after floor snapping).
+   */
+  fitShadowCameraToObject(scene: IScene, object: IObject3D): Result<void>;
+
+  /**
+   * Bake a soft area-light contact shadow for the object onto the floor by
+   * averaging many jittered shadow renders (sharp and dark at the contact
+   * point, progressively softer with distance — the way a real finite-size
+   * light behaves), then swap it in for the real-time shadow catcher. A
+   * single shadow-map pass cannot produce that distance-dependent penumbra.
+   * Called after floor snapping and shadow-camera fitting; safe no-op when
+   * the renderer or a shadow-casting key light isn't available.
+   */
+  bakeContactShadow(scene: IScene, object: IObject3D, renderer: IRenderer): Result<void>;
+
+  /**
+   * Switch between the baked contact shadow and the real-time catcher —
+   * playback of animations must fall back to 'live' because the baked
+   * texture is a snapshot of one pose.
+   */
+  setContactShadowMode(scene: IScene, mode: ContactShadowMode): Result<void>;
 }
 
 import { GridHelperOptions, AxesHelperOptions } from '../../types/options/HelperOptions';

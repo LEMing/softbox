@@ -40,6 +40,22 @@ export class ThreeObject3DAdapter implements IObject3D {
     this.object.visible = value;
   }
 
+  get castShadow(): boolean {
+    return this.object.castShadow;
+  }
+
+  set castShadow(value: boolean) {
+    this.object.castShadow = value;
+  }
+
+  get receiveShadow(): boolean {
+    return this.object.receiveShadow;
+  }
+
+  set receiveShadow(value: boolean) {
+    this.object.receiveShadow = value;
+  }
+
   get position(): IVector3 {
     return this.positionAdapter;
   }

@@ -91,7 +91,10 @@ export default {
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   testMatch: ['**/__tests__/**/*.ts?(x)', '**/?(*.)+(spec|test).ts?(x)'],
   // The Playwright render-smoke suite runs real WebGL via `npm run test:render`.
-  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/render-smoke/'],
+  // `.claude/worktrees` holds full repo checkouts for parallel background
+  // agents — without this, their (possibly mid-edit, possibly failing) copies
+  // of every test file get swept into this run's results too.
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/render-smoke/', '<rootDir>/.claude/'],
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
   transformIgnorePatterns: [
     'node_modules/(?!(three|three-gpu-pathtracer)/)'

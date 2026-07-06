@@ -5,7 +5,7 @@
 export class HexTileConfig {
   // Base measurements as percentages of tile size
   private static readonly HEIGHT_RATIO = 0.075; // 7.5% of edge length
-  private static readonly BEVEL_RATIO = 0.25; // 25% of edge length
+  private static readonly BEVEL_RATIO = 0.04; // 4% of edge length — a subtle paver chamfer, not a rounded edge
   private static readonly GAP_FACTOR = 1.05; // 10% gap between tiles
 
   /**
@@ -60,9 +60,12 @@ export class HexTileConfig {
   }
 
   /**
-   * Calculate Y position for tiles (below ground level)
+   * Y position for the tile group so its finished top face (the bevel's
+   * outer tip, not the flat mid-extrusion face) lands exactly at y=0 — the
+   * tile's local shape spans from -bevelSize (top tip) to height+bevelSize
+   * (buried underside), so offsetting by -bevelSize brings the top tip to 0.
    */
   static getYPosition(tileSize: number): number {
-    return -(this.getHeight(tileSize) + this.getBevelSize(tileSize));
+    return -this.getBevelSize(tileSize);
   }
 }

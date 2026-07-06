@@ -107,7 +107,7 @@ describe('SiteApp', () => {
   it('switches the viewer to the picked sample model', () => {
     render(<SiteApp />);
     fireEvent.click(screen.getByText('Helmet'));
-    expect(viewerObject()).toContain('DamagedHelmet.glb');
+    expect(viewerObject()).toContain('helmet.glb');
   });
 
   it('puts a dropped model on stage and adds its chip', () => {

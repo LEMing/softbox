@@ -1,4 +1,4 @@
-import { IModelLoader, IObject3D, IScene, ICamera, IControls, Result } from '../interfaces';
+import { IModelLoader, IObject3D, IScene, ICamera, IControls, IRenderer, Result } from '../interfaces';
 import { IFloorAlignmentService } from '../services/IFloorAlignmentService';
 import { ISceneSetupService } from '../services/ISceneSetupService';
 import { ThreeViewerError, ErrorCode } from '../../errors';
@@ -12,6 +12,7 @@ export interface ModelManagerDependencies {
   controls: IControls;
   floorAlignmentService?: IFloorAlignmentService;
   sceneSetupService?: ISceneSetupService;
+  renderer?: IRenderer;
   autoFitToObject?: boolean;
 }
 
@@ -28,6 +29,7 @@ export class ModelManager {
   private readonly controls: IControls;
   private readonly floorAlignmentService?: IFloorAlignmentService;
   private readonly sceneSetupService?: ISceneSetupService;
+  private readonly renderer?: IRenderer;
   private readonly autoFitToObject: boolean;
 
   constructor(dependencies: ModelManagerDependencies) {
@@ -37,6 +39,7 @@ export class ModelManager {
     this.controls = dependencies.controls;
     this.floorAlignmentService = dependencies.floorAlignmentService;
     this.sceneSetupService = dependencies.sceneSetupService;
+    this.renderer = dependencies.renderer;
     this.autoFitToObject = dependencies.autoFitToObject ?? false;
   }
 
@@ -117,6 +120,37 @@ export class ModelManager {
         const gridResult = this.sceneSetupService.addDynamicGrid(this.scene, model, 2);
         if (!gridResult.ok) {
           console.warn('Failed to add dynamic grid:', gridResult.error);
+        }
+
+        // The bounding-box floor alignment above is a cheap approximation —
+        // some models' overall bounding box (e.g. a baked ground-shadow decal
+        // sitting lower than the wheels/feet) doesn't match their true lowest
+        // contact point. Now that the floor mesh exists, raycast the object
+        // down onto it and correct any residual gap.
+        const snapResult = this.sceneSetupService.snapObjectToFloor(this.scene, model);
+        if (!snapResult.ok) {
+          console.warn('Failed to snap object to floor:', snapResult.error);
+        }
+
+        // The key light's shadow-camera frustum is otherwise a fixed
+        // world-space size set before any model existed — fine for a
+        // car-sized object, but it leaves a small object only a handful of
+        // shadow-map texels to work with, rendering a blocky shadow. Resize
+        // it to the model now that its final (floor-snapped) position and
+        // size are known.
+        const shadowFitResult = this.sceneSetupService.fitShadowCameraToObject(this.scene, model);
+        if (!shadowFitResult.ok) {
+          console.warn('Failed to fit shadow camera to object:', shadowFitResult.error);
+        }
+
+        // With the frustum fitted, bake the soft area-light contact shadow
+        // (sharp and dark at the contact point, softer with distance) that a
+        // single real-time shadow-map pass cannot produce.
+        if (this.renderer) {
+          const bakeResult = this.sceneSetupService.bakeContactShadow(this.scene, model, this.renderer);
+          if (!bakeResult.ok) {
+            console.warn('Failed to bake contact shadow:', bakeResult.error);
+          }
         }
       }
 

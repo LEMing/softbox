@@ -9,17 +9,42 @@ import { useDropModel } from './useDropModel';
 import { useMediaQuery } from './useMediaQuery';
 import { FONT, glassPanel } from './siteTheme';
 
+// The Khronos sample set mixes wildly different authored scales (some in
+// real-world meters, some arbitrary). WaterBottle and Avocado are already
+// real-world-scale (a bottle ~0.26m, an avocado ~0.06m) so they're used
+// as-is; Lantern/Helmet/Fox are re-hosted local copies with a corrective
+// root-node scale baked in (see scratch-rescale-glb.mjs in git history) so
+// every sample model sits at a consistent, plausible real-world size under
+// the same 1-unit-= 1-meter convention as the Motorhome.
 const SAMPLE_MODELS: Record<string, string> = {
   Motorhome: '/motorhome.glb',
-  Lantern: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Lantern/glTF-Binary/Lantern.glb',
-  Helmet: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
+  Lantern: '/lantern.glb',
+  Helmet: '/helmet.glb',
   WaterBottle: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/WaterBottle/glTF-Binary/WaterBottle.glb',
   Avocado: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb',
   // Animated (Survey/Walk/Run clips) — the `animations` toggle's showcase.
-  Fox: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Fox/glTF-Binary/Fox.glb',
+  Fox: '/fox.glb',
 };
 
 const DROPPED_KEY = 'yours';
+
+// A hand-tuned cinematic framing for the Motorhome model specifically — an
+// elevated 3/4 hero angle, rather than the generic auto-fit's plainer view.
+// Values are absolute world coordinates measured against this model's own
+// bounding box, so this preset is only meaningful for it.
+const MOTORHOME_CAMERA = {
+  position: [-4.91, 5.26, 8.44] as const,
+  target: [0.02, 1.37, -0.1] as const,
+  fov: 42,
+};
+
+interface PerspectiveLike {
+  fov: number;
+  updateProjectionMatrix(): void;
+}
+
+const isPerspectiveCamera = (camera: unknown): camera is PerspectiveLike =>
+  typeof camera === 'object' && camera !== null && 'fov' in camera && 'updateProjectionMatrix' in camera;
 
 interface Pin {
   id: number;
@@ -77,6 +102,38 @@ export function SiteApp() {
       setPins((current) => [...current, { id, point: [point.x, point.y, point.z] }]);
     });
   }, []);
+
+  // The Motorhome gets its own hero-shot camera framing once it finishes
+  // loading; every other model keeps the generic auto-fit view.
+  useEffect(() => {
+    const handle = viewerRef.current;
+    if (!handle || selected !== 'Motorhome') {
+      return;
+    }
+    return handle.events.on('model:loaded', () => {
+      // Re-read the ref rather than closing over `handle`: the engine (and
+      // its camera/controls) can still be initializing when this effect first
+      // registers the listener, so the outer `handle` may have a stale null
+      // camera — by the time the model has actually loaded, the ref points at
+      // the live one.
+      const current = viewerRef.current;
+      const camera = current?.camera;
+      const controls = current?.controls;
+      if (!camera) {
+        return;
+      }
+      camera.position.set(...MOTORHOME_CAMERA.position);
+      camera.lookAt(...MOTORHOME_CAMERA.target);
+      if (isPerspectiveCamera(camera)) {
+        camera.fov = MOTORHOME_CAMERA.fov;
+        camera.updateProjectionMatrix();
+      }
+      if (controls) {
+        controls.target.set(...MOTORHOME_CAMERA.target);
+        controls.update();
+      }
+    });
+  }, [selected]);
 
   const pickerItems = dropped ? [...Object.keys(SAMPLE_MODELS), DROPPED_KEY] : Object.keys(SAMPLE_MODELS);
   const modelUrl = selected === DROPPED_KEY && dropped ? dropped.url : SAMPLE_MODELS[selected];

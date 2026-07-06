@@ -7,6 +7,8 @@ export interface IObject3D {
   id: string;
   name: string;
   visible: boolean;
+  castShadow: boolean;
+  receiveShadow: boolean;
   position: IVector3;
   rotation: IVector3;
   scale: IVector3;
