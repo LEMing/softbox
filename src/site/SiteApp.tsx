@@ -16,14 +16,17 @@ import { FONT, glassPanel } from './siteTheme';
 // root-node scale baked in (see scratch-rescale-glb.mjs in git history) so
 // every sample model sits at a consistent, plausible real-world size under
 // the same 1-unit-= 1-meter convention as the Motorhome.
+// Local model paths are relative (no leading slash): they resolve against the
+// page URL, so the same build works at '/' in dev and under '/softbox/' on
+// GitHub Pages. Root-absolute paths 404 on Pages — they escape the base path.
 const SAMPLE_MODELS: Record<string, string> = {
-  Motorhome: '/motorhome.glb',
-  Lantern: '/lantern.glb',
-  Helmet: '/helmet.glb',
+  Motorhome: 'motorhome.glb',
+  Lantern: 'lantern.glb',
+  Helmet: 'helmet.glb',
   WaterBottle: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/WaterBottle/glTF-Binary/WaterBottle.glb',
   Avocado: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb',
   // Animated (Survey/Walk/Run clips) — the `animations` toggle's showcase.
-  Fox: '/fox.glb',
+  Fox: 'fox.glb',
 };
 
 const DROPPED_KEY = 'yours';
