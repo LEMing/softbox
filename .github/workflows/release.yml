@@ -1,16 +1,25 @@
 name: Release
 
-# Publishes to npm when a version tag lands. Requires the NPM_TOKEN repository
-# secret (an npm automation token with publish rights for `softbox`).
-# Flow: bump package.json + CHANGELOG on main, then push the matching tag:
-#   git tag -a v4.0.0 -m "softbox 4.0.0" && git push origin v4.0.0
+# Publishes to npm on every push to main whose package.json version is not on
+# the registry yet — the version bump ships inside the PR, the merge releases
+# it. After a successful publish the workflow tags the commit vX.Y.Z and
+# creates the GitHub release.
+#
+# Requires the NPM_TOKEN repository secret: an npm granular access token with
+# read/write scoped to the `softbox` package. Rotate before its expiry date —
+# a run that fails with ENEEDAUTH means the token is missing or expired;
+# re-run it via workflow_dispatch after fixing the secret.
 on:
   push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -27,26 +36,33 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify the tag matches package.json
+      - name: Check whether this version is already on the registry
+        id: guard
         run: |
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION" >&2
-            exit 1
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [ -n "$(npm view "softbox@$VERSION" version 2>/dev/null || true)" ]; then
+            echo "softbox@$VERSION is already published — nothing to release."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
 
       # prepublishOnly runs the full gate: lint, typecheck, build, test,
-      # package smoke and type smoke.
+      # package smoke, type smoke and attw.
       - name: Publish to npm
+        if: steps.guard.outputs.publish == 'true'
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Create the GitHub release
+      - name: Tag and create the GitHub release
+        if: steps.guard.outputs.publish == 'true'
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --title "softbox $GITHUB_REF_NAME" \
+          TAG="v${{ steps.guard.outputs.version }}"
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "softbox ${{ steps.guard.outputs.version }}" \
             --notes "See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md) for what changed in this release."
         env:
           GH_TOKEN: ${{ github.token }}
