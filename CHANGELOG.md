@@ -1,6 +1,14 @@
 Changelog
 =========
 
+4.1.0
+---
+
+### `units` option — models authored in inches/feet/cm render at real scale
+* New `options.units` (`'meters'` — default — `'centimeters'`, `'millimeters'`, `'feet'`, `'inches'`): the loaded model is wrapped in a scale group converting its authored unit to the viewer's 1-unit-=-1-meter convention, so the real-scale hex-paver floor, the baked contact shadow and auto-framing are correct for CAD-style models that aren't authored in meters.
+* The conversion never mutates the model's own transform: consumer-provided `Object3D`s survive option-change rebuilds without compounding, and models with a corrective root scale keep it. A failed conversion fails the load loudly instead of rendering 39× off.
+* Applies to both URL-loaded models and directly passed `Object3D`s; the `ModelUnits` type is exported.
+
 4.0.0
 ---
 

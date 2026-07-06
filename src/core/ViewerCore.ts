@@ -13,6 +13,7 @@ import {
 import { TypedEventEmitter } from '../events/EventEmitter';
 import { ViewerEventMap } from './events/CoreViewerEvents';
 import { ThreeViewerError, ErrorCode } from '../errors';
+import { UNITS_TO_METERS } from './constants';
 import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
 import { CaptureStillOptions } from '../types/CaptureStillOptions';
 import { CaptureVideoOptions } from '../types/CaptureVideoOptions';
@@ -123,7 +124,8 @@ export class ViewerCore {
       floorAlignmentService: dependencies.floorAlignmentService,
       sceneSetupService: this.sceneSetupService,
       renderer: this.renderer,
-      autoFitToObject: this.options.camera?.autoFitToObject
+      autoFitToObject: this.options.camera?.autoFitToObject,
+      unitsScaleToMeters: UNITS_TO_METERS[this.options.units ?? 'meters']
     });
 
     this.resourceManager = new ResourceManager({

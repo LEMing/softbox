@@ -14,6 +14,8 @@ export interface ModelManagerDependencies {
   sceneSetupService?: ISceneSetupService;
   renderer?: IRenderer;
   autoFitToObject?: boolean;
+  /** Factor converting the model's authored units to meters (1 = already meters). */
+  unitsScaleToMeters?: number;
 }
 
 /**
@@ -31,6 +33,7 @@ export class ModelManager {
   private readonly sceneSetupService?: ISceneSetupService;
   private readonly renderer?: IRenderer;
   private readonly autoFitToObject: boolean;
+  private readonly unitsScaleToMeters: number;
 
   constructor(dependencies: ModelManagerDependencies) {
     this.modelLoader = dependencies.modelLoader;
@@ -41,6 +44,7 @@ export class ModelManager {
     this.sceneSetupService = dependencies.sceneSetupService;
     this.renderer = dependencies.renderer;
     this.autoFitToObject = dependencies.autoFitToObject ?? false;
+    this.unitsScaleToMeters = dependencies.unitsScaleToMeters ?? 1;
   }
 
   /**
@@ -82,6 +86,22 @@ export class ModelManager {
       } else {
         // Use provided object
         model = source;
+      }
+
+      if (this.unitsScaleToMeters !== 1) {
+        if (!this.sceneSetupService) {
+          throw new ThreeViewerError(
+            'A units conversion is configured but no scene setup service is available to apply it',
+            ErrorCode.INVALID_PARAMETER
+          );
+        }
+        // Rendering an inches-authored model as meters would be off by 39x —
+        // failing loudly beats silently showing the wrong scale.
+        const wrapResult = this.sceneSetupService.wrapInUnitsScaleGroup(model, this.unitsScaleToMeters);
+        if (!wrapResult.ok) {
+          throw wrapResult.error;
+        }
+        model = wrapResult.value;
       }
 
       // Clear existing model
