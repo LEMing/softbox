@@ -79,7 +79,7 @@ export class ThreeGLTFLoaderAdapter implements IModelLoader {
         // Best-effort: a decoder that fails to load only breaks assets that
         // actually use it, which GLTFLoader then reports on its own.
         console.warn(
-          'threedviewer: a compression decoder failed to initialize; compressed assets using it may not load.',
+          'softbox: a compression decoder failed to initialize; compressed assets using it may not load.',
           outcome.reason
         );
       }

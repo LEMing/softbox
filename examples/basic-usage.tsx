@@ -14,7 +14,7 @@ import {
   ErrorCode,
   type SimpleViewerHandle,
   type SimpleViewerOptions,
-} from 'threedviewer';
+} from 'softbox';
 
 const MODEL_URL =
   'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb';

@@ -1,6 +1,14 @@
 Changelog
 =========
 
+4.0.0
+---
+
+### Package renamed: `threedviewer` → `softbox`
+* The package is now published as **`softbox`** (`npm install softbox`); the repository moved to https://github.com/LEMing/softbox and the playground to https://leming.github.io/softbox/. The old `threedviewer` package is deprecated on npm with a pointer here and receives no further releases.
+* No API changes — 4.0.0 is 3.20.0 plus the rename. Update the dependency and the import specifier (`from 'threedviewer'` → `from 'softbox'`) and everything keeps working. See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md).
+* The playground chrome, README hero image, code snippets, packaging smoke tests and the console warning prefix all carry the new name.
+
 3.20.0
 ---
 

@@ -2,7 +2,7 @@
  * Copies the bundled declaration file to a `.d.cts` twin so the `require`
  * condition in package.json#exports serves CJS-flavored types instead of the
  * ESM `.d.ts` — without this, `moduleResolution: node16/nodenext` consumers
- * calling `require('threedviewer')` get types resolved as if the package
+ * calling `require('softbox')` get types resolved as if the package
  * were ESM (arethetypeswrong's "FalseESM"/"Masquerading as ESM").
  */
 import { copyFileSync, existsSync } from 'node:fs';

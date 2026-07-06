@@ -1,5 +1,27 @@
 # Migration Guide
 
+## 3.x → 4.0.0 — package renamed to `softbox`
+
+4.0.0 is identical to 3.20.0 except for the package name — `threedviewer` is now
+**`softbox`** — and the repository/site URLs that moved with it. There are no API
+changes.
+
+```bash
+npm uninstall threedviewer
+npm install softbox
+```
+
+Then update the import specifier everywhere:
+
+```diff
+-import { SimpleViewer } from 'threedviewer';
++import { SimpleViewer } from 'softbox';
+```
+
+The old `threedviewer` package is deprecated on npm with a pointer to `softbox`
+and receives no further releases. The sections below keep the old name where it
+was historically accurate.
+
 ## 2.x → 3.0.0
 
 3.0.0 is a breaking release focused on correctness, packaging, and a cleaner public
@@ -103,4 +125,4 @@ build your options from `defaultOptions`. The option keys (`renderer`,
 - Changing `backgroundColor` no longer rebuilds the renderer or re-fetches the model.
 - SSR/Node-safe import (no `window` access at module load).
 
-See [CHANGELOG.md](https://github.com/LEMing/ThreeDViewer/blob/main/CHANGELOG.md) for the complete list.
+See [CHANGELOG.md](https://github.com/LEMing/softbox/blob/main/CHANGELOG.md) for the complete list.

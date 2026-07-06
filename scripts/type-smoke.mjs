@@ -1,6 +1,6 @@
 /**
  * Consumer TYPE smoke test. Symlinks the package into its own node_modules so a
- * consumer can `import 'threedviewer'` through the real exports map, then type
+ * consumer can `import 'softbox'` through the real exports map, then type
  * checks that consumer under both `nodenext` and `bundler` module resolution.
  * Catches published-declaration regressions (extensionless relative imports →
  * TS2834, leaked node_modules paths → TS2307) that building alone does not show.
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const link = resolve(root, 'node_modules', 'threedviewer');
+const link = resolve(root, 'node_modules', 'softbox');
 const tsc = resolve(root, 'node_modules', 'typescript', 'bin', 'tsc');
 const smokeDir = resolve(root, 'scripts', 'type-smoke');
 

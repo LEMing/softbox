@@ -18,7 +18,7 @@ describe('CodeSnippet', () => {
     render(<CodeSnippet />);
     fireEvent.click(screen.getByRole('button', { name: 'Copy install command' }));
 
-    expect(writeText).toHaveBeenCalledWith('npm install threedviewer');
+    expect(writeText).toHaveBeenCalledWith('npm install softbox');
     await waitFor(() => expect(screen.getByText('Copied')).toBeInTheDocument());
   });
 

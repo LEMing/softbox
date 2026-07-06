@@ -1,11 +1,13 @@
-# threedviewer
+# softbox
 
-[![npm version](https://img.shields.io/npm/v/threedviewer)](https://www.npmjs.com/package/threedviewer)
-[![bundle size](https://img.shields.io/bundlephobia/minzip/threedviewer)](https://bundlephobia.com/package/threedviewer)
-[![CI](https://github.com/LEMing/ThreeDViewer/actions/workflows/ci.yml/badge.svg)](https://github.com/LEMing/ThreeDViewer/actions/workflows/ci.yml)
-[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/LEMing/ThreeDViewer/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/softbox)](https://www.npmjs.com/package/softbox)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/softbox)](https://bundlephobia.com/package/softbox)
+[![CI](https://github.com/LEMing/softbox/actions/workflows/ci.yml/badge.svg)](https://github.com/LEMing/softbox/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/LEMing/softbox/blob/main/LICENSE)
 
 **The batteries-included React 3D viewer — any GLB looks studio-shot in one line.**
+
+> Formerly published as [`threedviewer`](https://www.npmjs.com/package/threedviewer) — renamed in 4.0.0, same API. See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md).
 
 ```tsx
 <SimpleViewer object="/model.glb" />
@@ -13,9 +15,9 @@
 
 Balanced studio lighting, a glossy glass floor with a contact shadow, auto-framing, compressed-asset decoders — all on by default, zero configuration, zero external CDN requests. The core is ~105 kB gzip; the path tracer and the decoders live in lazy chunks that load only when actually used. Every release is gated by 470+ unit tests plus a Playwright suite that asserts **real WebGL pixels** in CI.
 
-[![threedviewer playground](https://raw.githubusercontent.com/LEMing/ThreeDViewer/main/public/og-image.png)](https://leming.github.io/ThreeDViewer/)
+[![softbox playground](https://raw.githubusercontent.com/LEMing/softbox/main/public/og-image.png)](https://leming.github.io/softbox/)
 
-**▶ [Live playground](https://leming.github.io/ThreeDViewer/)** — drag & drop your own `.glb`, switch presets live, click the model to pin hotspots, download a still.
+**▶ [Live playground](https://leming.github.io/softbox/)** — drag & drop your own `.glb`, switch presets live, click the model to pin hotspots, download a still.
 
 ## What you get
 
@@ -32,7 +34,7 @@ Balanced studio lighting, a glossy glass floor with a contact shadow, auto-frami
 ## Install
 
 ```bash
-npm install threedviewer
+npm install softbox
 ```
 
 Peer dependencies: `react` / `react-dom` `>=18 <20`, `three` `>=0.177 <0.186`.
@@ -40,7 +42,7 @@ Peer dependencies: `react` / `react-dom` `>=18 <20`, `three` `>=0.177 <0.186`.
 ## Quick start
 
 ```tsx
-import { SimpleViewer } from 'threedviewer';
+import { SimpleViewer } from 'softbox';
 
 function App() {
   return (
@@ -130,7 +132,7 @@ const blob = await viewerRef.current.captureVideo({ duration: 5 }); // Blob
 Pin DOM content to a world-space point — it tracks orbiting, zooming and resizes:
 
 ```tsx
-import { SimpleViewer, Hotspot } from 'threedviewer';
+import { SimpleViewer, Hotspot } from 'softbox';
 
 <SimpleViewer object="/model.glb">
   <Hotspot position={[0, 1.2, 0]}>
@@ -184,7 +186,7 @@ The handle exposes `scene`, `camera`, `renderer`, `controls`, `events`, `loadMod
 Everything is optional — the defaults are the point. Pass `options` to override any part:
 
 ```ts
-import { ControlType, defaultOptions } from 'threedviewer';
+import { ControlType, defaultOptions } from 'softbox';
 
 const options: SimpleViewerOptions = {
   preset: 'studio',              // one-word look; explicit options below win over it
@@ -218,7 +220,7 @@ const options: SimpleViewerOptions = {
 };
 ```
 
-See [`defaultOptions`](https://github.com/LEMing/ThreeDViewer/blob/main/src/defaultOptions.ts) for the full annotated set and the typed option interfaces exported from the package root.
+See [`defaultOptions`](https://github.com/LEMing/softbox/blob/main/src/defaultOptions.ts) for the full annotated set and the typed option interfaces exported from the package root.
 
 ### Loading indicator
 
@@ -250,17 +252,18 @@ The viewer renders into a WebGL canvas, so it is client-only. In Next.js, load i
 import dynamic from 'next/dynamic';
 
 const SimpleViewer = dynamic(
-  () => import('threedviewer').then((m) => m.SimpleViewer),
+  () => import('softbox').then((m) => m.SimpleViewer),
   { ssr: false }
 );
 ```
 
 ## Upgrading
 
-- **3.x → latest**: additive all the way — presets, `ui`, `pathTraced`, `captureStill`, `Hotspot`, `object:selected`, `selection`, `turntable`, `animations` are new surface on top of 3.0; existing options keep working. React peer is `>=18 <20`.
-- **2.x → 3.0**: breaking release (removed no-op APIs, ESM+CJS packaging). See [MIGRATION_GUIDE.md](https://github.com/LEMing/ThreeDViewer/blob/main/MIGRATION_GUIDE.md).
+- **3.x → 4.0**: the package was renamed — `threedviewer` is now **`softbox`**. Swap the dependency and the import specifier; the API is unchanged. See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md).
+- **3.0 → 3.x**: additive all the way — presets, `ui`, `pathTraced`, `captureStill`, `Hotspot`, `object:selected`, `selection`, `turntable`, `animations` are new surface on top of 3.0; existing options keep working. React peer is `>=18 <20`.
+- **2.x → 3.0**: breaking release (removed no-op APIs, ESM+CJS packaging). See [MIGRATION_GUIDE.md](https://github.com/LEMing/softbox/blob/main/MIGRATION_GUIDE.md).
 
-Full history: [CHANGELOG.md](https://github.com/LEMing/ThreeDViewer/blob/main/CHANGELOG.md)
+Full history: [CHANGELOG.md](https://github.com/LEMing/softbox/blob/main/CHANGELOG.md)
 
 ## License
 
