@@ -8,13 +8,13 @@ import {
   ErrorCode,
   TypedEventEmitter,
   ControlType,
-} from 'threedviewer';
+} from 'softbox';
 import type {
   SimpleViewerOptions,
   SimpleViewerProps,
   SimpleViewerHandle,
   ViewerEventMap,
-} from 'threedviewer';
+} from 'softbox';
 
 const options: SimpleViewerOptions = {
   ...defaultOptions,

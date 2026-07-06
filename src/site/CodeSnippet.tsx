@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { FONT, MONO_FONT, glassPanel } from './siteTheme';
 
-const INSTALL = 'npm install threedviewer';
-const DEFAULT_USAGE = `import { SimpleViewer } from 'threedviewer';
+const INSTALL = 'npm install softbox';
+const DEFAULT_USAGE = `import { SimpleViewer } from 'softbox';
 
 <SimpleViewer
   object="/model.glb"

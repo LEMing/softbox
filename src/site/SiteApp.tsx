@@ -160,7 +160,7 @@ export function SiteApp() {
     setStillState('capturing');
     try {
       const dataUrl = await handle.captureStill({ width: 1920 });
-      downloadDataUrl(dataUrl, 'threedviewer-still.png');
+      downloadDataUrl(dataUrl, 'softbox-still.png');
       setStillState('idle');
     } catch {
       setStillState('failed');
@@ -190,13 +190,13 @@ export function SiteApp() {
       >
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: '#111318' }}>
-            threedviewer
+            softbox
           </span>
           <span style={{ fontSize: 12.5, color: '#6a6a75' }}>
             batteries-included React 3D viewer
           </span>
           <a
-            href="https://github.com/LEMing/ThreeDViewer"
+            href="https://github.com/LEMing/softbox"
             target="_blank"
             rel="noreferrer"
             aria-label="GitHub repository"
@@ -254,7 +254,7 @@ export function SiteApp() {
         <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}>
           <CodeSnippet
             usage={[
-              "import { SimpleViewer } from 'threedviewer';",
+              "import { SimpleViewer } from 'softbox';",
               '',
               '<SimpleViewer',
               '  object="/model.glb"',

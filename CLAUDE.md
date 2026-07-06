@@ -1,4 +1,4 @@
-# CLAUDE.md - ThreeDViewer Development Guide
+# CLAUDE.md - softbox Development Guide
 
 ## Development Commands
 - `npm run dev` - Start Vite development server

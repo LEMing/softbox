@@ -1,9 +1,9 @@
 name: Release
 
 # Publishes to npm when a version tag lands. Requires the NPM_TOKEN repository
-# secret (an npm automation token with publish rights for `threedviewer`).
+# secret (an npm automation token with publish rights for `softbox`).
 # Flow: bump package.json + CHANGELOG on main, then push the matching tag:
-#   git tag -a v3.17.0 -m "threedviewer 3.17.0" && git push origin v3.17.0
+#   git tag -a v4.0.0 -m "softbox 4.0.0" && git push origin v4.0.0
 on:
   push:
     tags:
@@ -46,7 +46,7 @@ jobs:
       - name: Create the GitHub release
         run: |
           gh release create "$GITHUB_REF_NAME" \
-            --title "threedviewer $GITHUB_REF_NAME" \
+            --title "softbox $GITHUB_REF_NAME" \
             --notes "See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md) for what changed in this release."
         env:
           GH_TOKEN: ${{ github.token }}

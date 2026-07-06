@@ -1,19 +1,22 @@
 {
-  "name": "threedviewer",
+  "name": "softbox",
   "private": false,
-  "version": "3.20.0",
-  "homepage": "https://leming.github.io/ThreeDViewer/",
+  "version": "4.0.0",
+  "homepage": "https://leming.github.io/softbox/",
   "type": "module",
-  "description": "A 3D viewer based on React and Three.js",
+  "description": "Batteries-included React 3D viewer — any GLB looks studio-shot in one line",
   "keywords": [
     "3d",
     "three.js",
     "react",
-    "viewer"
+    "viewer",
+    "glb",
+    "gltf",
+    "product viewer"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LEMing/threedviewer.git"
+    "url": "git+https://github.com/LEMing/softbox.git"
   },
   "license": "MIT",
   "engines": {
