@@ -69,6 +69,8 @@ const makeObject3D = (): IObject3D => ({
   id: 'object',
   name: 'object',
   visible: true,
+  castShadow: false,
+  receiveShadow: false,
   position: makeVector3(),
   rotation: makeVector3(),
   scale: makeVector3(),
@@ -208,6 +210,10 @@ const makeSceneSetupService = (
     createGradientBackground: jest.fn(() => Result.ok(undefined)),
     fitCameraToObject: jest.fn(() => Result.ok(undefined)),
     addDynamicGrid: jest.fn(() => Result.ok(undefined)),
+    snapObjectToFloor: jest.fn(() => Result.ok(undefined)),
+    fitShadowCameraToObject: jest.fn(() => Result.ok(undefined)),
+    bakeContactShadow: jest.fn(() => Result.ok(undefined)),
+    setContactShadowMode: jest.fn(() => Result.ok(undefined)),
   };
   return { ...base, ...overrides } as unknown as jest.Mocked<ISceneSetupService>;
 };
@@ -1023,6 +1029,38 @@ describe('ViewerCore', () => {
       viewer.pauseAnimations();
       expect(animationService.pause).toHaveBeenCalled();
       expect(releaseSpy).toHaveBeenCalledWith('animations');
+    });
+
+    it('playAnimations falls back to the live contact shadow; pausing re-bakes it for the stopped pose', async () => {
+      let playing = false;
+      const animationService = {
+        attach: jest.fn(),
+        getClipNames: jest.fn(() => ['Walk']),
+        play: jest.fn(() => {
+          playing = true;
+        }),
+        pause: jest.fn(() => {
+          playing = false;
+        }),
+        isPlaying: jest.fn(() => playing),
+        setSpeed: jest.fn(),
+        update: jest.fn(),
+        detach: jest.fn(),
+      };
+      const bundle = makeDeps({ withSceneSetup: true });
+      const viewer = new ViewerCore({ ...bundle.deps, animationService });
+      await viewer.initialize();
+      await viewer.loadModel(makeObject3D());
+      bundle.sceneSetupService!.bakeContactShadow.mockClear();
+
+      viewer.playAnimations();
+      expect(bundle.sceneSetupService!.setContactShadowMode).toHaveBeenCalledWith(
+        bundle.scene,
+        'live'
+      );
+
+      viewer.pauseAnimations();
+      expect(bundle.sceneSetupService!.bakeContactShadow).toHaveBeenCalledTimes(1);
     });
 
     it('updateOptions toggles autoplay live but ignores an unchanged re-send', async () => {

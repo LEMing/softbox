@@ -1,6 +1,26 @@
 Changelog
 =========
 
+3.20.0
+---
+
+### Studio-grade baked contact shadows
+* New `ContactShadowBaker`: after a model loads, the viewer bakes a soft area-light contact shadow by averaging 96 jittered one-sample shadow renders — golden-angle disc sampling of a ~9° area light plus zenith-weighted sky-hemisphere passes for ambient occlusion — into a HalfFloat texture on a floor disc. The result is sharp and dark right at the contact points and progressively softer with distance (the distance-dependent penumbra a single real-time shadow-map pass cannot produce), and costs nothing per frame once baked.
+* The bake runs in a private throwaway scene with a stand-in light, so the live scene and key light are never touched; the model's materials have `colorWrite` masked during the bake so only its shadow reaches the accumulation texture.
+* Playing animations falls back to the real-time `ShadowMaterial` catcher (a baked snapshot would lag the moving model); pausing re-bakes the shadow for the stopped pose.
+* The shadow disc clips itself to the actual tile coverage, and the dynamic floor now includes the model's height in its sizing — the cast shadow always has floor to land on instead of hovering in mid-air past the last tile.
+* **Fixed:** `IObject3D` lacked `castShadow`/`receiveShadow`, so `ModelManager`'s shadow-enabling traverse never matched and no loaded model ever cast a shadow through that code path.
+* **Fixed:** the key light's shadow-camera frustum was a fixed ±50 world units regardless of the model; `fitShadowCameraToObject` now fits it after floor snapping, so small models get full shadow-map texel density instead of a blocky smudge.
+* New `snapObjectToFloor`: a dense BVH-accelerated raycast drops the model onto the floor tiles, correcting the residual float/penetration the bounding-box alignment leaves on models whose lowest visual point isn't the box bottom.
+
+### Matte concrete hex floor at real NYC-paver scale
+* Hex tiles are now matte concrete (roughness 0.9, no transmission) at the fixed real-world size of the NYC hexagonal sidewalk paver — 8 inches across flats per the NYC Street Design Manual, edge length ≈ 0.1173 m. The tile is a physical scale reference like a ruler and deliberately does not resize with the model.
+* **Fixed:** `HexTileConfig.getYPosition` placed tile tops a full tile-height below y=0, so every model visually floated above the floor. Tops now sit exactly at y=0, with a crisp 4% paver chamfer instead of the old rounded 25% bevel.
+
+### Playground
+* Opens on a low-poly GMC motorhome by default with a curated camera preset; Khronos sample models are re-hosted locally and rescaled to real-world sizes (lantern 1.2 m, helmet 0.3 m, fox 0.9 m, motorhome 9.3 m as the reference).
+* Jest now ignores `.claude/` worktrees so background-agent checkouts can't leak into the test run.
+
 3.19.8
 ---
 

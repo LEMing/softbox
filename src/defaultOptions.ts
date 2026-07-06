@@ -58,7 +58,10 @@ const defaultOptions: SimpleViewerOptions = {
     directionalLight: {
       color: '#ffffff',
       intensity: 2,
-      position: [72, 72, 72],
+      // Steeper than a 45-degree key light so the cast shadow falls mostly
+      // directly under the model (a tight contact shadow) instead of
+      // streaking off to one side.
+      position: [40, 90, 40],
       castShadow: true,
       shadow: {
         mapSize: { width: 4096, height: 4096 },
@@ -71,7 +74,11 @@ const defaultOptions: SimpleViewerOptions = {
           bottom: -50
         },
         bias: -0.0001,
-        radius: 1,
+        // PCF's stochastic kernel reads soft rather than grainy at this
+        // radius now that the shadow camera frustum adapts to the loaded
+        // object's size (fitShadowCameraToObject) instead of a fixed ±50
+        // world-space span, so texel density stays high regardless of scale.
+        radius: 14,
       },
     },
   },
@@ -82,7 +89,16 @@ const defaultOptions: SimpleViewerOptions = {
     alpha: false,
     shadowMapEnabled: true,
     pixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio : 1,
-    shadowMapType: 1, // PCFShadowMap (PCFSoftShadowMap is deprecated in three r183+)
+    // Tried VSMShadowMap for a naturally softer penumbra at large radii —
+    // reverted: its variance estimate goes numerically unstable across this
+    // library's wide range of object/scene scales, producing visible
+    // diagonal banding across the whole floor (reproduced consistently with
+    // small sample models; gone immediately on switching back to PCF).
+    // PCFShadowMap's small stochastic kernel is grainier at very large
+    // radii, but now that the shadow camera frustum adapts to the loaded
+    // object's size (see fitShadowCameraToObject), texel density is high
+    // enough that a moderate radius already reads soft and clean.
+    shadowMapType: 1, // PCFShadowMap
     toneMapping: 6, // ACESFilmicToneMapping
     toneMappingExposure: 1.1,
   },
@@ -101,13 +117,23 @@ const defaultOptions: SimpleViewerOptions = {
   // Helpers
   helpers: {
     grid: {
-      type: 'hexagonal_glass', // Glossy glass floor that reflects the environment and catches the model's shadow. Options: 'square_wire', 'hexagonal_wire', 'hexagonal_glass', 'stone_tiles'
+      type: 'hexagonal_glass', // Matte concrete-look hex floor that catches the model's shadow. Options: 'square_wire', 'hexagonal_wire', 'hexagonal_glass', 'stone_tiles'
       size: 20,              // Grid size (triggers default grid creation)
       divisions: 20,         // Grid divisions
-      colorGrid: 0x444444,   // Grid color
+      colorGrid: '#a8a8a2',  // Concrete grey
       opacity: 0.5,          // Grid opacity
       styleOptions: {
-        // Additional style-specific options can be added here
+        // A real, specific physical object — the NYC hexagonal sidewalk
+        // paver — 8 inches across flats per the NYC Street Design Manual
+        // (DOT Standard Highway Specifications §3.04/6.60), edge length
+        // 8/sqrt(3) in ≈ 0.1173m. Fixed on purpose: it's a scale reference,
+        // like a ruler, so it must NOT resize to match whatever model is on
+        // it — a small object correctly looks small next to a full-size
+        // paver, the same way it would on a real sidewalk.
+        tileSize: 0.1173,
+        metalness: 0,
+        roughness: 0.9,
+        transmission: 0,     // Opaque — matte concrete rather than glass
       }
     },
     axes: false,

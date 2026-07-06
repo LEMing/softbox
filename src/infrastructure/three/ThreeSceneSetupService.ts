@@ -5,21 +5,44 @@ import {
   ISceneSetupService,
   IHelperOptions,
   ILightingOptions,
-  IGradientOptions
+  IGradientOptions,
+  ContactShadowMode
 } from '../../core/services/ISceneSetupService';
 import { IScene } from '../../core/interfaces/IScene';
 import { IObject3D } from '../../core/interfaces/IObject3D';
 import { ICamera } from '../../core/interfaces/ICamera';
 import { IControls } from '../../core/interfaces/IControls';
+import { IRenderer } from '../../core/interfaces/IRenderer';
 import { Result } from '../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import { ThreeSceneAdapter } from './ThreeScene';
 import { ThreeObject3DAdapter } from './ThreeObject3D';
-import { toThreeCamera, toThreeControls, toThreeObject } from './unwrap';
+import {
+  toThreeCamera,
+  toThreeControls,
+  toThreeObject,
+  toThreeRenderer,
+  toThreeScene
+} from './unwrap';
+import {
+  ContactShadowBaker,
+  CONTACT_SHADOW_BAKED_NAME,
+  CONTACT_SHADOW_LIVE_NAME
+} from './ContactShadowBaker';
 import { disposeObject3D } from './disposal';
 import { HexTileConfig } from './HexTileConfig';
 import { GridFactory } from './grids/GridFactory';
 import { GridType, IGridOptions } from './grids/IGridStyle';
+
+const findDirectionalLight = (root: THREE.Object3D): THREE.DirectionalLight | null => {
+  let found: THREE.DirectionalLight | null = null;
+  root.traverse((child) => {
+    if (!found && (child as THREE.DirectionalLight).isDirectionalLight) {
+      found = child as THREE.DirectionalLight;
+    }
+  });
+  return found;
+};
 
 // Type definitions for Three.js scene userData
 interface SceneUserData {
@@ -33,6 +56,8 @@ interface SceneUserData {
 }
 
 export class ThreeSceneSetupService implements ISceneSetupService {
+  private readonly contactShadowBaker = new ContactShadowBaker();
+
   addHelpers(scene: IScene, options: IHelperOptions): Result<void> {
     try {
       if (!(scene instanceof ThreeSceneAdapter)) {
@@ -158,26 +183,46 @@ export class ThreeSceneSetupService implements ISceneSetupService {
         return Result.ok(undefined);
       }
 
-      // For a regular hexagon: edge length = radius (center to vertex)
-      // We want edge length = 1 unit
-      const EDGE_LENGTH = 1;
-      const tileSize = EDGE_LENGTH; // Direct edge length
+      // For a regular hexagon: edge length = radius (center to vertex).
+      // Configurable via styleOptions.tileSize so the ring-count math below
+      // scales to the actual tile size — a fixed 1-unit assumption here would
+      // under-cover the floor once tiles are configured smaller than that.
+      // Deliberately NOT scaled to the object's own size: a real-world tile
+      // (e.g. a sidewalk paver) is a fixed physical reference, like a ruler —
+      // a small object correctly looks small next to it, the same way it
+      // would sitting on an actual sidewalk.
+      const configuredTileSize = gridOptions.styleOptions?.tileSize;
+      const tileSize = typeof configuredTileSize === 'number' ? configuredTileSize : 1;
 
       // Use centralized configuration for grid calculations
       const gridSpacing = HexTileConfig.getGridSpacing(tileSize);
       const hexWidth = gridSpacing.width;
 
-      // Calculate required grid radius (number of hex rings from center)
-      const requiredWidth = Math.max(size.x, size.z) * scaleFactor;
+      // Calculate required grid radius (number of hex rings from center).
+      // The height term buys floor for the cast shadow: with the steep key
+      // light it stretches sideways by roughly the object's height, and a
+      // shadow reaching past the last tile has nothing to fall on — it reads
+      // as a smudge floating in mid-air next to the floor's edge.
+      const requiredWidth = Math.max(size.x, size.z) * scaleFactor + size.y;
 
-      // Calculate how many rings we need
-      // Each ring adds approximately its radius * hexWidth to coverage
-      let gridRadius = 0;
-      let currentCoverage = hexWidth; // Start with single hex
+      // Solve directly for the ring count instead of an open-coded loop with
+      // an arbitrary cap: coverage(n) = hexWidth * (1 + 2n), so n = the
+      // smallest ring count whose coverage reaches requiredWidth. A capped
+      // loop previously under-covered the floor for small tileSize values
+      // (many more rings needed for the same physical radius), leaving a
+      // visible gap between the model and the floor's edge from some angles.
+      let gridRadius = requiredWidth <= hexWidth ? 0 : Math.ceil((requiredWidth / hexWidth - 1) / 2);
 
-      while (currentCoverage < requiredWidth && gridRadius < 20) {
-        gridRadius++;
-        currentCoverage += 2 * hexWidth; // Each ring adds roughly 2 hex widths
+      // Safety net against pathological configs (e.g. a near-zero tileSize)
+      // spawning an unbounded number of tiles — warn rather than silently
+      // truncating, since a silent cap is exactly what caused the bug above.
+      const MAX_GRID_RADIUS = 60;
+      if (gridRadius > MAX_GRID_RADIUS) {
+        console.warn(
+          `Dynamic grid would need ${gridRadius} rings to cover the object; capping at ${MAX_GRID_RADIUS}. ` +
+          'The floor will not fully reach the configured coverage for this tileSize/object-size combination.'
+        );
+        gridRadius = MAX_GRID_RADIUS;
       }
 
       // Ensure minimum based on object size
@@ -210,6 +255,15 @@ export class ThreeSceneSetupService implements ISceneSetupService {
       grid.userData.isGrid = true;
       grid.userData.isHexGrid = true; // For backward compatibility
 
+      // The catcher's default lift above the tile tops is sized for
+      // car-scale models; over a centimeter-scale object the same fixed lift
+      // covers a visible slice of the model's base, so scale it down with
+      // the object (mirrors the baked contact shadow's own offset rule).
+      const liveCatcher = grid.getObjectByName(CONTACT_SHADOW_LIVE_NAME);
+      if (liveCatcher) {
+        liveCatcher.position.y = THREE.MathUtils.clamp(size.y * 0.0025, 0.0002, 0.002);
+      }
+
       threeScene.add(grid);
 
       return Result.ok(undefined);
@@ -217,6 +271,278 @@ export class ThreeSceneSetupService implements ISceneSetupService {
       return Result.err(
         new ThreeViewerError(
           'Failed to add dynamic grid',
+          ErrorCode.SCENE_OPERATION_FAILED,
+          { originalError: error }
+        )
+      );
+    }
+  }
+
+  snapObjectToFloor(scene: IScene, object: IObject3D): Result<void> {
+    try {
+      if (!(scene instanceof ThreeSceneAdapter)) {
+        return Result.err(
+          new ThreeViewerError(
+            'Scene must be ThreeSceneAdapter',
+            ErrorCode.INVALID_PARAMETER
+          )
+        );
+      }
+
+      let threeObject: THREE.Object3D;
+      if (object instanceof ThreeObject3DAdapter) {
+        threeObject = object.getThreeObject();
+      } else if ('getThreeObject' in object && typeof object.getThreeObject === 'function') {
+        threeObject = object.getThreeObject();
+      } else {
+        threeObject = object as unknown as THREE.Object3D;
+      }
+
+      const isGridTagged = (obj: THREE.Object3D): boolean => {
+        let current: THREE.Object3D | null = obj;
+        while (current) {
+          if (current.userData?.isGrid || current.userData?.isHexGrid || current.userData?.isDefaultGrid) {
+            return true;
+          }
+          current = current.parent;
+        }
+        return false;
+      };
+
+      const threeScene = scene.getThreeScene();
+      // The grid isn't the object being aligned, so nothing else guarantees
+      // its matrixWorld is current — a stale (e.g. identity) transform would
+      // silently throw the raycast hits off by whatever offset it's missing.
+      threeScene.updateMatrixWorld(true);
+      const gridMeshes: THREE.Mesh[] = [];
+      threeScene.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh && isGridTagged(child)) {
+          gridMeshes.push(child as THREE.Mesh);
+        }
+      });
+
+      const objectMeshes: THREE.Mesh[] = [];
+      threeObject.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          objectMeshes.push(child as THREE.Mesh);
+        }
+      });
+
+      if (gridMeshes.length === 0 || objectMeshes.length === 0) {
+        // No floor to drop onto (or nothing to drop) — leave the object where it is.
+        return Result.ok(undefined);
+      }
+
+      // The floor's height only needs measuring once — every tile sits at
+      // the same Y by construction — rather than raycasting against
+      // potentially thousands of individual tiles on every sample below.
+      let floorTopY = -Infinity;
+      const tileBox = new THREE.Box3();
+      for (const mesh of gridMeshes) {
+        tileBox.setFromObject(mesh);
+        if (Number.isFinite(tileBox.max.y)) {
+          floorTopY = Math.max(floorTopY, tileBox.max.y);
+        }
+      }
+      if (!Number.isFinite(floorTopY)) {
+        return Result.ok(undefined);
+      }
+
+      const box = new THREE.Box3().setFromObject(threeObject);
+      if (box.isEmpty() || !Number.isFinite(box.min.x) || !Number.isFinite(box.max.x)) {
+        return Result.ok(undefined);
+      }
+
+      // Sample a dense grid of vertical rays across the object's own
+      // footprint, raycasting only against its own (typically BVH-
+      // accelerated) meshes — a coarse grid or a single center ray can
+      // straddle a narrow true contact point (e.g. a wheel's tread) and
+      // under-shoot how far the object actually needs to drop.
+      const SAMPLES_PER_AXIS = 40;
+      const rayOriginY = box.max.y + Math.max(1, box.max.y - box.min.y);
+      const raycaster = new THREE.Raycaster();
+      const down = new THREE.Vector3(0, -1, 0);
+
+      let lowestObjectY = Infinity;
+      for (let i = 0; i <= SAMPLES_PER_AXIS; i++) {
+        for (let j = 0; j <= SAMPLES_PER_AXIS; j++) {
+          const x = box.min.x + (box.max.x - box.min.x) * (i / SAMPLES_PER_AXIS);
+          const z = box.min.z + (box.max.z - box.min.z) * (j / SAMPLES_PER_AXIS);
+          raycaster.set(new THREE.Vector3(x, rayOriginY, z), down);
+
+          for (const hit of raycaster.intersectObjects(objectMeshes, false)) {
+            if (hit.point.y < lowestObjectY) {
+              lowestObjectY = hit.point.y;
+            }
+          }
+        }
+      }
+
+      // A tiny epsilon avoids nudging objects that are already touching
+      // (floating point noise from the raycasts themselves).
+      if (Number.isFinite(lowestObjectY)) {
+        const gap = lowestObjectY - floorTopY;
+        if (Math.abs(gap) > 1e-4) {
+          threeObject.position.y -= gap;
+        }
+      }
+
+      return Result.ok(undefined);
+    } catch (error) {
+      return Result.err(
+        new ThreeViewerError(
+          'Failed to snap object to floor',
+          ErrorCode.SCENE_OPERATION_FAILED,
+          { originalError: error }
+        )
+      );
+    }
+  }
+
+  fitShadowCameraToObject(scene: IScene, object: IObject3D): Result<void> {
+    try {
+      if (!(scene instanceof ThreeSceneAdapter)) {
+        return Result.err(
+          new ThreeViewerError(
+            'Scene must be ThreeSceneAdapter',
+            ErrorCode.INVALID_PARAMETER
+          )
+        );
+      }
+
+      let threeObject: THREE.Object3D;
+      if (object instanceof ThreeObject3DAdapter) {
+        threeObject = object.getThreeObject();
+      } else if ('getThreeObject' in object && typeof object.getThreeObject === 'function') {
+        threeObject = object.getThreeObject();
+      } else {
+        threeObject = object as unknown as THREE.Object3D;
+      }
+
+      const box = new THREE.Box3().setFromObject(threeObject);
+      if (box.isEmpty() || !Number.isFinite(box.min.x) || !Number.isFinite(box.max.x)) {
+        return Result.ok(undefined);
+      }
+      const size = box.getSize(new THREE.Vector3());
+
+      const threeScene = scene.getThreeScene();
+      const directionalLight = findDirectionalLight(threeScene);
+      if (!directionalLight || !directionalLight.castShadow) {
+        return Result.ok(undefined);
+      }
+
+      // Generous padding (matching the floor grid's own scaleFactor) so the
+      // shadow — which can fall outside the object's own footprint at an
+      // angle — isn't clipped by a frustum sized tightly to the object.
+      const PADDING_FACTOR = 2;
+      const MIN_HALF_EXTENT = 0.1;
+      const halfExtent = Math.max(size.x, size.y, size.z, MIN_HALF_EXTENT) * PADDING_FACTOR;
+
+      const shadowCamera = directionalLight.shadow.camera;
+      shadowCamera.left = -halfExtent;
+      shadowCamera.right = halfExtent;
+      shadowCamera.top = halfExtent;
+      shadowCamera.bottom = -halfExtent;
+      shadowCamera.updateProjectionMatrix();
+
+      return Result.ok(undefined);
+    } catch (error) {
+      return Result.err(
+        new ThreeViewerError(
+          'Failed to fit shadow camera to object',
+          ErrorCode.SCENE_OPERATION_FAILED,
+          { originalError: error }
+        )
+      );
+    }
+  }
+
+  bakeContactShadow(scene: IScene, object: IObject3D, renderer: IRenderer): Result<void> {
+    try {
+      const threeScene = toThreeScene(scene);
+      if (!threeScene) {
+        return Result.err(
+          new ThreeViewerError(
+            'Scene must be ThreeSceneAdapter',
+            ErrorCode.INVALID_PARAMETER
+          )
+        );
+      }
+
+      const threeObject = toThreeObject(object);
+      if (!threeObject) {
+        return Result.err(
+          new ThreeViewerError(
+            'Object must expose a Three.js Object3D',
+            ErrorCode.INVALID_PARAMETER
+          )
+        );
+      }
+
+      // No usable WebGL renderer (headless/SSR) or shadows disabled — the
+      // live catcher, if any, stays in charge.
+      const threeRenderer = toThreeRenderer(renderer.getInternalRenderer());
+      if (!threeRenderer || !threeRenderer.shadowMap.enabled) {
+        return Result.ok(undefined);
+      }
+
+      const directionalLight = findDirectionalLight(threeScene);
+      if (!directionalLight || !directionalLight.castShadow) {
+        return Result.ok(undefined);
+      }
+
+      this.contactShadowBaker.bake({
+        renderer: threeRenderer,
+        scene: threeScene,
+        object: threeObject,
+        light: directionalLight,
+      });
+
+      return Result.ok(undefined);
+    } catch (error) {
+      return Result.err(
+        new ThreeViewerError(
+          'Failed to bake contact shadow',
+          ErrorCode.SCENE_OPERATION_FAILED,
+          { originalError: error }
+        )
+      );
+    }
+  }
+
+  setContactShadowMode(scene: IScene, mode: ContactShadowMode): Result<void> {
+    try {
+      const threeScene = toThreeScene(scene);
+      if (!threeScene) {
+        return Result.err(
+          new ThreeViewerError(
+            'Scene must be ThreeSceneAdapter',
+            ErrorCode.INVALID_PARAMETER
+          )
+        );
+      }
+
+      const baked = threeScene.getObjectByName(CONTACT_SHADOW_BAKED_NAME);
+      const live = threeScene.getObjectByName(CONTACT_SHADOW_LIVE_NAME);
+
+      // Without a baked shadow there is nothing to switch to — keep the live
+      // catcher up rather than leaving the floor shadowless.
+      if (mode === 'baked' && !baked) {
+        return Result.ok(undefined);
+      }
+
+      if (baked) {
+        baked.visible = mode === 'baked';
+      }
+      if (live) {
+        live.visible = mode === 'live';
+      }
+
+      return Result.ok(undefined);
+    } catch (error) {
+      return Result.err(
+        new ThreeViewerError(
+          'Failed to switch contact shadow mode',
           ErrorCode.SCENE_OPERATION_FAILED,
           { originalError: error }
         )

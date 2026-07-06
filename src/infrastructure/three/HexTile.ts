@@ -1,17 +1,32 @@
 import * as THREE from 'three';
 import { HexTileConfig } from './HexTileConfig';
 
+export interface HexTileMaterialOptions {
+  metalness?: number;
+  roughness?: number;
+  transmission?: number;
+  thickness?: number;
+  ior?: number;
+}
+
 class HexTile {
   position: THREE.Vector3;
   size: number;
   color: string;
+  materialOptions: HexTileMaterialOptions;
   public readonly height: number;
   public readonly bevel: number;
 
-  constructor(position: THREE.Vector3, size: number, color: string) {
+  constructor(
+    position: THREE.Vector3,
+    size: number,
+    color: string,
+    materialOptions: HexTileMaterialOptions = {}
+  ) {
     this.position = position;
     this.size = size;
     this.color = color;
+    this.materialOptions = materialOptions;
     // Use centralized configuration
     this.height = HexTileConfig.getHeight(this.size);
     this.bevel = HexTileConfig.getBevelSize(this.size);
@@ -41,31 +56,42 @@ class HexTile {
       bevelEnabled: true,   // Enable beveling (chamfer)
       bevelSize: this.bevel,       // Bevel size
       bevelThickness: this.bevel, // Bevel thickness
-      bevelSegments: 128,     // Number of segments for smoothing the edge
+      bevelSegments: 2,       // A crisp chamfer (like a real paver's arris), not a rounded soap-bar edge
     };
 
     // Create the extrusion
     const geometry = new THREE.ExtrudeGeometry(hexShape, extrudeSettings);
 
-    // Create the tile material
-    const liquidGlassMaterial = new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color(0xffffff),
-      metalness: 0,
-      roughness: 0.15,
-      transparent: true,
-      transmission: 1.0,
-      thickness: 0.4,
-      ior: 1.5,
+    // Create the tile material. Defaults reproduce the original glossy "liquid
+    // glass" look; passing styleOptions (e.g. transmission: 0, roughness: 0.9)
+    // turns the same hex tile into a matte finish like concrete.
+    const {
+      metalness = 0,
+      roughness = 0.15,
+      transmission = 1.0,
+      thickness = 0.4,
+      ior = 1.5,
+    } = this.materialOptions;
+    const isGlassy = transmission > 0;
+
+    const tileMaterial = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(this.color),
+      metalness,
+      roughness,
+      transparent: isGlassy,
+      transmission,
+      thickness,
+      ior,
       opacity: 1.0,
-      clearcoat: 1.0,
+      clearcoat: isGlassy ? 1.0 : 0,
       clearcoatRoughness: 0.05,
-      sheen: 1.0,
+      sheen: isGlassy ? 1.0 : 0,
       sheenColor: new THREE.Color(0xffffff),
       envMapIntensity: 1.0, // Enable environment map reflections
     });
 
     // Create the hexagonal tile and its edge lines
-    const hexMesh = new THREE.Mesh(geometry, liquidGlassMaterial);
+    const hexMesh = new THREE.Mesh(geometry, tileMaterial);
     // const edgeLines = new THREE.LineSegments(edges, edgeMaterial);
     hexMesh.receiveShadow = true;
     // Group to combine the tile and edges

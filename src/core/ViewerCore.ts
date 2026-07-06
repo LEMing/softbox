@@ -122,6 +122,7 @@ export class ViewerCore {
       controls: this.controls,
       floorAlignmentService: dependencies.floorAlignmentService,
       sceneSetupService: this.sceneSetupService,
+      renderer: this.renderer,
       autoFitToObject: this.options.camera?.autoFitToObject
     });
 
@@ -600,6 +601,9 @@ export class ViewerCore {
     }
     this.animationService.play(clipName);
     if (this.animationService.isPlaying()) {
+      // The baked contact shadow is a snapshot of one pose — a moving model
+      // needs the real-time catcher until playback stops.
+      this.sceneSetupService?.setContactShadowMode(this.scene, 'live');
       this.renderLoopManager.requireContinuous('animations');
       this.reviveRenderLoop();
       this.renderLoopManager.requestRender();
@@ -610,6 +614,26 @@ export class ViewerCore {
   pauseAnimations(): void {
     this.animationService?.pause();
     this.renderLoopManager.releaseContinuous('animations');
+    this.rebakeContactShadowForCurrentPose();
+    // One more frame so the swapped-in baked shadow reaches the screen even
+    // though the continuous-render demand is gone.
+    this.renderLoopManager.requestRender();
+  }
+
+  /**
+   * Re-bake the contact shadow against whatever pose playback stopped on;
+   * the pre-pause bake pictured the load pose. Falls back to leaving the
+   * live catcher up if baking isn't possible right now.
+   */
+  private rebakeContactShadowForCurrentPose(): void {
+    const model = this.modelManager.getCurrentModel();
+    if (!model || !this.sceneSetupService) {
+      return;
+    }
+    const bakeResult = this.sceneSetupService.bakeContactShadow(this.scene, model, this.renderer);
+    if (!bakeResult.ok) {
+      console.warn('Failed to re-bake contact shadow after pausing animations:', bakeResult.error);
+    }
   }
 
   private attachAnimations(model: IObject3D): void {
