@@ -5,6 +5,7 @@ export { type CaptureStillOptions, type CaptureVideoOptions } from './types/Simp
 export { Hotspot, type HotspotProps } from './presentation/components/Hotspot'
 export { type SimpleViewerProps } from './types'
 export { type SimpleViewerOptions } from './types'
+export { type ModelUnits } from './types/SimpleViewerOptions'
 export type { ControlsInstance } from './types/CommonTypes'
 export { default as defaultOptions } from './defaultOptions'
 

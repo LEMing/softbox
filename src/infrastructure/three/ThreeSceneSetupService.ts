@@ -29,6 +29,7 @@ import {
   CONTACT_SHADOW_BAKED_NAME,
   CONTACT_SHADOW_LIVE_NAME
 } from './ContactShadowBaker';
+import { UNITS_SCALE_WRAPPER_NAME } from '../../core/constants';
 import { disposeObject3D } from './disposal';
 import { HexTileConfig } from './HexTileConfig';
 import { GridFactory } from './grids/GridFactory';
@@ -543,6 +544,34 @@ export class ThreeSceneSetupService implements ISceneSetupService {
       return Result.err(
         new ThreeViewerError(
           'Failed to switch contact shadow mode',
+          ErrorCode.SCENE_OPERATION_FAILED,
+          { originalError: error }
+        )
+      );
+    }
+  }
+
+  wrapInUnitsScaleGroup(object: IObject3D, scaleToMeters: number): Result<IObject3D> {
+    try {
+      const threeObject = toThreeObject(object);
+      if (!threeObject) {
+        return Result.err(
+          new ThreeViewerError(
+            'Object must expose a Three.js Object3D',
+            ErrorCode.INVALID_PARAMETER
+          )
+        );
+      }
+
+      const wrapper = new THREE.Group();
+      wrapper.name = UNITS_SCALE_WRAPPER_NAME;
+      wrapper.scale.setScalar(scaleToMeters);
+      wrapper.add(threeObject);
+      return Result.ok(new ThreeObject3DAdapter(wrapper));
+    } catch (error) {
+      return Result.err(
+        new ThreeViewerError(
+          'Failed to apply the units scale to the model',
           ErrorCode.SCENE_OPERATION_FAILED,
           { originalError: error }
         )

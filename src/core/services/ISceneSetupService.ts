@@ -80,6 +80,14 @@ export interface ISceneSetupService {
    * texture is a snapshot of one pose.
    */
   setContactShadowMode(scene: IScene, mode: ContactShadowMode): Result<void>;
+
+  /**
+   * Wrap the object in a scale group that converts its authored units to the
+   * viewer's 1-unit-=-1-meter convention. The object's own transform is not
+   * touched, so consumer-provided objects survive re-loads without compounding
+   * and models with a corrective root scale keep it.
+   */
+  wrapInUnitsScaleGroup(object: IObject3D, scaleToMeters: number): Result<IObject3D>;
 }
 
 import { GridHelperOptions, AxesHelperOptions } from '../../types/options/HelperOptions';

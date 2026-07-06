@@ -52,7 +52,8 @@ describe('ModelManager', () => {
       fitShadowCameraToObject: jest.fn().mockReturnValue(Result.ok(undefined)),
       bakeContactShadow: jest.fn().mockReturnValue(Result.ok(undefined)),
       setContactShadowMode: jest.fn().mockReturnValue(Result.ok(undefined)),
-      fitCameraToObject: jest.fn().mockReturnValue(Result.ok(undefined))
+      fitCameraToObject: jest.fn().mockReturnValue(Result.ok(undefined)),
+      wrapInUnitsScaleGroup: jest.fn()
     } as unknown as jest.Mocked<ISceneSetupService>;
 
     // Create event emitter
@@ -417,6 +418,65 @@ describe('ModelManager', () => {
       // ModelManager delegates to object.dispose(); the actual geometry/material/
       // texture/shadow disposal is covered by disposal.test.ts against real THREE.
       expect(mockModel.dispose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('units conversion', () => {
+    const makeModel = () =>
+      ({ traverse: jest.fn(), dispose: jest.fn() } as unknown as IObject3D);
+
+    const makeManager = (unitsScaleToMeters?: number) =>
+      new ModelManager({
+        modelLoader: mockModelLoader,
+        scene: mockScene,
+        camera: mockCamera,
+        controls: mockControls,
+        floorAlignmentService: mockFloorAlignmentService,
+        sceneSetupService: mockSceneSetupService,
+        unitsScaleToMeters
+      });
+
+    it('wraps the model in a units scale group and treats the wrapper as the model', async () => {
+      const model = makeModel();
+      const wrapper = makeModel();
+      mockSceneSetupService.wrapInUnitsScaleGroup.mockReturnValue(Result.ok(wrapper));
+
+      const result = await makeManager(0.0254).loadModel(model, mockEvents);
+
+      expect(result.ok).toBe(true);
+      expect(mockSceneSetupService.wrapInUnitsScaleGroup).toHaveBeenCalledWith(model, 0.0254);
+      expect(mockScene.add).toHaveBeenCalledWith(wrapper);
+      expect(result.ok && result.value).toBe(wrapper);
+    });
+
+    it('does not wrap when the model is already in meters', async () => {
+      const model = makeModel();
+
+      const result = await makeManager(1).loadModel(model, mockEvents);
+
+      expect(result.ok).toBe(true);
+      expect(mockSceneSetupService.wrapInUnitsScaleGroup).not.toHaveBeenCalled();
+      expect(mockScene.add).toHaveBeenCalledWith(model);
+    });
+
+    it('defaults to no conversion when the factor is omitted', async () => {
+      const model = makeModel();
+
+      const result = await makeManager(undefined).loadModel(model, mockEvents);
+
+      expect(result.ok).toBe(true);
+      expect(mockSceneSetupService.wrapInUnitsScaleGroup).not.toHaveBeenCalled();
+    });
+
+    it('fails the load when the wrap fails instead of rendering at the wrong scale', async () => {
+      mockSceneSetupService.wrapInUnitsScaleGroup.mockReturnValue(
+        Result.err(new ThreeViewerError('boom', ErrorCode.SCENE_OPERATION_FAILED))
+      );
+
+      const result = await makeManager(0.0254).loadModel(makeModel(), mockEvents);
+
+      expect(result.ok).toBe(false);
+      expect(mockScene.add).not.toHaveBeenCalled();
     });
   });
 });

@@ -15,6 +15,9 @@ import {
   AnimationOptions,
 } from './options';
 
+/** Length unit the model's geometry is authored in. */
+export type ModelUnits = 'meters' | 'centimeters' | 'millimeters' | 'feet' | 'inches';
+
 export interface SimpleViewerOptions {
   /**
    * A one-word visual preset (`studio`, `product`, `neutral`, `dark`, `outdoor`)
@@ -22,6 +25,14 @@ export interface SimpleViewerOptions {
    * pass overrides the preset's values.
    */
   preset?: ViewerPreset;
+
+  /**
+   * Length unit the model geometry is authored in (default `'meters'`).
+   * Non-meter models are rescaled on load — without touching the model's own
+   * transform — to the viewer's 1-unit-=-1-meter convention that the
+   * real-scale floor, contact shadows and framing rely on.
+   */
+  units?: ModelUnits;
 
   // Scene settings
   backgroundColor?: string | number;

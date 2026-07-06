@@ -193,6 +193,12 @@ const options: SimpleViewerOptions = {
   backgroundColor: '#f0f0f7',
   staticScene: false,            // stop the render loop when nothing moves
 
+  // Unit your model is authored in: meters (default) | centimeters | millimeters
+  // | feet | inches. Non-meter models are rescaled on load to the viewer's
+  // 1-unit-=-1-meter convention (the real-scale floor, shadows and framing
+  // depend on it) without touching the model's own transform.
+  units: 'meters',
+
   camera: { position: [60, 60, 60], fov: 45, autoFitToObject: true },
 
   // The procedural studio environment lights the scene by default (zero network
