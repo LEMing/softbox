@@ -23,6 +23,20 @@ describe('ThreeAnimationService', () => {
     expect(service.getClipNames()).toEqual(['Spin', 'Bounce']);
   });
 
+  it('discovers clips below wrapper groups the root itself does not carry', () => {
+    const { mesh } = makeAnimatedModel();
+    const positioningGroup = new THREE.Group();
+    positioningGroup.add(mesh);
+    const service = new ThreeAnimationService();
+
+    service.attach({ getThreeObject: () => positioningGroup } as unknown as IObject3D);
+    service.play('Spin');
+    service.update(0.5);
+
+    expect(service.getClipNames()).toEqual(['Spin', 'Bounce']);
+    expect(mesh.position.x).toBeCloseTo(5);
+  });
+
   it('play() without a name advances ALL clips', () => {
     const { mesh, adapter } = makeAnimatedModel();
     const service = new ThreeAnimationService();

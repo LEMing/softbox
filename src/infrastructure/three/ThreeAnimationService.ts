@@ -5,8 +5,13 @@ import { toThreeObject } from './unwrap';
 
 /**
  * Three.js implementation of the animation port: an AnimationMixer over the
- * clips found on the model root's `animations` (the loader copies
- * `gltf.animations` there; consumer-passed objects may set it directly).
+ * clips found on the first subtree node carrying `animations` (the loader
+ * copies `gltf.animations` onto the loaded scene; consumer-passed objects may
+ * set it directly). Discovery descends past wrapper groups — the units scale
+ * wrapper, or a consumer's own positioning group — and the mixer is rooted at
+ * the clip-bearing node itself, so root-relative track paths ('.scale' etc.)
+ * keep binding to the authored scene rather than to a wrapper whose transform
+ * the viewer owns.
  */
 export class ThreeAnimationService implements IAnimationService {
   private mixer: THREE.AnimationMixer | null = null;
@@ -19,13 +24,14 @@ export class ThreeAnimationService implements IAnimationService {
 
   attach(model: IObject3D): void {
     this.detach();
-    const root = toThreeObject(model);
-    if (!root) {
+    const target = toThreeObject(model);
+    if (!target) {
       return;
     }
-    this.clips = root.animations ?? [];
-    if (this.clips.length > 0) {
-      this.mixer = new THREE.AnimationMixer(root);
+    const clipRoot = findClipBearingNode(target);
+    if (clipRoot) {
+      this.clips = clipRoot.animations;
+      this.mixer = new THREE.AnimationMixer(clipRoot);
       this.mixer.timeScale = this.speed;
     }
   }
@@ -95,4 +101,14 @@ export class ThreeAnimationService implements IAnimationService {
     this.activeActions = [];
     this.playing = false;
   }
+}
+
+function findClipBearingNode(root: THREE.Object3D): THREE.Object3D | null {
+  let found: THREE.Object3D | null = null;
+  root.traverse((node) => {
+    if (!found && (node.animations?.length ?? 0) > 0) {
+      found = node;
+    }
+  });
+  return found;
 }
