@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { WebGLPathTracer } from 'three-gpu-pathtracer';
 import { ThreePathTracingService } from '../ThreePathTracingService';
+import { CONTACT_SHADOW_BAKED_NAME, CONTACT_SHADOW_LIVE_NAME } from '../ContactShadowBaker';
 import { PathTracingScene } from '../types/PathTracerTypes';
 import { IRenderer } from '../../../core/interfaces/IRenderer';
 import { IScene } from '../../../core/interfaces/IScene';
@@ -509,6 +510,51 @@ describe('ThreePathTracingService', () => {
       expect(lastPathTracer().setScene).toHaveBeenCalled();
       expect(lastPathTracer().renderSample).toHaveBeenCalled();
       expect(ctx.service.getSampleCount()).toBe(1);
+    });
+
+    it('hides the contact-shadow helpers during scene ingest and restores them after', async () => {
+      const ctx = setup();
+      await initialize(ctx, true);
+      ctx.threeScene.environment = equirectTexture();
+
+      const baked = new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.MeshBasicMaterial());
+      baked.name = CONTACT_SHADOW_BAKED_NAME;
+      const liveCatcher = new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.ShadowMaterial());
+      liveCatcher.name = CONTACT_SHADOW_LIVE_NAME;
+      liveCatcher.visible = false; // installBakedMesh leaves the live catcher hidden
+      ctx.threeScene.add(baked, liveCatcher);
+
+      const bakedVisibilityWrites: boolean[] = [];
+      let bakedVisible = true;
+      Object.defineProperty(baked, 'visible', {
+        configurable: true,
+        get: () => bakedVisible,
+        set: (value: boolean) => {
+          bakedVisibilityWrites.push(value);
+          bakedVisible = value;
+        },
+      });
+      const liveVisibilityWrites: boolean[] = [];
+      let liveVisible = false;
+      Object.defineProperty(liveCatcher, 'visible', {
+        configurable: true,
+        get: () => liveVisible,
+        set: (value: boolean) => {
+          liveVisibilityWrites.push(value);
+          liveVisible = value;
+        },
+      });
+
+      const result = await ctx.service.render(ctx.scene, ctx.camera);
+
+      expect(result.ok).toBe(true);
+      expect(lastPathTracer().setScene).toHaveBeenCalled();
+      // Hidden for the ingest, restored right after — the raster fallback
+      // keeps its baked shadow.
+      expect(bakedVisibilityWrites).toEqual([false, true]);
+      // The already-hidden live catcher must NOT be force-shown afterwards.
+      expect(liveVisibilityWrites).toEqual([]);
+      expect(liveCatcher.visible).toBe(false);
     });
 
     it('initializes from the original equirectangular data texture', async () => {
