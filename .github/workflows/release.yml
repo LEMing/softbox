@@ -30,6 +30,10 @@ on:
 permissions:
   contents: write
   id-token: write
+  # gh run list (the green-CI gate) reads the Actions API; with an explicit
+  # permissions block every unlisted scope is `none`, and a public-repo
+  # fallback is not guaranteed for installation tokens.
+  actions: read
 
 concurrency:
   group: release
@@ -75,8 +79,24 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           echo "Waiting for CI on $GITHUB_SHA..."
+          GH_ERRORS=0
+          EMPTY_POLLS=0
           for attempt in $(seq 1 80); do
-            RUNS_JSON=$(gh run list --workflow=ci.yml --commit "$GITHUB_SHA" --json status,conclusion 2>/dev/null || echo '[]')
+            # An API error must stay distinguishable from "no runs yet":
+            # swallowing it would loop for 40 minutes and then blame CI.
+            if RUNS_JSON=$(gh run list --workflow=ci.yml --commit "$GITHUB_SHA" --json status,conclusion); then
+              GH_ERRORS=0
+            else
+              GH_ERRORS=$((GH_ERRORS + 1))
+              if [ "$GH_ERRORS" -ge 5 ]; then
+                echo "Querying CI runs kept failing (see errors above) — refusing to publish."
+                echo "If this is a 403, the workflow token is missing actions: read."
+                exit 1
+              fi
+              echo "CI query failed — retrying in 30s ($attempt/80)."
+              sleep 30
+              continue
+            fi
             GREEN=$(jq '[.[] | select(.status == "completed" and .conclusion == "success")] | length' <<<"$RUNS_JSON")
             PENDING=$(jq '[.[] | select(.status != "completed")] | length' <<<"$RUNS_JSON")
             TOTAL=$(jq 'length' <<<"$RUNS_JSON")
@@ -87,6 +107,19 @@ jobs:
             if [ "$TOTAL" -gt 0 ] && [ "$PENDING" -eq 0 ]; then
               echo "CI finished without success for this commit — refusing to publish."
               exit 1
+            fi
+            if [ "$TOTAL" -eq 0 ]; then
+              # A CI run should register within seconds of the same push. A
+              # persistently empty list means one will never come ([skip ci]
+              # merge, or the runs aged out of Actions retention) — fail with
+              # the recovery path instead of burning the full timeout.
+              EMPTY_POLLS=$((EMPTY_POLLS + 1))
+              if [ "$EMPTY_POLLS" -ge 10 ]; then
+                echo "No CI runs exist for $GITHUB_SHA — dispatch the CI workflow for this ref, or push a new commit, then re-run."
+                exit 1
+              fi
+            else
+              EMPTY_POLLS=0
             fi
             echo "CI not green yet (runs: $TOTAL, pending: $PENDING) — retrying in 30s ($attempt/80)."
             sleep 30
@@ -108,14 +141,22 @@ jobs:
       # tag forever. Idempotence makes the repair safe.
       - name: Tag and create the GitHub release (idempotent)
         run: |
-          TAG="v${{ steps.guard.outputs.version }}"
+          VERSION="${{ steps.guard.outputs.version }}"
+          TAG="v${VERSION}"
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "$TAG already exists — nothing to do."
             exit 0
           fi
+          # Tag the commit the registry actually holds, not whatever this
+          # run checked out: a repair run may fire from a LATER push (e.g.
+          # a docs commit after a publish whose tag step failed), and the
+          # tag must agree with the published artifact and its provenance.
+          PUBLISHED_SHA=$(npm view "softbox@${VERSION}" gitHead 2>/dev/null || true)
+          TARGET="${PUBLISHED_SHA:-$GITHUB_SHA}"
+          echo "Tagging $TAG at $TARGET"
           gh release create "$TAG" \
-            --target "$GITHUB_SHA" \
-            --title "softbox ${{ steps.guard.outputs.version }}" \
+            --target "$TARGET" \
+            --title "softbox ${VERSION}" \
             --notes "See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md) for what changed in this release."
         env:
           GH_TOKEN: ${{ github.token }}

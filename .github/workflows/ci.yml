@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Escape hatch for the release workflow's green-CI gate: mint a fresh CI
+  # run for a head whose original runs are gone ([skip ci] merge, or aged
+  # out of Actions retention) without having to push a new commit.
+  workflow_dispatch:
 
 jobs:
   build:
