@@ -13,7 +13,7 @@
 <SimpleViewer object="/model.glb" />
 ```
 
-Balanced studio lighting, a glossy glass floor with a contact shadow, auto-framing, compressed-asset decoders — all on by default, zero configuration, zero external CDN requests. The core is ~105 kB gzip; the path tracer and the decoders live in lazy chunks that load only when actually used. Every release is gated by 470+ unit tests plus a Playwright suite that asserts **real WebGL pixels** in CI.
+Balanced studio lighting, a real-scale matte concrete floor with a baked soft contact shadow, auto-framing, compressed-asset decoders — all on by default, zero configuration. Lighting needs zero network requests (the studio environment is procedural); the DRACO/KTX2 decoder wasm loads from a CDN only when a compressed model actually needs it, and can be [self-hosted](#loaders) for offline use. The core is ~105 kB gzip; the path tracer and the decoders live in lazy chunks that load only when actually used. Every release is gated by 590+ unit tests plus a Playwright suite that asserts **real WebGL pixels** in CI.
 
 [![softbox playground](https://raw.githubusercontent.com/LEMing/softbox/main/public/og-image.png)](https://leming.github.io/softbox/)
 
@@ -212,7 +212,7 @@ const options: SimpleViewerOptions = {
   animations: { autoplay: true, speed: 1 }, // GLTF clip playback
 
   helpers: {
-    grid: { type: 'hexagonal_glass' }, // glossy glass floor; also: hexagonal_wire, square_wire, stone_tiles
+    grid: { type: 'hexagonal_glass' }, // hex-tile floor (matte concrete by default); also: hexagonal_wire, square_wire, stone_tiles
     gizmo: false,                      // optional viewport orientation gizmo
     studioEnvironment: true,
   },
@@ -241,6 +241,17 @@ A built-in overlay shows while a model loads (and an error state if it fails) �
 ```tsx
 <SimpleViewer object={url} options={{ loadingIndicator: { label: 'Loading…' } }} />
 <SimpleViewer object={url} options={{ loadingIndicator: false }} /> // drive your own via events
+```
+
+### Loaders
+
+DRACO, KTX2/Basis and Meshopt decoders are wired into the glTF loader by default — compressed exports from Blender, `gltfpack` or `gltf-transform` just load. Meshopt is bundled; the DRACO/KTX2 wasm decoders are fetched **on demand** (only the first time a model actually uses that compression) from a version-pinned jsDelivr URL. For a fully offline, no-CDN setup, self-host the decoder directories:
+
+```ts
+loaders: {
+  dracoDecoderPath: '/decoders/draco/',   // copy of three/examples/jsm/libs/draco/
+  ktx2TranscoderPath: '/decoders/basis/', // copy of three/examples/jsm/libs/basis/
+}
 ```
 
 ### Viewport gizmo
