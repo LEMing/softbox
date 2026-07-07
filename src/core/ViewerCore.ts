@@ -482,7 +482,12 @@ export class ViewerCore {
     // from t=0, and the runtime-options effect re-sends the whole set.
     if (autoplay !== undefined && autoplay !== previousAutoplay) {
       if (autoplay) {
-        this.autoplayFromOptions(autoplay);
+        // Before any model lands there is nothing to play and nothing to
+        // validate a clip name against — the merged option is enough;
+        // attachAnimations applies it when the load resolves.
+        if (this.modelManager.getCurrentModel()) {
+          this.autoplayFromOptions(autoplay);
+        }
       } else {
         this.pauseAnimations();
       }

@@ -5,8 +5,9 @@ Changelog
 ---
 
 ### Unknown animation clip names fail loudly
-* **Changed:** playing an animation clip the model does not carry was a silent no-op — a typo'd name left the model frozen with nothing on the console and nothing to catch. `IAnimationService.play` and `ViewerCore.playAnimations` now return `Result<void>` and err with `INVALID_PARAMETER` naming the unknown clip and the clips the model actually carries; the imperative `handle.playAnimations(name)` throws that error, consistent with `loadModel`/`captureStill`. A named play on a viewer assembled without an animation service errs with `INVALID_STATE` instead of doing nothing.
-* Declarative `animations.autoplay` with an unknown clip name (via options or `updateOptions`) surfaces the same error as a console error instead of failing the model load or crashing the host React tree.
+* **Changed:** playing an animation clip the model does not carry was a silent no-op — a typo'd name left the model frozen with nothing on the console and nothing to catch. `IAnimationService.play` and `ViewerCore.playAnimations` now return `Result<void>` and err with `INVALID_PARAMETER` naming the unknown clip and the clips the model actually carries; the imperative `handle.playAnimations(name)` throws that error, consistent with `loadModel`/`captureStill`.
+* State problems are diagnosed as state, not as a bad name: a named play with no clips attached at all (no model loaded yet, or a clipless model) errs with `INVALID_STATE` — the name may be perfectly right for the model about to load. Same for a viewer assembled without an animation service.
+* Declarative `animations.autoplay` with an unknown clip name (via options or `updateOptions`) surfaces the same error as a console error instead of failing the model load or crashing the host React tree. Setting autoplay through `updateOptions` before any model has loaded stays quiet — the merged option simply applies (and validates) when the load lands, as it always did.
 * A bare `playAnimations()` on a model without clips remains a declared no-op (`autoplay: true` on a static model stays valid).
 
 4.2.2

@@ -43,16 +43,27 @@ export class ThreeAnimationService implements IAnimationService {
   }
 
   play(clipName?: string): Result<void> {
-    if (clipName !== undefined && !this.clips.some((clip) => clip.name === clipName)) {
-      const available = this.clips.map((clip) => clip.name);
-      return Result.err(
-        new ThreeViewerError(
-          available.length > 0
-            ? `Unknown animation clip '${clipName}'. Available clips: ${available.join(', ')}`
-            : `Unknown animation clip '${clipName}'. The model has no animation clips`,
-          ErrorCode.INVALID_PARAMETER
-        )
-      );
+    if (clipName !== undefined) {
+      // No clips at all is a state problem (no model yet, or a model without
+      // animations) — only a miss AMONG existing clips marks the name itself
+      // as the bad input.
+      if (this.clips.length === 0) {
+        return Result.err(
+          new ThreeViewerError(
+            `Cannot play animation clip '${clipName}': no animation clips are attached`,
+            ErrorCode.INVALID_STATE
+          )
+        );
+      }
+      if (!this.clips.some((clip) => clip.name === clipName)) {
+        const available = this.clips.map((clip) => clip.name);
+        return Result.err(
+          new ThreeViewerError(
+            `Unknown animation clip '${clipName}'. Available clips: ${available.join(', ')}`,
+            ErrorCode.INVALID_PARAMETER
+          )
+        );
+      }
     }
     // A bare play() on a clipless model is a declared no-op (autoplay:true on
     // a static model), not an error like the named miss above.
@@ -71,6 +82,11 @@ export class ThreeAnimationService implements IAnimationService {
     const toPlay = clipName
       ? this.clips.filter((clip) => clip.name === clipName)
       : this.clips;
+    // `clips` aliases the model's live `animations` array — if a consumer
+    // emptied it after attach, don't flag playback with zero actions running.
+    if (toPlay.length === 0) {
+      return Result.ok(undefined);
+    }
     const mixer = this.mixer;
     mixer.stopAllAction();
     this.activeActions = toPlay.map((clip) => {

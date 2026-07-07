@@ -77,16 +77,18 @@ describe('ThreeAnimationService', () => {
     expect(service.isPlaying()).toBe(false);
   });
 
-  it('play(name) on a clipless model errs instead of silently idling', () => {
+  it('play(name) with no clips attached errs INVALID_STATE, not a bad-name error', () => {
     const bare = new THREE.Object3D();
     const service = new ThreeAnimationService();
     service.attach({ getThreeObject: () => bare } as unknown as IObject3D);
 
     const result = service.play('Walk');
 
+    // The name may be perfectly right for a model that has not loaded yet —
+    // only a miss among EXISTING clips is an INVALID_PARAMETER.
     expect(result.ok).toBe(false);
-    expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_PARAMETER);
-    expect(!result.ok && result.error.message).toMatch(/no animation clips/);
+    expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_STATE);
+    expect(!result.ok && result.error.message).toMatch(/no animation clips are attached/);
   });
 
   it('pause() freezes the pose and play() resumes without restarting', () => {

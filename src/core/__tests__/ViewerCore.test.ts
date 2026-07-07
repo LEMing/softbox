@@ -1111,6 +1111,7 @@ describe('ViewerCore', () => {
       const bundle = makeDeps();
       const viewer = new ViewerCore({ ...bundle.deps, animationService });
       await viewer.initialize();
+      await viewer.loadModel(makeObject3D());
 
       viewer.updateOptions({ animations: { autoplay: true } });
       expect(animationService.play).toHaveBeenCalledTimes(1);
@@ -1136,7 +1137,10 @@ describe('ViewerCore', () => {
         )
       ),
       pause: jest.fn(),
-      isPlaying: jest.fn(() => false),
+      // Deliberately true: if ViewerCore ever skipped the early return on an
+      // erred play, the isPlaying() branch WOULD grab the continuous demand
+      // and the requireContinuous assertion below would catch it.
+      isPlaying: jest.fn(() => true),
       setSpeed: jest.fn(),
       update: jest.fn(),
       detach: jest.fn(),
@@ -1187,12 +1191,43 @@ describe('ViewerCore', () => {
       const bundle = makeDeps();
       const viewer = new ViewerCore({ ...bundle.deps, animationService });
       await viewer.initialize();
+      await viewer.loadModel(makeObject3D());
 
       expect(() => viewer.updateOptions({ animations: { autoplay: 'Nope' } })).not.toThrow();
       expect(console.error).toHaveBeenCalledWith(
         'animations.autoplay failed:',
         expect.stringMatching(/Unknown animation clip 'Nope'/)
       );
+    });
+
+    it('updateOptions autoplay before any model stays quiet and applies on load', async () => {
+      let playing = false;
+      const animationService = {
+        attach: jest.fn(),
+        getClipNames: jest.fn(() => ['Walk']),
+        play: jest.fn(() => {
+          playing = true;
+          return Result.ok(undefined);
+        }),
+        pause: jest.fn(),
+        isPlaying: jest.fn(() => playing),
+        setSpeed: jest.fn(),
+        update: jest.fn(),
+        detach: jest.fn(),
+      };
+      const bundle = makeDeps();
+      const viewer = new ViewerCore({ ...bundle.deps, animationService });
+      await viewer.initialize();
+
+      // Nothing loaded yet: there is nothing to play and no clip list to
+      // validate 'Walk' against — a valid future name must not log an error.
+      viewer.updateOptions({ animations: { autoplay: 'Walk' } });
+      expect(animationService.play).not.toHaveBeenCalled();
+      expect(console.error).not.toHaveBeenCalled();
+
+      // The merged option kicks in when the model lands.
+      await viewer.loadModel(makeObject3D());
+      expect(animationService.play).toHaveBeenCalledWith('Walk');
     });
 
     it('createAnchorProjector returns null without an anchor projection service', () => {
