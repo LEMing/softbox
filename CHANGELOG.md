@@ -1,6 +1,12 @@
 Changelog
 =========
 
+4.4.1
+---
+
+### Bug fix
+* **Fixed:** models whose geometry sits away from the origin lost their shadows and stood beside their own floor — the whole grounding pipeline assumed origin-centered content. The fitted shadow frustum is centered on the key light's aim axis, and the light's target was hardcoded to the origin, so for an off-origin model the tightly fitted frustum missed it entirely; the dynamic floor grid (with its live shadow catcher) also always spawned at the origin. The light rig now re-aims at the loaded model's center on every load — shifting position and target together, so the configured light direction (and the shadow's look) is preserved and repeated loads cannot drift — and the floor grid centers under the model. Origin-centered models render pixel-identically.
+
 4.4.0
 ---
 
