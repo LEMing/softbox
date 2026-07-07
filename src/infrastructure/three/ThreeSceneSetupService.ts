@@ -359,23 +359,37 @@ export class ThreeSceneSetupService implements ISceneSetupService {
       // accelerated) meshes — a coarse grid or a single center ray can
       // straddle a narrow true contact point (e.g. a wheel's tread) and
       // under-shoot how far the object actually needs to drop.
+      //
+      // Each sample casts in BOTH directions: glTF materials default to
+      // single-sided, so the true contact surface — its normal facing DOWN,
+      // outward — is backface-culled for a ray from above and only hittable
+      // from below. Down-rays still catch up-facing bottom surfaces (ground
+      // decals, open shells); the object's lowest point is the minimum over
+      // both passes.
       const SAMPLES_PER_AXIS = 40;
-      const rayOriginY = box.max.y + Math.max(1, box.max.y - box.min.y);
+      const margin = Math.max(1, box.max.y - box.min.y);
+      const aboveY = box.max.y + margin;
+      const belowY = box.min.y - margin;
       const raycaster = new THREE.Raycaster();
       const down = new THREE.Vector3(0, -1, 0);
+      const up = new THREE.Vector3(0, 1, 0);
 
       let lowestObjectY = Infinity;
+      const recordLowestHit = (originX: number, originY: number, originZ: number, direction: THREE.Vector3) => {
+        raycaster.set(new THREE.Vector3(originX, originY, originZ), direction);
+        for (const hit of raycaster.intersectObjects(objectMeshes, false)) {
+          if (hit.point.y < lowestObjectY) {
+            lowestObjectY = hit.point.y;
+          }
+        }
+      };
+
       for (let i = 0; i <= SAMPLES_PER_AXIS; i++) {
         for (let j = 0; j <= SAMPLES_PER_AXIS; j++) {
           const x = box.min.x + (box.max.x - box.min.x) * (i / SAMPLES_PER_AXIS);
           const z = box.min.z + (box.max.z - box.min.z) * (j / SAMPLES_PER_AXIS);
-          raycaster.set(new THREE.Vector3(x, rayOriginY, z), down);
-
-          for (const hit of raycaster.intersectObjects(objectMeshes, false)) {
-            if (hit.point.y < lowestObjectY) {
-              lowestObjectY = hit.point.y;
-            }
-          }
+          recordLowestHit(x, aboveY, z, down);
+          recordLowestHit(x, belowY, z, up);
         }
       }
 
