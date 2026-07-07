@@ -45,9 +45,16 @@ const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
  * model's materials have colorWrite disabled during the bake for the same
  * reason. The result replaces the live ShadowMaterial catcher with a static
  * texture, so orbiting the (unchanged) scene costs nothing extra per frame.
+ *
+ * The bake is synchronous on the main thread, so the pass count adapts to
+ * what the device can actually afford: one probe pass is timed with a forced
+ * GPU sync, and the count is chosen to fit the frame budget (clamped to
+ * [MIN_PASSES, MAX_PASSES]). Passing an explicit `passes` option skips the
+ * probe and bakes exactly that count. A lost WebGL context aborts the bake
+ * gracefully — the live catcher simply stays in charge.
  */
 export class ContactShadowBaker {
-  private readonly passes: number;
+  private readonly explicitPasses?: number;
 
   /**
    * Share of passes that sample the sky hemisphere instead of the key light.
@@ -71,13 +78,30 @@ export class ContactShadowBaker {
   private static readonly BAKE_SHADOW_MAP_SIZE = 1024;
   /** Overall darkness: the floor keeps some ambient bounce even in full shadow. */
   private static readonly SHADOW_STRENGTH = 0.85;
+  /**
+   * Main-thread time the adaptive bake is allowed to burn. The full-quality
+   * pass count on a healthy GPU fits well inside it; a software rasterizer
+   * or an integrated GPU under a heavy model drops toward MIN_PASSES instead
+   * of freezing the page for seconds.
+   */
+  private static readonly BAKE_BUDGET_MS = 100;
+  /** Below this the discrete sample silhouettes read as ghosting. */
+  private static readonly MIN_PASSES = 24;
+  private static readonly MAX_PASSES = 96;
 
   constructor(options?: { passes?: number }) {
-    this.passes = options?.passes ?? 96;
+    this.explicitPasses = options?.passes;
   }
 
   bake(context: ContactShadowBakeContext): void {
     const { renderer, scene, object, light } = context;
+
+    // On a lost context every GL call is a silent no-op: the accumulation
+    // would come back empty and replace the (working) live catcher with an
+    // invisible disc. Leave the live catcher in charge instead.
+    if (renderer.getContext().isContextLost()) {
+      return;
+    }
 
     const region = this.measureBakeRegion(object);
     if (!region) {
@@ -108,6 +132,16 @@ export class ContactShadowBaker {
     // onto the disc 1:1.
     const shadowDiscGeometry = new THREE.CircleGeometry(region.halfExtent, 64);
     this.accumulateShadowPasses(renderer, object, light, region, renderTarget, shadowDiscGeometry);
+
+    // A context lost DURING the accumulation leaves the texture partial or
+    // empty — installing it would swap a working live shadow for a broken
+    // one. Abort and let the live catcher keep the scene grounded.
+    if (renderer.getContext().isContextLost()) {
+      renderTarget.dispose();
+      shadowDiscGeometry.dispose();
+      console.warn('Contact-shadow bake aborted: WebGL context was lost mid-bake');
+      return;
+    }
     this.installBakedMesh(scene, region, renderTarget, shadowDiscGeometry);
   }
 
@@ -148,7 +182,9 @@ export class ContactShadowBaker {
 
     const accumulationMaterial = new THREE.ShadowMaterial({
       transparent: true,
-      opacity: 1 / this.passes,
+      // Set to 1/passCount once the count is known; 0 keeps the probe pass
+      // contributing nothing to the additive accumulation.
+      opacity: 0,
       depthWrite: false,
     });
     accumulationMaterial.blending = THREE.CustomBlending;
@@ -178,7 +214,12 @@ export class ContactShadowBaker {
       renderer.clear(true, false, false);
       renderer.autoClear = false;
 
-      for (const lightPosition of this.sampleLightPositions(light)) {
+      const passCount =
+        this.explicitPasses ??
+        this.measureAffordablePasses(renderer, bakeScene, camera, light, bakeLight, renderTarget);
+      accumulationMaterial.opacity = 1 / passCount;
+
+      for (const lightPosition of this.sampleLightPositions(light, passCount)) {
         bakeLight.position.copy(lightPosition);
         renderer.render(bakeScene, camera);
       }
@@ -197,6 +238,43 @@ export class ContactShadowBaker {
       bakeLight.dispose();
       accumulationMaterial.dispose();
     }
+  }
+
+  /**
+   * How many passes fit the time budget on THIS device with THIS model:
+   * times one probe pass (the same shadow-map render + accumulation draw the
+   * real passes do, made inert by the material's zero opacity) and divides
+   * the budget by it. render() only measures command submission, so a 1×1
+   * readback forces the GPU to actually finish the pass first; if the
+   * readback is unsupported the timing degrades to submission cost and the
+   * bake simply stays at full quality — the status quo, never worse.
+   */
+  private measureAffordablePasses(
+    renderer: THREE.WebGLRenderer,
+    bakeScene: THREE.Scene,
+    camera: THREE.OrthographicCamera,
+    light: THREE.DirectionalLight,
+    bakeLight: THREE.DirectionalLight,
+    renderTarget: THREE.WebGLRenderTarget
+  ): number {
+    bakeLight.position.copy(light.position);
+    const readbackPixel =
+      renderTarget.texture.type === THREE.HalfFloatType ? new Uint16Array(4) : new Uint8Array(4);
+
+    const start = performance.now();
+    renderer.render(bakeScene, camera);
+    try {
+      renderer.readRenderTargetPixels(renderTarget, 0, 0, 1, 1, readbackPixel);
+    } catch {
+      // Sync fence only — see the method comment.
+    }
+    const perPassMs = Math.max(performance.now() - start, 0.01);
+
+    return THREE.MathUtils.clamp(
+      Math.round(ContactShadowBaker.BAKE_BUDGET_MS / perPassMs),
+      ContactShadowBaker.MIN_PASSES,
+      ContactShadowBaker.MAX_PASSES
+    );
   }
 
   /**
@@ -257,7 +335,7 @@ export class ContactShadowBaker {
    * light's disc and the sky hemisphere evenly at any pass count, without the
    * clumping (visible as lumpy penumbra) that random sampling produces.
    */
-  private sampleLightPositions(light: THREE.DirectionalLight): THREE.Vector3[] {
+  private sampleLightPositions(light: THREE.DirectionalLight, passes: number): THREE.Vector3[] {
     const basePosition = light.position.clone();
     const targetPosition = light.target.parent
       ? light.target.getWorldPosition(new THREE.Vector3())
@@ -274,8 +352,8 @@ export class ContactShadowBaker {
     discU.normalize();
     const discV = new THREE.Vector3().crossVectors(direction, discU);
 
-    const ambientPasses = Math.round(this.passes * ContactShadowBaker.AMBIENT_RATIO);
-    const directionalPasses = this.passes - ambientPasses;
+    const ambientPasses = Math.round(passes * ContactShadowBaker.AMBIENT_RATIO);
+    const directionalPasses = passes - ambientPasses;
     const apertureRadians = THREE.MathUtils.degToRad(ContactShadowBaker.LIGHT_APERTURE_DEGREES);
     const discRadius = Math.tan(apertureRadians / 2) * baseDistance;
 

@@ -5,7 +5,7 @@ import {
   CONTACT_SHADOW_LIVE_NAME,
 } from '../ContactShadowBaker';
 
-const createMockRenderer = () => {
+const createMockRenderer = (isContextLost: () => boolean = () => false) => {
   const renderer = {
     shadowMap: { enabled: true, autoUpdate: true },
     capabilities: { isWebGL2: true },
@@ -17,6 +17,8 @@ const createMockRenderer = () => {
     setClearColor: jest.fn(),
     clear: jest.fn(),
     render: jest.fn(),
+    getContext: jest.fn(() => ({ isContextLost })),
+    readRenderTargetPixels: jest.fn(),
   };
   return renderer;
 };
@@ -51,6 +53,10 @@ const createBakeFixture = () => {
 };
 
 describe('ContactShadowBaker', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('accumulates the configured number of jittered shadow passes', () => {
     const { scene, light, model } = createBakeFixture();
     const renderer = createMockRenderer();
@@ -202,6 +208,108 @@ describe('ContactShadowBaker', () => {
     expect(geometry.type).toBe('CircleGeometry');
     // The 1m box would otherwise get a ~2.6 half-extent — the 0.5 floor wins.
     expect(geometry.parameters.radius).toBe(0.5);
+  });
+
+  it('scales the pass count down to the floor when the probe pass is slow', () => {
+    const { scene, light, model } = createBakeFixture();
+    const renderer = createMockRenderer();
+    // 10ms per pass against a 100ms budget wants 10 passes — clamped to the
+    // 24-pass quality floor.
+    jest
+      .spyOn(performance, 'now')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(10);
+
+    new ContactShadowBaker().bake({
+      renderer: renderer as unknown as THREE.WebGLRenderer,
+      scene,
+      object: model,
+      light,
+    });
+
+    // 1 probe + 24 budgeted passes.
+    expect(renderer.render).toHaveBeenCalledTimes(25);
+    expect(renderer.readRenderTargetPixels).toHaveBeenCalledTimes(1);
+    expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeDefined();
+  });
+
+  it('keeps full quality when the probe pass is fast', () => {
+    const { scene, light, model } = createBakeFixture();
+    const renderer = createMockRenderer();
+    jest
+      .spyOn(performance, 'now')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0.5);
+
+    new ContactShadowBaker().bake({
+      renderer: renderer as unknown as THREE.WebGLRenderer,
+      scene,
+      object: model,
+      light,
+    });
+
+    // 1 probe + the 96-pass ceiling.
+    expect(renderer.render).toHaveBeenCalledTimes(97);
+  });
+
+  it('stays at full quality when the sync readback is unsupported', () => {
+    const { scene, light, model } = createBakeFixture();
+    const renderer = createMockRenderer();
+    renderer.readRenderTargetPixels.mockImplementation(() => {
+      throw new Error('readPixels: unsupported format');
+    });
+    jest
+      .spyOn(performance, 'now')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0.5);
+
+    new ContactShadowBaker().bake({
+      renderer: renderer as unknown as THREE.WebGLRenderer,
+      scene,
+      object: model,
+      light,
+    });
+
+    expect(renderer.render).toHaveBeenCalledTimes(97);
+    expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeDefined();
+  });
+
+  it('leaves the live catcher in charge when the context is already lost', () => {
+    const { scene, light, model, liveCatcher } = createBakeFixture();
+    const renderer = createMockRenderer(() => true);
+
+    new ContactShadowBaker({ passes: 4 }).bake({
+      renderer: renderer as unknown as THREE.WebGLRenderer,
+      scene,
+      object: model,
+      light,
+    });
+
+    expect(renderer.render).not.toHaveBeenCalled();
+    expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeUndefined();
+    expect(liveCatcher.visible).toBe(true);
+  });
+
+  it('aborts the install when the context is lost mid-bake', () => {
+    const { scene, light, model, liveCatcher } = createBakeFixture();
+    const isContextLost = jest
+      .fn<boolean, []>()
+      .mockReturnValueOnce(false)
+      .mockReturnValue(true);
+    const renderer = createMockRenderer(isContextLost);
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    new ContactShadowBaker({ passes: 4 }).bake({
+      renderer: renderer as unknown as THREE.WebGLRenderer,
+      scene,
+      object: model,
+      light,
+    });
+
+    // A partial accumulation must never replace the working live shadow.
+    expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeUndefined();
+    expect(liveCatcher.visible).toBe(true);
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/context was lost/));
   });
 
   it('does nothing for an object with an empty bounding box', () => {

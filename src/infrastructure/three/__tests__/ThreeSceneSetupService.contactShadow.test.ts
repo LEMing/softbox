@@ -19,6 +19,8 @@ const createMockThreeRenderer = () => {
     setClearColor: jest.fn(),
     clear: jest.fn(),
     render: jest.fn(),
+    getContext: jest.fn(() => ({ isContextLost: () => false })),
+    readRenderTargetPixels: jest.fn(),
   });
   return renderer;
 };

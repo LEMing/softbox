@@ -1,6 +1,14 @@
 Changelog
 =========
 
+4.3.2
+---
+
+### Performance & resilience
+* **Changed:** the contact-shadow bake no longer burns a fixed 96 synchronous GPU passes regardless of the device: it times one probe pass (with a forced GPU sync via a 1×1 readback) and fits the pass count to a ~100 ms budget, clamped to 24–96. A healthy GPU keeps full quality; a software rasterizer or an integrated GPU under a heavy model degrades pass count instead of freezing the page on every model load and animation pause. An explicit `passes` option still bakes exactly that count, and an unsupported readback degrades to full quality — never worse than before.
+* **Fixed:** a lost WebGL context now aborts the bake gracefully — before it started (every GL call would be a silent no-op) or mid-accumulation (a partial texture must not replace the working live shadow). The live `ShadowMaterial` catcher stays in charge in both cases.
+* `HexagonalWireGrid` now honours `hexRadius: 0` the same way the glass grid does since 4.3.1 (`??` instead of a falsy fallback).
+
 4.3.1
 ---
 

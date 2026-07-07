@@ -7,7 +7,9 @@ export class HexagonalWireGrid implements IGridStyle {
   createGrid(options: IGridOptions): THREE.Object3D {
     const group = new THREE.Group();
     
-    const radius = options.styleOptions?.hexRadius || Math.floor(options.divisions / 2);
+    // `??`, not `||`: hexRadius 0 is a real request for a single hex (the
+    // dynamic grid sends it for very small objects), not an absent option.
+    const radius = options.styleOptions?.hexRadius ?? Math.floor(options.divisions / 2);
     // radius can be 0 for a single-hex grid (small objects); guard the divisor so
     // tileSize never becomes Infinity/NaN and poisons the hex vertex positions
     // (which then surfaces as "computeBoundingSphere(): radius is NaN").
