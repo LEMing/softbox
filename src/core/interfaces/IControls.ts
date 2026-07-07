@@ -41,6 +41,15 @@ export interface IControls {
   update(): boolean;
   reset(): void;
   dispose(): void;
+
+  /**
+   * Subscribe to camera changes driven by the controls themselves (user
+   * input, damping, autoRotate). This is what wakes a wound-down render
+   * loop: the controls mutate the camera directly, so once the loop has
+   * stopped (idle static scene, converged path tracing) nothing else
+   * observes the interaction. Returns an unsubscribe function.
+   */
+  onChange(listener: () => void): () => void;
   
   // Event handling
   connect(domElement: HTMLElement): void;

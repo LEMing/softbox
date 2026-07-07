@@ -71,7 +71,14 @@ export interface SimpleViewerOptions {
    */
   animationLoop?: ((time: number) => void) | null;
 
-  // Special features
+  /**
+   * Replace the canvas with an `<img>` snapshot when a path-traced
+   * accumulation completes; the first click restores the live viewer by
+   * reloading the model (default `false`). A legacy from one-shot path
+   * tracing — the interactive tracer keeps the converged frame on the live
+   * canvas and re-accumulates on camera moves, so most consumers should
+   * leave this off.
+   */
   replaceWithScreenshotOnComplete?: boolean;
 
   /**

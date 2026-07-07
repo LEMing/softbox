@@ -151,6 +151,11 @@ abstract class ThreeControlsAdapter {
     return this.controls.update();
   }
 
+  onChange(listener: () => void): () => void {
+    this.controls.addEventListener('change', listener);
+    return () => this.controls.removeEventListener('change', listener);
+  }
+
   reset(): void {
     this.controls.reset();
   }

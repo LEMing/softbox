@@ -185,6 +185,7 @@ const makeControls = (overrides: Overrides = {}): jest.Mocked<IControls> => {
     autoRotateSpeed: 2,
     target: makeVector3(),
     update: jest.fn(() => false),
+    onChange: jest.fn(() => () => undefined),
     reset: jest.fn(),
     dispose: jest.fn(),
     connect: jest.fn(),
@@ -252,6 +253,7 @@ const makePathTracingService = (
     getSampleCount: jest.fn(() => 0),
     isEnabled: jest.fn(() => false),
     isPathTracerDisposed: jest.fn(() => false),
+    canResume: jest.fn(() => false),
     reset: jest.fn(),
     dispose: jest.fn(),
     isSupported: jest.fn(() => true),
@@ -1423,6 +1425,138 @@ describe('ViewerCore', () => {
 
       expect(isActiveSpy).toHaveBeenCalled();
       expect(bundle.renderer.render).not.toHaveBeenCalled();
+    });
+
+    it('re-arms a completed accumulation on a camera move (the frame must not freeze)', async () => {
+      const bundle = makeDeps({
+        options: { staticScene: true, pathTracing: { enabled: true } },
+        controlsOverrides: { update: jest.fn(() => true) },
+        withPathTracing: true,
+        pathTracingOverrides: {
+          // Completed state: self-paused with a warm tracer.
+          isEnabled: jest.fn(() => false),
+          canResume: jest.fn(() => true),
+        },
+      });
+      const requireSpy = jest.spyOn(RenderLoopManager.prototype, 'requireContinuous');
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+      requireSpy.mockClear();
+
+      renderCallback!(16);
+      await tick();
+
+      expect(bundle.pathTracingService!.reset).toHaveBeenCalled();
+      expect(bundle.pathTracingService!.setEnabled).toHaveBeenCalledWith(true);
+      expect(requireSpy).toHaveBeenCalledWith('path-tracing');
+    });
+
+    it('does not re-arm a given-up accumulation on camera moves', async () => {
+      const bundle = makeDeps({
+        options: { staticScene: true, pathTracing: { enabled: true } },
+        controlsOverrides: { update: jest.fn(() => true) },
+        withPathTracing: true,
+        pathTracingOverrides: {
+          isEnabled: jest.fn(() => false),
+          canResume: jest.fn(() => false),
+        },
+      });
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+
+      renderCallback!(16);
+      await tick();
+
+      expect(bundle.pathTracingService!.reset).toHaveBeenCalled();
+      expect(bundle.pathTracingService!.setEnabled).not.toHaveBeenCalledWith(true);
+    });
+
+    it('suspends accumulation while animations play and skips camera-move resets', async () => {
+      const animationService = {
+        attach: jest.fn(),
+        getClipNames: jest.fn(() => []),
+        play: jest.fn(() => Result.ok(undefined)),
+        pause: jest.fn(),
+        isPlaying: jest.fn(() => true),
+        setSpeed: jest.fn(),
+        update: jest.fn(),
+        detach: jest.fn(),
+      };
+      const bundle = makeDeps({
+        options: { staticScene: true, pathTracing: { enabled: true } },
+        controlsOverrides: { update: jest.fn(() => true) },
+        withPathTracing: true,
+        pathTracingOverrides: { isEnabled: jest.fn(() => true) },
+      });
+      const releaseSpy = jest.spyOn(RenderLoopManager.prototype, 'releaseContinuous');
+      const viewer = new ViewerCore({ ...bundle.deps, animationService });
+      await viewer.initialize();
+
+      renderCallback!(16);
+      await tick();
+
+      // Animated geometry can never converge — the accumulation is suspended
+      // (raster shows the motion) instead of resetting against a stale BVH.
+      expect(bundle.pathTracingService!.reset).not.toHaveBeenCalled();
+      expect(bundle.pathTracingService!.setEnabled).toHaveBeenCalledWith(false);
+      expect(releaseSpy).toHaveBeenCalledWith('path-tracing');
+      expect(animationService.update).toHaveBeenCalled();
+    });
+
+    it('pausing animations force-resets path tracing so the new pose re-ingests', async () => {
+      const animationService = {
+        attach: jest.fn(),
+        getClipNames: jest.fn(() => []),
+        play: jest.fn(() => Result.ok(undefined)),
+        pause: jest.fn(),
+        isPlaying: jest.fn(() => false),
+        setSpeed: jest.fn(),
+        update: jest.fn(),
+        detach: jest.fn(),
+      };
+      const bundle = makeDeps({
+        options: { staticScene: true, pathTracing: { enabled: true } },
+        withPathTracing: true,
+        pathTracingOverrides: { isEnabled: jest.fn(() => true) },
+      });
+      const viewer = new ViewerCore({ ...bundle.deps, animationService });
+      await viewer.initialize();
+
+      viewer.pauseAnimations();
+
+      expect(bundle.pathTracingService!.reset).toHaveBeenCalledWith(true);
+    });
+
+    it('wakes a wound-down loop when the controls report a change', async () => {
+      let changeListener: (() => void) | null = null;
+      const bundle = makeDeps({
+        options: { staticScene: true },
+        controlsOverrides: {
+          onChange: jest.fn((listener: () => void) => {
+            changeListener = listener;
+            return () => {
+              changeListener = null;
+            };
+          }),
+        },
+      });
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+      expect(changeListener).not.toBeNull();
+
+      // The loop wound down (converged path tracing, idle static scene):
+      // only the controls' own change event observes the next interaction.
+      jest.spyOn(RenderLoopManager.prototype, 'isRunning').mockReturnValue(false);
+      startSpy.mockClear();
+      const requestSpy = jest.spyOn(RenderLoopManager.prototype, 'requestRender');
+
+      changeListener!();
+
+      expect(startSpy).toHaveBeenCalled();
+      expect(requestSpy).toHaveBeenCalled();
+
+      viewer.dispose();
+      expect(changeListener).toBeNull();
     });
   });
 

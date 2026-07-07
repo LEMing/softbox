@@ -34,6 +34,7 @@ export class PathTracingCoordinator {
   private readonly deps: PathTracingCoordinatorDependencies;
   private startTime?: number;
   private completeHandled = false;
+  private suspendedForAnimation = false;
   private readonly selfPauseListeners = new Set<() => void>();
 
   constructor(deps: PathTracingCoordinatorDependencies) {
@@ -118,13 +119,41 @@ export class PathTracingCoordinator {
 
   /**
    * Drop the accumulation (new model, camera move) so it restarts cleanly.
-   * `force` bypasses the service's rapid-reset throttle — required for model
-   * swaps, which must never be silently dropped.
+   * `force` marks the ingested scene stale (model swap, pose change) so the
+   * next render re-ingests it instead of just re-syncing the camera.
+   *
+   * A paused accumulation (converged frame on screen, or suspended for
+   * animation playback) is re-armed here: without this, the first camera
+   * move after convergence left a stale frame frozen on the canvas with
+   * nothing ever accumulating again. Give-up pauses stay paused —
+   * `canResume()` is false when there is nothing warm to resume.
    */
   resetAccumulation(force = false): void {
-    if (this.deps.service && this.isEnabled()) {
-      this.deps.service.reset(force);
-      this.completeHandled = false;
+    const { service, renderLoopManager } = this.deps;
+    if (!service || !this.isEnabled()) {
+      return;
+    }
+    service.reset(force);
+    this.completeHandled = false;
+    if (!service.isEnabled() && (service.canResume() || this.suspendedForAnimation)) {
+      this.suspendedForAnimation = false;
+      service.setEnabled(true);
+      renderLoopManager.requireContinuous('path-tracing');
+    }
+  }
+
+  /**
+   * Called every frame while animations play: animated geometry can never
+   * converge (the ingested BVH pictures one pose), so accumulation is
+   * suspended — the raster renderer shows the motion — and resumed by the
+   * next resetAccumulation once playback pauses. The tracer stays warm.
+   */
+  suspendWhileAnimating(): void {
+    const service = this.deps.service;
+    if (service?.isEnabled()) {
+      this.suspendedForAnimation = true;
+      service.setEnabled(false);
+      this.deps.renderLoopManager.releaseContinuous('path-tracing');
     }
   }
 

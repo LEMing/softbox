@@ -15,6 +15,7 @@ class MockInner {
   getSampleCount = jest.fn(() => 7);
   isEnabled = jest.fn(() => true);
   isPathTracerDisposed = jest.fn(() => false);
+  canResume = jest.fn(() => true);
   reset = jest.fn();
   dispose = jest.fn();
   isSupported = jest.fn(() => true);
@@ -46,6 +47,7 @@ describe('LazyPathTracingService', () => {
     expect(service.getSampleCount()).toBe(0);
     expect(service.isEnabled()).toBe(false);
     expect(service.isPathTracerDisposed()).toBe(false);
+    expect(service.canResume()).toBe(false);
     expect(service.isSupported()).toBe(true);
     service.reset();
     const rendered = await service.render({} as never, {} as never);
@@ -65,6 +67,7 @@ describe('LazyPathTracingService', () => {
 
     expect(service.getSampleCount()).toBe(7);
     expect(service.isEnabled()).toBe(true);
+    expect(service.canResume()).toBe(true);
     service.reset();
     expect(inner.reset).toHaveBeenCalled();
   });
