@@ -41,21 +41,32 @@ export default tseslint.config(
             group: ['three', 'three/*', 'three-gpu-pathtracer', 'three-mesh-bvh'],
             message: 'Clean architecture: src/core must stay engine-agnostic. Wrap Three.js (and its ecosystem) behind an interface in src/infrastructure.',
           },
+          {
+            group: ['**/types/CommonTypes', '**/types/SimpleViewerHandle', '**/events/ViewerEvents'],
+            message: 'These shared modules carry Three.js types for the public React surface; core must not reach them (see the engine-agnostic shared-module lint blocks).',
+          },
         ],
       }],
     },
   },
   {
-    // The public option types are consumed by engine-agnostic core (via
-    // SimpleViewerOptions), so they must not drag Three.js types into it.
-    files: ['src/types/options/**/*.ts'],
-    ignores: ['src/types/options/**/__tests__/**'],
+    // Everything engine-agnostic core imports transitively — the shared type,
+    // event, error and util modules — must be as three-free as core itself.
+    // The named ignores are the PUBLIC React-surface modules that legitimately
+    // carry Three.js types; core is banned from importing those by name above.
+    files: ['src/types/**/*.ts', 'src/events/**/*.ts', 'src/errors/**/*.ts', 'src/utils/**/*.ts'],
+    ignores: [
+      'src/**/__tests__/**',
+      'src/types/CommonTypes.ts',
+      'src/types/SimpleViewerHandle.ts',
+      'src/events/ViewerEvents.ts',
+    ],
     rules: {
       'no-restricted-imports': ['error', {
         patterns: [
           {
             group: ['three', 'three/*', 'three-gpu-pathtracer', 'three-mesh-bvh'],
-            message: 'Option types feed engine-agnostic core; use primitives or a Vec3Like, not Three.js types.',
+            message: 'This module is in engine-agnostic core\'s transitive import closure; use primitives or a Vec3Like, not Three.js types.',
           },
         ],
       }],

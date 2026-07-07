@@ -33,10 +33,10 @@ export default {
     // the path-pinned files below) — ratcheted 2026-07-02 from the stale
     // 48/32/34/48; re-tighten after major additions.
     global: {
-      statements: 70,
-      branches: 62,
-      functions: 55,
-      lines: 70,
+      statements: 72,
+      branches: 64,
+      functions: 58,
+      lines: 72,
     },
     './src/core/managers/': {
       statements: 95,
@@ -85,6 +85,39 @@ export default {
       branches: 80,
       functions: 85,
       lines: 85,
+    },
+    // 2026-07-07 B-tier pins: the modules the audit flagged as unpinned —
+    // deleting any of their test files must fail CI, not slip through the
+    // global pool.
+    './src/infrastructure/three/ContactShadowBaker.ts': {
+      statements: 95,
+      branches: 80,
+      functions: 85,
+      lines: 95,
+    },
+    './src/infrastructure/three/ThreeAnimationService.ts': {
+      statements: 95,
+      branches: 84,
+      functions: 95,
+      lines: 95,
+    },
+    './src/infrastructure/three/HexTile.ts': {
+      statements: 95,
+      branches: 88,
+      functions: 95,
+      lines: 95,
+    },
+    './src/infrastructure/three/grids/HexagonalGlassGrid.ts': {
+      statements: 95,
+      branches: 70,
+      functions: 80,
+      lines: 95,
+    },
+    './src/presentation/hooks/useViewportGate.ts': {
+      statements: 95,
+      branches: 95,
+      functions: 95,
+      lines: 95,
     },
   },
   extensionsToTreatAsEsm: ['.ts', '.tsx'],
