@@ -1,6 +1,13 @@
 Changelog
 =========
 
+4.3.1
+---
+
+### Performance
+* **Fixed:** the hex-tile floor built a separate mesh, `ExtrudeGeometry`, `MeshPhysicalMaterial` and wrapper `Group` for every tile — at real-world paver scale (a fixed physical tile under a large model, up to the 60-ring cap) that is ~11,000 tiles and ~22,000 scene objects, multiplying into thousands of draw calls and GPU allocations that dominated first paint and slowed every path-tracer scene ingest. The whole floor is now a single merged mesh with one shared material: tiles are translated copies of one canonical geometry, so the merge is plain attribute replication. Visual output is unchanged (same vertices, same material); the floor stays fully visible to the path tracer, which does not expand `InstancedMesh` instances — the reason instancing was not used.
+* `styleOptions.hexRadius: 0` (the dynamic grid's single-tile request for very small objects) is no longer coerced through a falsy fallback to a divisions-derived radius.
+
 4.3.0
 ---
 

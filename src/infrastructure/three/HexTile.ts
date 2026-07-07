@@ -27,18 +27,23 @@ class HexTile {
     this.size = size;
     this.color = color;
     this.materialOptions = materialOptions;
-    // Use centralized configuration
     this.height = HexTileConfig.getHeight(this.size);
     this.bevel = HexTileConfig.getBevelSize(this.size);
   }
 
-  createMesh(): THREE.Object3D {
-    // Create a hexagonal shape
+  /**
+   * Tile geometry with its resting transform baked into the vertices:
+   * laid flat on the floor plane, point-up hex orientation, translated to
+   * the tile's grid position. Baking (instead of positioning a wrapper
+   * object per tile) is what lets a whole floor of tiles merge into one
+   * mesh — at real-world paver scale that is thousands of tiles.
+   */
+  createGeometry(): THREE.BufferGeometry {
     const hexShape = new THREE.Shape();
-    // The actual visible flat face will be smaller due to bevel
-    // We want the final flat face to have edge = 1, so we need to compensate
-    const size = this.size + this.bevel; // Add bevel to get desired final size
-    const angleStep = (Math.PI * 2) / 6; // Six sides
+    // The bevel eats into the flat face; oversize the shape by the bevel so
+    // the finished flat face keeps the configured edge length.
+    const size = this.size + this.bevel;
+    const angleStep = (Math.PI * 2) / 6;
     for (let i = 0; i < 6; i++) {
       const x = size * Math.cos(i * angleStep);
       const y = size * Math.sin(i * angleStep);
@@ -48,23 +53,31 @@ class HexTile {
         hexShape.lineTo(x, y);
       }
     }
-    hexShape.closePath(); // Close the hexagon contour
+    hexShape.closePath();
 
-    // Extrusion parameters to create tile volume
     const extrudeSettings = {
-      depth: this.height, // Tile thickness
-      bevelEnabled: true,   // Enable beveling (chamfer)
-      bevelSize: this.bevel,       // Bevel size
-      bevelThickness: this.bevel, // Bevel thickness
-      bevelSegments: 2,       // A crisp chamfer (like a real paver's arris), not a rounded soap-bar edge
+      depth: this.height,
+      bevelEnabled: true,
+      bevelSize: this.bevel,
+      bevelThickness: this.bevel,
+      bevelSegments: 2, // A crisp chamfer (like a real paver's arris), not a rounded soap-bar edge
     };
 
-    // Create the extrusion
     const geometry = new THREE.ExtrudeGeometry(hexShape, extrudeSettings);
+    // The old per-tile wrapper carried rotation (x: PI/2, z: PI/6); Euler
+    // 'XYZ' applies Z first, so bake in the same order.
+    geometry.rotateZ(Math.PI / 6);
+    geometry.rotateX(Math.PI / 2);
+    geometry.translate(this.position.x, this.position.y, this.position.z);
+    return geometry;
+  }
 
-    // Create the tile material. Defaults reproduce the original glossy "liquid
-    // glass" look; passing styleOptions (e.g. transmission: 0, roughness: 0.9)
-    // turns the same hex tile into a matte finish like concrete.
+  /**
+   * Defaults reproduce the original glossy "liquid glass" look; passing
+   * materialOptions (e.g. transmission: 0, roughness: 0.9) turns the same
+   * hex tile into a matte finish like concrete.
+   */
+  createMaterial(): THREE.MeshPhysicalMaterial {
     const {
       metalness = 0,
       roughness = 0.15,
@@ -74,7 +87,7 @@ class HexTile {
     } = this.materialOptions;
     const isGlassy = transmission > 0;
 
-    const tileMaterial = new THREE.MeshPhysicalMaterial({
+    return new THREE.MeshPhysicalMaterial({
       color: new THREE.Color(this.color),
       metalness,
       roughness,
@@ -87,24 +100,8 @@ class HexTile {
       clearcoatRoughness: 0.05,
       sheen: isGlassy ? 1.0 : 0,
       sheenColor: new THREE.Color(0xffffff),
-      envMapIntensity: 1.0, // Enable environment map reflections
+      envMapIntensity: 1.0,
     });
-
-    // Create the hexagonal tile and its edge lines
-    const hexMesh = new THREE.Mesh(geometry, tileMaterial);
-    // const edgeLines = new THREE.LineSegments(edges, edgeMaterial);
-    hexMesh.receiveShadow = true;
-    // Group to combine the tile and edges
-    const group = new THREE.Group();
-    group.add(hexMesh);
-    // group.add(edgeLines);
-
-    // Positioning the group in space
-    group.position.set(this.position.x, this.position.y, this.position.z);
-    group.rotation.x = Math.PI / 2; // Tile lies on the XY plane
-    group.rotation.z = Math.PI / 6; // Tile is oriented at an angle for the hexagonal view
-
-    return group;
   }
 }
 
