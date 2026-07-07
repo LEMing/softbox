@@ -305,8 +305,10 @@ export class ViewerCore {
         this.stateManager.setLoaded(result.value);
         this.attachAnimations(result.value);
         this.renderLoopManager.requestRender();
-        // A new model restarts the accumulation from scratch.
-        this.pathTracing.resetAccumulation();
+        // A new model restarts the accumulation from scratch. Forced: the
+        // throttle must not drop this reset, or the tracer keeps sampling
+        // the previous model's geometry.
+        this.pathTracing.resetAccumulation(true);
         return Result.ok(undefined);
       } else {
         this.stateManager.setError(result.error);
@@ -458,6 +460,9 @@ export class ViewerCore {
       this.controls.autoRotate = autoRotate;
       if (autoRotate) {
         this.renderLoopManager.requireContinuous('turntable');
+        // A spin-up invalidates any pending path-traced capture's wait — the
+        // accumulation now resets every frame and can never converge.
+        this.capture.notifyTurntableEnabled();
       } else {
         this.renderLoopManager.releaseContinuous('turntable');
       }

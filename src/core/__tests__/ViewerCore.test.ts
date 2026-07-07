@@ -1745,6 +1745,27 @@ describe('ViewerCore.captureStill', () => {
     expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_STATE);
   });
 
+  it('settles with INVALID_STATE when the turntable spins up mid-wait', async () => {
+    const bundle = makeCaptureBundle({
+      options: { pathTracing: { enabled: true } },
+      withPathTracing: true,
+      pathTracingOverrides: { isEnabled: jest.fn(() => true) },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    const capture = viewer.captureStill();
+    await tick();
+
+    // Enabling autoRotate resets the accumulation every frame — the pending
+    // wait can never converge and must reject like the up-front check does.
+    viewer.updateOptions({ controls: { autoRotate: true } });
+
+    const result = await capture;
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_STATE);
+    expect(!result.ok && result.error.message).toMatch(/turntable/);
+  });
+
   it('settles with RENDER_FAILED when the model errors mid-wait', async () => {
     const bundle = makeCaptureBundle({
       options: { pathTracing: { enabled: true } },

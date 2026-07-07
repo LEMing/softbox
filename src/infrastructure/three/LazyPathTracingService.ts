@@ -83,8 +83,8 @@ export class LazyPathTracingService implements IPathTracingService {
     return this.inner?.isPathTracerDisposed() ?? false;
   }
 
-  reset(): void {
-    this.inner?.reset();
+  reset(force?: boolean): void {
+    this.inner?.reset(force);
   }
 
   dispose(): void {

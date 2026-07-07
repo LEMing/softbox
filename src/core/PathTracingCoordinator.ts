@@ -116,10 +116,14 @@ export class PathTracingCoordinator {
     });
   }
 
-  /** Drop the accumulation (new model, camera move) so it restarts cleanly. */
-  resetAccumulation(): void {
+  /**
+   * Drop the accumulation (new model, camera move) so it restarts cleanly.
+   * `force` bypasses the service's rapid-reset throttle — required for model
+   * swaps, which must never be silently dropped.
+   */
+  resetAccumulation(force = false): void {
     if (this.deps.service && this.isEnabled()) {
-      this.deps.service.reset();
+      this.deps.service.reset(force);
       this.completeHandled = false;
     }
   }
