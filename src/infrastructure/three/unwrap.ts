@@ -39,6 +39,13 @@ export function toThreeScene(candidate: unknown): THREE.Scene | null {
   );
 }
 
+export function toThreeTexture(candidate: unknown): THREE.Texture | null {
+  return (
+    callUnwrap<THREE.Texture>(candidate, 'getThreeTexture') ??
+    (candidate instanceof THREE.Texture ? candidate : null)
+  );
+}
+
 export function toThreeRenderer(candidate: unknown): THREE.WebGLRenderer | null {
   return (
     callUnwrap<THREE.WebGLRenderer>(candidate, 'getThreeRenderer') ??

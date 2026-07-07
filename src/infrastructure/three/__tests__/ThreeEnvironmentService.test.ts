@@ -18,7 +18,8 @@ import * as THREE from 'three';
 import { ThreeEnvironmentService } from '../ThreeEnvironmentService';
 import { ThreeSceneAdapter } from '../ThreeScene';
 import { IRenderer } from '../../../core/interfaces/IRenderer';
-import { ITexture } from '../../../core/interfaces/IScene';
+import { IScene, ITexture } from '../../../core/interfaces/IScene';
+import { ErrorCode } from '../../../errors';
 
 const rawTexture = (texture: ITexture): THREE.Texture =>
   (texture as unknown as { getThreeTexture(): THREE.Texture }).getThreeTexture();
@@ -70,6 +71,34 @@ describe('ThreeEnvironmentService', () => {
     expect(result.ok).toBe(true);
     expect(scene.getThreeScene().environment).not.toBeNull();
     expect(scene.getThreeScene().background).not.toBeNull();
+  });
+
+  it('applies to a raw THREE.Scene through the shared unwrap helpers', async () => {
+    const service = await initialized();
+    const loaded = await service.loadEnvironmentMap('env.hdr');
+    if (!loaded.ok) throw loaded.error;
+
+    const scene = new THREE.Scene();
+    const result = service.applyToScene(
+      scene as unknown as IScene,
+      loaded.value,
+      { setBackground: false }
+    );
+
+    expect(result.ok).toBe(true);
+    expect(scene.environment).not.toBeNull();
+  });
+
+  it('rejects a scene that is neither an adapter nor a THREE.Scene', async () => {
+    const service = await initialized();
+    const loaded = await service.loadEnvironmentMap('env.hdr');
+    if (!loaded.ok) throw loaded.error;
+
+    const result = service.applyToScene({} as unknown as IScene, loaded.value);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe(ErrorCode.INVALID_PARAMETER);
+    }
   });
 
   it('lights the scene without a background when setBackground is false', async () => {
