@@ -150,6 +150,82 @@ test('hotspot projects the origin anchor onto the model base', async ({ page }) 
   expect(errors).toEqual([]);
 });
 
+/** Average luminance of a small square patch centered at (x, y). */
+const patchLuminance = (png: PNG, x: number, y: number, halfSize = 3): number => {
+  let sum = 0;
+  let count = 0;
+  for (let dy = -halfSize; dy <= halfSize; dy++) {
+    for (let dx = -halfSize; dx <= halfSize; dx++) {
+      const px = Math.min(Math.max(x + dx, 0), png.width - 1);
+      const py = Math.min(Math.max(y + dy, 0), png.height - 1);
+      sum += luminance(pixelAt(png, px, py));
+      count += 1;
+    }
+  }
+  return sum / count;
+};
+
+/** Largest channel spread in the patch — near 0 for the grey floor, high on the orange model. */
+const patchChroma = (png: PNG, x: number, y: number, halfSize = 3): number => {
+  let maxSpread = 0;
+  for (let dy = -halfSize; dy <= halfSize; dy++) {
+    for (let dx = -halfSize; dx <= halfSize; dx++) {
+      const px = Math.min(Math.max(x + dx, 0), png.width - 1);
+      const py = Math.min(Math.max(y + dy, 0), png.height - 1);
+      const { r, g, b } = pixelAt(png, px, py);
+      maxSpread = Math.max(maxSpread, Math.max(r, g, b) - Math.min(r, g, b));
+    }
+  }
+  return maxSpread;
+};
+
+test('the baked contact shadow grounds the model: floor under the base is darker than open floor', async ({ page }) => {
+  const errors = await openScene(page, '?hotspot=1');
+
+  // The hotspot marks the screen position of the world origin — the model's
+  // base after floor alignment, i.e. the center of the contact shadow.
+  const canvasBox = await page.locator('canvas').boundingBox();
+  const hotspotBox = await page.getByTestId('viewer-hotspot').boundingBox();
+  expect(canvasBox).not.toBeNull();
+  expect(hotspotBox).not.toBeNull();
+
+  const png = await screenshotCanvas(page);
+  // boundingBox is CSS pixels; the canvas screenshot is device pixels.
+  const scale = png.width / canvasBox!.width;
+  const baseX = Math.round((hotspotBox!.x + hotspotBox!.width / 2 - canvasBox!.x) * scale);
+  const baseY = Math.round((hotspotBox!.y + hotspotBox!.height / 2 - canvasBox!.y) * scale);
+
+  // Just below the base: inside the shadow pool, past the model's silhouette.
+  // Keep the 9% offset: the hotspot pin (and its CSS box-shadow) paints into
+  // the element screenshot and its tail ends ~10px above this patch —
+  // shrinking the offset would sample the pin's own shadow and turn the
+  // test into a false pass on a broken bake.
+  const shadowY = Math.min(baseY + Math.round(png.height * 0.09), png.height - 4);
+  const shadowLum = patchLuminance(png, baseX, shadowY);
+  // Same height, off to the sides. Only ONE side is truly open floor: the
+  // key light stretches a directional tail toward the other, which is why
+  // the brighter of the two (max) is the open-floor reference.
+  const sideOffset = Math.round(png.width * 0.28);
+  const openLum = Math.max(
+    patchLuminance(png, baseX - sideOffset, shadowY),
+    patchLuminance(png, baseX + sideOffset, shadowY)
+  );
+
+  // Guard the probes: both patches must be the grey floor (or background),
+  // never the saturated orange model.
+  expect(patchChroma(png, baseX, shadowY)).toBeLessThan(60);
+
+  // A missing/transparent baked disc leaves the pool as bright as the open
+  // floor; an all-black regression (double-darkening, broken accumulation)
+  // crushes it to 0. The real shadow is clearly darker than the open floor
+  // yet keeps its ambient bounce.
+  expect(shadowLum).toBeLessThan(openLum - 0.06);
+  expect(shadowLum).toBeGreaterThan(0.02);
+  expect(openLum).toBeGreaterThan(0.3);
+
+  expect(errors).toEqual([]);
+});
+
 /** Fraction of pixels that clearly changed between two frames. */
 const changedFraction = (before: PNG, after: PNG): number => {
   let differing = 0;
