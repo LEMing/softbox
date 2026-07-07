@@ -13,7 +13,7 @@ import {
 import { TypedEventEmitter } from '../events/EventEmitter';
 import { ViewerEventMap } from './events/CoreViewerEvents';
 import { ThreeViewerError, ErrorCode } from '../errors';
-import { UNITS_TO_METERS } from './constants';
+import { resolveUnitsScaleToMeters } from './utils/units';
 import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
 import { CaptureStillOptions } from '../types/CaptureStillOptions';
 import { CaptureVideoOptions } from '../types/CaptureVideoOptions';
@@ -116,6 +116,8 @@ export class ViewerCore {
       }
     });
 
+    const unitsScaleToMeters = resolveUnitsScaleToMeters(this.options.units);
+
     this.modelManager = new ModelManager({
       modelLoader: dependencies.modelLoader,
       scene: this.scene,
@@ -125,7 +127,7 @@ export class ViewerCore {
       sceneSetupService: this.sceneSetupService,
       renderer: this.renderer,
       autoFitToObject: this.options.camera?.autoFitToObject,
-      unitsScaleToMeters: UNITS_TO_METERS[this.options.units ?? 'meters']
+      unitsScaleToMeters
     });
 
     this.resourceManager = new ResourceManager({

@@ -385,6 +385,32 @@ describe('ViewerCore', () => {
       });
       expect(() => new ViewerCore(deps)).not.toThrow();
     });
+
+    it('accepts every valid units value', () => {
+      for (const units of ['meters', 'centimeters', 'millimeters', 'feet', 'inches'] as const) {
+        const { deps } = makeDeps({ options: { units } });
+        expect(() => new ViewerCore(deps)).not.toThrow();
+      }
+    });
+
+    it('throws INVALID_PARAMETER on an unknown units string instead of silently rendering at meter scale', () => {
+      const { deps } = makeDeps({
+        options: { units: 'furlongs' as unknown as SimpleViewerOptions['units'] },
+      });
+      expect(() => new ViewerCore(deps)).toThrow(
+        expect.objectContaining({ code: ErrorCode.INVALID_PARAMETER })
+      );
+      expect(() => new ViewerCore(deps)).toThrow(/furlongs.*meters, centimeters, millimeters, feet, inches/s);
+    });
+
+    it('rejects prototype-chain names as units values', () => {
+      const { deps } = makeDeps({
+        options: { units: 'toString' as unknown as SimpleViewerOptions['units'] },
+      });
+      expect(() => new ViewerCore(deps)).toThrow(
+        expect.objectContaining({ code: ErrorCode.INVALID_PARAMETER })
+      );
+    });
   });
 
   describe('initialize', () => {

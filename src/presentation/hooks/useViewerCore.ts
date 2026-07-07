@@ -29,8 +29,17 @@ export function useViewerCore(
     // Defaults + preset (deep-merged) + explicit options on top.
     const mergedOptions = mergeWithPreset(defaultOptions, stableOptions);
 
-    // Create viewer with factory
-    const viewer = ViewerFactory.createViewer(canvasRef.current, mergedOptions);
+    // Create viewer with factory. A synchronous construction failure (e.g.
+    // invalid options from an untyped consumer) must not escape the effect:
+    // it would bypass the library's own error boundary (a child of this
+    // component) and unmount the host application's tree.
+    let viewer: ReturnType<typeof ViewerFactory.createViewer>;
+    try {
+      viewer = ViewerFactory.createViewer(canvasRef.current, mergedOptions);
+    } catch (error) {
+      console.error('Failed to create viewer:', error);
+      return;
+    }
     viewerRef.current = viewer;
 
     // Guards against the StrictMode mount->cleanup->mount cycle (and option

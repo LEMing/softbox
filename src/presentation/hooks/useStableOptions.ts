@@ -62,6 +62,10 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
         replaceWithScreenshotOnComplete: options.replaceWithScreenshotOnComplete,
         // The loader is constructed with these — changing them needs a rebuild.
         loaders: options.loaders,
+        // The units conversion wraps the model at load time — changing it
+        // needs a rebuild to re-wrap. Normalized so absent and explicit
+        // 'meters' (the default) share a key.
+        units: options.units ?? 'meters',
         // Normalized so absent / {} / { bvh: true } (all "BVH on") share a key
         // and only a real opt-out change rebuilds the viewer.
         selectionBvh: options.selection?.bvh !== false,
@@ -78,6 +82,7 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
       options.rendering,
       options.replaceWithScreenshotOnComplete,
       options.loaders,
+      options.units,
       options.selection,
     ]
   );

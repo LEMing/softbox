@@ -72,3 +72,24 @@ describe('ViewerFactory selection.bvh threading', () => {
     expect(loaderSpy).toHaveBeenCalledWith(expect.objectContaining({ bvh: undefined }));
   });
 });
+
+describe('ViewerFactory units validation', () => {
+  it('rejects an unknown units string before allocating any resource', () => {
+    const rendererConstructed = jest.spyOn(ThreeRendererAdapter.prototype, 'initialize');
+    const canvas = document.createElement('canvas');
+    const addListener = jest.spyOn(canvas, 'addEventListener');
+
+    expect(() =>
+      ViewerFactory.createViewer(canvas, {
+        units: 'furlongs' as unknown as SimpleViewerOptions['units'],
+      })
+    ).toThrow(/furlongs/);
+
+    // Failing after allocation would leak controls listeners and the adapter
+    // graph — nothing may touch the canvas before validation passes.
+    expect(addListener).not.toHaveBeenCalled();
+    expect(rendererConstructed).not.toHaveBeenCalled();
+    rendererConstructed.mockRestore();
+    addListener.mockRestore();
+  });
+});
