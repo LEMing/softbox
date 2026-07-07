@@ -64,6 +64,12 @@ export interface SimpleViewerOptions {
    * error state either way; use this to render your own affordance or report.
    */
   onError?: (error: Error) => void;
+  /**
+   * @deprecated Never functional since the 3.x architecture rewrite — the
+   * render loop is fully managed (turntable/animations/path tracing drive it).
+   * Ignored; will be removed in 5.0.
+   */
+  animationLoop?: ((time: number) => void) | null;
 
   // Special features
   replaceWithScreenshotOnComplete?: boolean;

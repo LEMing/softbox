@@ -8,7 +8,7 @@ Changelog
 * **Fixed:** a viewer construction or initialization failure (most commonly: WebGL unavailable) left the built-in overlay spinning forever with the error visible only in the console. The overlay now switches to its error state with the failure message, and `useViewerCore` exposes the failure as `initError`.
 * `options.onLoad`, `options.onProgress` and `options.onError` were typed and documented but never invoked — dead options since they were introduced. They are now wired: `onLoad` fires on every `model:loaded`, `onError` fires on model load errors **and** on construction/initialization failures, and `onProgress` reports URL-download progress as a 0–1 fraction (only when the server sends a total size). Callbacks are read live through a ref — changing them never rebuilds the viewer and never calls a stale closure.
 * New `model:progress` event (`{ url, loaded, total }` in bytes) on both the core and the public event bus, threaded from the GLTF loader through a new optional `onProgress` parameter on the `IModelLoader` port.
-* **Removed:** `options.animationLoop` — it was never read by anything since the 3.x architecture rewrite. If you passed it, delete the line; the render loop is fully managed (turntable/animations/path tracing drive it automatically).
+* **Deprecated:** `options.animationLoop` — it was never read by anything since the 3.x architecture rewrite and remains ignored. The type stays through 4.x so existing code keeps compiling; it will be removed in 5.0. The render loop is fully managed (turntable/animations/path tracing drive it automatically).
 
 4.1.3
 ---

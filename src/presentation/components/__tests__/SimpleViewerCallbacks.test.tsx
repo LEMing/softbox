@@ -88,6 +88,44 @@ describe('SimpleViewer option callbacks', () => {
     expect(freshOnLoad).toHaveBeenCalledTimes(1);
   });
 
+  it('clamps onProgress to 1 when decompressed bytes overrun the compressed Content-Length', async () => {
+    const coreBus = new TypedEventEmitter<ViewerEventMap>();
+    mockedUseViewerCore.mockReturnValue({
+      viewer: makeViewer(coreBus),
+      isInitialized: true,
+      initError: null,
+    });
+
+    const onProgress = jest.fn();
+    render(<SimpleViewer object={null} options={{ onProgress }} />);
+    await waitFor(() => expect(mockedUseViewerCore).toHaveBeenCalled());
+
+    act(() => {
+      coreBus.emit('model:progress', { url: 'x.glb', loaded: 320, total: 100 });
+    });
+
+    expect(onProgress).toHaveBeenCalledWith(1);
+  });
+
+  it('reports an init failure to an onError attached on a LATER render', async () => {
+    const initError = new ThreeViewerError('boom', ErrorCode.INITIALIZATION_FAILED);
+    mockedUseViewerCore.mockReturnValue({
+      viewer: null,
+      isInitialized: false,
+      initError,
+    });
+
+    const { rerender } = render(<SimpleViewer object={null} options={{}} />);
+
+    const onError = jest.fn();
+    rerender(<SimpleViewer object={null} options={{ onError }} />);
+
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(initError));
+    // Once per failure, not once per render.
+    rerender(<SimpleViewer object={null} options={{ onError }} />);
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+
   it('surfaces an init failure through onError and the overlay error state', async () => {
     const initError = new ThreeViewerError(
       'WebGL context could not be created',

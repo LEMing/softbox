@@ -22,8 +22,11 @@ export function useOptionCallbacks(
   const handlers = useMemo(
     () => ({
       'model:loaded': () => callbacksRef.current.onLoad?.(),
+      // Clamped: three's FileLoader counts DECOMPRESSED bytes against a
+      // Content-Length that is the compressed size, so loaded/total can
+      // exceed 1 on gzip/brotli transfers.
       'model:progress': (data: ViewerEventMap['model:progress']) =>
-        callbacksRef.current.onProgress?.(data.loaded / data.total),
+        callbacksRef.current.onProgress?.(Math.min(1, data.loaded / data.total)),
       'model:error': (data: ViewerEventMap['model:error']) =>
         callbacksRef.current.onError?.(data.error),
     }),
@@ -32,10 +35,19 @@ export function useOptionCallbacks(
   useViewerEventHandlers(viewer, handlers);
 
   // Construction/initialization failures never reach the event bus — the
-  // emitter may not exist yet when they happen — so surface them here.
+  // emitter may not exist yet when they happen — so surface them here. Runs
+  // after every render (guarded to fire once per failure) so a callback
+  // attached on a LATER render than the failure still hears about it.
+  const reportedInitErrorRef = useRef<Error | null>(null);
   useEffect(() => {
-    if (initError) {
-      callbacksRef.current.onError?.(initError);
+    if (!initError) {
+      reportedInitErrorRef.current = null;
+      return;
     }
-  }, [initError]);
+    const onError = callbacksRef.current.onError;
+    if (onError && reportedInitErrorRef.current !== initError) {
+      reportedInitErrorRef.current = initError;
+      onError(initError);
+    }
+  });
 }
