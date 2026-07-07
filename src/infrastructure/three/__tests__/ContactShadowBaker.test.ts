@@ -8,7 +8,7 @@ import {
 const createMockRenderer = (isContextLost: () => boolean = () => false) => {
   const renderer = {
     shadowMap: { enabled: true, autoUpdate: true },
-    capabilities: { isWebGL2: true },
+    capabilities: { isWebGL2: true, textureTypeReadable: jest.fn(() => true) },
     autoClear: true,
     getRenderTarget: jest.fn(() => null),
     setRenderTarget: jest.fn(),
@@ -227,9 +227,11 @@ describe('ContactShadowBaker', () => {
       light,
     });
 
-    // 1 probe + 24 budgeted passes.
-    expect(renderer.render).toHaveBeenCalledTimes(25);
-    expect(renderer.readRenderTargetPixels).toHaveBeenCalledTimes(1);
+    // 1 untimed warm-up + 1 timed probe + 24 budgeted passes.
+    expect(renderer.render).toHaveBeenCalledTimes(26);
+    // One sync fence after the warm-up (drains one-time upload/link costs
+    // out of the timed window) and one after the probe.
+    expect(renderer.readRenderTargetPixels).toHaveBeenCalledTimes(2);
     expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeDefined();
   });
 
@@ -248,16 +250,14 @@ describe('ContactShadowBaker', () => {
       light,
     });
 
-    // 1 probe + the 96-pass ceiling.
-    expect(renderer.render).toHaveBeenCalledTimes(97);
+    // Warm-up + probe + the 96-pass ceiling.
+    expect(renderer.render).toHaveBeenCalledTimes(98);
   });
 
   it('stays at full quality when the sync readback is unsupported', () => {
     const { scene, light, model } = createBakeFixture();
     const renderer = createMockRenderer();
-    renderer.readRenderTargetPixels.mockImplementation(() => {
-      throw new Error('readPixels: unsupported format');
-    });
+    renderer.capabilities.textureTypeReadable.mockReturnValue(false);
     jest
       .spyOn(performance, 'now')
       .mockReturnValueOnce(0)
@@ -270,43 +270,70 @@ describe('ContactShadowBaker', () => {
       light,
     });
 
-    expect(renderer.render).toHaveBeenCalledTimes(97);
+    // No readback attempted (it would console-error, not throw), timing
+    // degrades to submission cost → the full-quality ceiling.
+    expect(renderer.readRenderTargetPixels).not.toHaveBeenCalled();
+    expect(renderer.render).toHaveBeenCalledTimes(98);
     expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeDefined();
   });
 
-  it('leaves the live catcher in charge when the context is already lost', () => {
+  it('evicts the stale baked disc when the context is already lost', () => {
     const { scene, light, model, liveCatcher } = createBakeFixture();
-    const renderer = createMockRenderer(() => true);
-
-    new ContactShadowBaker({ passes: 4 }).bake({
+    // First bake succeeds; the second finds the context gone at entry.
+    const isContextLost = jest
+      .fn<boolean, []>()
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(false)
+      .mockReturnValue(true);
+    const renderer = createMockRenderer(isContextLost);
+    const baker = new ContactShadowBaker({ passes: 4 });
+    const context = {
       renderer: renderer as unknown as THREE.WebGLRenderer,
       scene,
       object: model,
       light,
-    });
+    };
 
-    expect(renderer.render).not.toHaveBeenCalled();
+    baker.bake(context);
+    expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeDefined();
+    expect(liveCatcher.visible).toBe(false);
+
+    baker.bake(context);
+
+    // The stale disc would come back as an opaque black blob once the
+    // context is restored — the abort must hand back to the live catcher.
+    expect(renderer.render).toHaveBeenCalledTimes(4);
     expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeUndefined();
     expect(liveCatcher.visible).toBe(true);
   });
 
-  it('aborts the install when the context is lost mid-bake', () => {
+  it('aborts the install and revives the live catcher when the context is lost mid-bake', () => {
     const { scene, light, model, liveCatcher } = createBakeFixture();
+    // First bake succeeds (entry + post checks), the second loses the
+    // context between its entry check and the post-accumulation check.
     const isContextLost = jest
       .fn<boolean, []>()
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(false)
       .mockReturnValueOnce(false)
       .mockReturnValue(true);
     const renderer = createMockRenderer(isContextLost);
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-
-    new ContactShadowBaker({ passes: 4 }).bake({
+    const baker = new ContactShadowBaker({ passes: 4 });
+    const context = {
       renderer: renderer as unknown as THREE.WebGLRenderer,
       scene,
       object: model,
       light,
-    });
+    };
 
-    // A partial accumulation must never replace the working live shadow.
+    baker.bake(context);
+    expect(liveCatcher.visible).toBe(false);
+
+    baker.bake(context);
+
+    // A partial accumulation must never replace the working live shadow,
+    // and the previous (stale-pose) disc must not linger either.
     expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeUndefined();
     expect(liveCatcher.visible).toBe(true);
     expect(warn).toHaveBeenCalledWith(expect.stringMatching(/context was lost/));

@@ -100,6 +100,7 @@ export class ContactShadowBaker {
     // would come back empty and replace the (working) live catcher with an
     // invisible disc. Leave the live catcher in charge instead.
     if (renderer.getContext().isContextLost()) {
+      this.leaveLiveCatcherInCharge(scene);
       return;
     }
 
@@ -139,10 +140,33 @@ export class ContactShadowBaker {
     if (renderer.getContext().isContextLost()) {
       renderTarget.dispose();
       shadowDiscGeometry.dispose();
+      this.leaveLiveCatcherInCharge(scene);
       console.warn('Contact-shadow bake aborted: WebGL context was lost mid-bake');
       return;
     }
     this.installBakedMesh(scene, region, renderTarget, shadowDiscGeometry);
+  }
+
+  /**
+   * The graceful-abort state: any previously baked disc is stale (wrong
+   * model or wrong pose, and its render target goes blank-black once a lost
+   * context is restored), so evict it and put the real-time catcher back in
+   * charge rather than leaving the floor shadowless or double-shadowed.
+   */
+  private leaveLiveCatcherInCharge(scene: THREE.Scene): void {
+    this.evictBakedMesh(scene);
+    const liveCatcher = scene.getObjectByName(CONTACT_SHADOW_LIVE_NAME);
+    if (liveCatcher) {
+      liveCatcher.visible = true;
+    }
+  }
+
+  private evictBakedMesh(scene: THREE.Scene): void {
+    const existing = scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME);
+    if (existing) {
+      scene.remove(existing);
+      disposeObject3D(existing);
+    }
   }
 
   private measureBakeRegion(object: THREE.Object3D): BakeRegion | null {
@@ -244,10 +268,18 @@ export class ContactShadowBaker {
    * How many passes fit the time budget on THIS device with THIS model:
    * times one probe pass (the same shadow-map render + accumulation draw the
    * real passes do, made inert by the material's zero opacity) and divides
-   * the budget by it. render() only measures command submission, so a 1×1
-   * readback forces the GPU to actually finish the pass first; if the
-   * readback is unsupported the timing degrades to submission cost and the
-   * bake simply stays at full quality — the status quo, never worse.
+   * the budget by it.
+   *
+   * The first render after a model load also pays one-time costs the real
+   * passes never see again — vertex buffer uploads, shadow program links —
+   * so an untimed warm-up pass runs first; timing it instead would punish
+   * big models on fast GPUs with a low pass count for the wrong reason.
+   *
+   * render() only measures command submission, so a 1×1 readback forces the
+   * GPU to actually finish each stage. Where the target's texel type is not
+   * readable the readback is skipped and the timing degrades to submission
+   * cost — the bake simply stays at full quality, the status quo, never
+   * worse.
    */
   private measureAffordablePasses(
     renderer: THREE.WebGLRenderer,
@@ -258,16 +290,13 @@ export class ContactShadowBaker {
     renderTarget: THREE.WebGLRenderTarget
   ): number {
     bakeLight.position.copy(light.position);
-    const readbackPixel =
-      renderTarget.texture.type === THREE.HalfFloatType ? new Uint16Array(4) : new Uint8Array(4);
+
+    renderer.render(bakeScene, camera);
+    this.awaitGpuIdle(renderer, renderTarget);
 
     const start = performance.now();
     renderer.render(bakeScene, camera);
-    try {
-      renderer.readRenderTargetPixels(renderTarget, 0, 0, 1, 1, readbackPixel);
-    } catch {
-      // Sync fence only — see the method comment.
-    }
+    this.awaitGpuIdle(renderer, renderTarget);
     const perPassMs = Math.max(performance.now() - start, 0.01);
 
     return THREE.MathUtils.clamp(
@@ -275,6 +304,18 @@ export class ContactShadowBaker {
       ContactShadowBaker.MIN_PASSES,
       ContactShadowBaker.MAX_PASSES
     );
+  }
+
+  /** A 1×1 readback is the only reliable GPU sync fence WebGL offers. */
+  private awaitGpuIdle(renderer: THREE.WebGLRenderer, renderTarget: THREE.WebGLRenderTarget): void {
+    // readRenderTargetPixels does not throw on an unreadable type — it logs
+    // a console error and returns without syncing — so ask first.
+    if (!renderer.capabilities.textureTypeReadable(renderTarget.texture.type)) {
+      return;
+    }
+    const readbackPixel =
+      renderTarget.texture.type === THREE.HalfFloatType ? new Uint16Array(4) : new Uint8Array(4);
+    renderer.readRenderTargetPixels(renderTarget, 0, 0, 1, 1, readbackPixel);
   }
 
   /**
@@ -401,11 +442,7 @@ export class ContactShadowBaker {
     renderTarget: THREE.WebGLRenderTarget,
     shadowDiscGeometry: THREE.CircleGeometry
   ): void {
-    const existing = scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME);
-    if (existing) {
-      scene.remove(existing);
-      disposeObject3D(existing);
-    }
+    this.evictBakedMesh(scene);
 
     const material = new THREE.MeshBasicMaterial({
       map: renderTarget.texture,
