@@ -1,6 +1,12 @@
 Changelog
 =========
 
+4.1.1
+---
+
+### Bug fix
+* **Fixed:** any `units` other than `'meters'` silently disabled GLTF animation playback — the units scale wrapper became the model root but did not carry the model's `animations`, so the animation service found no clips. The wrapper now inherits the clips; `getClipNames()`, autoplay and `playAnimations()` work for unit-converted models exactly as for meter-authored ones.
+
 4.1.0
 ---
 

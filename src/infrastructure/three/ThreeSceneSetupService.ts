@@ -567,6 +567,10 @@ export class ThreeSceneSetupService implements ISceneSetupService {
       wrapper.name = UNITS_SCALE_WRAPPER_NAME;
       wrapper.scale.setScalar(scaleToMeters);
       wrapper.add(threeObject);
+      // The wrapper becomes the model root everywhere downstream, and the
+      // animation service discovers clips on the root's `animations` — carry
+      // them over or wrapping silently kills GLTF animation playback.
+      wrapper.animations = threeObject.animations;
       return Result.ok(new ThreeObject3DAdapter(wrapper));
     } catch (error) {
       return Result.err(
