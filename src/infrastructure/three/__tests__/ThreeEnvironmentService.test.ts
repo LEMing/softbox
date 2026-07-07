@@ -19,6 +19,7 @@ import { ThreeEnvironmentService } from '../ThreeEnvironmentService';
 import { ThreeSceneAdapter } from '../ThreeScene';
 import { IRenderer } from '../../../core/interfaces/IRenderer';
 import { IScene, ITexture } from '../../../core/interfaces/IScene';
+import { ErrorCode } from '../../../errors';
 
 const rawTexture = (texture: ITexture): THREE.Texture =>
   (texture as unknown as { getThreeTexture(): THREE.Texture }).getThreeTexture();
@@ -95,6 +96,9 @@ describe('ThreeEnvironmentService', () => {
 
     const result = service.applyToScene({} as unknown as IScene, loaded.value);
     expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe(ErrorCode.INVALID_PARAMETER);
+    }
   });
 
   it('lights the scene without a background when setBackground is false', async () => {
