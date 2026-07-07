@@ -15,7 +15,6 @@ import { IControls } from '../../core/interfaces/IControls';
 import { IRenderer } from '../../core/interfaces/IRenderer';
 import { Result } from '../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../errors';
-import { ThreeSceneAdapter } from './ThreeScene';
 import { ThreeObject3DAdapter } from './ThreeObject3D';
 import {
   toThreeCamera,
@@ -61,7 +60,8 @@ export class ThreeSceneSetupService implements ISceneSetupService {
 
   addHelpers(scene: IScene, options: IHelperOptions): Result<void> {
     try {
-      if (!(scene instanceof ThreeSceneAdapter)) {
+      const threeScene = toThreeScene(scene);
+      if (!threeScene) {
         return Result.err(
           new ThreeViewerError(
             'Scene must be ThreeSceneAdapter',
@@ -69,8 +69,6 @@ export class ThreeSceneSetupService implements ISceneSetupService {
           )
         );
       }
-
-      const threeScene = scene.getThreeScene();
 
       // Store grid options and optionally create default grid
       if (options.grid) {
@@ -136,7 +134,8 @@ export class ThreeSceneSetupService implements ISceneSetupService {
 
   addDynamicGrid(scene: IScene, object: IObject3D, scaleFactor: number = 1.2): Result<void> {
     try {
-      if (!(scene instanceof ThreeSceneAdapter)) {
+      const threeScene = toThreeScene(scene);
+      if (!threeScene) {
         return Result.err(
           new ThreeViewerError(
             'Scene must be ThreeSceneAdapter',
@@ -145,7 +144,6 @@ export class ThreeSceneSetupService implements ISceneSetupService {
         );
       }
 
-      const threeScene = scene.getThreeScene();
       const userData = threeScene.userData as SceneUserData;
       const gridOptions = userData?.gridOptions;
 
@@ -166,13 +164,14 @@ export class ThreeSceneSetupService implements ISceneSetupService {
       });
 
       // Calculate bounding box of the object
-      let threeObject: THREE.Object3D;
-      if (object instanceof ThreeObject3DAdapter) {
-        threeObject = object.getThreeObject();
-      } else if ('getThreeObject' in object && typeof object.getThreeObject === 'function') {
-        threeObject = object.getThreeObject();
-      } else {
-        threeObject = object as unknown as THREE.Object3D;
+      const threeObject = toThreeObject(object);
+      if (!threeObject) {
+        return Result.err(
+          new ThreeViewerError(
+            'Object must expose a Three.js Object3D',
+            ErrorCode.INVALID_PARAMETER
+          )
+        );
       }
       const box = new THREE.Box3().setFromObject(threeObject);
       const size = box.getSize(new THREE.Vector3());
@@ -286,7 +285,8 @@ export class ThreeSceneSetupService implements ISceneSetupService {
 
   snapObjectToFloor(scene: IScene, object: IObject3D): Result<void> {
     try {
-      if (!(scene instanceof ThreeSceneAdapter)) {
+      const threeScene = toThreeScene(scene);
+      if (!threeScene) {
         return Result.err(
           new ThreeViewerError(
             'Scene must be ThreeSceneAdapter',
@@ -295,13 +295,14 @@ export class ThreeSceneSetupService implements ISceneSetupService {
         );
       }
 
-      let threeObject: THREE.Object3D;
-      if (object instanceof ThreeObject3DAdapter) {
-        threeObject = object.getThreeObject();
-      } else if ('getThreeObject' in object && typeof object.getThreeObject === 'function') {
-        threeObject = object.getThreeObject();
-      } else {
-        threeObject = object as unknown as THREE.Object3D;
+      const threeObject = toThreeObject(object);
+      if (!threeObject) {
+        return Result.err(
+          new ThreeViewerError(
+            'Object must expose a Three.js Object3D',
+            ErrorCode.INVALID_PARAMETER
+          )
+        );
       }
 
       const isGridTagged = (obj: THREE.Object3D): boolean => {
@@ -315,7 +316,6 @@ export class ThreeSceneSetupService implements ISceneSetupService {
         return false;
       };
 
-      const threeScene = scene.getThreeScene();
       // The grid isn't the object being aligned, so nothing else guarantees
       // its matrixWorld is current — a stale (e.g. identity) transform would
       // silently throw the raycast hits off by whatever offset it's missing.
@@ -421,7 +421,8 @@ export class ThreeSceneSetupService implements ISceneSetupService {
 
   fitShadowCameraToObject(scene: IScene, object: IObject3D): Result<void> {
     try {
-      if (!(scene instanceof ThreeSceneAdapter)) {
+      const threeScene = toThreeScene(scene);
+      if (!threeScene) {
         return Result.err(
           new ThreeViewerError(
             'Scene must be ThreeSceneAdapter',
@@ -430,13 +431,14 @@ export class ThreeSceneSetupService implements ISceneSetupService {
         );
       }
 
-      let threeObject: THREE.Object3D;
-      if (object instanceof ThreeObject3DAdapter) {
-        threeObject = object.getThreeObject();
-      } else if ('getThreeObject' in object && typeof object.getThreeObject === 'function') {
-        threeObject = object.getThreeObject();
-      } else {
-        threeObject = object as unknown as THREE.Object3D;
+      const threeObject = toThreeObject(object);
+      if (!threeObject) {
+        return Result.err(
+          new ThreeViewerError(
+            'Object must expose a Three.js Object3D',
+            ErrorCode.INVALID_PARAMETER
+          )
+        );
       }
 
       const box = new THREE.Box3().setFromObject(threeObject);
@@ -446,7 +448,6 @@ export class ThreeSceneSetupService implements ISceneSetupService {
       const size = box.getSize(new THREE.Vector3());
       const center = box.getCenter(new THREE.Vector3());
 
-      const threeScene = scene.getThreeScene();
       const directionalLight = findDirectionalLight(threeScene);
       if (!directionalLight || !directionalLight.castShadow) {
         return Result.ok(undefined);
@@ -619,7 +620,8 @@ export class ThreeSceneSetupService implements ISceneSetupService {
 
   addLighting(scene: IScene, options: ILightingOptions): Result<void> {
     try {
-      if (!(scene instanceof ThreeSceneAdapter)) {
+      const threeScene = toThreeScene(scene);
+      if (!threeScene) {
         return Result.err(
           new ThreeViewerError(
             'Scene must be ThreeSceneAdapter',
@@ -628,7 +630,6 @@ export class ThreeSceneSetupService implements ISceneSetupService {
         );
       }
 
-      const threeScene = scene.getThreeScene();
 
       // Add ambient light
       if (options.ambient) {
@@ -726,7 +727,8 @@ export class ThreeSceneSetupService implements ISceneSetupService {
 
   createGradientBackground(scene: IScene, options: IGradientOptions): Result<void> {
     try {
-      if (!(scene instanceof ThreeSceneAdapter)) {
+      const threeScene = toThreeScene(scene);
+      if (!threeScene) {
         return Result.err(
           new ThreeViewerError(
             'Scene must be ThreeSceneAdapter',
@@ -735,7 +737,6 @@ export class ThreeSceneSetupService implements ISceneSetupService {
         );
       }
 
-      const threeScene = scene.getThreeScene();
 
       // Create gradient shader
       const canvas = document.createElement('canvas');
