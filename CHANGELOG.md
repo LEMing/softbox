@@ -1,6 +1,13 @@
 Changelog
 =========
 
+4.1.2
+---
+
+### Bug fixes
+* **Fixed:** changing `units` on a mounted viewer was silently ignored — the option was in neither the structural nor the runtime key of the option-change detection, so nothing happened until some unrelated structural change rebuilt the viewer with the "new" units long after the fact. `units` is now a structural option: changing it rebuilds the viewer and re-wraps the model, like the other load-time options.
+* **Fixed:** an unknown `units` string from an untyped (JS) consumer silently fell back to meter scale — the exact wrong-scale failure the option exists to prevent. The viewer now fails construction loudly with `INVALID_PARAMETER`, naming the invalid value and the valid ones.
+
 4.1.1
 ---
 

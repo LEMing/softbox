@@ -145,6 +145,21 @@ describe('useViewerCore', () => {
     await waitFor(() => expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(2));
   });
 
+  it('rebuilds the viewer when units change (the model is re-wrapped at load)', async () => {
+    const canvasRef = makeCanvasRef();
+
+    const { result, rerender } = renderHook(
+      ({ options }: { options: SimpleViewerOptions }) => useViewerCore(canvasRef, options),
+      { initialProps: { options: testDefaultOptions } }
+    );
+
+    await waitFor(() => expect(result.current.isInitialized).toBe(true));
+
+    rerender({ options: { ...testDefaultOptions, units: 'inches' } });
+
+    await waitFor(() => expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(2));
+  });
+
   it('rebuilds the viewer on a structural change (camera.fov)', async () => {
     const canvasRef = makeCanvasRef();
 

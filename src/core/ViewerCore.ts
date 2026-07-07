@@ -116,6 +116,17 @@ export class ViewerCore {
       }
     });
 
+    const units = this.options.units ?? 'meters';
+    const unitsScaleToMeters = UNITS_TO_METERS[units];
+    if (unitsScaleToMeters === undefined) {
+      // Reachable only from untyped (JS) consumers — a typo'd unit must not
+      // silently render at meter scale, the exact failure `units` exists to fix.
+      throw new ThreeViewerError(
+        `Unknown units '${String(units)}'. Valid values: ${Object.keys(UNITS_TO_METERS).join(', ')}`,
+        ErrorCode.INVALID_PARAMETER
+      );
+    }
+
     this.modelManager = new ModelManager({
       modelLoader: dependencies.modelLoader,
       scene: this.scene,
@@ -125,7 +136,7 @@ export class ViewerCore {
       sceneSetupService: this.sceneSetupService,
       renderer: this.renderer,
       autoFitToObject: this.options.camera?.autoFitToObject,
-      unitsScaleToMeters: UNITS_TO_METERS[this.options.units ?? 'meters']
+      unitsScaleToMeters
     });
 
     this.resourceManager = new ResourceManager({
