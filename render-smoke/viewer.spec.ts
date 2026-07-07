@@ -196,9 +196,15 @@ test('the baked contact shadow grounds the model: floor under the base is darker
   const baseY = Math.round((hotspotBox!.y + hotspotBox!.height / 2 - canvasBox!.y) * scale);
 
   // Just below the base: inside the shadow pool, past the model's silhouette.
+  // Keep the 9% offset: the hotspot pin (and its CSS box-shadow) paints into
+  // the element screenshot and its tail ends ~10px above this patch —
+  // shrinking the offset would sample the pin's own shadow and turn the
+  // test into a false pass on a broken bake.
   const shadowY = Math.min(baseY + Math.round(png.height * 0.09), png.height - 4);
   const shadowLum = patchLuminance(png, baseX, shadowY);
-  // Same height, off to the sides: open floor beyond the pool.
+  // Same height, off to the sides. Only ONE side is truly open floor: the
+  // key light stretches a directional tail toward the other, which is why
+  // the brighter of the two (max) is the open-floor reference.
   const sideOffset = Math.round(png.width * 0.28);
   const openLum = Math.max(
     patchLuminance(png, baseX - sideOffset, shadowY),
