@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { IGridStyle, IGridOptions } from './IGridStyle';
 import HexTile from '../HexTile';
 import { HexTileConfig } from '../HexTileConfig';
-import { CONTACT_SHADOW_LIVE_NAME } from '../ContactShadowBaker';
+import { CONTACT_SHADOW_HELPER_FLAG, CONTACT_SHADOW_LIVE_NAME } from '../ContactShadowBaker';
 
 export class HexagonalGlassGrid implements IGridStyle {
   name = 'Hexagonal Glass Grid';
@@ -63,6 +63,7 @@ export class HexagonalGlassGrid implements IGridStyle {
       new THREE.ShadowMaterial({ opacity: 0.35 })
     );
     catcher.name = CONTACT_SHADOW_LIVE_NAME;
+    catcher.userData[CONTACT_SHADOW_HELPER_FLAG] = true;
     catcher.rotation.x = -Math.PI / 2;
     catcher.position.y = 0.002;
     catcher.receiveShadow = true;

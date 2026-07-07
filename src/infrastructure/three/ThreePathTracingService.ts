@@ -20,7 +20,7 @@ import {
   hasGetInternalRenderer
 } from './types/PathTracerTypes';
 import { TypedEventEmitter } from '../../events/EventEmitter';
-import { CONTACT_SHADOW_BAKED_NAME, CONTACT_SHADOW_LIVE_NAME } from './ContactShadowBaker';
+import { CONTACT_SHADOW_HELPER_FLAG } from './ContactShadowBaker';
 
 export class ThreePathTracingService implements IPathTracingService {
   /**
@@ -35,9 +35,15 @@ export class ThreePathTracingService implements IPathTracingService {
     threeScene: THREE.Scene,
     threeCamera: THREE.Camera
   ): void {
-    const helpers = [CONTACT_SHADOW_BAKED_NAME, CONTACT_SHADOW_LIVE_NAME]
-      .map((name) => threeScene.getObjectByName(name))
-      .filter((object): object is THREE.Object3D => Boolean(object?.visible));
+    // Tag-based (not name-based): a consumer's GLB may legitimately contain a
+    // node with any name, and getObjectByName's first depth-first match would
+    // hide that node instead of the helper. The userData tag is viewer-owned.
+    const helpers: THREE.Object3D[] = [];
+    threeScene.traverse((object) => {
+      if (object.userData?.[CONTACT_SHADOW_HELPER_FLAG] && object.visible) {
+        helpers.push(object);
+      }
+    });
     helpers.forEach((object) => (object.visible = false));
     try {
       this.pathTracer?.setScene(threeScene, threeCamera);

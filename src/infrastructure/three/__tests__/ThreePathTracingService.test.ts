@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 import { WebGLPathTracer } from 'three-gpu-pathtracer';
 import { ThreePathTracingService } from '../ThreePathTracingService';
-import { CONTACT_SHADOW_BAKED_NAME, CONTACT_SHADOW_LIVE_NAME } from '../ContactShadowBaker';
+import {
+  CONTACT_SHADOW_BAKED_NAME,
+  CONTACT_SHADOW_HELPER_FLAG,
+  CONTACT_SHADOW_LIVE_NAME,
+} from '../ContactShadowBaker';
 import { PathTracingScene } from '../types/PathTracerTypes';
 import { IRenderer } from '../../../core/interfaces/IRenderer';
 import { IScene } from '../../../core/interfaces/IScene';
@@ -519,10 +523,16 @@ describe('ThreePathTracingService', () => {
 
       const baked = new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.MeshBasicMaterial());
       baked.name = CONTACT_SHADOW_BAKED_NAME;
+      baked.userData[CONTACT_SHADOW_HELPER_FLAG] = true;
       const liveCatcher = new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.ShadowMaterial());
       liveCatcher.name = CONTACT_SHADOW_LIVE_NAME;
+      liveCatcher.userData[CONTACT_SHADOW_HELPER_FLAG] = true;
       liveCatcher.visible = false; // installBakedMesh leaves the live catcher hidden
-      ctx.threeScene.add(baked, liveCatcher);
+      // A consumer's model node may collide with the helper NAME — only the
+      // viewer-owned tag may select helpers.
+      const impostor = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+      impostor.name = CONTACT_SHADOW_BAKED_NAME;
+      ctx.threeScene.add(baked, liveCatcher, impostor);
 
       const bakedVisibilityWrites: boolean[] = [];
       let bakedVisible = true;
@@ -555,6 +565,8 @@ describe('ThreePathTracingService', () => {
       // The already-hidden live catcher must NOT be force-shown afterwards.
       expect(liveVisibilityWrites).toEqual([]);
       expect(liveCatcher.visible).toBe(false);
+      // The same-named consumer node is untouched — it stays in the ingest.
+      expect(impostor.visible).toBe(true);
     });
 
     it('initializes from the original equirectangular data texture', async () => {

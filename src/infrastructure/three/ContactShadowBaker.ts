@@ -3,6 +3,13 @@ import { disposeObject3D } from './disposal';
 
 export const CONTACT_SHADOW_BAKED_NAME = 'contact-shadow-baked';
 export const CONTACT_SHADOW_LIVE_NAME = 'contact-shadow-live';
+/**
+ * userData marker set on every viewer-owned contact-shadow helper mesh.
+ * Lookups that must not confuse a helper with a same-named node inside a
+ * consumer's model (names are consumer-controlled, userData tags are not)
+ * key on this instead of the names above.
+ */
+export const CONTACT_SHADOW_HELPER_FLAG = 'softboxContactShadowHelper';
 
 export interface ContactShadowBakeContext {
   renderer: THREE.WebGLRenderer;
@@ -346,6 +353,7 @@ export class ContactShadowBaker {
 
     const mesh = new THREE.Mesh(shadowDiscGeometry, material);
     mesh.name = CONTACT_SHADOW_BAKED_NAME;
+    mesh.userData[CONTACT_SHADOW_HELPER_FLAG] = true;
     mesh.rotation.x = -Math.PI / 2;
     // The lift above the tile tops (y=0) must scale with the object: a fixed
     // offset that is invisible under a car covers a visible slice of a
