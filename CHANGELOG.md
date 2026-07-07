@@ -1,6 +1,12 @@
 Changelog
 =========
 
+4.2.1
+---
+
+### Bug fix
+* **Fixed:** the baked contact-shadow disc (and the live `ShadowMaterial` catcher) were handed to the path tracer along with the rest of the scene — the tracer computes physically-correct contact shadows itself, so the contact area rendered double-dark in path-traced mode. Both helpers are now hidden for the duration of the scene ingest and restored right after, so the raster fallback keeps its baked shadow.
+
 4.2.0
 ---
 
