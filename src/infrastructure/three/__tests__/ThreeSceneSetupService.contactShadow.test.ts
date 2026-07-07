@@ -10,7 +10,7 @@ const createMockThreeRenderer = () => {
   const renderer = Object.create(THREE.WebGLRenderer.prototype) as THREE.WebGLRenderer;
   Object.assign(renderer, {
     shadowMap: { enabled: true, autoUpdate: true },
-    capabilities: { isWebGL2: true },
+    capabilities: { isWebGL2: true, textureTypeReadable: jest.fn(() => true) },
     autoClear: true,
     getRenderTarget: jest.fn(() => null),
     setRenderTarget: jest.fn(),
@@ -19,6 +19,8 @@ const createMockThreeRenderer = () => {
     setClearColor: jest.fn(),
     clear: jest.fn(),
     render: jest.fn(),
+    getContext: jest.fn(() => ({ isContextLost: () => false })),
+    readRenderTargetPixels: jest.fn(),
   });
   return renderer;
 };

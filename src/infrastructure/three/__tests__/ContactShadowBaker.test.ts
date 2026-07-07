@@ -5,10 +5,10 @@ import {
   CONTACT_SHADOW_LIVE_NAME,
 } from '../ContactShadowBaker';
 
-const createMockRenderer = () => {
+const createMockRenderer = (isContextLost: () => boolean = () => false) => {
   const renderer = {
     shadowMap: { enabled: true, autoUpdate: true },
-    capabilities: { isWebGL2: true },
+    capabilities: { isWebGL2: true, textureTypeReadable: jest.fn(() => true) },
     autoClear: true,
     getRenderTarget: jest.fn(() => null),
     setRenderTarget: jest.fn(),
@@ -17,6 +17,8 @@ const createMockRenderer = () => {
     setClearColor: jest.fn(),
     clear: jest.fn(),
     render: jest.fn(),
+    getContext: jest.fn(() => ({ isContextLost })),
+    readRenderTargetPixels: jest.fn(),
   };
   return renderer;
 };
@@ -51,6 +53,10 @@ const createBakeFixture = () => {
 };
 
 describe('ContactShadowBaker', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('accumulates the configured number of jittered shadow passes', () => {
     const { scene, light, model } = createBakeFixture();
     const renderer = createMockRenderer();
@@ -202,6 +208,135 @@ describe('ContactShadowBaker', () => {
     expect(geometry.type).toBe('CircleGeometry');
     // The 1m box would otherwise get a ~2.6 half-extent — the 0.5 floor wins.
     expect(geometry.parameters.radius).toBe(0.5);
+  });
+
+  it('scales the pass count down to the floor when the probe pass is slow', () => {
+    const { scene, light, model } = createBakeFixture();
+    const renderer = createMockRenderer();
+    // 10ms per pass against a 100ms budget wants 10 passes — clamped to the
+    // 24-pass quality floor.
+    jest
+      .spyOn(performance, 'now')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(10);
+
+    new ContactShadowBaker().bake({
+      renderer: renderer as unknown as THREE.WebGLRenderer,
+      scene,
+      object: model,
+      light,
+    });
+
+    // 1 untimed warm-up + 1 timed probe + 24 budgeted passes.
+    expect(renderer.render).toHaveBeenCalledTimes(26);
+    // One sync fence after the warm-up (drains one-time upload/link costs
+    // out of the timed window) and one after the probe.
+    expect(renderer.readRenderTargetPixels).toHaveBeenCalledTimes(2);
+    expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeDefined();
+  });
+
+  it('keeps full quality when the probe pass is fast', () => {
+    const { scene, light, model } = createBakeFixture();
+    const renderer = createMockRenderer();
+    jest
+      .spyOn(performance, 'now')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0.5);
+
+    new ContactShadowBaker().bake({
+      renderer: renderer as unknown as THREE.WebGLRenderer,
+      scene,
+      object: model,
+      light,
+    });
+
+    // Warm-up + probe + the 96-pass ceiling.
+    expect(renderer.render).toHaveBeenCalledTimes(98);
+  });
+
+  it('stays at full quality when the sync readback is unsupported', () => {
+    const { scene, light, model } = createBakeFixture();
+    const renderer = createMockRenderer();
+    renderer.capabilities.textureTypeReadable.mockReturnValue(false);
+    jest
+      .spyOn(performance, 'now')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0.5);
+
+    new ContactShadowBaker().bake({
+      renderer: renderer as unknown as THREE.WebGLRenderer,
+      scene,
+      object: model,
+      light,
+    });
+
+    // No readback attempted (it would console-error, not throw), timing
+    // degrades to submission cost → the full-quality ceiling.
+    expect(renderer.readRenderTargetPixels).not.toHaveBeenCalled();
+    expect(renderer.render).toHaveBeenCalledTimes(98);
+    expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeDefined();
+  });
+
+  it('evicts the stale baked disc when the context is already lost', () => {
+    const { scene, light, model, liveCatcher } = createBakeFixture();
+    // First bake succeeds; the second finds the context gone at entry.
+    const isContextLost = jest
+      .fn<boolean, []>()
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(false)
+      .mockReturnValue(true);
+    const renderer = createMockRenderer(isContextLost);
+    const baker = new ContactShadowBaker({ passes: 4 });
+    const context = {
+      renderer: renderer as unknown as THREE.WebGLRenderer,
+      scene,
+      object: model,
+      light,
+    };
+
+    baker.bake(context);
+    expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeDefined();
+    expect(liveCatcher.visible).toBe(false);
+
+    baker.bake(context);
+
+    // The stale disc would come back as an opaque black blob once the
+    // context is restored — the abort must hand back to the live catcher.
+    expect(renderer.render).toHaveBeenCalledTimes(4);
+    expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeUndefined();
+    expect(liveCatcher.visible).toBe(true);
+  });
+
+  it('aborts the install and revives the live catcher when the context is lost mid-bake', () => {
+    const { scene, light, model, liveCatcher } = createBakeFixture();
+    // First bake succeeds (entry + post checks), the second loses the
+    // context between its entry check and the post-accumulation check.
+    const isContextLost = jest
+      .fn<boolean, []>()
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(false)
+      .mockReturnValue(true);
+    const renderer = createMockRenderer(isContextLost);
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const baker = new ContactShadowBaker({ passes: 4 });
+    const context = {
+      renderer: renderer as unknown as THREE.WebGLRenderer,
+      scene,
+      object: model,
+      light,
+    };
+
+    baker.bake(context);
+    expect(liveCatcher.visible).toBe(false);
+
+    baker.bake(context);
+
+    // A partial accumulation must never replace the working live shadow,
+    // and the previous (stale-pose) disc must not linger either.
+    expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeUndefined();
+    expect(liveCatcher.visible).toBe(true);
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/context was lost/));
   });
 
   it('does nothing for an object with an empty bounding box', () => {
