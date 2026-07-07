@@ -5,6 +5,19 @@ name: Release
 # it. After a successful publish the workflow tags the commit vX.Y.Z and
 # creates the GitHub release.
 #
+# Guardrails:
+# - Publishes only from main — a workflow_dispatch on any other ref is a no-op
+#   (job-level containment guard).
+# - Publishes only after the CI workflow for THIS EXACT commit is fully green
+#   (build + render-smoke), so the publish gate transitively includes every
+#   check prepublishOnly does not run itself (render-smoke, knip,
+#   typecheck:examples, build:site).
+# - Publishes with npm provenance (OIDC id-token), linking the package version
+#   to this repository and workflow run on the registry.
+# - The tag/GitHub-release step is idempotent and NOT gated on this run having
+#   published: a re-run after a partial failure (published but not tagged)
+#   repairs the missing tag instead of skipping it forever.
+#
 # Requires the NPM_TOKEN repository secret: an npm granular access token with
 # read/write scoped to the `softbox` package. Rotate before its expiry date —
 # a run that fails with ENEEDAUTH means the token is missing or expired;
@@ -16,6 +29,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 concurrency:
   group: release
@@ -24,6 +38,9 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Containment: push is already filtered to main, but workflow_dispatch can
+    # target any ref — never publish from a branch.
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
@@ -48,18 +65,54 @@ jobs:
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # prepublishOnly runs the full gate: lint, typecheck, build, test,
-      # package smoke, type smoke and attw.
-      - name: Publish to npm
+      # The hard link between CI green and npm publish: wait for the CI
+      # workflow of this exact commit and refuse to publish unless it
+      # succeeded. CI runs in parallel with this workflow on the same push,
+      # so waiting (rather than just checking) is required.
+      - name: Require green CI for this exact commit
         if: steps.guard.outputs.publish == 'true'
-        run: npm publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Waiting for CI on $GITHUB_SHA..."
+          for attempt in $(seq 1 80); do
+            RUNS_JSON=$(gh run list --workflow=ci.yml --commit "$GITHUB_SHA" --json status,conclusion 2>/dev/null || echo '[]')
+            GREEN=$(jq '[.[] | select(.status == "completed" and .conclusion == "success")] | length' <<<"$RUNS_JSON")
+            PENDING=$(jq '[.[] | select(.status != "completed")] | length' <<<"$RUNS_JSON")
+            TOTAL=$(jq 'length' <<<"$RUNS_JSON")
+            if [ "$GREEN" -gt 0 ]; then
+              echo "CI is green for this commit."
+              exit 0
+            fi
+            if [ "$TOTAL" -gt 0 ] && [ "$PENDING" -eq 0 ]; then
+              echo "CI finished without success for this commit — refusing to publish."
+              exit 1
+            fi
+            echo "CI not green yet (runs: $TOTAL, pending: $PENDING) — retrying in 30s ($attempt/80)."
+            sleep 30
+          done
+          echo "Timed out waiting for CI — refusing to publish."
+          exit 1
+
+      # prepublishOnly runs the local gate on top of green CI: lint,
+      # typecheck, build, test, package smoke, type smoke and attw.
+      - name: Publish to npm (with provenance)
+        if: steps.guard.outputs.publish == 'true'
+        run: npm publish --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Tag and create the GitHub release
-        if: steps.guard.outputs.publish == 'true'
+      # Deliberately not gated on publish having happened THIS run: after a
+      # partial failure (npm publish succeeded, this step failed) the guard
+      # reports publish=false on the re-run, and a gated step would skip the
+      # tag forever. Idempotence makes the repair safe.
+      - name: Tag and create the GitHub release (idempotent)
         run: |
           TAG="v${{ steps.guard.outputs.version }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "$TAG already exists — nothing to do."
+            exit 0
+          fi
           gh release create "$TAG" \
             --target "$GITHUB_SHA" \
             --title "softbox ${{ steps.guard.outputs.version }}" \
