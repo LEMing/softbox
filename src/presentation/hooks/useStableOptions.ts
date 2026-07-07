@@ -43,6 +43,9 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
   // them must never rebuild the viewer.
   // UI-only options (loadingIndicator, ui) are also excluded on purpose: they
   // are React chrome over the canvas and must never rebuild the viewer.
+  // `loading` is excluded too: it gates WHEN the first boot happens (consumed
+  // directly by useViewerCore's viewport gate, which latches open) — changing
+  // it later must neither rebuild nor tear down a booted viewer.
   const structuralKey = useMemo(
     () =>
       JSON.stringify({

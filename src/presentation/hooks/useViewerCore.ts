@@ -6,6 +6,7 @@ import { pickRuntimeOptions } from '../../types/runtimeOptions';
 import defaultOptions from '../../defaultOptions';
 import { mergeWithPreset } from '../../presets';
 import { useStableOptions } from './useStableOptions';
+import { useViewportGate } from './useViewportGate';
 
 /**
  * Hook to create and manage ViewerCore instance
@@ -21,9 +22,14 @@ export function useViewerCore(
   // Split options into structural (rebuild) and runtime (apply live) sets
   const { options: stableOptions, structuralKey, runtimeKey } = useStableOptions(options);
 
+  // `loading: 'lazy'` holds the whole boot — GL context, model fetch — until
+  // the canvas first approaches the viewport. The gate latches open, so a
+  // booted viewer never tears down on scroll or on a later option flip.
+  const shouldBoot = useViewportGate(canvasRef, (options.loading ?? 'eager') === 'lazy');
+
   // Create viewer instance — only when a STRUCTURAL option changes
   useEffect(() => {
-    if (!canvasRef.current || viewerRef.current) {
+    if (!shouldBoot || !canvasRef.current || viewerRef.current) {
       return;
     }
 
@@ -76,7 +82,7 @@ export function useViewerCore(
     // Depends on structuralKey only: a runtime-only change updates stableOptions'
     // identity but must NOT rebuild the viewer (handled by the effect below).
     // eslint-disable-next-line react-hooks/exhaustive-deps -- structuralKey is a content hash of the structural options; depending on stableOptions would rebuild on every change.
-  }, [canvasRef, structuralKey]);
+  }, [canvasRef, structuralKey, shouldBoot]);
 
   // Apply the runtime-tunable look (background, exposure, environment intensity)
   // to the live viewer without tearing it down and re-fetching the model. This
