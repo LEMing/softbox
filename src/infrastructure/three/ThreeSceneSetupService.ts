@@ -265,6 +265,11 @@ export class ThreeSceneSetupService implements ISceneSetupService {
         liveCatcher.position.y = THREE.MathUtils.clamp(size.y * 0.0025, 0.0002, 0.002);
       }
 
+      // Center the floor under the model, not at the origin: an off-origin
+      // model would otherwise stand beside its own floor (and shadow disc).
+      const gridCenter = box.getCenter(new THREE.Vector3());
+      grid.position.set(gridCenter.x, 0, gridCenter.z);
+
       threeScene.add(grid);
 
       return Result.ok(undefined);
@@ -439,11 +444,30 @@ export class ThreeSceneSetupService implements ISceneSetupService {
         return Result.ok(undefined);
       }
       const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
 
       const threeScene = scene.getThreeScene();
       const directionalLight = findDirectionalLight(threeScene);
       if (!directionalLight || !directionalLight.castShadow) {
         return Result.ok(undefined);
+      }
+
+      // The frustum below is centered on the light's own axis (position →
+      // target), which aims at the ORIGIN — for an off-origin model the
+      // fitted frustum misses it entirely and every shadow vanishes. Re-aim
+      // the whole rig at the model: shift the position by the same delta as
+      // the target, preserving the configured light DIRECTION (and thus the
+      // shadow's look) and staying idempotent across successive loads.
+      // Only the viewer's own rig (light AND target sitting at the scene
+      // root) is re-aimed: a light embedded in the loaded model holds
+      // parent-space coordinates, and writing world-space centers into
+      // those would scramble the author's lighting.
+      const isViewerRig =
+        directionalLight.parent === threeScene && directionalLight.target.parent === threeScene;
+      if (isViewerRig) {
+        const lightDirection = directionalLight.position.clone().sub(directionalLight.target.position);
+        directionalLight.target.position.copy(center);
+        directionalLight.position.copy(center).add(lightDirection);
       }
 
       // Generous padding (matching the floor grid's own scaleFactor) so the

@@ -89,4 +89,98 @@ describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
     expect(result.ok).toBe(true);
     expect(light.shadow.camera.left).toBe(-50);
   });
+
+  it('re-aims the light rig at an off-origin model, preserving the light direction', () => {
+    const threeScene = new THREE.Scene();
+    const light = new THREE.DirectionalLight('#ffffff', 2);
+    light.castShadow = true;
+    light.position.set(6, 6, 6);
+    threeScene.add(light);
+    threeScene.add(light.target);
+
+    // The frustum is centered on the light's position→target axis; with the
+    // target left at the origin, a model out at x=100 falls entirely outside
+    // it and casts nothing.
+    const object = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2));
+    object.position.set(100, 1, -40);
+    threeScene.add(object);
+
+    const directionBefore = light.position.clone().sub(light.target.position);
+    const service = new ThreeSceneSetupService();
+    const result = service.fitShadowCameraToObject(
+      new ThreeSceneAdapter(threeScene),
+      new ThreeObject3DAdapter(object)
+    );
+
+    expect(result.ok).toBe(true);
+    expect(light.target.position.x).toBeCloseTo(100);
+    expect(light.target.position.y).toBeCloseTo(1);
+    expect(light.target.position.z).toBeCloseTo(-40);
+    const directionAfter = light.position.clone().sub(light.target.position);
+    expect(directionAfter.x).toBeCloseTo(directionBefore.x);
+    expect(directionAfter.y).toBeCloseTo(directionBefore.y);
+    expect(directionAfter.z).toBeCloseTo(directionBefore.z);
+  });
+
+  it('never re-aims a light embedded in the loaded model (parent-space coordinates)', () => {
+    const threeScene = new THREE.Scene();
+    // A GLB-authored light arrives nested inside the model's own hierarchy,
+    // with its target parented to the light (GLTFLoader punctual lights).
+    const modelRoot = new THREE.Group();
+    modelRoot.position.set(10, 0, 10);
+    const embeddedLight = new THREE.DirectionalLight('#ffffff', 1);
+    embeddedLight.castShadow = true;
+    embeddedLight.position.set(0, 5, 0);
+    embeddedLight.add(embeddedLight.target);
+    embeddedLight.target.position.set(0, 0, -1);
+    modelRoot.add(embeddedLight);
+    threeScene.add(modelRoot);
+
+    const object = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2));
+    object.position.set(100, 1, -40);
+    threeScene.add(object);
+
+    const result = new ThreeSceneSetupService().fitShadowCameraToObject(
+      new ThreeSceneAdapter(threeScene),
+      new ThreeObject3DAdapter(object)
+    );
+
+    expect(result.ok).toBe(true);
+    // World-space centers written into parent-space coordinates would
+    // scramble the author's lighting — position and target must not move.
+    expect(embeddedLight.position.x).toBeCloseTo(0);
+    expect(embeddedLight.position.y).toBeCloseTo(5);
+    expect(embeddedLight.target.position.z).toBeCloseTo(-1);
+    // The frustum fit itself still applies.
+    expect(embeddedLight.shadow.camera.right).toBeGreaterThan(0);
+  });
+
+  it('re-aims without drift when the next model loads somewhere else', () => {
+    const threeScene = new THREE.Scene();
+    const light = new THREE.DirectionalLight('#ffffff', 2);
+    light.castShadow = true;
+    light.position.set(6, 6, 6);
+    threeScene.add(light);
+    threeScene.add(light.target);
+    const directionBefore = light.position.clone().sub(light.target.position);
+    const service = new ThreeSceneSetupService();
+
+    const farModel = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2));
+    farModel.position.set(100, 1, -40);
+    threeScene.add(farModel);
+    service.fitShadowCameraToObject(new ThreeSceneAdapter(threeScene), new ThreeObject3DAdapter(farModel));
+    threeScene.remove(farModel);
+
+    const homeModel = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2));
+    homeModel.position.set(0, 1, 0);
+    threeScene.add(homeModel);
+    service.fitShadowCameraToObject(new ThreeSceneAdapter(threeScene), new ThreeObject3DAdapter(homeModel));
+
+    expect(light.target.position.x).toBeCloseTo(0);
+    expect(light.target.position.z).toBeCloseTo(0);
+    const directionAfter = light.position.clone().sub(light.target.position);
+    expect(directionAfter.x).toBeCloseTo(directionBefore.x);
+    expect(directionAfter.y).toBeCloseTo(directionBefore.y);
+    expect(directionAfter.z).toBeCloseTo(directionBefore.z);
+  });
 });

@@ -203,6 +203,16 @@ export class ContactShadowBaker {
     const bakeLight = this.createBakeLight(light);
     bakeScene.add(bakeLight);
     bakeScene.add(bakeLight.target);
+    // Aim the stand-in where the real rig aims (the fitted rig re-targets
+    // the model's center). Left at its default origin, every sample's light
+    // direction would swing toward the world origin — for an off-origin
+    // model the bake shadow camera misses the model entirely and the "baked
+    // shadow" comes out as a fully transparent disc.
+    bakeLight.target.position.copy(
+      light.target.parent
+        ? light.target.getWorldPosition(new THREE.Vector3())
+        : light.target.position
+    );
 
     const accumulationMaterial = new THREE.ShadowMaterial({
       transparent: true,

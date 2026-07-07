@@ -339,6 +339,38 @@ describe('ContactShadowBaker', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringMatching(/context was lost/));
   });
 
+  it('aims the bake stand-in light where the real rig aims, not at the origin', () => {
+    const { scene, light, model } = createBakeFixture();
+    // The fitted rig aims at an off-origin model; the bake light must follow
+    // or its shadow camera misses the model and the disc accumulates nothing.
+    model.position.set(100, 1, -40);
+    light.position.set(140, 91, 0);
+    light.target.position.set(100, 1, -40);
+    scene.add(light.target);
+    const renderer = createMockRenderer();
+    const capturedScenes: THREE.Scene[] = [];
+    renderer.render.mockImplementation((bakeScene: THREE.Scene) => {
+      capturedScenes.push(bakeScene);
+    });
+
+    new ContactShadowBaker({ passes: 2 }).bake({
+      renderer: renderer as unknown as THREE.WebGLRenderer,
+      scene,
+      object: model,
+      light,
+    });
+
+    const bakeScene = capturedScenes[0];
+    const bakeLight = bakeScene.children.find(
+      (child): child is THREE.DirectionalLight =>
+        child instanceof THREE.DirectionalLight
+    );
+    expect(bakeLight).toBeDefined();
+    expect(bakeLight!.target.position.x).toBeCloseTo(100);
+    expect(bakeLight!.target.position.y).toBeCloseTo(1);
+    expect(bakeLight!.target.position.z).toBeCloseTo(-40);
+  });
+
   it('does nothing for an object with an empty bounding box', () => {
     const { scene, light } = createBakeFixture();
     const renderer = createMockRenderer();
