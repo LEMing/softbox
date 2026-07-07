@@ -1006,7 +1006,7 @@ describe('ViewerCore', () => {
       const animationService = {
         attach: jest.fn(),
         getClipNames: jest.fn(() => ['Walk']),
-        play: jest.fn(),
+        play: jest.fn(() => Result.ok(undefined)),
         pause: jest.fn(),
         isPlaying: jest.fn(() => true),
         setSpeed: jest.fn(),
@@ -1034,6 +1034,7 @@ describe('ViewerCore', () => {
         getClipNames: jest.fn(() => []),
         play: jest.fn(() => {
           playing = true;
+          return Result.ok(undefined);
         }),
         pause: jest.fn(() => {
           playing = false;
@@ -1064,6 +1065,7 @@ describe('ViewerCore', () => {
         getClipNames: jest.fn(() => ['Walk']),
         play: jest.fn(() => {
           playing = true;
+          return Result.ok(undefined);
         }),
         pause: jest.fn(() => {
           playing = false;
@@ -1096,6 +1098,7 @@ describe('ViewerCore', () => {
         getClipNames: jest.fn(() => []),
         play: jest.fn(() => {
           playing = true;
+          return Result.ok(undefined);
         }),
         pause: jest.fn(() => {
           playing = false;
@@ -1108,6 +1111,7 @@ describe('ViewerCore', () => {
       const bundle = makeDeps();
       const viewer = new ViewerCore({ ...bundle.deps, animationService });
       await viewer.initialize();
+      await viewer.loadModel(makeObject3D());
 
       viewer.updateOptions({ animations: { autoplay: true } });
       expect(animationService.play).toHaveBeenCalledTimes(1);
@@ -1119,6 +1123,111 @@ describe('ViewerCore', () => {
       viewer.updateOptions({ animations: { autoplay: false, speed: 0.5 } });
       expect(animationService.pause).toHaveBeenCalledTimes(1);
       expect(animationService.setSpeed).toHaveBeenCalledWith(0.5);
+    });
+
+    const makeRejectingAnimationService = () => ({
+      attach: jest.fn(),
+      getClipNames: jest.fn(() => ['Walk']),
+      play: jest.fn(() =>
+        Result.err(
+          new ThreeViewerError(
+            "Unknown animation clip 'Nope'. Available clips: Walk",
+            ErrorCode.INVALID_PARAMETER
+          )
+        )
+      ),
+      pause: jest.fn(),
+      // Deliberately true: if ViewerCore ever skipped the early return on an
+      // erred play, the isPlaying() branch WOULD grab the continuous demand
+      // and the requireContinuous assertion below would catch it.
+      isPlaying: jest.fn(() => true),
+      setSpeed: jest.fn(),
+      update: jest.fn(),
+      detach: jest.fn(),
+    });
+
+    it('playAnimations propagates an unknown-clip error without holding the render loop', async () => {
+      const animationService = makeRejectingAnimationService();
+      const bundle = makeDeps();
+      const requireSpy = jest.spyOn(RenderLoopManager.prototype, 'requireContinuous');
+      const viewer = new ViewerCore({ ...bundle.deps, animationService });
+      await viewer.initialize();
+
+      const result = viewer.playAnimations('Nope');
+
+      expect(result.ok).toBe(false);
+      expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_PARAMETER);
+      expect(requireSpy).not.toHaveBeenCalledWith('animations');
+    });
+
+    it('playAnimations with a clip name errs when no animation service exists; a bare call stays a no-op', () => {
+      const bundle = makeDeps();
+      const viewer = new ViewerCore(bundle.deps);
+
+      const named = viewer.playAnimations('Walk');
+      expect(named.ok).toBe(false);
+      expect(!named.ok && named.error.code).toBe(ErrorCode.INVALID_STATE);
+
+      expect(viewer.playAnimations().ok).toBe(true);
+    });
+
+    it('surfaces an autoplay clip typo on the console without failing the load', async () => {
+      const animationService = makeRejectingAnimationService();
+      const bundle = makeDeps({ options: { animations: { autoplay: 'Nope' } } });
+      const viewer = new ViewerCore({ ...bundle.deps, animationService });
+      await viewer.initialize();
+
+      const result = await viewer.loadModel(makeObject3D());
+
+      expect(result.ok).toBe(true);
+      expect(console.error).toHaveBeenCalledWith(
+        'animations.autoplay failed:',
+        expect.stringMatching(/Unknown animation clip 'Nope'/)
+      );
+    });
+
+    it('updateOptions logs an autoplay clip typo instead of throwing', async () => {
+      const animationService = makeRejectingAnimationService();
+      const bundle = makeDeps();
+      const viewer = new ViewerCore({ ...bundle.deps, animationService });
+      await viewer.initialize();
+      await viewer.loadModel(makeObject3D());
+
+      expect(() => viewer.updateOptions({ animations: { autoplay: 'Nope' } })).not.toThrow();
+      expect(console.error).toHaveBeenCalledWith(
+        'animations.autoplay failed:',
+        expect.stringMatching(/Unknown animation clip 'Nope'/)
+      );
+    });
+
+    it('updateOptions autoplay before any model stays quiet and applies on load', async () => {
+      let playing = false;
+      const animationService = {
+        attach: jest.fn(),
+        getClipNames: jest.fn(() => ['Walk']),
+        play: jest.fn(() => {
+          playing = true;
+          return Result.ok(undefined);
+        }),
+        pause: jest.fn(),
+        isPlaying: jest.fn(() => playing),
+        setSpeed: jest.fn(),
+        update: jest.fn(),
+        detach: jest.fn(),
+      };
+      const bundle = makeDeps();
+      const viewer = new ViewerCore({ ...bundle.deps, animationService });
+      await viewer.initialize();
+
+      // Nothing loaded yet: there is nothing to play and no clip list to
+      // validate 'Walk' against — a valid future name must not log an error.
+      viewer.updateOptions({ animations: { autoplay: 'Walk' } });
+      expect(animationService.play).not.toHaveBeenCalled();
+      expect(console.error).not.toHaveBeenCalled();
+
+      // The merged option kicks in when the model lands.
+      await viewer.loadModel(makeObject3D());
+      expect(animationService.play).toHaveBeenCalledWith('Walk');
     });
 
     it('createAnchorProjector returns null without an anchor projection service', () => {

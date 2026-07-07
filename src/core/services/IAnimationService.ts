@@ -1,3 +1,4 @@
+import { Result } from '../../utils/Result';
 import { IObject3D } from '../interfaces/IObject3D';
 
 /**
@@ -10,8 +11,11 @@ export interface IAnimationService {
   attach(model: IObject3D): void;
   /** Clip names of the attached model, in file order. */
   getClipNames(): string[];
-  /** Plays one clip by name, or ALL clips when no name is given (looped). */
-  play(clipName?: string): void;
+  /**
+   * Plays one clip by name, or ALL clips when no name is given (looped).
+   * Errs `INVALID_PARAMETER` on a name the attached model does not carry.
+   */
+  play(clipName?: string): Result<void>;
   pause(): void;
   isPlaying(): boolean;
   /** Playback rate multiplier (1 = authored speed). */

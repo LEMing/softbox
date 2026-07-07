@@ -482,7 +482,12 @@ export class ViewerCore {
     // from t=0, and the runtime-options effect re-sends the whole set.
     if (autoplay !== undefined && autoplay !== previousAutoplay) {
       if (autoplay) {
-        this.playAnimations(typeof autoplay === 'string' ? autoplay : undefined);
+        // Before any model lands there is nothing to play and nothing to
+        // validate a clip name against — the merged option is enough;
+        // attachAnimations applies it when the load resolves.
+        if (this.modelManager.getCurrentModel()) {
+          this.autoplayFromOptions(autoplay);
+        }
       } else {
         this.pauseAnimations();
       }
@@ -607,12 +612,27 @@ export class ViewerCore {
     return this.animationService?.getClipNames() ?? [];
   }
 
-  /** Plays one clip by name, or ALL clips when no name is given (looped). */
-  playAnimations(clipName?: string): void {
+  /**
+   * Plays one clip by name, or ALL clips when no name is given (looped).
+   * Errs on a clip name the loaded model does not carry — a typo'd name
+   * must not silently leave the model frozen.
+   */
+  playAnimations(clipName?: string): Result<void> {
     if (!this.animationService) {
-      return;
+      if (clipName !== undefined) {
+        return Result.err(
+          new ThreeViewerError(
+            `Cannot play animation clip '${clipName}': the viewer was assembled without an animation service`,
+            ErrorCode.INVALID_STATE
+          )
+        );
+      }
+      return Result.ok(undefined);
     }
-    this.animationService.play(clipName);
+    const played = this.animationService.play(clipName);
+    if (!played.ok) {
+      return played;
+    }
     if (this.animationService.isPlaying()) {
       // The baked contact shadow is a snapshot of one pose — a moving model
       // needs the real-time catcher until playback stops.
@@ -620,6 +640,18 @@ export class ViewerCore {
       this.renderLoopManager.requireContinuous('animations');
       this.reviveRenderLoop();
       this.renderLoopManager.requestRender();
+    }
+    return Result.ok(undefined);
+  }
+
+  /**
+   * Options-driven autoplay has no caller to hand a Result to — a typo'd
+   * clip name in `animations.autoplay` surfaces on the console instead.
+   */
+  private autoplayFromOptions(autoplay: boolean | string): void {
+    const played = this.playAnimations(typeof autoplay === 'string' ? autoplay : undefined);
+    if (!played.ok) {
+      console.error('animations.autoplay failed:', played.error.message);
     }
   }
 
@@ -662,7 +694,7 @@ export class ViewerCore {
     }
     const autoplay = animationOptions?.autoplay;
     if (autoplay) {
-      this.playAnimations(typeof autoplay === 'string' ? autoplay : undefined);
+      this.autoplayFromOptions(autoplay);
     }
   }
 

@@ -33,7 +33,10 @@ export interface SimpleViewerHandle {
   captureVideo: (options?: CaptureVideoOptions) => Promise<Blob>;
   /** Clip names of the loaded model, in file order (empty when none). */
   getAnimationNames: () => string[];
-  /** Plays one clip by name, or ALL clips when no name is given (looped). */
+  /**
+   * Plays one clip by name, or ALL clips when no name is given (looped).
+   * Throws `INVALID_PARAMETER` on a clip name the model does not carry.
+   */
   playAnimations: (clipName?: string) => void;
   /** Freezes playback on the current pose; playAnimations() resumes. */
   pauseAnimations: () => void;
