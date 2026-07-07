@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ThreeSceneSetupService } from '../ThreeSceneSetupService';
+import { ThreeAnimationService } from '../ThreeAnimationService';
 import { ThreeObject3DAdapter } from '../ThreeObject3D';
 import { UNITS_SCALE_WRAPPER_NAME } from '../../../core/constants';
 
@@ -29,6 +30,40 @@ describe('ThreeSceneSetupService.wrapInUnitsScaleGroup', () => {
 
     expect(result.ok).toBe(true);
     expect(object.scale.x).toBeCloseTo(0.5);
+  });
+
+  it('keeps clips discoverable by the animation service attached to the wrapper', () => {
+    const object = new THREE.Object3D();
+    object.animations = [new THREE.AnimationClip('Run', 1, [])];
+
+    const result = service.wrapInUnitsScaleGroup(new ThreeObject3DAdapter(object), 0.3048);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const animationService = new ThreeAnimationService();
+    animationService.attach(result.value);
+    expect(animationService.getClipNames()).toEqual(['Run']);
+  });
+
+  it('binds root-relative tracks to the clip-bearing model, never to the wrapper', () => {
+    const object = new THREE.Object3D();
+    const scaleTrack = new THREE.VectorKeyframeTrack('.scale', [0, 1], [2, 2, 2, 2, 2, 2]);
+    object.animations = [new THREE.AnimationClip('Grow', 1, [scaleTrack])];
+
+    const result = service.wrapInUnitsScaleGroup(new ThreeObject3DAdapter(object), 0.0254);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const wrapper = (result.value as ThreeObject3DAdapter).getThreeObject();
+
+    const animationService = new ThreeAnimationService();
+    animationService.attach(result.value);
+    animationService.play();
+    animationService.update(0.5);
+
+    // The '.scale' track animates the authored scene, while the units
+    // conversion the viewer owns stays untouched.
+    expect(object.scale.x).toBeCloseTo(2);
+    expect(wrapper.scale.x).toBeCloseTo(0.0254);
   });
 
   it('does not compound when the same object is wrapped again after a rebuild', () => {

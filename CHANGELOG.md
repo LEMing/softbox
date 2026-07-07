@@ -1,6 +1,12 @@
 Changelog
 =========
 
+4.1.1
+---
+
+### Bug fix
+* **Fixed:** any `units` other than `'meters'` silently disabled GLTF animation playback — the units scale wrapper became the model root, and the animation service only looked for clips on the root itself. Clip discovery now descends past wrapper groups to the first `animations`-bearing node and roots the `AnimationMixer` there, which also fixes the same silent no-op for consumer-passed objects whose clips live one level down (e.g. `loadModel(group.add(gltf.scene))`), and keeps root-relative track paths (`'.scale'` …) bound to the authored scene instead of a wrapper whose transform the viewer owns.
+
 4.1.0
 ---
 
