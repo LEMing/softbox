@@ -287,11 +287,15 @@ describe('useViewerCore', () => {
 
   describe('loading: lazy', () => {
     let intersect: ((intersecting: boolean) => void) | null;
-    const observe = jest.fn();
-    const disconnect = jest.fn();
+    let observe: jest.Mock;
+    let disconnect: jest.Mock;
 
     const installIntersectionObserver = () => {
       intersect = null;
+      // Fresh fns per test: shared ones accumulate calls across tests and
+      // pre-satisfy assertions like toHaveBeenCalled().
+      observe = jest.fn();
+      disconnect = jest.fn();
       (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver = jest.fn(
         (callback: IntersectionObserverCallback) => {
           intersect = (isIntersecting: boolean) =>
@@ -335,11 +339,15 @@ describe('useViewerCore', () => {
       );
       act(() => intersect!(true));
       await waitFor(() => expect(result.current.isInitialized).toBe(true));
-
-      // The gate latches: the observer is gone and scrolling away later
-      // must not tear the booted viewer down.
       expect(disconnect).toHaveBeenCalled();
+
+      // A scroll-out delivery (stale or otherwise) must not close the gate:
+      // a non-latching gate would flip shouldBoot back and dispose the
+      // booted viewer through the construction effect's cleanup.
+      act(() => intersect!(false));
+
       expect(createdViewers[0].dispose).not.toHaveBeenCalled();
+      expect(result.current.isInitialized).toBe(true);
     });
 
     it('boots immediately when IntersectionObserver is unavailable', async () => {
