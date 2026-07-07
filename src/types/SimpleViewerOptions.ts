@@ -75,6 +75,16 @@ export interface SimpleViewerOptions {
   replaceWithScreenshotOnComplete?: boolean;
 
   /**
+   * When to boot the WebGL engine and fetch the model (default `'eager'`).
+   * `'lazy'` defers everything until the viewer first approaches the
+   * viewport (like `<img loading="lazy">`) — on pages with many viewers
+   * only the visible ones pay for a GL context and a model download. Once
+   * booted a viewer stays booted; where IntersectionObserver is unavailable
+   * the option gracefully degrades to eager.
+   */
+  loading?: 'eager' | 'lazy';
+
+  /**
    * Built-in loading overlay shown while a model loads. `true`/omitted shows the
    * default spinner; `false` hides it (render your own via the loading events);
    * an object customizes it. UI-only — changing it never rebuilds the viewer.

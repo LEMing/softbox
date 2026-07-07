@@ -223,6 +223,12 @@ const options: SimpleViewerOptions = {
   selection: { bvh: true },      // BVH-accelerated raycasts for picking/occlusion
   loadingIndicator: true,        // built-in loading overlay (object form customizes it)
   loaders: {},                   // DRACO/KTX2/Meshopt decoder config (self-host paths, toggles)
+
+  // Like <img loading="lazy">: defer the WebGL context and model download until
+  // the viewer first approaches the viewport. On pages with many viewers only
+  // the visible ones boot — browsers cap concurrent WebGL contexts, so an
+  // eager grid can silently kill the oldest ones. Once booted, always booted.
+  loading: 'eager',              // or 'lazy'
 };
 ```
 

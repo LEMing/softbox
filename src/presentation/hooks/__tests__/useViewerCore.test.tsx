@@ -1,5 +1,5 @@
 import React from 'react';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { useViewerCore } from '../useViewerCore';
 import { ViewerFactory } from '../../../infrastructure/factories/ViewerFactory';
 import { Result } from '../../../utils/Result';
@@ -283,5 +283,98 @@ describe('useViewerCore', () => {
     // ...and the viewer is neither rebuilt nor torn down (no model reload).
     expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(1);
     expect(viewer.dispose).not.toHaveBeenCalled();
+  });
+
+  describe('loading: lazy', () => {
+    let intersect: ((intersecting: boolean) => void) | null;
+    let observe: jest.Mock;
+    let disconnect: jest.Mock;
+
+    const installIntersectionObserver = () => {
+      intersect = null;
+      // Fresh fns per test: shared ones accumulate calls across tests and
+      // pre-satisfy assertions like toHaveBeenCalled().
+      observe = jest.fn();
+      disconnect = jest.fn();
+      (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver = jest.fn(
+        (callback: IntersectionObserverCallback) => {
+          intersect = (isIntersecting: boolean) =>
+            callback(
+              [{ isIntersecting } as IntersectionObserverEntry],
+              {} as IntersectionObserver
+            );
+          return { observe, disconnect, unobserve: jest.fn() };
+        }
+      );
+    };
+
+    afterEach(() => {
+      delete (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver;
+    });
+
+    it('defers the whole boot until the canvas approaches the viewport', async () => {
+      installIntersectionObserver();
+      const canvasRef = makeCanvasRef();
+
+      const { result } = renderHook(() =>
+        useViewerCore(canvasRef, { ...testDefaultOptions, loading: 'lazy' })
+      );
+
+      // No GL context, no model fetch — nothing until the gate opens.
+      expect(ViewerFactory.createViewer).not.toHaveBeenCalled();
+      expect(observe).toHaveBeenCalledWith(canvasRef.current);
+
+      act(() => intersect!(true));
+
+      await waitFor(() => expect(result.current.isInitialized).toBe(true));
+      expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the viewer alive when the canvas scrolls back out of view', async () => {
+      installIntersectionObserver();
+      const canvasRef = makeCanvasRef();
+
+      const { result } = renderHook(() =>
+        useViewerCore(canvasRef, { ...testDefaultOptions, loading: 'lazy' })
+      );
+      act(() => intersect!(true));
+      await waitFor(() => expect(result.current.isInitialized).toBe(true));
+      expect(disconnect).toHaveBeenCalled();
+
+      // A scroll-out delivery (stale or otherwise) must not close the gate:
+      // a non-latching gate would flip shouldBoot back and dispose the
+      // booted viewer through the construction effect's cleanup.
+      act(() => intersect!(false));
+
+      expect(createdViewers[0].dispose).not.toHaveBeenCalled();
+      expect(result.current.isInitialized).toBe(true);
+    });
+
+    it('boots immediately when IntersectionObserver is unavailable', async () => {
+      const canvasRef = makeCanvasRef();
+
+      const { result } = renderHook(() =>
+        useViewerCore(canvasRef, { ...testDefaultOptions, loading: 'lazy' })
+      );
+
+      await waitFor(() => expect(result.current.isInitialized).toBe(true));
+      expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(1);
+    });
+
+    it('boots when loading flips to eager before the canvas was ever visible', async () => {
+      installIntersectionObserver();
+      const canvasRef = makeCanvasRef();
+
+      const { result, rerender } = renderHook(
+        ({ options }: { options: SimpleViewerOptions }) => useViewerCore(canvasRef, options),
+        { initialProps: { options: { ...testDefaultOptions, loading: 'lazy' } as SimpleViewerOptions } }
+      );
+      expect(ViewerFactory.createViewer).not.toHaveBeenCalled();
+
+      rerender({ options: { ...testDefaultOptions, loading: 'eager' } as SimpleViewerOptions });
+
+      await waitFor(() => expect(result.current.isInitialized).toBe(true));
+      expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(1);
+    });
   });
 });

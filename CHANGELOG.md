@@ -1,6 +1,13 @@
 Changelog
 =========
 
+4.4.0
+---
+
+### Lazy viewport boot
+* New option `loading: 'lazy'` (default `'eager'`) defers the entire viewer boot — WebGL context creation, model fetch, first render — until the canvas first approaches the viewport (200 px preload margin), like `<img loading="lazy">`. On pages with many viewers (e-commerce grids), only the visible ones pay for a GL context and a model download; browsers cap concurrent WebGL contexts, so an eager grid could silently kill contexts before this.
+* The gate latches open: scrolling away, or changing `loading` after boot, never tears down a running viewer. Flipping `'lazy'` → `'eager'` before the viewer was ever visible boots it immediately. Where `IntersectionObserver` is unavailable (SSR, legacy browsers) the option degrades to eager — a viewer that boots eagerly beats one that never boots.
+
 4.3.2
 ---
 
