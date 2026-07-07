@@ -105,10 +105,27 @@ describe('ModelManager', () => {
         const result = await modelManager.loadModel(url, mockEvents);
 
         expect(result.ok).toBe(true);
-        expect(mockModelLoader.load).toHaveBeenCalledWith(url);
+        expect(mockModelLoader.load).toHaveBeenCalledWith(url, expect.any(Function));
         expect(mockScene.add).toHaveBeenCalledWith(mockModel);
         expect(modelManager.getCurrentModel()).toBe(mockModel);
         expect(modelManager.getLastModelUrl()).toBe(url);
+      });
+
+      it('emits model:progress as the loader reports download progress', async () => {
+        mockModelLoader.load.mockImplementation(async (_url, onProgress) => {
+          onProgress?.(50, 200);
+          onProgress?.(200, 200);
+          return Result.ok({ scene: mockModel, animations: [] });
+        });
+        const progressEvents: Array<{ url: string; loaded: number; total: number }> = [];
+        mockEvents.on('model:progress', (data) => progressEvents.push(data));
+
+        await modelManager.loadModel('test.glb', mockEvents);
+
+        expect(progressEvents).toEqual([
+          { url: 'test.glb', loaded: 50, total: 200 },
+          { url: 'test.glb', loaded: 200, total: 200 },
+        ]);
       });
 
       it('should align model to floor', async () => {

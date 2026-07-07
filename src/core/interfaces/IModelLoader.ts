@@ -6,9 +6,10 @@ import { IObject3D } from './IObject3D';
  */
 export interface IModelLoader {
   /**
-   * Load a 3D model from a URL
+   * Load a 3D model from a URL. `onProgress` reports download progress in
+   * bytes; loaders only call it when the transport reports a total size.
    */
-  load(url: string): Promise<Result<IModel>>;
+  load(url: string, onProgress?: (loaded: number, total: number) => void): Promise<Result<IModel>>;
   
   /**
    * Check if this loader supports the given URL/file type

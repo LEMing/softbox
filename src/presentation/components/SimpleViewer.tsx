@@ -7,6 +7,7 @@ import {
   useResolvedOptions,
   useModelLoader,
   useForwardedEvents,
+  useOptionCallbacks,
 } from '../hooks';
 import { ViewerProvider } from './ViewerContext';
 import { ViewerCanvas } from './ViewerCanvas';
@@ -54,10 +55,11 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
       turntable,
       animations
     );
-    const { viewer, isInitialized } = useViewerCore(canvasRef, resolvedOptions);
+    const { viewer, isInitialized, initError } = useViewerCore(canvasRef, resolvedOptions);
 
     const loadState = useModelLoader(viewer, isInitialized, object);
     const events = useForwardedEvents(viewer);
+    useOptionCallbacks(viewer, initError, options);
 
     // Three.js objects for the gizmo and handle, via ViewerCore's accessors.
     const camera = viewer ? toThreeCamera(viewer.getCamera()) : null;
@@ -76,9 +78,9 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
       () => resolveLoadingIndicator(options.loadingIndicator),
       [options.loadingIndicator]
     );
+    const hasError = loadState.status === 'error' || Boolean(initError);
     const showOverlay =
-      loadingIndicator.enabled &&
-      (loadState.status === 'loading' || loadState.status === 'error');
+      loadingIndicator.enabled && (loadState.status === 'loading' || hasError);
 
     useImperativeHandle(ref, () => {
       return {
@@ -152,10 +154,13 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
             )}
             {showOverlay && (
               <LoadingOverlay
-                status={loadState.status === 'error' ? 'error' : 'loading'}
+                status={hasError ? 'error' : 'loading'}
                 label={
-                  loadState.status === 'error'
-                    ? (loadingIndicator.errorLabel ?? loadState.error ?? 'Failed to load model')
+                  hasError
+                    ? (loadingIndicator.errorLabel ??
+                        initError?.message ??
+                        loadState.error ??
+                        'Failed to load model')
                     : loadingIndicator.label
                 }
                 color={loadingIndicator.color}

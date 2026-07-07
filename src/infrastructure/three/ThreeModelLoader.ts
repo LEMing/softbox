@@ -118,7 +118,7 @@ export class ThreeGLTFLoaderAdapter implements IModelLoader {
     );
   }
 
-  async load(url: string): Promise<Result<IModel>> {
+  async load(url: string, onProgress?: (loaded: number, total: number) => void): Promise<Result<IModel>> {
     try {
       await this.ensureDecoders();
       return new Promise((resolve) => {
@@ -154,10 +154,8 @@ export class ThreeGLTFLoaderAdapter implements IModelLoader {
             resolve(Result.ok(model));
           },
           (progress) => {
-            // Progress callback - could emit events here
             if (progress.total > 0) {
-              // Progress is available but not logged
-              // percentComplete = (progress.loaded / progress.total) * 100;
+              onProgress?.(progress.loaded, progress.total);
             }
           },
           (error) => {

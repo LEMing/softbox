@@ -9,7 +9,6 @@ const defaultOptions: SimpleViewerOptions = {
   staticScene: false,
   backgroundColor: '#f0f0f7',
   replaceWithScreenshotOnComplete: true,
-  animationLoop: null,
   // Authored unit of incoming models; non-meter models are rescaled on load
   // to the viewer's 1-unit-=-1-meter convention (real-scale floor, shadows).
   units: 'meters',

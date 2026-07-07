@@ -7,3 +7,4 @@ export * from './usePickedPreset';
 export * from './useResolvedOptions';
 export * from './useModelLoader';
 export * from './useForwardedEvents';
+export * from './useOptionCallbacks';

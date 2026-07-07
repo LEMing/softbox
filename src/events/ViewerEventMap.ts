@@ -15,6 +15,8 @@ export interface ViewerEventMap<TObject, TCamera, TControls, THandle> {
 
   // Loading events
   'model:loading': { url: string };
+  /** Download progress for URL loads; emitted only when the server reports a total size. */
+  'model:progress': { url: string; loaded: number; total: number };
   'model:loaded': { model: TObject; loadTime: number };
   'model:error': { error: ThreeViewerError; url?: string };
 

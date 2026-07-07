@@ -16,7 +16,8 @@ export function useViewerCore(
 ) {
   const viewerRef = useRef<ViewerCore | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
-  
+  const [initError, setInitError] = useState<Error | null>(null);
+
   // Split options into structural (rebuild) and runtime (apply live) sets
   const { options: stableOptions, structuralKey, runtimeKey } = useStableOptions(options);
 
@@ -25,6 +26,11 @@ export function useViewerCore(
     if (!canvasRef.current || viewerRef.current) {
       return;
     }
+
+    // Each build attempt starts clean — a construction failure returns no
+    // cleanup, so a stale error would otherwise outlive a later successful
+    // rebuild.
+    setInitError(null);
 
     // Defaults + preset (deep-merged) + explicit options on top.
     const mergedOptions = mergeWithPreset(defaultOptions, stableOptions);
@@ -38,6 +44,7 @@ export function useViewerCore(
       viewer = ViewerFactory.createViewer(canvasRef.current, mergedOptions);
     } catch (error) {
       console.error('Failed to create viewer:', error);
+      setInitError(error instanceof Error ? error : new Error(String(error)));
       return;
     }
     viewerRef.current = viewer;
@@ -55,6 +62,7 @@ export function useViewerCore(
         setIsInitialized(true);
       } else {
         console.error('Failed to initialize viewer:', result.error);
+        setInitError(result.error);
       }
     });
 
@@ -152,5 +160,7 @@ export function useViewerCore(
   return {
     viewer: viewerRef.current,
     isInitialized,
+    /** Set when viewer construction or initialization failed (e.g. WebGL unavailable). */
+    initError,
   };
 }
