@@ -126,7 +126,10 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
           if (!viewer) {
             throw notReadyError();
           }
-          viewer.playAnimations(clipName);
+          const result = viewer.playAnimations(clipName);
+          if (!result.ok) {
+            throw result.error;
+          }
         },
         pauseAnimations: () => {
           viewer?.pauseAnimations();

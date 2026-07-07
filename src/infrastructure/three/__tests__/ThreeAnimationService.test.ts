@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ThreeAnimationService } from '../ThreeAnimationService';
 import { IObject3D } from '../../../core/interfaces';
+import { ErrorCode } from '../../../errors';
 
 const makeAnimatedModel = () => {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
@@ -55,11 +56,37 @@ describe('ThreeAnimationService', () => {
     const service = new ThreeAnimationService();
     service.attach(adapter);
 
-    service.play('Bounce');
+    const result = service.play('Bounce');
     service.update(0.5);
 
+    expect(result.ok).toBe(true);
     expect(mesh.position.x).toBeCloseTo(0);
     expect(mesh.position.y).toBeCloseTo(2.5);
+  });
+
+  it('play(unknownName) errs and lists the clips the model carries', () => {
+    const { adapter } = makeAnimatedModel();
+    const service = new ThreeAnimationService();
+    service.attach(adapter);
+
+    const result = service.play('Walk');
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_PARAMETER);
+    expect(!result.ok && result.error.message).toMatch(/Spin, Bounce/);
+    expect(service.isPlaying()).toBe(false);
+  });
+
+  it('play(name) on a clipless model errs instead of silently idling', () => {
+    const bare = new THREE.Object3D();
+    const service = new ThreeAnimationService();
+    service.attach({ getThreeObject: () => bare } as unknown as IObject3D);
+
+    const result = service.play('Walk');
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_PARAMETER);
+    expect(!result.ok && result.error.message).toMatch(/no animation clips/);
   });
 
   it('pause() freezes the pose and play() resumes without restarting', () => {
@@ -110,12 +137,12 @@ describe('ThreeAnimationService', () => {
     expect(mesh.position.x).toBeCloseTo(5);
   });
 
-  it('is inert for a model without clips', () => {
+  it('is inert for a bare play() on a model without clips', () => {
     const bare = new THREE.Object3D();
     const service = new ThreeAnimationService();
     service.attach({ getThreeObject: () => bare } as unknown as IObject3D);
 
-    service.play();
+    expect(service.play().ok).toBe(true);
     expect(service.getClipNames()).toEqual([]);
     expect(service.isPlaying()).toBe(false);
   });

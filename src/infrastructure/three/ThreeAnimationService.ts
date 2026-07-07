@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { IAnimationService } from '../../core/services/IAnimationService';
 import { IObject3D } from '../../core/interfaces/IObject3D';
+import { Result } from '../../utils/Result';
+import { ThreeViewerError, ErrorCode } from '../../errors';
 import { toThreeObject } from './unwrap';
 
 /**
@@ -40,9 +42,22 @@ export class ThreeAnimationService implements IAnimationService {
     return this.clips.map((clip) => clip.name);
   }
 
-  play(clipName?: string): void {
+  play(clipName?: string): Result<void> {
+    if (clipName !== undefined && !this.clips.some((clip) => clip.name === clipName)) {
+      const available = this.clips.map((clip) => clip.name);
+      return Result.err(
+        new ThreeViewerError(
+          available.length > 0
+            ? `Unknown animation clip '${clipName}'. Available clips: ${available.join(', ')}`
+            : `Unknown animation clip '${clipName}'. The model has no animation clips`,
+          ErrorCode.INVALID_PARAMETER
+        )
+      );
+    }
+    // A bare play() on a clipless model is a declared no-op (autoplay:true on
+    // a static model), not an error like the named miss above.
     if (!this.mixer) {
-      return;
+      return Result.ok(undefined);
     }
 
     // Resuming after pause(): update() has been skipped, so the actions are
@@ -50,15 +65,12 @@ export class ThreeAnimationService implements IAnimationService {
     // again instead of restarting via stopAllAction().
     if (!this.playing && this.activeActions.length > 0 && clipName === undefined) {
       this.playing = true;
-      return;
+      return Result.ok(undefined);
     }
 
     const toPlay = clipName
       ? this.clips.filter((clip) => clip.name === clipName)
       : this.clips;
-    if (toPlay.length === 0) {
-      return;
-    }
     const mixer = this.mixer;
     mixer.stopAllAction();
     this.activeActions = toPlay.map((clip) => {
@@ -67,6 +79,7 @@ export class ThreeAnimationService implements IAnimationService {
       return action;
     });
     this.playing = true;
+    return Result.ok(undefined);
   }
 
   pause(): void {
