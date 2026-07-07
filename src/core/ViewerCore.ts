@@ -439,6 +439,7 @@ export class ViewerCore {
       return;
     }
     const previousAutoplay = this.options.animations?.autoplay;
+    const previousAutoRotate = this.options.controls?.autoRotate;
     this.options = deepMerge(this.options, partial);
 
     let needsRender = false;
@@ -456,7 +457,10 @@ export class ViewerCore {
       needsRender = true;
     }
     const autoRotate = partial.controls?.autoRotate;
-    if (autoRotate !== undefined) {
+    // Guarded against re-sends of an unchanged value (the runtime-options
+    // effect re-sends the whole set): re-asserting `true` must not override
+    // an imperative pause or spuriously reject a pending capture.
+    if (autoRotate !== undefined && autoRotate !== previousAutoRotate) {
       this.controls.autoRotate = autoRotate;
       if (autoRotate) {
         this.renderLoopManager.requireContinuous('turntable');

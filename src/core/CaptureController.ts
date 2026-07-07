@@ -314,12 +314,14 @@ export class CaptureController {
       let offComplete = () => {};
       let offError = () => {};
       let offSelfPause = () => {};
+      let offControlsChange = () => {};
       const settle = (outcome: CaptureWaitOutcome) => {
         this.pendingSettlers.delete(settle);
         this.pathTracedWaitSettlers.delete(settle);
         offComplete();
         offError();
         offSelfPause();
+        offControlsChange();
         resolve(outcome);
       };
       this.pendingSettlers.add(settle);
@@ -331,6 +333,16 @@ export class CaptureController {
       // moving and reset it every frame). The canvas still holds a valid
       // standard-render fallback frame, so capture it rather than hang.
       offSelfPause = this.deps.pathTracing.onSelfPause(() => settle('complete'));
+      // A turntable enabled OUTSIDE updateOptions (e.g. directly on the raw
+      // controls the handle exposes) never reaches notifyTurntableEnabled —
+      // but the render loop emits controls:change every rotated frame, so
+      // observing rotation there closes the bypass. A manual drag also emits
+      // these but converges after release, hence the isAutoRotating filter.
+      offControlsChange = this.deps.events.on('controls:change', () => {
+        if (this.deps.isAutoRotating()) {
+          settle('turntable');
+        }
+      });
     });
   }
 

@@ -1766,6 +1766,65 @@ describe('ViewerCore.captureStill', () => {
     expect(!result.ok && result.error.message).toMatch(/turntable/);
   });
 
+  it('survives a re-send of an unchanged autoRotate:true mid-wait', async () => {
+    // Turntable configured on but imperatively paused: options still say true
+    // while the controls themselves were flipped off, so the up-front
+    // turntable check passes and the capture starts waiting.
+    const bundle = makeCaptureBundle({
+      options: { pathTracing: { enabled: true }, controls: { autoRotate: true } },
+      withPathTracing: true,
+      pathTracingOverrides: { isEnabled: jest.fn(() => true) },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    const capture = viewer.captureStill();
+    await tick();
+
+    // The runtime-options effect re-sends the whole set; an unchanged value
+    // must neither restart the paused turntable nor reject the pending wait.
+    viewer.updateOptions({ controls: { autoRotate: true } });
+    expect(bundle.controls.autoRotate).toBe(false);
+
+    viewer.getEvents().emit('pathtracing:complete', { samples: 16, totalTime: 1000 });
+    const result = await capture;
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value).toBe('data:image/png;base64,still');
+  });
+
+  it('settles with INVALID_STATE when the turntable spins up mid-wait on the raw controls', async () => {
+    const bundle = makeCaptureBundle({
+      options: { pathTracing: { enabled: true } },
+      withPathTracing: true,
+      pathTracingOverrides: { isEnabled: jest.fn(() => true) },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    let settled = false;
+    const capture = viewer.captureStill().then((result) => {
+      settled = true;
+      return result;
+    });
+    await tick();
+
+    // A manual drag emits controls:change too but converges after release —
+    // without autoRotate set it must NOT reject the wait.
+    viewer.getEvents().emit('controls:change', { controls: bundle.controls });
+    await tick();
+    expect(settled).toBe(false);
+
+    // autoRotate flipped directly on the raw controls the handle exposes
+    // never goes through updateOptions — the rotating camera's per-frame
+    // controls:change is the only signal the pending wait can observe.
+    bundle.controls.autoRotate = true;
+    viewer.getEvents().emit('controls:change', { controls: bundle.controls });
+
+    const result = await capture;
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_STATE);
+    expect(!result.ok && result.error.message).toMatch(/turntable/);
+  });
+
   it('settles with RENDER_FAILED when the model errors mid-wait', async () => {
     const bundle = makeCaptureBundle({
       options: { pathTracing: { enabled: true } },
