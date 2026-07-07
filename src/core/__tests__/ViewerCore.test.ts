@@ -1404,8 +1404,11 @@ describe('ViewerCore', () => {
 
       expect(completeHandler).toHaveBeenCalled();
       expect(setAlwaysRenderSpy).toHaveBeenCalledWith(false);
+      // autoClear must survive completion untouched: disabling it here used
+      // to outlive the pause and stack every post-convergence raster frame
+      // over the last one, tearing the model apart on the next drag.
       const internal = bundle.renderer.getInternalRenderer() as { autoClear: boolean };
-      expect(internal.autoClear).toBe(false);
+      expect(internal.autoClear).not.toBe(false);
 
       jest.advanceTimersByTime(150);
       expect(stopSpy).toHaveBeenCalled();
@@ -1557,6 +1560,99 @@ describe('ViewerCore', () => {
 
       viewer.dispose();
       expect(changeListener).toBeNull();
+    });
+
+    it('resumes live raster frames when animations start over a converged frame', async () => {
+      const animationService = {
+        attach: jest.fn(),
+        getClipNames: jest.fn(() => []),
+        play: jest.fn(() => Result.ok(undefined)),
+        pause: jest.fn(),
+        isPlaying: jest.fn(() => true),
+        setSpeed: jest.fn(),
+        update: jest.fn(),
+        detach: jest.fn(),
+      };
+      const bundle = makeDeps({
+        options: { staticScene: true, pathTracing: { enabled: true, maxSamples: 1 } },
+        withPathTracing: true,
+        pathTracingOverrides: {
+          // Converged-and-paused state: warm tracer preserving the canvas.
+          isEnabled: jest.fn(() => false),
+          canResume: jest.fn(() => true),
+          getSampleCount: jest.fn(() => 5),
+        },
+      });
+      const viewer = new ViewerCore({ ...bundle.deps, animationService });
+      await viewer.initialize();
+
+      renderCallback!(16);
+      await tick();
+
+      // The preserved sample count must drop, or the completed-state
+      // short-circuit keeps returning without rendering and the canvas
+      // stays frozen on the converged frame for the whole playback.
+      expect(bundle.pathTracingService!.reset).toHaveBeenCalled();
+      // ...but playback must NOT re-arm accumulation mid-animation.
+      expect(bundle.pathTracingService!.setEnabled).not.toHaveBeenCalledWith(true);
+    });
+
+    it('settles a pending path-traced capture when animations start mid-wait', async () => {
+      let playing = false;
+      const animationService = {
+        attach: jest.fn(),
+        getClipNames: jest.fn(() => []),
+        play: jest.fn(() => Result.ok(undefined)),
+        pause: jest.fn(),
+        isPlaying: jest.fn(() => playing),
+        setSpeed: jest.fn(),
+        update: jest.fn(),
+        detach: jest.fn(),
+      };
+      const bundle = makeDeps({
+        options: { staticScene: true, pathTracing: { enabled: true } },
+        withPathTracing: true,
+        pathTracingOverrides: { isEnabled: jest.fn(() => true) },
+      });
+      bundle.canvas.toDataURL = jest.fn(() => 'data:image/png;base64,still');
+      const viewer = new ViewerCore({ ...bundle.deps, animationService });
+      await viewer.initialize();
+
+      let settled = false;
+      const capture = viewer.captureStill().then((result) => {
+        settled = true;
+        return result;
+      });
+      await tick();
+      expect(settled).toBe(false);
+
+      // Animation playback suspends the accumulation silently; the pending
+      // capture must settle with the raster frame instead of hanging for
+      // the whole (possibly looping) playback.
+      playing = true;
+      renderCallback!(16);
+      await tick();
+
+      const result = await capture;
+      expect(result.ok).toBe(true);
+      expect(result.ok && result.value).toBe('data:image/png;base64,still');
+    });
+  });
+
+  describe('loadModel revives a wound-down loop', () => {
+    it('restarts the dead rAF chain so the new model paints without user input', async () => {
+      const bundle = makeDeps({ options: { staticScene: true } });
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+
+      // The loop wound down after a converged accumulation.
+      jest.spyOn(RenderLoopManager.prototype, 'isRunning').mockReturnValue(false);
+      startSpy.mockClear();
+
+      const result = await viewer.loadModel(makeObject3D());
+
+      expect(result.ok).toBe(true);
+      expect(startSpy).toHaveBeenCalled();
     });
   });
 

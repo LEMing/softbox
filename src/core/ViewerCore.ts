@@ -316,10 +316,14 @@ export class ViewerCore {
       if (result.ok) {
         this.stateManager.setLoaded(result.value);
         this.attachAnimations(result.value);
+        // The loop may have wound down entirely (converged path tracing) —
+        // requestRender alone cannot restart a dead rAF chain, and without
+        // this the new model never paints until the user touches the controls.
+        this.reviveRenderLoop();
         this.renderLoopManager.requestRender();
         // A new model restarts the accumulation from scratch. Forced: the
-        // throttle must not drop this reset, or the tracer keeps sampling
-        // the previous model's geometry.
+        // stale ingest must not survive, or the tracer keeps sampling the
+        // previous model's geometry.
         this.pathTracing.resetAccumulation(true);
         return Result.ok(undefined);
       } else {
