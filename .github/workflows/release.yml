@@ -5,6 +5,19 @@ name: Release
 # it. After a successful publish the workflow tags the commit vX.Y.Z and
 # creates the GitHub release.
 #
+# Guardrails:
+# - Publishes only from main — a workflow_dispatch on any other ref is a no-op
+#   (job-level containment guard).
+# - Publishes only after the CI workflow for THIS EXACT commit is fully green
+#   (build + render-smoke), so the publish gate transitively includes every
+#   check prepublishOnly does not run itself (render-smoke, knip,
+#   typecheck:examples, build:site).
+# - Publishes with npm provenance (OIDC id-token), linking the package version
+#   to this repository and workflow run on the registry.
+# - The tag/GitHub-release step is idempotent and NOT gated on this run having
+#   published: a re-run after a partial failure (published but not tagged)
+#   repairs the missing tag instead of skipping it forever.
+#
 # Requires the NPM_TOKEN repository secret: an npm granular access token with
 # read/write scoped to the `softbox` package. Rotate before its expiry date —
 # a run that fails with ENEEDAUTH means the token is missing or expired;
@@ -16,6 +29,11 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  # gh run list (the green-CI gate) reads the Actions API; with an explicit
+  # permissions block every unlisted scope is `none`, and a public-repo
+  # fallback is not guaranteed for installation tokens.
+  actions: read
 
 concurrency:
   group: release
@@ -24,6 +42,9 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Containment: push is already filtered to main, but workflow_dispatch can
+    # target any ref — never publish from a branch.
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
@@ -48,21 +69,94 @@ jobs:
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # prepublishOnly runs the full gate: lint, typecheck, build, test,
-      # package smoke, type smoke and attw.
-      - name: Publish to npm
+      # The hard link between CI green and npm publish: wait for the CI
+      # workflow of this exact commit and refuse to publish unless it
+      # succeeded. CI runs in parallel with this workflow on the same push,
+      # so waiting (rather than just checking) is required.
+      - name: Require green CI for this exact commit
         if: steps.guard.outputs.publish == 'true'
-        run: npm publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Waiting for CI on $GITHUB_SHA..."
+          GH_ERRORS=0
+          EMPTY_POLLS=0
+          for attempt in $(seq 1 80); do
+            # An API error must stay distinguishable from "no runs yet":
+            # swallowing it would loop for 40 minutes and then blame CI.
+            if RUNS_JSON=$(gh run list --workflow=ci.yml --commit "$GITHUB_SHA" --json status,conclusion); then
+              GH_ERRORS=0
+            else
+              GH_ERRORS=$((GH_ERRORS + 1))
+              if [ "$GH_ERRORS" -ge 5 ]; then
+                echo "Querying CI runs kept failing (see errors above) — refusing to publish."
+                echo "If this is a 403, the workflow token is missing actions: read."
+                exit 1
+              fi
+              echo "CI query failed — retrying in 30s ($attempt/80)."
+              sleep 30
+              continue
+            fi
+            GREEN=$(jq '[.[] | select(.status == "completed" and .conclusion == "success")] | length' <<<"$RUNS_JSON")
+            PENDING=$(jq '[.[] | select(.status != "completed")] | length' <<<"$RUNS_JSON")
+            TOTAL=$(jq 'length' <<<"$RUNS_JSON")
+            if [ "$GREEN" -gt 0 ]; then
+              echo "CI is green for this commit."
+              exit 0
+            fi
+            if [ "$TOTAL" -gt 0 ] && [ "$PENDING" -eq 0 ]; then
+              echo "CI finished without success for this commit — refusing to publish."
+              exit 1
+            fi
+            if [ "$TOTAL" -eq 0 ]; then
+              # A CI run should register within seconds of the same push. A
+              # persistently empty list means one will never come ([skip ci]
+              # merge, or the runs aged out of Actions retention) — fail with
+              # the recovery path instead of burning the full timeout.
+              EMPTY_POLLS=$((EMPTY_POLLS + 1))
+              if [ "$EMPTY_POLLS" -ge 10 ]; then
+                echo "No CI runs exist for $GITHUB_SHA — dispatch the CI workflow for this ref, or push a new commit, then re-run."
+                exit 1
+              fi
+            else
+              EMPTY_POLLS=0
+            fi
+            echo "CI not green yet (runs: $TOTAL, pending: $PENDING) — retrying in 30s ($attempt/80)."
+            sleep 30
+          done
+          echo "Timed out waiting for CI — refusing to publish."
+          exit 1
+
+      # prepublishOnly runs the local gate on top of green CI: lint,
+      # typecheck, build, test, package smoke, type smoke and attw.
+      - name: Publish to npm (with provenance)
+        if: steps.guard.outputs.publish == 'true'
+        run: npm publish --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Tag and create the GitHub release
-        if: steps.guard.outputs.publish == 'true'
+      # Deliberately not gated on publish having happened THIS run: after a
+      # partial failure (npm publish succeeded, this step failed) the guard
+      # reports publish=false on the re-run, and a gated step would skip the
+      # tag forever. Idempotence makes the repair safe.
+      - name: Tag and create the GitHub release (idempotent)
         run: |
-          TAG="v${{ steps.guard.outputs.version }}"
+          VERSION="${{ steps.guard.outputs.version }}"
+          TAG="v${VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "$TAG already exists — nothing to do."
+            exit 0
+          fi
+          # Tag the commit the registry actually holds, not whatever this
+          # run checked out: a repair run may fire from a LATER push (e.g.
+          # a docs commit after a publish whose tag step failed), and the
+          # tag must agree with the published artifact and its provenance.
+          PUBLISHED_SHA=$(npm view "softbox@${VERSION}" gitHead 2>/dev/null || true)
+          TARGET="${PUBLISHED_SHA:-$GITHUB_SHA}"
+          echo "Tagging $TAG at $TARGET"
           gh release create "$TAG" \
-            --target "$GITHUB_SHA" \
-            --title "softbox ${{ steps.guard.outputs.version }}" \
+            --target "$TARGET" \
+            --title "softbox ${VERSION}" \
             --notes "See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md) for what changed in this release."
         env:
           GH_TOKEN: ${{ github.token }}
