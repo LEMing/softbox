@@ -42,8 +42,22 @@ export default tseslint.config(
             message: 'Clean architecture: src/core must stay engine-agnostic. Wrap Three.js (and its ecosystem) behind an interface in src/infrastructure.',
           },
           {
-            group: ['**/types/CommonTypes', '**/types/SimpleViewerHandle', '**/events/ViewerEvents'],
+            group: [
+              '**/types/CommonTypes', '**/types/CommonTypes.*',
+              '**/types/SimpleViewerHandle', '**/types/SimpleViewerHandle.*',
+              '**/events/ViewerEvents', '**/events/ViewerEvents.*',
+            ],
             message: 'These shared modules carry Three.js types for the public React surface; core must not reach them (see the engine-agnostic shared-module lint blocks).',
+          },
+          {
+            // The root barrels re-export the Three.js-typed public-surface
+            // modules (src/types.ts even imports three directly) — importing
+            // one from core smuggles all of that in through one innocent
+            // specifier. Regex, not group: a glob like '**/types' matches the
+            // directory's CHILDREN too; only the exact barrel specifier is
+            // banned, leaf modules stay importable.
+            regex: '(^|/)(types|events|events/index)$',
+            message: 'Barrel imports re-export Three.js-typed public-surface modules into core; import the specific module instead.',
           },
         ],
       }],
@@ -60,6 +74,8 @@ export default tseslint.config(
       'src/types/CommonTypes.ts',
       'src/types/SimpleViewerHandle.ts',
       'src/events/ViewerEvents.ts',
+      // Deliberate public-surface re-export of ViewerEvents.
+      'src/events/index.ts',
     ],
     rules: {
       'no-restricted-imports': ['error', {
@@ -67,6 +83,17 @@ export default tseslint.config(
           {
             group: ['three', 'three/*', 'three-gpu-pathtracer', 'three-mesh-bvh'],
             message: 'This module is in engine-agnostic core\'s transitive import closure; use primitives or a Vec3Like, not Three.js types.',
+          },
+          {
+            // Same-dir specifiers ('./CommonTypes') dodge the '**/types/…'
+            // patterns core uses — ban the three-carrying siblings here too,
+            // or a guarded file could pass their types through to core.
+            group: [
+              '**/CommonTypes', '**/CommonTypes.*',
+              '**/SimpleViewerHandle', '**/SimpleViewerHandle.*',
+              '**/ViewerEvents', '**/ViewerEvents.*',
+            ],
+            message: 'This sibling module carries Three.js types for the public React surface; a module in core\'s import closure must not re-export or depend on it.',
           },
         ],
       }],
