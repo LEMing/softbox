@@ -6,7 +6,7 @@ Changelog
 
 ### Bug fixes
 * **Fixed:** changing `units` on a mounted viewer was silently ignored — the option was in neither the structural nor the runtime key of the option-change detection, so nothing happened until some unrelated structural change rebuilt the viewer with the "new" units long after the fact. `units` is now a structural option: changing it rebuilds the viewer and re-wraps the model, like the other load-time options.
-* **Fixed:** an unknown `units` string from an untyped (JS) consumer silently fell back to meter scale — the exact wrong-scale failure the option exists to prevent. The viewer now fails construction loudly with `INVALID_PARAMETER`, naming the invalid value and the valid ones.
+* **Fixed:** an unknown `units` string from an untyped (JS) consumer silently fell back to meter scale — the exact wrong-scale failure the option exists to prevent. Validation now happens at the top of `ViewerFactory.createViewer` (before any GPU/DOM resource exists, so nothing leaks on failure) and rejects prototype-chain names (`'toString'`, …) via an own-property check, failing with `INVALID_PARAMETER` naming the invalid value and the valid ones. Inside `<SimpleViewer>` the failure is contained to a console error instead of crashing the host application's React tree.
 
 4.1.1
 ---

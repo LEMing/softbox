@@ -160,6 +160,38 @@ describe('useViewerCore', () => {
     await waitFor(() => expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(2));
   });
 
+  it('does not rebuild when units flips between absent and the explicit default', async () => {
+    const canvasRef = makeCanvasRef();
+
+    const { result, rerender } = renderHook(
+      ({ options }: { options: SimpleViewerOptions }) => useViewerCore(canvasRef, options),
+      { initialProps: { options: testDefaultOptions } }
+    );
+
+    await waitFor(() => expect(result.current.isInitialized).toBe(true));
+
+    rerender({ options: { ...testDefaultOptions, units: 'meters' } });
+
+    // Behaviorally identical options must share a structural key.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(1);
+  });
+
+  it('contains a synchronous viewer-construction failure instead of crashing the host tree', async () => {
+    const canvasRef = makeCanvasRef();
+    (ViewerFactory.createViewer as unknown as jest.Mock).mockImplementation(() => {
+      throw new Error('Unknown units');
+    });
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const { result } = renderHook(() => useViewerCore(canvasRef, testDefaultOptions));
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(result.current.isInitialized).toBe(false);
+    expect(consoleError).toHaveBeenCalledWith('Failed to create viewer:', expect.any(Error));
+    consoleError.mockRestore();
+  });
+
   it('rebuilds the viewer on a structural change (camera.fov)', async () => {
     const canvasRef = makeCanvasRef();
 

@@ -13,7 +13,7 @@ import {
 import { TypedEventEmitter } from '../events/EventEmitter';
 import { ViewerEventMap } from './events/CoreViewerEvents';
 import { ThreeViewerError, ErrorCode } from '../errors';
-import { UNITS_TO_METERS } from './constants';
+import { resolveUnitsScaleToMeters } from './utils/units';
 import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
 import { CaptureStillOptions } from '../types/CaptureStillOptions';
 import { CaptureVideoOptions } from '../types/CaptureVideoOptions';
@@ -116,16 +116,7 @@ export class ViewerCore {
       }
     });
 
-    const units = this.options.units ?? 'meters';
-    const unitsScaleToMeters = UNITS_TO_METERS[units];
-    if (unitsScaleToMeters === undefined) {
-      // Reachable only from untyped (JS) consumers — a typo'd unit must not
-      // silently render at meter scale, the exact failure `units` exists to fix.
-      throw new ThreeViewerError(
-        `Unknown units '${String(units)}'. Valid values: ${Object.keys(UNITS_TO_METERS).join(', ')}`,
-        ErrorCode.INVALID_PARAMETER
-      );
-    }
+    const unitsScaleToMeters = resolveUnitsScaleToMeters(this.options.units);
 
     this.modelManager = new ModelManager({
       modelLoader: dependencies.modelLoader,

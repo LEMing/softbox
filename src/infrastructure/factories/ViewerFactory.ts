@@ -1,4 +1,5 @@
 import { ViewerCore, ViewerDependencies } from '../../core/ViewerCore';
+import { resolveUnitsScaleToMeters } from '../../core/utils/units';
 import { SimpleViewerOptions } from '../../types/SimpleViewerOptions';
 import { 
   ThreeRendererAdapter,
@@ -31,6 +32,11 @@ export class ViewerFactory {
     canvas: HTMLCanvasElement,
     options: SimpleViewerOptions
   ): ViewerCore {
+    // Reject invalid options before any resource exists: a throw below this
+    // line would leak the controls' DOM listeners and the adapter graph, since
+    // no ViewerCore ever materializes to dispose them.
+    resolveUnitsScaleToMeters(options.units);
+
     // Create renderer
     const renderer = new ThreeRendererAdapter(canvas);
     

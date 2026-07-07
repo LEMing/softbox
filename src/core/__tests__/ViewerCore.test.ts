@@ -402,6 +402,15 @@ describe('ViewerCore', () => {
       );
       expect(() => new ViewerCore(deps)).toThrow(/furlongs.*meters, centimeters, millimeters, feet, inches/s);
     });
+
+    it('rejects prototype-chain names as units values', () => {
+      const { deps } = makeDeps({
+        options: { units: 'toString' as unknown as SimpleViewerOptions['units'] },
+      });
+      expect(() => new ViewerCore(deps)).toThrow(
+        expect.objectContaining({ code: ErrorCode.INVALID_PARAMETER })
+      );
+    });
   });
 
   describe('initialize', () => {
