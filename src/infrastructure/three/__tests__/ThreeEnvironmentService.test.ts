@@ -120,6 +120,51 @@ describe('ThreeEnvironmentService', () => {
     expect(service.createStudioEnvironment().ok).toBe(true);
   });
 
+  it('registers a cube capture of the studio room as the path-tracing original', async () => {
+    // CubeCamera.update needs a functional renderer surface.
+    const cubeCapableRenderer = {
+      coordinateSystem: THREE.WebGLCoordinateSystem,
+      toneMapping: THREE.NoToneMapping,
+      xr: { enabled: false },
+      getRenderTarget: () => null,
+      getActiveCubeFace: () => 0,
+      getActiveMipmapLevel: () => 0,
+      setRenderTarget: jest.fn(),
+      render: jest.fn(),
+    } as unknown as THREE.WebGLRenderer;
+    const service = new ThreeEnvironmentService();
+    const init = await service.initialize({
+      renderer: { renderer: cubeCapableRenderer } as unknown as IRenderer,
+    });
+    expect(init.ok).toBe(true);
+
+    const studio = service.createStudioEnvironment();
+    if (!studio.ok) throw studio.error;
+
+    const scene = new ThreeSceneAdapter();
+    const applied = service.applyToScene(scene, studio.value, { setBackground: false });
+    expect(applied.ok).toBe(true);
+
+    const original = (scene.getThreeScene() as THREE.Scene & {
+      __originalEnvironmentTexture?: THREE.Texture;
+    }).__originalEnvironmentTexture;
+    expect(original).toBeDefined();
+    expect((original as THREE.CubeTexture).isCubeTexture).toBe(true);
+  });
+
+  it('leaves the studio environment usable when the cube capture fails', async () => {
+    // The minimal stub renderer cannot run CubeCamera.update — the capture
+    // must fail soft: studio PMREM still applies, just no PT original.
+    const service = await initialized();
+    const studio = service.createStudioEnvironment();
+    if (!studio.ok) throw studio.error;
+
+    const scene = new ThreeSceneAdapter();
+    const applied = service.applyToScene(scene, studio.value, { setBackground: false });
+    expect(applied.ok).toBe(true);
+    expect(scene.getThreeScene().environment).not.toBeNull();
+  });
+
   it('dispose frees every cached texture (pmrem AND original) and clears the cache', async () => {
     const service = await initialized();
     const loaded = await service.loadEnvironmentMap('env.hdr');

@@ -8,7 +8,11 @@ const defaultOptions: SimpleViewerOptions = {
   // Scene settings
   staticScene: false,
   backgroundColor: '#f0f0f7',
-  replaceWithScreenshotOnComplete: true,
+  // Off by default since path tracing became interactive: the converged
+  // frame stays live on the canvas and re-accumulates on camera moves. The
+  // legacy DOM-snapshot overlay blocked interaction behind an <img> and
+  // reloaded the whole model on the first click.
+  replaceWithScreenshotOnComplete: false,
   // Authored unit of incoming models; non-meter models are rescaled on load
   // to the viewer's 1-unit-=-1-meter convention (real-scale floor, shadows).
   units: 'meters',

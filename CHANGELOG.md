@@ -1,6 +1,18 @@
 Changelog
 =========
 
+4.5.0
+---
+
+### Interactive path tracing
+* **Fixed: path tracing never actually ran under the default studio environment.** The procedural studio room exists only as a PMREM texture, whose packed layout the tracer cannot read — the tracer silently waited for an environment forever and every "path-traced" frame was really the raster fallback. The studio room is now also captured into a plain HDR cube map (tone mapping off, like PMREM's own pipeline) and registered as the tracer's ingest source; the tracer converts it to the equirectangular map it needs by itself. Path tracing now works out of the box, with any preset.
+* **Fixed: camera motion with path tracing enabled smeared the model into torn slivers.** Two causes, both fixed: the tracer's setup left the renderer's `autoClear` permanently off, so every raster fallback frame stacked over the last one; and accumulated samples were presented mid-motion against a camera that had already moved. Motion now renders plain cleared raster frames, and accumulation (re)starts only after the camera has rested for a settle window (200 ms), with a single camera re-sync — never a per-move scene re-ingest (BVH rebuild).
+* **Changed: the tracer stays warm and re-accumulates instead of dying after one convergence.** Completion used to dispose the path tracer 100 ms after presenting the frame; the first camera move after that left a stale frame frozen on the canvas with nothing ever rendering again. The converged frame now stays live, and any camera move re-arms a fresh accumulation from the new viewpoint. Give-up pauses (no WebGL2, no usable environment) stay paused — there is nothing warm to resume.
+* **Changed: `replaceWithScreenshotOnComplete` now defaults to `false`.** The DOM-snapshot overlay was built for one-shot path tracing; it blocks interaction behind an `<img>` and reloads the entire model on the first click. With the tracer interactive it adds nothing — the option remains for consumers who want the old behavior.
+* While animations play, accumulation is suspended (animated geometry can never converge against the ingested BVH) and the raster renderer shows the motion; pausing playback re-ingests the resting pose and re-converges.
+* The render loop now wakes from the controls' own change event — after it wound down (converged accumulation, idle static scene), user interaction reliably restarts rendering.
+* Playground: new **path traced** chip in the Render row toggles the mode live and updates the copyable snippet.
+
 4.4.2
 ---
 

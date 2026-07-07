@@ -58,11 +58,19 @@ export interface IPathTracingService {
    * Check if path tracer has been disposed
    */
   isPathTracerDisposed(): boolean;
-  
+
   /**
-   * Reset accumulation. High-frequency callers (camera moves) are throttled;
-   * `force` bypasses the throttle for events that must never be dropped
-   * (a model swap — a stale accumulation would keep sampling the old model).
+   * A paused-after-completion accumulation still holds a warm tracer and
+   * ingested scene, so re-enabling is cheap (no BVH rebuild). False after a
+   * give-up pause (nothing worth resuming), an explicit setEnabled(false)
+   * (the consumer's decision must stick), and disposal.
+   */
+  canResume(): boolean;
+
+  /**
+   * Restart accumulation. The default reset is a camera-move reset: cheap
+   * camera re-sync, no scene re-ingest. `force` marks the ingested scene
+   * itself stale (model swap, pose change) so the next render re-ingests it.
    */
   reset(force?: boolean): void;
   

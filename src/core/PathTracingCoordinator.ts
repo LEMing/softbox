@@ -4,7 +4,6 @@ import { TypedEventEmitter } from '../events/EventEmitter';
 import { ViewerEventMap } from './events/CoreViewerEvents';
 import { RenderLoopManager } from './utils/RenderLoopManager';
 import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
-import { hasInternalRenderer } from './interfaces/IRendererExtension';
 import { DEFAULT_PATH_TRACING_SAMPLES } from './constants';
 
 /** Pre-frame snapshot used to detect completion after the frame renders. */
@@ -34,6 +33,7 @@ export class PathTracingCoordinator {
   private readonly deps: PathTracingCoordinatorDependencies;
   private startTime?: number;
   private completeHandled = false;
+  private suspendedForAnimation = false;
   private readonly selfPauseListeners = new Set<() => void>();
 
   constructor(deps: PathTracingCoordinatorDependencies) {
@@ -118,13 +118,59 @@ export class PathTracingCoordinator {
 
   /**
    * Drop the accumulation (new model, camera move) so it restarts cleanly.
-   * `force` bypasses the service's rapid-reset throttle — required for model
-   * swaps, which must never be silently dropped.
+   * `force` marks the ingested scene stale (model swap, pose change) so the
+   * next render re-ingests it instead of just re-syncing the camera.
+   *
+   * A paused accumulation (converged frame on screen, or suspended for
+   * animation playback) is re-armed here: without this, the first camera
+   * move after convergence left a stale frame frozen on the canvas with
+   * nothing ever accumulating again. Give-up pauses stay paused —
+   * `canResume()` is false when there is nothing warm to resume.
    */
   resetAccumulation(force = false): void {
-    if (this.deps.service && this.isEnabled()) {
-      this.deps.service.reset(force);
+    const { service, renderLoopManager } = this.deps;
+    if (!service || !this.isEnabled()) {
+      return;
+    }
+    service.reset(force);
+    this.completeHandled = false;
+    if (!service.isEnabled() && (service.canResume() || this.suspendedForAnimation)) {
+      this.suspendedForAnimation = false;
+      service.setEnabled(true);
+      renderLoopManager.requireContinuous('path-tracing');
+    }
+  }
+
+  /**
+   * Called every frame while animations play: animated geometry can never
+   * converge (the ingested BVH pictures one pose), so accumulation is
+   * suspended — the raster renderer shows the motion — and resumed by the
+   * next resetAccumulation once playback pauses. The tracer stays warm.
+   */
+  suspendWhileAnimating(): void {
+    const service = this.deps.service;
+    if (!service) {
+      return;
+    }
+    if (service.isEnabled()) {
+      const firstSuspend = !this.suspendedForAnimation;
+      this.suspendedForAnimation = true;
+      service.setEnabled(false);
+      this.deps.renderLoopManager.releaseContinuous('path-tracing');
+      if (firstSuspend) {
+        // A capture awaiting 'pathtracing:complete' must not hang for the
+        // whole playback — settle it with the raster frame, exactly like
+        // the give-up paths do.
+        this.selfPauseListeners.forEach((callback) => callback());
+      }
+    } else if (service.canResume() && service.getSampleCount() > 0) {
+      // A converged frame was preserving the canvas via the completed-state
+      // short-circuit; playback needs live raster frames, so drop the
+      // preserved sample count. The pause-time forced reset re-ingests the
+      // resting pose afterwards.
+      service.reset();
       this.completeHandled = false;
+      this.suspendedForAnimation = true;
     }
   }
 
@@ -176,7 +222,7 @@ export class PathTracingCoordinator {
   }
 
   private handleComplete(samples: number, currentTime: number): void {
-    const { events, renderLoopManager, getOptions, schedule, replaceWithScreenshot, renderer } = this.deps;
+    const { events, renderLoopManager, getOptions, schedule, replaceWithScreenshot } = this.deps;
     this.completeHandled = true;
     renderLoopManager.releaseContinuous('path-tracing');
     if (!getOptions().staticScene) {
@@ -205,16 +251,13 @@ export class PathTracingCoordinator {
       return;
     }
 
-    // Keep the final path-traced image visible: one last render, stop the loop,
-    // and prevent autoClear from wiping the preserved buffer.
+    // Keep the final path-traced image visible: one last render (which the
+    // completed-state short-circuit turns into a no-op, preserving the
+    // buffer) and stop the loop. autoClear must stay ON — disabling it here
+    // used to outlive the completion and stack every post-convergence raster
+    // frame over the last one, tearing the model apart on the next drag.
     renderLoopManager.requestRender();
     schedule(stopUnlessDemanded, 100);
-    if (hasInternalRenderer(renderer)) {
-      const threeRenderer = renderer.getInternalRenderer() as { autoClear: boolean } | null;
-      if (threeRenderer) {
-        threeRenderer.autoClear = false;
-      }
-    }
   }
 
   /**

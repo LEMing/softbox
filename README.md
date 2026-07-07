@@ -109,7 +109,7 @@ Turntable and animations compose — a spinning, walking robot is two words.
 <SimpleViewer object={url} pathTraced />
 ```
 
-`pathTraced` turns on progressive path tracing (a construction-time render mode). Capture a PNG programmatically — in raster mode at any resolution, in path-traced mode once the accumulation completes:
+`pathTraced` turns on interactive progressive path tracing: the frame converges whenever the camera rests, and orbiting shows plain raster frames until the camera settles again — then a fresh accumulation starts from the new viewpoint. It works with every preset, including the default procedural studio. Capture a PNG programmatically — in raster mode at any resolution, in path-traced mode once the accumulation completes:
 
 ```tsx
 const handle = viewerRef.current;
@@ -264,7 +264,7 @@ Interactive orientation cube: click to snap the camera to axis views, synchroniz
 
 ### Path tracing options
 
-`pathTracing`: `enabled`, `maxSamples` (completion cap), `bounces`, `transmissiveBounces`, `renderScale`, `lowResScale`, `dynamicLowRes`. With `replaceWithScreenshotOnComplete: true` (default) the finished frame replaces the live canvas until the user interacts.
+`pathTracing`: `enabled`, `maxSamples` (completion cap), `bounces`, `transmissiveBounces`, `renderScale`, `lowResScale`, `dynamicLowRes`. The converged frame stays on the live canvas and re-accumulates on camera moves; `replaceWithScreenshotOnComplete: true` (off by default) restores the legacy behavior of swapping in a DOM snapshot instead.
 
 ## Next.js / SSR
 

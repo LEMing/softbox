@@ -80,6 +80,7 @@ export class ViewerCore {
   private readonly sceneConfigurator: SceneConfigurator;
   private readonly pathTracing: PathTracingCoordinator;
   private readonly capture: CaptureController;
+  private controlsChangeUnsubscribe: (() => void) | null = null;
 
   // Dependencies
   private readonly renderer: IRenderer;
@@ -228,6 +229,17 @@ export class ViewerCore {
       this.stateManager.setInitialized();
       this.startRenderLoop();
 
+      // The controls mutate the camera directly from user input, so once the
+      // loop has wound down (idle static scene, converged path tracing)
+      // nothing else observes the interaction — this is what wakes it back up.
+      this.controlsChangeUnsubscribe = this.controls.onChange(() => {
+        if (this.disposed) {
+          return;
+        }
+        this.reviveRenderLoop();
+        this.renderLoopManager.requestRender();
+      });
+
       if (!this.options.staticScene) {
         this.renderLoopManager.setAlwaysRender(true);
       } else if (this.pathTracing.isEnabled()) {
@@ -304,10 +316,14 @@ export class ViewerCore {
       if (result.ok) {
         this.stateManager.setLoaded(result.value);
         this.attachAnimations(result.value);
+        // The loop may have wound down entirely (converged path tracing) —
+        // requestRender alone cannot restart a dead rAF chain, and without
+        // this the new model never paints until the user touches the controls.
+        this.reviveRenderLoop();
         this.renderLoopManager.requestRender();
         // A new model restarts the accumulation from scratch. Forced: the
-        // throttle must not drop this reset, or the tracer keeps sampling
-        // the previous model's geometry.
+        // stale ingest must not survive, or the tracer keeps sampling the
+        // previous model's geometry.
         this.pathTracing.resetAccumulation(true);
         return Result.ok(undefined);
       } else {
@@ -345,16 +361,22 @@ export class ViewerCore {
       const currentTime = performance.now();
       const fps = deltaTime > 0 ? 1000 / deltaTime : 0;
 
+      const isAnimating = this.animationService?.isPlaying() ?? false;
       const controlsChanged = this.controls.update();
       if (controlsChanged) {
         this.events.emit('controls:change', { controls: this.controls });
-        // A camera move invalidates the accumulated path-traced frame.
-        this.pathTracing.resetAccumulation();
+        // A camera move invalidates the accumulated path-traced frame. While
+        // animations play the accumulation is suspended below — resetting
+        // here would re-arm it against geometry that changes every frame.
+        if (!isAnimating) {
+          this.pathTracing.resetAccumulation();
+        }
         this.renderLoopManager.requestRender();
       }
 
-      if (this.animationService?.isPlaying()) {
+      if (isAnimating && this.animationService) {
         this.animationService.update(deltaTime / 1000);
+        this.pathTracing.suspendWhileAnimating();
       }
 
       // Completion is detected across the frame: snapshot before, check after.
@@ -660,6 +682,10 @@ export class ViewerCore {
     this.animationService?.pause();
     this.renderLoopManager.releaseContinuous('animations');
     this.rebakeContactShadowForCurrentPose();
+    // Playback suspended the path-traced accumulation; the model now rests
+    // in a NEW pose, so the resumed accumulation must re-ingest the scene
+    // (force), not just re-sync the camera.
+    this.pathTracing.resetAccumulation(true);
     // One more frame so the swapped-in baked shadow reaches the screen even
     // though the continuous-render demand is gone.
     this.renderLoopManager.requestRender();
@@ -775,6 +801,8 @@ export class ViewerCore {
     this.pendingTimers.clear();
 
     this.stopRenderLoop();
+    this.controlsChangeUnsubscribe?.();
+    this.controlsChangeUnsubscribe = null;
     this.selectionService?.dispose();
     this.animationService?.detach();
 

@@ -78,6 +78,7 @@ export function SiteApp() {
   const [selected, setSelected] = useState<string>('Motorhome');
   const [turntable, setTurntable] = useState(false);
   const [animations, setAnimations] = useState(false);
+  const [pathTraced, setPathTraced] = useState(false);
   const [pins, setPins] = useState<Pin[]>([]);
   const [stillState, setStillState] = useState<'idle' | 'capturing' | 'failed'>('idle');
   const pinIdRef = useRef(0);
@@ -216,6 +217,12 @@ export function SiteApp() {
             { key: 'animations', label: 'animations', active: animations, onToggle: setAnimations },
           ]}
         />
+        <Toggles
+          label="Render"
+          items={[
+            { key: 'pathtraced', label: 'path traced', active: pathTraced, onToggle: setPathTraced },
+          ]}
+        />
         <div style={{ fontSize: 11.5, color: rejectedName ? '#b3261e' : '#7a7a85' }} role="status">
           {rejectedName ? (
             <>Only self-contained <code style={{ fontSize: 11 }}>.glb</code> models are supported</>
@@ -263,7 +270,9 @@ export function SiteApp() {
               '  object="/model.glb"',
               ...(turntable ? ['  turntable'] : []),
               ...(animations ? ['  animations'] : []),
-              '  options={{ ui: { presets: true } }}',
+              pathTraced
+                ? '  options={{ ui: { presets: true }, pathTracing: { enabled: true } }}'
+                : '  options={{ ui: { presets: true } }}',
               '/>',
             ].join('\n')}
           />
@@ -299,7 +308,7 @@ export function SiteApp() {
         object={modelUrl}
         turntable={turntable}
         animations={animations}
-        options={{ ui: { presets: true } }}
+        options={pathTraced ? { ui: { presets: true }, pathTracing: { enabled: true } } : { ui: { presets: true } }}
       >
         {pins.map((pin, index) => (
           <Hotspot key={pin.id} position={pin.point} occlude>

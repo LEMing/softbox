@@ -20,10 +20,16 @@ type SceneWithOriginalTexture = THREE.Scene & {
 
 export class ThreeEnvironmentService implements IEnvironmentService {
   private pmremGenerator: THREE.PMREMGenerator | null = null;
+  private threeRenderer: THREE.WebGLRenderer | null = null;
   private loadedTextures: Map<string, THREE.Texture> = new Map();
   // PMREM outputs live in render targets; disposing only their .texture leaks
   // one FBO per build, so the targets themselves are retained and freed.
   private renderTargets: THREE.WebGLRenderTarget[] = [];
+  // Cube capture of the procedural studio room, keyed by its PMREM texture:
+  // the path tracer cannot read PMREM's packed CubeUV layout, but it converts
+  // a plain cube texture to the equirectangular map it needs by itself.
+  private studioPmremTexture: THREE.Texture | null = null;
+  private studioCubeTarget: THREE.WebGLCubeRenderTarget | null = null;
   private disposed = false;
 
   constructor() {
@@ -56,6 +62,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         );
       }
 
+      this.threeRenderer = threeRenderer;
       this.pmremGenerator = new THREE.PMREMGenerator(threeRenderer);
       this.pmremGenerator.compileEquirectangularShader();
 
@@ -205,13 +212,18 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       if (threeTexture.mapping === THREE.CubeUVReflectionMapping) {
         // Find the original equirectangular texture
         const originalTextures = Array.from(this.loadedTextures.entries());
-        const originalEntry = originalTextures.find(([key, tex]) => 
+        const originalEntry = originalTextures.find(([key, tex]) =>
           key.endsWith('_original') && tex.mapping === THREE.EquirectangularReflectionMapping
         );
-        
+
         if (originalEntry) {
           // Store original texture reference for path tracer
           (threeScene as SceneWithOriginalTexture).__originalEnvironmentTexture = originalEntry[1];
+        } else if (threeTexture === this.studioPmremTexture && this.studioCubeTarget) {
+          // The procedural studio room has no file-loaded original; its cube
+          // capture is what the path tracer can convert and ingest.
+          (threeScene as SceneWithOriginalTexture).__originalEnvironmentTexture =
+            this.studioCubeTarget.texture;
         }
       } else if (threeTexture.mapping === THREE.EquirectangularReflectionMapping) {
         // If we already have equirectangular, use it directly
@@ -283,6 +295,8 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       this.renderTargets.push(renderTarget);
       const roomTexture = renderTarget.texture;
 
+      this.captureStudioCubeOriginal(roomEnvironment, roomTexture);
+
       // Clean up
       roomEnvironment.dispose();
 
@@ -298,6 +312,39 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     }
   }
 
+  /**
+   * Capture the studio room into a plain cube texture alongside the PMREM
+   * build. PMREM's packed CubeUV layout is only readable by the raster
+   * pipeline; the path tracer needs a source it can convert to an
+   * equirectangular map, and it accepts cube textures for exactly that.
+   * Failure is non-fatal — the raster look is untouched, path tracing
+   * just has no environment to ingest (and pauses itself as before).
+   */
+  private captureStudioCubeOriginal(room: RoomEnvironment, pmremTexture: THREE.Texture): void {
+    if (!this.threeRenderer) {
+      return;
+    }
+    try {
+      const cubeTarget = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType });
+      const cubeCamera = new THREE.CubeCamera(0.1, 100, cubeTarget);
+      // Capture raw HDR radiance like PMREM does internally: tone mapping
+      // would bake the display transform into the light values and the room
+      // reads several stops too dark as an environment.
+      const originalToneMapping = this.threeRenderer.toneMapping;
+      this.threeRenderer.toneMapping = THREE.NoToneMapping;
+      try {
+        cubeCamera.update(this.threeRenderer, room);
+      } finally {
+        this.threeRenderer.toneMapping = originalToneMapping;
+      }
+      this.studioCubeTarget?.dispose();
+      this.studioCubeTarget = cubeTarget;
+      this.studioPmremTexture = pmremTexture;
+    } catch (error) {
+      console.warn('Failed to capture the studio environment for path tracing:', error);
+    }
+  }
+
   dispose(): void {
     this.disposed = true;
     this.loadedTextures.forEach(texture => texture.dispose());
@@ -308,10 +355,15 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     this.renderTargets.forEach(target => target.dispose());
     this.renderTargets = [];
 
+    this.studioCubeTarget?.dispose();
+    this.studioCubeTarget = null;
+    this.studioPmremTexture = null;
+
     if (this.pmremGenerator) {
       this.pmremGenerator.dispose();
       this.pmremGenerator = null;
     }
+    this.threeRenderer = null;
   }
 }
 

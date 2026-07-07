@@ -26,6 +26,7 @@ jest.mock('three-gpu-pathtracer', () => {
     environmentIntensity = 0;
     tiles = { set: jest.fn() };
     setScene = jest.fn();
+    updateCamera = jest.fn();
     updateLights = jest.fn();
     renderSample = jest.fn();
     reset = jest.fn();
@@ -52,6 +53,7 @@ interface MockPathTracerInstance {
   tiles: { set: jest.Mock };
   copyQuad?: { render: jest.Mock };
   setScene: jest.Mock;
+  updateCamera: jest.Mock;
   updateLights: jest.Mock;
   renderSample: jest.Mock;
   reset: jest.Mock;
@@ -68,7 +70,6 @@ const lastPathTracer = (): MockPathTracerInstance =>
 
 interface ServiceInternals {
   pathTracer: MockPathTracerInstance | null;
-  disposeTimer: ReturnType<typeof setTimeout> | null;
   convertedEnvTexture: THREE.DataTexture | null;
   sceneInitialized: boolean;
   sampleCount: number;
@@ -569,6 +570,22 @@ describe('ThreePathTracingService', () => {
       expect(impostor.visible).toBe(true);
     });
 
+    it('initializes from a cube-captured original (procedural studio room)', async () => {
+      const ctx = setup();
+      await initialize(ctx, true);
+      const cubeTexture = new THREE.CubeTexture();
+      (ctx.threeScene as PathTracingScene).__originalEnvironmentTexture = cubeTexture;
+
+      const result = await ctx.service.render(ctx.scene, ctx.camera);
+
+      expect(result.ok).toBe(true);
+      expect(peek(ctx.service).sceneInitialized).toBe(true);
+      expect(lastPathTracer().setScene).toHaveBeenCalled();
+      // The cube stood in only for the ingest — the raster pipeline keeps
+      // whatever environment the scene actually had.
+      expect(ctx.threeScene.environment).toBeNull();
+    });
+
     it('initializes from the original equirectangular data texture', async () => {
       const ctx = setup();
       await initialize(ctx, true);
@@ -798,7 +815,7 @@ describe('ThreePathTracingService', () => {
   });
 
   describe('render completion', () => {
-    it('emits paused, captures the frame and schedules a deferred dispose', async () => {
+    it('emits paused and keeps the tracer warm so a camera move can resume', async () => {
       jest.useFakeTimers();
       const parent = document.createElement('div');
       const canvas = document.createElement('canvas');
@@ -818,20 +835,43 @@ describe('ThreePathTracingService', () => {
       expect(result.ok).toBe(true);
       expect(pausedListener).toHaveBeenCalledWith({ samples: 1, reason: 'completed' });
       expect(ctx.service.isEnabled()).toBe(false);
-      expect(peek(ctx.service).disposeTimer).not.toBeNull();
+      expect(ctx.service.canResume()).toBe(true);
 
       // The service presents the final frame on the canvas without creating any
       // DOM overlay or hiding the canvas — that is the presentation layer's job.
       expect(canvas.style.visibility).toBe('');
 
+      // The tracer and its ingested scene survive completion: disposing them
+      // here is what froze the canvas on the first post-convergence camera
+      // move (nothing left to accumulate with, nothing re-rendering).
       const tracer = lastPathTracer();
-      jest.advanceTimersByTime(100);
-      expect(tracer.dispose).toHaveBeenCalled();
-      expect(peek(ctx.service).pathTracer).toBeNull();
-      expect(peek(ctx.service).disposeTimer).toBeNull();
+      jest.advanceTimersByTime(1000);
+      expect(tracer.dispose).not.toHaveBeenCalled();
+      expect(peek(ctx.service).pathTracer).not.toBeNull();
+      expect(peek(ctx.service).sceneInitialized).toBe(true);
 
       ctx.service.dispose();
       document.body.removeChild(parent);
+    });
+
+    it('resumes accumulation after completion when re-enabled by a camera move', async () => {
+      const ctx = setup();
+      await initialize(ctx, true);
+      ctx.service.updateSettings({ samples: 1 });
+      ctx.threeScene.environment = equirectTexture();
+
+      await ctx.service.render(ctx.scene, ctx.camera);
+      expect(ctx.service.isEnabled()).toBe(false);
+
+      // The coordinator's re-arm path: camera-move reset + setEnabled(true).
+      ctx.service.reset();
+      ctx.service.setEnabled(true);
+      const result = await ctx.service.render(ctx.scene, ctx.camera);
+
+      expect(result.ok).toBe(true);
+      expect(ctx.service.getSampleCount()).toBe(1);
+      // No re-ingest happened — the warm scene was reused.
+      expect(lastPathTracer().setScene).toHaveBeenCalledTimes(1);
     });
 
     it('uses the copy quad to present the final frame when available', async () => {
@@ -875,24 +915,6 @@ describe('ThreePathTracingService', () => {
       ctx.service.dispose();
     });
 
-    it('logs a deferred dispose failure without throwing', async () => {
-      jest.useFakeTimers();
-      const ctx = setup();
-      await initialize(ctx, true);
-      ctx.service.updateSettings({ samples: 1 });
-      ctx.threeScene.environment = equirectTexture();
-
-      await ctx.service.render(ctx.scene, ctx.camera);
-      lastPathTracer().dispose.mockImplementationOnce(() => {
-        throw new Error('dispose failure');
-      });
-
-      expect(() => jest.advanceTimersByTime(100)).not.toThrow();
-      expect(peek(ctx.service).pathTracer).toBeNull();
-
-      ctx.service.dispose();
-    });
-
     it('keeps the completed frame on screen on subsequent renders', async () => {
       jest.useFakeTimers();
       const ctx = setup();
@@ -916,7 +938,7 @@ describe('ThreePathTracingService', () => {
   });
 
   describe('reset', () => {
-    it('clears the sample count and forces scene re-initialization', async () => {
+    it('a camera-move reset re-syncs the camera without re-ingesting the scene', async () => {
       const ctx = setup();
       await initialize(ctx, true);
       ctx.threeScene.environment = equirectTexture();
@@ -926,26 +948,112 @@ describe('ThreePathTracingService', () => {
       ctx.service.reset();
 
       expect(ctx.service.getSampleCount()).toBe(0);
+      // The tracer is untouched during motion; the camera re-sync is deferred
+      // to the moment accumulation restarts. A full setScene() re-ingest per
+      // camera move is what tore frames apart during turntable rotation.
+      expect(lastPathTracer().updateCamera).not.toHaveBeenCalled();
+      expect(peek(ctx.service).sceneInitialized).toBe(true);
+
+      // The mocked clock advances 1s per call, so the settle window has
+      // passed by the next render: accumulation resumes with ONE camera
+      // re-sync and no re-ingest.
+      await ctx.service.render(ctx.scene, ctx.camera);
+      expect(lastPathTracer().updateCamera).toHaveBeenCalledTimes(1);
+      expect(lastPathTracer().setScene).toHaveBeenCalledTimes(1);
+      expect(ctx.service.getSampleCount()).toBe(1);
+    });
+
+    it('renders raster-only while the camera is still inside the settle window', async () => {
+      const ctx = setup();
+      await initialize(ctx, true);
+      ctx.threeScene.environment = equirectTexture();
+      await ctx.service.render(ctx.scene, ctx.camera);
+
+      // Freeze the clock: the reset timestamp and the render check now read
+      // the same instant, so the camera counts as still moving.
+      (performance.now as jest.Mock).mockReturnValue(777_000);
+      ctx.service.reset();
+      lastPathTracer().renderSample.mockClear();
+      ctx.rendererHandle.render.mockClear();
+
+      const result = await ctx.service.render(ctx.scene, ctx.camera);
+
+      expect(result.ok).toBe(true);
+      expect(ctx.rendererHandle.render).toHaveBeenCalled();
+      expect(lastPathTracer().renderSample).not.toHaveBeenCalled();
+      expect(ctx.service.getSampleCount()).toBe(0);
+    });
+
+    it('a forced reset marks the ingested scene stale (model swap, pose change)', async () => {
+      const ctx = setup();
+      await initialize(ctx, true);
+      ctx.threeScene.environment = equirectTexture();
+      await ctx.service.render(ctx.scene, ctx.camera);
+
+      ctx.service.reset(true);
+
+      expect(ctx.service.getSampleCount()).toBe(0);
       expect(lastPathTracer().reset).toHaveBeenCalled();
       expect(peek(ctx.service).sceneInitialized).toBe(false);
+
+      await ctx.service.render(ctx.scene, ctx.camera);
+      expect(lastPathTracer().setScene).toHaveBeenCalledTimes(2);
     });
 
-    it('throttles resets that happen in quick succession', () => {
+    it('consecutive camera-move resets all apply (no throttle window)', () => {
       (performance.now as jest.Mock).mockReturnValue(500_000);
       const service = new ThreePathTracingService();
       service.reset();
       peek(service).sampleCount = 5;
       service.reset();
-      expect(service.getSampleCount()).toBe(5);
-    });
-
-    it('a forced reset bypasses the throttle (model swap must never be dropped)', () => {
-      (performance.now as jest.Mock).mockReturnValue(500_000);
-      const service = new ThreePathTracingService();
-      service.reset();
-      peek(service).sampleCount = 5;
-      service.reset(true);
       expect(service.getSampleCount()).toBe(0);
+    });
+
+    it('resets the count before a tracer exists', async () => {
+      const ctx = setup();
+      await initialize(ctx, true);
+      peek(ctx.service).sampleCount = 5;
+      ctx.service.reset();
+      expect(ctx.service.getSampleCount()).toBe(0);
+    });
+  });
+
+  describe('canResume', () => {
+    it('is true after a completed accumulation and false after dispose', async () => {
+      const ctx = setup();
+      await initialize(ctx, true);
+      ctx.service.updateSettings({ samples: 1 });
+      ctx.threeScene.environment = equirectTexture();
+      await ctx.service.render(ctx.scene, ctx.camera);
+
+      expect(ctx.service.canResume()).toBe(true);
+      ctx.service.dispose();
+      expect(ctx.service.canResume()).toBe(false);
+    });
+
+    it('is false after a give-up pause — nothing warm to resume', async () => {
+      const ctx = setup();
+      await initialize(ctx, true);
+      ctx.threeScene.environment = new THREE.Texture();
+
+      await ctx.service.render(ctx.scene, ctx.camera);
+
+      expect(ctx.service.isEnabled()).toBe(false);
+      expect(ctx.service.canResume()).toBe(false);
+    });
+
+    it('is false after an explicit setEnabled(false) — the consumer said off', async () => {
+      const ctx = setup();
+      await initialize(ctx, true);
+      ctx.service.updateSettings({ samples: 1 });
+      ctx.threeScene.environment = equirectTexture();
+      await ctx.service.render(ctx.scene, ctx.camera);
+      expect(ctx.service.canResume()).toBe(true);
+
+      ctx.service.setEnabled(true);
+      ctx.service.setEnabled(false);
+
+      expect(ctx.service.canResume()).toBe(false);
     });
   });
 
@@ -1018,19 +1126,17 @@ describe('ThreePathTracingService', () => {
       expect(peek(ctx.service).pathTracer).toBeNull();
     });
 
-    it('clears a pending deferred dispose timer', async () => {
+    it('disposes the tracer exactly once after a completed accumulation', async () => {
       jest.useFakeTimers();
       const ctx = setup();
       await initialize(ctx, true);
       ctx.service.updateSettings({ samples: 1 });
       ctx.threeScene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
-      expect(peek(ctx.service).disposeTimer).not.toBeNull();
 
       const tracer = lastPathTracer();
       ctx.service.dispose();
 
-      expect(peek(ctx.service).disposeTimer).toBeNull();
       expect(tracer.dispose).toHaveBeenCalledTimes(1);
       jest.advanceTimersByTime(200);
       expect(tracer.dispose).toHaveBeenCalledTimes(1);
