@@ -938,6 +938,15 @@ describe('ThreePathTracingService', () => {
       service.reset();
       expect(service.getSampleCount()).toBe(5);
     });
+
+    it('a forced reset bypasses the throttle (model swap must never be dropped)', () => {
+      (performance.now as jest.Mock).mockReturnValue(500_000);
+      const service = new ThreePathTracingService();
+      service.reset();
+      peek(service).sampleCount = 5;
+      service.reset(true);
+      expect(service.getSampleCount()).toBe(0);
+    });
   });
 
   describe('completion does not touch the DOM', () => {

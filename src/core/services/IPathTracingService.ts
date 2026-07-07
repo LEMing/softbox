@@ -60,9 +60,11 @@ export interface IPathTracingService {
   isPathTracerDisposed(): boolean;
   
   /**
-   * Reset accumulation
+   * Reset accumulation. High-frequency callers (camera moves) are throttled;
+   * `force` bypasses the throttle for events that must never be dropped
+   * (a model swap — a stale accumulation would keep sampling the old model).
    */
-  reset(): void;
+  reset(force?: boolean): void;
   
   /**
    * Dispose of resources

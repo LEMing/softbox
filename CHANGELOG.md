@@ -1,6 +1,13 @@
 Changelog
 =========
 
+4.2.2
+---
+
+### Bug fixes
+* **Fixed:** enabling the turntable while a path-traced `captureStill()` was already waiting for the accumulation hung the returned promise until dispose — auto-rotation resets the accumulation every frame, so the wait could never converge. The pending capture now rejects with the same `INVALID_STATE` error the up-front turntable check uses. Video captures are unaffected (a turntable does not invalidate them).
+* **Fixed:** the path tracer's rapid-reset throttle (50 ms) could swallow the accumulation reset issued right after a model swap — if the camera was moving as the load resolved, the tracer kept sampling the *previous* model's geometry until the next camera pause. Model-swap resets now bypass the throttle; camera-move resets stay throttled.
+
 4.2.1
 ---
 

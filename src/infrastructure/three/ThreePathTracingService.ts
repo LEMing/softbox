@@ -648,10 +648,13 @@ export class ThreePathTracingService implements IPathTracingService {
     return this.disposed;
   }
 
-  reset(): void {
+  reset(force = false): void {
     const now = performance.now();
-    // Light throttling to avoid rapid resets but still allow responsive updates
-    if (now - this.lastResetTime < 50) { // Don't reset more than once per 50ms
+    // Light throttling to avoid rapid resets but still allow responsive
+    // updates. A forced reset (model swap) must never be dropped: swallowing
+    // it keeps the tracer sampling the PREVIOUS model until the next camera
+    // move happens to reset again.
+    if (!force && now - this.lastResetTime < 50) { // Don't reset more than once per 50ms
       return;
     }
 

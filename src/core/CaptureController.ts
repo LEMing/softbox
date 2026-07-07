@@ -10,7 +10,7 @@ import { applyCameraAspect } from './utils/cameraAspect';
 import { canvasToPngDataUrl } from './utils/canvasPng';
 import { generateUUID } from '../utils/uuid';
 
-type CaptureWaitOutcome = 'complete' | 'disposed' | 'error';
+type CaptureWaitOutcome = 'complete' | 'disposed' | 'error' | 'turntable';
 
 export interface CaptureControllerDependencies {
   renderer: IRenderer;
@@ -63,6 +63,9 @@ export class CaptureController {
   // Pending waiters, settled by settleOnDispose() so their promises never
   // dangle after teardown.
   private readonly pendingSettlers = new Set<(outcome: CaptureWaitOutcome) => void>();
+  // Path-traced-still waiters only: notifyTurntableEnabled() settles these
+  // without touching video captures (which a turntable does not invalidate).
+  private readonly pathTracedWaitSettlers = new Set<(outcome: CaptureWaitOutcome) => void>();
 
   constructor(deps: CaptureControllerDependencies) {
     this.deps = deps;
@@ -102,6 +105,16 @@ export class CaptureController {
   /** Resolve any pending waiters so their capture promises settle. */
   settleOnDispose(): void {
     [...this.pendingSettlers].forEach((settle) => settle('disposed'));
+  }
+
+  /**
+   * A turntable enabled mid-wait resets the path-traced accumulation every
+   * frame, so a pending capture's wait-for-completion can never converge —
+   * settle it now (it rejects with the same INVALID_STATE the up-front
+   * turntable check uses).
+   */
+  notifyTurntableEnabled(): void {
+    [...this.pathTracedWaitSettlers].forEach((settle) => settle('turntable'));
   }
 
   /**
@@ -284,6 +297,14 @@ export class CaptureController {
           new ThreeViewerError('Model failed while waiting for the path tracer', ErrorCode.RENDER_FAILED)
         );
       }
+      if (outcome === 'turntable') {
+        return Result.err(
+          new ThreeViewerError(
+            'Cannot capture a path-traced still while the turntable is spinning — pause autoRotate first',
+            ErrorCode.INVALID_STATE
+          )
+        );
+      }
     }
     return this.readCanvasPng();
   }
@@ -293,14 +314,18 @@ export class CaptureController {
       let offComplete = () => {};
       let offError = () => {};
       let offSelfPause = () => {};
+      let offControlsChange = () => {};
       const settle = (outcome: CaptureWaitOutcome) => {
         this.pendingSettlers.delete(settle);
+        this.pathTracedWaitSettlers.delete(settle);
         offComplete();
         offError();
         offSelfPause();
+        offControlsChange();
         resolve(outcome);
       };
       this.pendingSettlers.add(settle);
+      this.pathTracedWaitSettlers.add(settle);
       offComplete = this.deps.events.once('pathtracing:complete', () => settle('complete'));
       offError = this.deps.events.once('model:error', () => settle('error'));
       // The tracer can give up on the accumulation without ever completing
@@ -308,6 +333,16 @@ export class CaptureController {
       // moving and reset it every frame). The canvas still holds a valid
       // standard-render fallback frame, so capture it rather than hang.
       offSelfPause = this.deps.pathTracing.onSelfPause(() => settle('complete'));
+      // A turntable enabled OUTSIDE updateOptions (e.g. directly on the raw
+      // controls the handle exposes) never reaches notifyTurntableEnabled —
+      // but the render loop emits controls:change every rotated frame, so
+      // observing rotation there closes the bypass. A manual drag also emits
+      // these but converges after release, hence the isAutoRotating filter.
+      offControlsChange = this.deps.events.on('controls:change', () => {
+        if (this.deps.isAutoRotating()) {
+          settle('turntable');
+        }
+      });
     });
   }
 
