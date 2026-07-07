@@ -1,6 +1,12 @@
 Changelog
 =========
 
+4.1.3
+---
+
+### Bug fix
+* **Fixed:** `snapObjectToFloor` sank single-sided (glTF-default) closed meshes below the floor — the downward sampling rays backface-culled the model's true, down-facing contact surface, so an upper surface read as the lowest point and the model dropped by that much too far, up to its full height. Every sample now also casts upward from below the model (catching the culled contact surfaces) and the lowest point is the minimum over both passes; up-facing bottom surfaces like ground decals keep working through the downward pass.
+
 4.1.2
 ---
 

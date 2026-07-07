@@ -9,6 +9,11 @@ import { ThreeObject3DAdapter } from '../ThreeObject3D';
 const doubleSidedBox = (size: [number, number, number]) =>
   new THREE.Mesh(new THREE.BoxGeometry(...size), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
 
+// glTF's default: FrontSide only. A closed mesh's bottom face is
+// backface-culled for rays from above — the case the up-pass exists for.
+const singleSidedBox = (size: [number, number, number]) =>
+  new THREE.Mesh(new THREE.BoxGeometry(...size), new THREE.MeshBasicMaterial({ side: THREE.FrontSide }));
+
 describe('ThreeSceneSetupService.snapObjectToFloor', () => {
   it('drops the object so its lowest point touches the highest grid point', () => {
     const threeScene = new THREE.Scene();
@@ -60,6 +65,68 @@ describe('ThreeSceneSetupService.snapObjectToFloor', () => {
 
     expect(result.ok).toBe(true);
     expect(objectGroup.position.y).toBeCloseTo(0.5, 4);
+  });
+
+  it('drops a single-sided (glTF-default) closed mesh onto the floor instead of sinking it', () => {
+    const threeScene = new THREE.Scene();
+
+    const gridMesh = doubleSidedBox([10, 0.1, 10]);
+    gridMesh.position.set(0, -0.05, 0);
+    gridMesh.userData.isGrid = true;
+    threeScene.add(gridMesh);
+
+    // Bottom face at y=0.5. With only down-rays, the culled bottom face made
+    // the top face (y=1.5) read as the lowest point, sinking the box a full
+    // unit below the floor.
+    const objectMesh = singleSidedBox([1, 1, 1]);
+    const objectGroup = new THREE.Group();
+    objectGroup.position.set(0, 1, 0);
+    objectGroup.add(objectMesh);
+    threeScene.add(objectGroup);
+
+    const service = new ThreeSceneSetupService();
+    const result = service.snapObjectToFloor(
+      new ThreeSceneAdapter(threeScene),
+      new ThreeObject3DAdapter(objectGroup)
+    );
+
+    expect(result.ok).toBe(true);
+    expect(objectGroup.position.y).toBeCloseTo(0.5, 4);
+  });
+
+  it('still honors an up-facing ground decal below a single-sided body', () => {
+    const threeScene = new THREE.Scene();
+
+    const gridMesh = doubleSidedBox([10, 0.1, 10]);
+    gridMesh.position.set(0, -0.05, 0);
+    gridMesh.userData.isGrid = true;
+    threeScene.add(gridMesh);
+
+    // A single-sided body floating at y=1..2, plus a single-sided up-facing
+    // decal plane at y=0.7 (visible only from above): the decal is the true
+    // lowest point and must set the drop distance.
+    const body = singleSidedBox([1, 1, 1]);
+    body.position.set(0, 1.5, 0);
+    const decal = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({ side: THREE.FrontSide })
+    );
+    decal.rotation.x = -Math.PI / 2; // face up
+    decal.position.set(0, 0.7, 0);
+    const objectGroup = new THREE.Group();
+    objectGroup.add(body);
+    objectGroup.add(decal);
+    threeScene.add(objectGroup);
+
+    const service = new ThreeSceneSetupService();
+    const result = service.snapObjectToFloor(
+      new ThreeSceneAdapter(threeScene),
+      new ThreeObject3DAdapter(objectGroup)
+    );
+
+    expect(result.ok).toBe(true);
+    // The whole group drops by the decal's 0.7 gap, not the body's 1.0.
+    expect(objectGroup.position.y).toBeCloseTo(-0.7, 4);
   });
 
   it('does nothing when the scene has no grid to drop onto', () => {
