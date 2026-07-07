@@ -11,7 +11,7 @@ import {
 import { IScene, ITexture } from '../../core/interfaces/IScene';
 import { Result } from '../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../errors';
-import { ThreeSceneAdapter } from './ThreeScene';
+import { toThreeScene, toThreeTexture } from './unwrap';
 import { RendererWithInternalAccess } from '../../types/CommonTypes';
 
 type SceneWithOriginalTexture = THREE.Scene & {
@@ -164,7 +164,8 @@ export class ThreeEnvironmentService implements IEnvironmentService {
 
   applyToScene(scene: IScene, texture: ITexture, options?: IEnvironmentApplyOptions): Result<void> {
     try {
-      if (!(scene instanceof ThreeSceneAdapter)) {
+      const threeScene = toThreeScene(scene);
+      if (!threeScene) {
         return Result.err(
           new ThreeViewerError(
             'Scene must be ThreeSceneAdapter',
@@ -173,7 +174,8 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         );
       }
 
-      if (!(texture instanceof ThreeTextureAdapter)) {
+      const threeTexture = toThreeTexture(texture);
+      if (!threeTexture) {
         return Result.err(
           new ThreeViewerError(
             'Texture must be ThreeTextureAdapter',
@@ -181,9 +183,6 @@ export class ThreeEnvironmentService implements IEnvironmentService {
           )
         );
       }
-
-      const threeScene = scene.getThreeScene();
-      const threeTexture = texture.getThreeTexture();
 
       // Set environment for reflections
       threeScene.environment = threeTexture;

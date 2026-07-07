@@ -4,6 +4,7 @@ import {
   toThreeCamera,
   toThreeScene,
   toThreeRenderer,
+  toThreeTexture,
   toThreeControls,
 } from '../unwrap';
 import { ThreeObject3DAdapter } from '../ThreeObject3D';
@@ -21,6 +22,9 @@ describe('unwrap helpers', () => {
 
     const controls = { update: () => false };
     expect(toThreeControls({ getThreeControls: () => controls })).toBe(controls);
+
+    const texture = new THREE.Texture();
+    expect(toThreeTexture({ getThreeTexture: () => texture })).toBe(texture);
   });
 
   it('passes raw three objects through', () => {
@@ -32,6 +36,9 @@ describe('unwrap helpers', () => {
 
     const scene = new THREE.Scene();
     expect(toThreeScene(scene)).toBe(scene);
+
+    const texture = new THREE.Texture();
+    expect(toThreeTexture(texture)).toBe(texture);
   });
 
   it('returns null for anything else', () => {
@@ -40,6 +47,7 @@ describe('unwrap helpers', () => {
     expect(toThreeCamera(undefined)).toBeNull();
     expect(toThreeScene(42)).toBeNull();
     expect(toThreeRenderer({})).toBeNull();
+    expect(toThreeTexture({})).toBeNull();
     expect(toThreeControls({})).toBeNull();
   });
 

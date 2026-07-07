@@ -1,6 +1,14 @@
 Changelog
 =========
 
+4.4.2
+---
+
+### Internal decomposition & stricter input validation
+* The scene-setup service (grown to ~860 lines across ten concerns) is now a thin facade over focused modules — floor grid, floor snapping, shadow rig, contact shadow, lighting, gradient background, units scaling, camera framing. No public API change; every operation behaves as before.
+* **Changed:** `fitCameraToObject` was the one scene-setup operation still blind-casting its inputs — an object, camera, or controls that wasn't unwrappable was cast anyway and either silently mis-framed the scene or crashed deep inside Three.js. It now fails loud with `INVALID_PARAMETER` like every other operation. Cameras must be perspective or orthographic (the two kinds whose projection can be refitted); controls must come from the viewer's own adapters.
+* The environment service's `applyToScene` goes through the same shared adapter-unwrap helpers as the rest of the codebase (the last hand-rolled `instanceof` unwraps), so it now also accepts a raw `THREE.Scene`/`THREE.Texture` in addition to the viewer's adapters.
+
 4.4.1
 ---
 
