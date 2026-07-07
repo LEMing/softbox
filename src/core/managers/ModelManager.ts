@@ -78,7 +78,9 @@ export class ModelManager {
         this.lastModelUrl = source;
         events.emit('model:loading', { url: source });
         // Load from URL
-        const loadResult = await this.modelLoader.load(source);
+        const loadResult = await this.modelLoader.load(source, (loaded, total) => {
+          events.emit('model:progress', { url: source, loaded, total });
+        });
         if (!loadResult.ok) {
           throw loadResult.error;
         }

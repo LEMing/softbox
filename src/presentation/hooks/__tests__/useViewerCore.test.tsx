@@ -186,9 +186,27 @@ describe('useViewerCore', () => {
 
     const { result } = renderHook(() => useViewerCore(canvasRef, testDefaultOptions));
 
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await waitFor(() => expect(result.current.initError).toBeInstanceOf(Error));
     expect(result.current.isInitialized).toBe(false);
+    expect(result.current.initError?.message).toBe('Unknown units');
     expect(consoleError).toHaveBeenCalledWith('Failed to create viewer:', expect.any(Error));
+    consoleError.mockRestore();
+  });
+
+  it('exposes initError when initialize() fails (e.g. WebGL unavailable)', async () => {
+    const canvasRef = makeCanvasRef();
+    const initFailure = new Error('WebGL context could not be created');
+    (ViewerFactory.createViewer as unknown as jest.Mock).mockImplementation(() => {
+      const viewer = makeViewer();
+      viewer.initialize.mockResolvedValue(Result.err(initFailure));
+      return viewer;
+    });
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const { result } = renderHook(() => useViewerCore(canvasRef, testDefaultOptions));
+
+    await waitFor(() => expect(result.current.initError).toBe(initFailure));
+    expect(result.current.isInitialized).toBe(false);
     consoleError.mockRestore();
   });
 

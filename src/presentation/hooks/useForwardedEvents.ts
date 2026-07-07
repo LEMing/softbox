@@ -21,6 +21,8 @@ export function useForwardedEvents(
     () => ({
       'model:loading': (data: CoreViewerEventMap['model:loading']) =>
         eventsRef.current.emit('model:loading', data),
+      'model:progress': (data: CoreViewerEventMap['model:progress']) =>
+        eventsRef.current.emit('model:progress', data),
       'model:loaded': (data: CoreViewerEventMap['model:loaded']) =>
         eventsRef.current.emit('model:loaded', EventAdapter.convertModelLoaded(data)),
       'model:error': (data: CoreViewerEventMap['model:error']) =>

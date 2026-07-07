@@ -51,11 +51,20 @@ export interface SimpleViewerOptions {
   rendering?: RenderingOptions;
 
   // Callbacks
+  /** Called when a model finishes loading (each load, including replacements). */
   onLoad?: () => void;
+  /**
+   * Download progress for URL-loaded models as a 0–1 fraction. Only called
+   * when the server reports a total size (Content-Length).
+   */
   onProgress?: (progress: number) => void;
+  /**
+   * Called on viewer construction/initialization failures (e.g. WebGL
+   * unavailable) and on model load errors. The built-in overlay shows an
+   * error state either way; use this to render your own affordance or report.
+   */
   onError?: (error: Error) => void;
-  animationLoop?: ((time: number) => void) | null;
-  
+
   // Special features
   replaceWithScreenshotOnComplete?: boolean;
 
