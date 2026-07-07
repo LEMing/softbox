@@ -6,7 +6,11 @@ export interface AmbientLightOptions {
   intensity?: number;
 }
 
-/** Sky/ground gradient fill — cool from above, warm bounce from below. */
+/**
+ * Two-tone gradient fill: one color arriving from above, another bouncing up
+ * from below. The default rig uses a warm pale-yellow sky over a dark navy
+ * ground.
+ */
 export interface HemisphereLightOptions {
   /** Color arriving from above. */
   skyColor?: string | number;
@@ -34,7 +38,10 @@ export interface DirectionalLightOptions {
       width: number;
       height: number;
     };
-    /** Orthographic frustum bounds; overridden by the auto-fit on load. */
+    /**
+     * Orthographic frustum: left/right/top/bottom are overridden by the
+     * auto-fit on load; near/far keep their configured values.
+     */
     camera?: {
       near?: number;
       far?: number;

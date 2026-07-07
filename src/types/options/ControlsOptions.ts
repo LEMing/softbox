@@ -14,7 +14,7 @@ export interface ControlsOptions {
   enabled?: boolean;
   /** Inertial easing after a drag ends, instead of an instant stop. */
   enableDamping?: boolean;
-  /** Damping strength: lower = longer glide (three.js default 0.05). */
+  /** Damping strength: lower = longer glide (softbox default 0.25). */
   dampingFactor?: number;
   /** Allow dolly/zoom (wheel, pinch). */
   enableZoom?: boolean;

@@ -11,9 +11,11 @@ export interface CameraOptions {
   /** Far clipping plane distance. */
   far?: number;
   /**
-   * Frame the loaded model automatically (default `true`): the camera keeps
-   * its configured direction but the distance is computed from the model's
-   * bounds, so any model arrives sized to the view.
+   * Frame the loaded model automatically (default `true`): the camera moves
+   * to a standard product-shot view — left-front, slightly elevated — around
+   * the model's center, at a distance computed from its bounds, and the
+   * controls re-target the center. This OVERRIDES `position`/`target`;
+   * disable it to keep your configured view exactly.
    */
   autoFitToObject?: boolean;
 }

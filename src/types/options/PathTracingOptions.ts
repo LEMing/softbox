@@ -2,9 +2,12 @@
  * Progressive path tracing for photoreal stills (three-gpu-pathtracer). The
  * tracer accumulates samples whenever the camera rests and presents the
  * converged frame; it ships in a lazy chunk that loads only when enabled.
+ *
+ * The whole object is structural in `<SimpleViewer>`: changing ANY field
+ * rebuilds the viewer (and reloads the model).
  */
 export interface PathTracingOptions {
-  /** Structural: enabling builds the tracer at viewer construction. */
+  /** Builds the tracer at viewer construction. */
   enabled?: boolean;
   /**
    * Samples to accumulate before the frame counts as converged

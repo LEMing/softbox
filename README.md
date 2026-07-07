@@ -13,7 +13,7 @@
 <SimpleViewer object="/model.glb" />
 ```
 
-Balanced studio lighting, a real-scale matte concrete floor with a baked soft contact shadow, auto-framing, compressed-asset decoders — all on by default, zero configuration. Lighting needs zero network requests (the studio environment is procedural); the DRACO/KTX2 decoder wasm loads from a CDN only when a compressed model actually needs it, and can be [self-hosted](#loaders) for offline use. The core is ~105 kB gzip; the path tracer and the decoders live in lazy chunks that load only when actually used. Every release is gated by 590+ unit tests plus a Playwright suite that asserts **real WebGL pixels** in CI.
+Balanced studio lighting, a real-scale matte concrete floor with a baked soft contact shadow, auto-framing, compressed-asset decoders — all on by default, zero configuration. Lighting needs zero network requests (the studio environment is procedural); the DRACO/KTX2 decoder wasm is fetched only when a model actually uses that compression, from a CDN by default or [self-hosted](#loaders) for offline use. The core is ~117 kB gzip; the path tracer lives in a lazy chunk that loads only when enabled. Every release is gated by 590+ unit tests plus a Playwright suite that asserts **real WebGL pixels** in CI.
 
 [![softbox playground](https://raw.githubusercontent.com/LEMing/softbox/main/public/og-image.png)](https://leming.github.io/softbox/)
 
