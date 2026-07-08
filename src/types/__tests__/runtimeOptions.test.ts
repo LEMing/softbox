@@ -11,6 +11,7 @@ describe('pickRuntimeOptions', () => {
       environment: { url: 'env.hdr', environmentIntensity: 0.5 },
       controls: { enablePan: false, autoRotate: true, autoRotateSpeed: 3 },
       animations: { autoplay: true, speed: 2 },
+      pathTracing: { enabled: true, maxSamples: 500, bounces: 8 },
     };
 
     expect(pickRuntimeOptions(options)).toEqual({
@@ -19,7 +20,20 @@ describe('pickRuntimeOptions', () => {
       environment: { environmentIntensity: 0.5 },
       controls: { autoRotate: true, autoRotateSpeed: 3 },
       animations: { autoplay: true, speed: 2 },
+      // Only `enabled` is runtime; maxSamples/bounces configure the tracer at
+      // construction and stay structural.
+      pathTracing: { enabled: true },
     });
+  });
+
+  it('omits pathTracing when only its structural fields are set', () => {
+    const options: SimpleViewerOptions = { pathTracing: { maxSamples: 300 } };
+    expect(pickRuntimeOptions(options).pathTracing).toBeUndefined();
+  });
+
+  it('picks pathTracing.enabled: false so a disable reaches updateOptions', () => {
+    const options: SimpleViewerOptions = { pathTracing: { enabled: false } };
+    expect(pickRuntimeOptions(options).pathTracing).toEqual({ enabled: false });
   });
 
   it('omits a sub-object entirely when none of its runtime fields are set', () => {

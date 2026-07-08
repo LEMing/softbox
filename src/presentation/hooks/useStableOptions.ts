@@ -4,6 +4,7 @@ import {
   RUNTIME_RENDERER_FIELDS,
   RUNTIME_ENVIRONMENT_FIELDS,
   RUNTIME_CONTROLS_FIELDS,
+  RUNTIME_PATH_TRACING_FIELDS,
   pickRuntimeOptions,
 } from '../../types/runtimeOptions';
 import defaultOptions from '../../defaultOptions';
@@ -49,7 +50,11 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
   const structuralKey = useMemo(
     () =>
       JSON.stringify({
-        pathTracing: options.pathTracing,
+        // pathTracing minus `enabled`: toggling the tracer applies live
+        // (updateOptions) — flipping it must not rebuild or re-fetch the model.
+        // The other fields (samples, bounces, …) configure the tracer at
+        // construction, so a change to them still rebuilds.
+        pathTracing: structuralPart(options.pathTracing, ...RUNTIME_PATH_TRACING_FIELDS),
         staticScene: options.staticScene,
         // renderer/environment minus their runtime-tunable fields: a direct
         // toneMappingExposure / environmentIntensity change is exactly what
@@ -97,7 +102,7 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
     const merged = mergeWithPreset(defaultOptions, options);
     return JSON.stringify(pickRuntimeOptions(merged));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the runtime set is fully determined by these inputs; depending on `options` would recompute on every unrelated change.
-  }, [options.preset, options.backgroundColor, options.renderer, options.environment, options.controls, options.animations]);
+  }, [options.preset, options.backgroundColor, options.renderer, options.environment, options.controls, options.animations, options.pathTracing]);
 
   // Recomputed only when a structural or runtime key changes, so the returned
   // reference stays stable across unrelated parent re-renders.

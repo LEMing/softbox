@@ -14,6 +14,10 @@ import { SimpleViewerOptions } from './SimpleViewerOptions';
 export const RUNTIME_RENDERER_FIELDS = ['toneMappingExposure'] as const;
 export const RUNTIME_ENVIRONMENT_FIELDS = ['environmentIntensity'] as const;
 export const RUNTIME_CONTROLS_FIELDS = ['autoRotate', 'autoRotateSpeed'] as const;
+// `enabled` toggles the tracer on a live viewer (no rebuild, no model refetch);
+// the other pathTracing fields configure the tracer at construction and stay
+// structural.
+export const RUNTIME_PATH_TRACING_FIELDS = ['enabled'] as const;
 
 /** Extracts just the runtime-tunable fields from a resolved options object. */
 export function pickRuntimeOptions(options: SimpleViewerOptions): Partial<SimpleViewerOptions> {
@@ -37,6 +41,9 @@ export function pickRuntimeOptions(options: SimpleViewerOptions): Partial<Simple
       autoplay: options.animations?.autoplay,
       speed: options.animations?.speed,
     };
+  }
+  if (options.pathTracing?.enabled !== undefined) {
+    runtime.pathTracing = { enabled: options.pathTracing.enabled };
   }
   return runtime;
 }

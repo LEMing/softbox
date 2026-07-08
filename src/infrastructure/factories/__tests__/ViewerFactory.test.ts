@@ -30,19 +30,22 @@ describe('ViewerFactory preserveDrawingBuffer', () => {
     return initSpy.mock.calls[0][0] as IRendererOptions;
   };
 
-  it('forces preserveDrawingBuffer when path tracing is enabled', async () => {
+  it('preserves the drawing buffer even with path tracing off (it can be enabled at runtime)', async () => {
+    // Path tracing is now toggleable on any viewer, and a captured PT still
+    // reads the persisted canvas — so the buffer must be preserved regardless
+    // of the boot-time flag, keeping a runtime enable capture-ready.
+    const opts = await capturedOptions({});
+    expect(opts.preserveDrawingBuffer).toBe(true);
+  });
+
+  it('preserves the drawing buffer when path tracing starts enabled', async () => {
     const opts = await capturedOptions({ pathTracing: { enabled: true } });
     expect(opts.preserveDrawingBuffer).toBe(true);
   });
 
-  it('forces preserveDrawingBuffer when replaceWithScreenshotOnComplete is set', async () => {
+  it('preserves the drawing buffer when replaceWithScreenshotOnComplete is set', async () => {
     const opts = await capturedOptions({ replaceWithScreenshotOnComplete: true });
     expect(opts.preserveDrawingBuffer).toBe(true);
-  });
-
-  it('leaves preserveDrawingBuffer unset when neither feature is used', async () => {
-    const opts = await capturedOptions({});
-    expect(opts.preserveDrawingBuffer).toBeUndefined();
   });
 });
 

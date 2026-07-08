@@ -1,6 +1,15 @@
 Changelog
 =========
 
+4.6.0
+---
+
+### Path tracing toggles live
+* **`pathTracing.enabled` is now a runtime option** — flipping it applies to the running viewer instead of rebuilding it. Previously every toggle tore down the WebGLRenderer and **re-fetched the whole model**, and the freshly-built camera started at aspect 1 (a stale resize memo meant the new viewer never got sized), so the path-traced frame rendered stretched and — because the tracer bakes the aspect and only refreshes on a camera move — stayed stretched. Turning path tracing on/off is now instant, keeps the model in memory, and preserves the correct aspect ratio. The other `pathTracing` fields (`maxSamples`, `bounces`, …) still configure the tracer at construction and remain structural.
+* **Fixed:** disabling path tracing after it converged left the grainy final frame frozen on the canvas — the completed accumulation was still being preserved. Disabling now hands the canvas straight back to the raster renderer.
+* **Fixed:** a structural rebuild (e.g. changing `units`) could leave the rebuilt viewer's camera at the default square aspect until the next real resize, distorting the first frames. A rebuilt viewer is now always re-sized to its canvas.
+* **Changed:** the tracer service is always created (it's a lazy facade — the heavy chunk still loads only on first enable), and `preserveDrawingBuffer` is always on, so any viewer can turn path tracing on at runtime and capture a still. The per-frame cost is negligible for idle viewers.
+
 4.5.0
 ---
 

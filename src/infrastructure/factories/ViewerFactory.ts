@@ -67,13 +67,12 @@ export class ViewerFactory {
     // Create environment service
     const environmentService = new ThreeEnvironmentService();
     
-    // Create path tracing service if enabled
-    let pathTracingService;
-    const pathTracingEnabled = options.pathTracing?.enabled ?? false;
-    if (pathTracingEnabled) {
-      pathTracingService = new LazyPathTracingService();
-    }
-    
+    // Always create the tracer service — it's a lazy facade (the heavy
+    // three-gpu-pathtracer chunk loads only on the first initialize()), so a
+    // viewer that boots with path tracing off can still turn it on at runtime
+    // (updateOptions) without a rebuild or a model refetch.
+    const pathTracingService = new LazyPathTracingService();
+
     // Create floor alignment service
     const floorAlignmentService = new ThreeFloorAlignmentService();
 
@@ -91,14 +90,15 @@ export class ViewerFactory {
       (options.renderer || {}) as Record<string, unknown>
     );
 
-    // Preserve the WebGL drawing buffer whenever a completed path-traced frame
-    // must persist on the canvas after the render loop stops:
-    //  - screenshot-on-complete reads it back via canvas.toDataURL();
-    //  - without screenshot replacement, the final frame stays on the canvas
-    //    (no DOM overlay), which only survives compositing when preserved.
-    if (options.replaceWithScreenshotOnComplete || options.pathTracing?.enabled) {
-      rendererOptions.preserveDrawingBuffer = true;
-    }
+    // Preserve the WebGL drawing buffer so a completed path-traced frame
+    // persists on the canvas after the render loop stops: captureStill reads
+    // it back via canvas.toDataURL(), and without screenshot replacement the
+    // final frame stays on the canvas (no DOM overlay), which only survives
+    // compositing when preserved. Path tracing can now be enabled at runtime on
+    // any viewer, so this must be on unconditionally rather than gated on the
+    // boot-time flag. The cost is a per-rendered-frame buffer copy — negligible
+    // for idle viewers (an e-commerce grid renders nothing while at rest).
+    rendererOptions.preserveDrawingBuffer = true;
     
     // Create dependencies object
     const dependencies: ViewerDependencies = {

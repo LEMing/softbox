@@ -462,6 +462,7 @@ export class ViewerCore {
     }
     const previousAutoplay = this.options.animations?.autoplay;
     const previousAutoRotate = this.options.controls?.autoRotate;
+    const previousPathTracingEnabled = this.options.pathTracing?.enabled ?? false;
     this.options = deepMerge(this.options, partial);
 
     let needsRender = false;
@@ -518,6 +519,14 @@ export class ViewerCore {
     const animationSpeed = partial.animations?.speed;
     if (animationSpeed !== undefined) {
       this.animationService?.setSpeed(animationSpeed);
+      needsRender = true;
+    }
+    const pathTracingEnabled = partial.pathTracing?.enabled;
+    // Guarded against re-sends of an unchanged value (the runtime-options
+    // effect re-sends the whole set): a redundant enable must not restart a
+    // running accumulation, and a redundant disable must not thrash the loop.
+    if (pathTracingEnabled !== undefined && pathTracingEnabled !== previousPathTracingEnabled) {
+      this.setPathTracingEnabled(pathTracingEnabled);
       needsRender = true;
     }
     if (needsRender) {
@@ -626,6 +635,26 @@ export class ViewerCore {
   private reviveRenderLoop(): void {
     if (this.stateManager.isInitialized() && !this.renderLoopManager.isRunning()) {
       this.startRenderLoop();
+    }
+  }
+
+  /**
+   * Toggle path tracing on a live viewer — no rebuild, no model refetch. The
+   * enable path loads the tracer lazily, so it awaits; both paths then revive a
+   * wound-down loop and request a frame. A dispose mid-await is guarded.
+   */
+  private setPathTracingEnabled(enabled: boolean): void {
+    if (enabled) {
+      void this.pathTracing.enableRuntime().then((active) => {
+        if (active && !this.disposed) {
+          this.reviveRenderLoop();
+          this.renderLoopManager.requestRender();
+        }
+      });
+    } else {
+      this.pathTracing.disableRuntime();
+      this.reviveRenderLoop();
+      this.renderLoopManager.requestRender();
     }
   }
 

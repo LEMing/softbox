@@ -1829,6 +1829,115 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     expect(bundle.sceneSetupService!.createGradientBackground).not.toHaveBeenCalled();
   });
 
+  it('enables path tracing live on a viewer booted with it off — no rebuild needed', async () => {
+    const bundle = makeDeps({
+      options: { staticScene: true, pathTracing: { enabled: false } },
+      withPathTracing: true,
+    });
+    const requireSpy = jest.spyOn(RenderLoopManager.prototype, 'requireContinuous');
+    const viewer = new ViewerCore(bundle.deps);
+    await viewer.initialize();
+    // The heavy tracer stays unloaded while off.
+    expect(bundle.pathTracingService!.initialize).not.toHaveBeenCalled();
+    requireSpy.mockClear();
+
+    viewer.updateOptions({ pathTracing: { enabled: true } });
+    await tick();
+
+    expect(bundle.pathTracingService!.initialize).toHaveBeenCalled();
+    expect(bundle.pathTracingService!.setEnabled).toHaveBeenCalledWith(true);
+    // Re-ingest the current scene from scratch on enable.
+    expect(bundle.pathTracingService!.reset).toHaveBeenCalledWith(true);
+    expect(requireSpy).toHaveBeenCalledWith('path-tracing');
+
+    viewer.dispose();
+  });
+
+  it('disables path tracing live and drops the continuous-render demand', async () => {
+    const bundle = makeDeps({
+      options: { staticScene: true, pathTracing: { enabled: true } },
+      withPathTracing: true,
+      pathTracingOverrides: { isEnabled: jest.fn(() => true) },
+    });
+    const releaseSpy = jest.spyOn(RenderLoopManager.prototype, 'releaseContinuous');
+    const viewer = new ViewerCore(bundle.deps);
+    await viewer.initialize();
+    bundle.pathTracingService!.setEnabled.mockClear();
+
+    bundle.pathTracingService!.reset.mockClear();
+
+    viewer.updateOptions({ pathTracing: { enabled: false } });
+    await tick();
+
+    expect(bundle.pathTracingService!.setEnabled).toHaveBeenCalledWith(false);
+    // A converged tracer already self-paused, so setEnabled(false) is a no-op
+    // and its completed frame is still preserved on the canvas — the reset is
+    // what zeroes the accumulation so the raster renderer takes the canvas back.
+    expect(bundle.pathTracingService!.reset).toHaveBeenCalled();
+    expect(releaseSpy).toHaveBeenCalledWith('path-tracing');
+
+    viewer.dispose();
+  });
+
+  it('ignores a re-sent unchanged pathTracing.enabled (no thrash)', async () => {
+    const bundle = makeDeps({
+      options: { staticScene: true, pathTracing: { enabled: true } },
+      withPathTracing: true,
+      pathTracingOverrides: { isEnabled: jest.fn(() => true) },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+    await viewer.initialize();
+    bundle.pathTracingService!.setEnabled.mockClear();
+    bundle.pathTracingService!.reset.mockClear();
+
+    // The runtime-options effect re-sends the whole set; enabled is unchanged.
+    viewer.updateOptions({ pathTracing: { enabled: true } });
+    await tick();
+
+    expect(bundle.pathTracingService!.setEnabled).not.toHaveBeenCalled();
+    expect(bundle.pathTracingService!.reset).not.toHaveBeenCalled();
+
+    viewer.dispose();
+  });
+
+  it('aborts a stale enable when disabled while the tracer chunk is still loading', async () => {
+    // The tracer loads lazily, so enableRuntime awaits service.initialize().
+    // Hold that promise open to interleave a disable during the load.
+    let resolveInit: () => void = () => {};
+    const initGate = new Promise<void>((res) => {
+      resolveInit = res;
+    });
+    const bundle = makeDeps({
+      options: { staticScene: true, pathTracing: { enabled: false } },
+      withPathTracing: true,
+      pathTracingOverrides: {
+        initialize: jest.fn(() => initGate.then(() => Result.ok(undefined))),
+      },
+    });
+    const requireSpy = jest.spyOn(RenderLoopManager.prototype, 'requireContinuous');
+    const viewer = new ViewerCore(bundle.deps);
+    await viewer.initialize();
+    requireSpy.mockClear();
+    bundle.pathTracingService!.setEnabled.mockClear();
+
+    viewer.updateOptions({ pathTracing: { enabled: true } }); // enable → suspends on init
+    await tick();
+    viewer.updateOptions({ pathTracing: { enabled: false } }); // disable while loading
+    await tick();
+
+    resolveInit(); // the enable's await now resolves — but intent is OFF
+    await tick(6);
+
+    // The stale enable must NOT turn the tracer back on or leak a continuous
+    // demand behind a UI that reads OFF.
+    expect(bundle.pathTracingService!.setEnabled).not.toHaveBeenCalledWith(true);
+    expect(requireSpy).not.toHaveBeenCalledWith('path-tracing');
+    // The disable did take effect.
+    expect(bundle.pathTracingService!.setEnabled).toHaveBeenCalledWith(false);
+
+    viewer.dispose();
+  });
+
   it('ignores updates that do not include a background color', () => {
     const bundle = makeDeps({ withSceneSetup: true });
     const viewer = new ViewerCore(bundle.deps);
