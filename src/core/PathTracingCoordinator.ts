@@ -34,6 +34,8 @@ export class PathTracingCoordinator {
   private startTime?: number;
   private completeHandled = false;
   private suspendedForAnimation = false;
+  private initialized = false;
+  private initializing = false;
   private readonly selfPauseListeners = new Set<() => void>();
 
   constructor(deps: PathTracingCoordinatorDependencies) {
@@ -71,49 +73,119 @@ export class PathTracingCoordinator {
   }
 
   async initialize(): Promise<void> {
+    // Only boot the tracer eagerly when it starts enabled; otherwise the lazy
+    // service stays uninitialized until a runtime enable asks for it.
+    if (!this.isEnabled()) {
+      return;
+    }
+    await this.ensureInitialized();
+  }
+
+  /**
+   * Load and configure the tracer once — on boot if it starts enabled, or on
+   * the first runtime enable. The three-gpu-pathtracer chunk imports here, so
+   * keeping it out of the boot path when path tracing is off is what the lazy
+   * service buys us. Idempotent: repeated calls after the first are no-ops.
+   */
+  private async ensureInitialized(): Promise<void> {
     const { service, getOptions, isDisposed, renderer, renderLoopManager, schedule } = this.deps;
-    if (!service || !(getOptions().pathTracing?.enabled ?? false)) {
+    if (!service || this.initialized || this.initializing) {
       return;
     }
-
-    const result = await service.initialize({ enabled: true, renderer });
-    if (isDisposed()) {
-      return;
-    }
-    if (!result.ok) {
-      console.warn('Failed to initialize path tracing:', result.error);
-      return;
-    }
-
-    const pathTracing = getOptions().pathTracing;
-    if (pathTracing) {
-      service.updateSettings({
-        samples: pathTracing.maxSamples ?? DEFAULT_PATH_TRACING_SAMPLES,
-        bounces: pathTracing.bounces,
-        transmissiveBounces: pathTracing.transmissiveBounces,
-        renderScale: pathTracing.renderScale,
-        lowResScale: pathTracing.lowResScale,
-        dynamicLowRes: pathTracing.dynamicLowRes,
-        enablePathTracing: pathTracing.enabled ?? true,
-      });
-    }
-
-    // The service pauses itself when accumulation stalls; wind the loop down —
-    // unless another subsystem (turntable, animations) still needs frames.
-    service.events.on('pathtracing:paused', ({ reason }) => {
-      renderLoopManager.releaseContinuous('path-tracing');
-      if (!getOptions().staticScene) {
-        renderLoopManager.setAlwaysRender(false);
+    this.initializing = true;
+    try {
+      const result = await service.initialize({ enabled: true, renderer });
+      if (isDisposed()) {
+        return;
       }
-      schedule(() => {
-        if (!renderLoopManager.hasContinuousDemand()) {
-          renderLoopManager.stop();
+      if (!result.ok) {
+        console.warn('Failed to initialize path tracing:', result.error);
+        return;
+      }
+      this.initialized = true;
+
+      const pathTracing = getOptions().pathTracing;
+      if (pathTracing) {
+        service.updateSettings({
+          samples: pathTracing.maxSamples ?? DEFAULT_PATH_TRACING_SAMPLES,
+          bounces: pathTracing.bounces,
+          transmissiveBounces: pathTracing.transmissiveBounces,
+          renderScale: pathTracing.renderScale,
+          lowResScale: pathTracing.lowResScale,
+          dynamicLowRes: pathTracing.dynamicLowRes,
+          enablePathTracing: pathTracing.enabled ?? true,
+        });
+      }
+
+      // The service pauses itself when accumulation stalls; wind the loop down —
+      // unless another subsystem (turntable, animations) still needs frames.
+      service.events.on('pathtracing:paused', ({ reason }) => {
+        renderLoopManager.releaseContinuous('path-tracing');
+        if (!getOptions().staticScene) {
+          renderLoopManager.setAlwaysRender(false);
         }
-      }, 100);
-      if (reason === 'gave-up') {
-        this.selfPauseListeners.forEach((callback) => callback());
-      }
-    });
+        schedule(() => {
+          if (!renderLoopManager.hasContinuousDemand()) {
+            renderLoopManager.stop();
+          }
+        }, 100);
+        if (reason === 'gave-up') {
+          this.selfPauseListeners.forEach((callback) => callback());
+        }
+      });
+    } finally {
+      this.initializing = false;
+    }
+  }
+
+  /**
+   * Turn path tracing on for a live viewer (no rebuild, no model refetch).
+   * Loads the tracer on first use, ingests the current scene from scratch, and
+   * demands continuous frames so accumulation runs. Returns whether the tracer
+   * is now active — false when it could not initialize (e.g. no WebGL2).
+   */
+  async enableRuntime(): Promise<boolean> {
+    const { service, renderLoopManager } = this.deps;
+    if (!service) {
+      return false;
+    }
+    await this.ensureInitialized();
+    if (!this.initialized) {
+      return false;
+    }
+    service.setEnabled(true);
+    // Re-ingest: the scene it last saw (if any) is stale, and a fresh enable
+    // must start a clean accumulation from the current camera.
+    service.reset(true);
+    this.completeHandled = false;
+    this.suspendedForAnimation = false;
+    renderLoopManager.requireContinuous('path-tracing');
+    return true;
+  }
+
+  /**
+   * Turn path tracing off for a live viewer: hand the canvas back to the raster
+   * renderer and drop the loop demand. The tracer stays loaded for a cheap
+   * re-enable.
+   */
+  disableRuntime(): void {
+    const { service, renderLoopManager } = this.deps;
+    if (!service) {
+      return;
+    }
+    service.setEnabled(false);
+    // A converged tracer already self-paused, so setEnabled(false) above is a
+    // no-op and the completed frame is still being PRESERVED on the canvas
+    // (samples >= target). Zero the accumulation so the render path hands the
+    // canvas back to the raster renderer instead of freezing on the last
+    // path-traced frame.
+    service.reset();
+    renderLoopManager.releaseContinuous('path-tracing');
+    this.completeHandled = false;
+    this.suspendedForAnimation = false;
+    // A capture awaiting 'pathtracing:complete' must not hang forever now that
+    // the accumulation will never finish — settle it with the raster frame.
+    this.selfPauseListeners.forEach((callback) => callback());
   }
 
   /**

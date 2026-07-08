@@ -229,6 +229,65 @@ describe('useViewerCore', () => {
     expect(firstViewer.dispose).toHaveBeenCalled();
   });
 
+  it('toggles path tracing live, without rebuilding or reloading the model', async () => {
+    const canvasRef = makeCanvasRef();
+
+    const { result, rerender } = renderHook(
+      ({ options }: { options: SimpleViewerOptions }) => useViewerCore(canvasRef, options),
+      { initialProps: { options: testDefaultOptions } }
+    );
+
+    await waitFor(() => expect(result.current.isInitialized).toBe(true));
+    const viewer = createdViewers[0];
+    viewer.updateOptions.mockClear();
+
+    // Flip ONLY `enabled`; the structural fields (maxSamples, bounces) stay put
+    // — replacing the whole object would drop them and count as a structural
+    // change. This mirrors how the playground toggles the tracer.
+    rerender({
+      options: {
+        ...testDefaultOptions,
+        pathTracing: { ...testDefaultOptions.pathTracing, enabled: true },
+      },
+    });
+
+    await waitFor(() =>
+      expect(viewer.updateOptions).toHaveBeenCalledWith(
+        expect.objectContaining({ pathTracing: { enabled: true } })
+      )
+    );
+    // Same viewer instance — flipping the tracer must not tear down the
+    // renderer or re-fetch the model (this is what made the toggle distort the
+    // aspect ratio and re-download the model).
+    expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(1);
+    expect(viewer.dispose).not.toHaveBeenCalled();
+  });
+
+  it('sizes a rebuilt viewer so its camera never stays at the default aspect', async () => {
+    const canvasRef = makeCanvasRef();
+    // A laid-out canvas so handleResize computes real dimensions.
+    Object.defineProperty(canvasRef.current, 'clientWidth', { value: 800, configurable: true });
+    Object.defineProperty(canvasRef.current, 'clientHeight', { value: 400, configurable: true });
+
+    const { result, rerender } = renderHook(
+      ({ options }: { options: SimpleViewerOptions }) => useViewerCore(canvasRef, options),
+      { initialProps: { options: testDefaultOptions } }
+    );
+
+    await waitFor(() => expect(result.current.isInitialized).toBe(true));
+    await waitFor(() => expect(createdViewers[0].resize).toHaveBeenCalledWith(800, 400));
+
+    // A structural change rebuilds the viewer onto the SAME (unchanged-size)
+    // canvas. Without resetting the last-size memo the resize effect would
+    // no-op here and the fresh viewer's camera would stay at aspect 1.
+    rerender({
+      options: { ...testDefaultOptions, camera: { ...testDefaultOptions.camera, fov: 33 } },
+    });
+
+    await waitFor(() => expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(createdViewers[1].resize).toHaveBeenCalledWith(800, 400));
+  });
+
   it('deep-merges a preset over the defaults before building the viewer', async () => {
     const canvasRef = makeCanvasRef();
 

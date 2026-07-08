@@ -16,6 +16,12 @@ export function useViewerCore(
   options: SimpleViewerOptions
 ) {
   const viewerRef = useRef<ViewerCore | null>(null);
+  // Last dimensions handed to the CURRENT viewer, so the resize effect can skip
+  // no-op resizes. Reset on every (re)build below: a fresh viewer's camera
+  // starts at aspect 1, and a stale value here would make the resize effect's
+  // initial call no-op, leaving that camera square (the path tracer then bakes
+  // the wrong aspect and never refreshes it).
+  const lastResizeRef = useRef({ width: 0, height: 0 });
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState<Error | null>(null);
 
@@ -54,6 +60,10 @@ export function useViewerCore(
       return;
     }
     viewerRef.current = viewer;
+    // The new viewer's camera is at aspect 1 until the resize effect sizes it;
+    // clear the last-size memo so that effect's initial call actually applies
+    // instead of no-opping on the previous viewer's (unchanged) dimensions.
+    lastResizeRef.current = { width: 0, height: 0 };
 
     // Guards against the StrictMode mount->cleanup->mount cycle (and option
     // changes) resolving a disposed viewer's initialize() promise.
@@ -95,9 +105,6 @@ export function useViewerCore(
     viewerRef.current.updateOptions(pickRuntimeOptions(merged));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runtimeKey is a content hash of the runtime look; reading the resolved values inside is intentional.
   }, [runtimeKey, isInitialized]);
-
-  // Track last resize dimensions to detect actual changes
-  const lastResizeRef = useRef({ width: 0, height: 0 });
 
   // Handle resize
   useEffect(() => {
