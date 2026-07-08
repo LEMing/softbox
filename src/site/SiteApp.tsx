@@ -36,18 +36,12 @@ const DROPPED_KEY = 'yours';
 // Values are absolute world coordinates measured against this model's own
 // bounding box, so this preset is only meaningful for it.
 const MOTORHOME_CAMERA = {
-  position: [-4.91, 5.26, 8.44] as const,
+  // Pulled back ~1.43x from the target vs the old 42° framing so the narrower
+  // 30° lens frames the whole model instead of cropping it.
+  position: [-7.03, 6.93, 12.11] as const,
   target: [0.02, 1.37, -0.1] as const,
-  fov: 42,
+  fov: 30,
 };
-
-interface PerspectiveLike {
-  fov: number;
-  updateProjectionMatrix(): void;
-}
-
-const isPerspectiveCamera = (camera: unknown): camera is PerspectiveLike =>
-  typeof camera === 'object' && camera !== null && 'fov' in camera && 'updateProjectionMatrix' in camera;
 
 interface Pin {
   id: number;
@@ -79,6 +73,9 @@ export function SiteApp() {
   const [turntable, setTurntable] = useState(false);
   const [animations, setAnimations] = useState(false);
   const [pathTraced, setPathTraced] = useState(false);
+  const [bloom, setBloom] = useState(false);
+  const [vignette, setVignette] = useState(false);
+  const [filmGrain, setFilmGrain] = useState(false);
   const [pins, setPins] = useState<Pin[]>([]);
   const [stillState, setStillState] = useState<'idle' | 'capturing' | 'failed'>('idle');
   const pinIdRef = useRef(0);
@@ -106,38 +103,6 @@ export function SiteApp() {
       setPins((current) => [...current, { id, point: [point.x, point.y, point.z] }]);
     });
   }, []);
-
-  // The Motorhome gets its own hero-shot camera framing once it finishes
-  // loading; every other model keeps the generic auto-fit view.
-  useEffect(() => {
-    const handle = viewerRef.current;
-    if (!handle || selected !== 'Motorhome') {
-      return;
-    }
-    return handle.events.on('model:loaded', () => {
-      // Re-read the ref rather than closing over `handle`: the engine (and
-      // its camera/controls) can still be initializing when this effect first
-      // registers the listener, so the outer `handle` may have a stale null
-      // camera — by the time the model has actually loaded, the ref points at
-      // the live one.
-      const current = viewerRef.current;
-      const camera = current?.camera;
-      const controls = current?.controls;
-      if (!camera) {
-        return;
-      }
-      camera.position.set(...MOTORHOME_CAMERA.position);
-      camera.lookAt(...MOTORHOME_CAMERA.target);
-      if (isPerspectiveCamera(camera)) {
-        camera.fov = MOTORHOME_CAMERA.fov;
-        camera.updateProjectionMatrix();
-      }
-      if (controls) {
-        controls.target.set(...MOTORHOME_CAMERA.target);
-        controls.update();
-      }
-    });
-  }, [selected]);
 
   const pickerItems = dropped ? [...Object.keys(SAMPLE_MODELS), DROPPED_KEY] : Object.keys(SAMPLE_MODELS);
   const modelUrl = selected === DROPPED_KEY && dropped ? dropped.url : SAMPLE_MODELS[selected];
@@ -223,6 +188,14 @@ export function SiteApp() {
             { key: 'pathtraced', label: 'path traced', active: pathTraced, onToggle: setPathTraced },
           ]}
         />
+        <Toggles
+          label="Post"
+          items={[
+            { key: 'bloom', label: 'bloom', active: bloom, onToggle: setBloom },
+            { key: 'vignette', label: 'vignette', active: vignette, onToggle: setVignette },
+            { key: 'grain', label: 'grain', active: filmGrain, onToggle: setFilmGrain },
+          ]}
+        />
         <div style={{ fontSize: 11.5, color: rejectedName ? '#b3261e' : '#7a7a85' }} role="status">
           {rejectedName ? (
             <>Only self-contained <code style={{ fontSize: 11 }}>.glb</code> models are supported</>
@@ -304,11 +277,35 @@ export function SiteApp() {
       )}
 
       <SimpleViewer
+        // Enabling a renderer effect is a structural change that rebuilds the
+        // viewer; remounting on a key gives it a clean canvas + fresh model load
+        // rather than an in-place rebuild, so the demo swaps effects reliably.
+        key={`fx-${bloom}-${vignette}-${filmGrain}`}
         ref={viewerRef}
         object={modelUrl}
         turntable={turntable}
         animations={animations}
-        options={pathTraced ? { ui: { presets: true }, pathTracing: { enabled: true } } : { ui: { presets: true } }}
+        options={{
+          ui: { presets: true },
+          // The Motorhome gets a declarative hero-shot camera so the framing
+          // survives every structural rebuild (a renderer-effect or path-tracing
+          // toggle spins up a fresh viewer). autoFitToObject is off so the
+          // hand-tuned 30° framing sticks instead of being re-fit.
+          ...(selected === 'Motorhome'
+            ? {
+                camera: {
+                  position: [...MOTORHOME_CAMERA.position],
+                  target: [...MOTORHOME_CAMERA.target],
+                  fov: MOTORHOME_CAMERA.fov,
+                  autoFitToObject: false,
+                },
+              }
+            : {}),
+          ...(pathTraced ? { pathTracing: { enabled: true } } : {}),
+          ...((bloom || vignette || filmGrain)
+            ? { renderer: { bloom, vignette, filmGrain } }
+            : {}),
+        }}
       >
         {pins.map((pin, index) => (
           <Hotspot key={pin.id} position={pin.point} occlude>

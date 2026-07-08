@@ -12,7 +12,15 @@ export interface IRenderer extends IRendererExtension {
   
   initialize(options: IRendererOptions): Result<void>;
   render(scene: IScene, camera: ICamera): Result<void>;
-  
+
+  /**
+   * Render the raster view through the opt-in post-processing composer (bloom,
+   * vignette, film grain), falling back to a plain render when no effect is
+   * enabled or the composer is still loading. Optional: renderers without a
+   * post-processing pipeline simply don't implement it.
+   */
+  renderPostProcessed?(scene: IScene, camera: ICamera): Result<void>;
+
   setSize(width: number, height: number): void;
   setPixelRatio(ratio: number): void;
   getPixelRatio(): number;
@@ -46,6 +54,12 @@ export interface IRendererOptions {
   toneMapping?: {
     type: 'none' | 'linear' | 'reinhard' | 'cineon' | 'aces' | 'agx' | 'neutral';
     exposure: number;
+  };
+  /** Opt-in post-processing effects (default all off). */
+  postProcessing?: {
+    bloom?: boolean;
+    vignette?: boolean;
+    filmGrain?: boolean;
   };
 }
 

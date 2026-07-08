@@ -16,6 +16,7 @@ import {
  *   ?hotspot=1                                    (anchor a hotspot at the origin)
  *   ?turntable=1                                  (auto-rotate the camera)
  *   ?animate=1                                    (play a clip on the model)
+ *   ?effects=1                                    (opt-in bloom + vignette + grain)
  */
 declare global {
   interface Window {
@@ -49,6 +50,7 @@ const preset = (params.get('preset') as ViewerPreset | null) ?? undefined;
 const withHotspot = params.get('hotspot') === '1';
 const turntable = params.get('turntable') === '1' || undefined;
 const animate = params.get('animate') === '1' || undefined;
+const withEffects = params.get('effects') === '1';
 
 const makeModel = () => {
   // Coarse tessellation on purpose: every triangle costs real time on the
@@ -105,6 +107,11 @@ const Harness = () => {
       preset={preset}
       turntable={turntable}
       animations={animate}
+      options={
+        withEffects
+          ? { renderer: { bloom: true, vignette: true, filmGrain: true } }
+          : undefined
+      }
     >
       {withHotspot && <Hotspot position={[0, 0, 0]} />}
     </SimpleViewer>

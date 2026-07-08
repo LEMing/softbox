@@ -10,4 +10,15 @@ export interface RendererOptions {
   toneMappingExposure?: number;
   /** A `THREE.ColorSpace` value (e.g. `'srgb'`, `'srgb-linear'`). */
   outputColorSpace?: string;
+  /** Opt-in soft glow on bright highlights (UnrealBloom). */
+  bloom?: boolean;
+  /** Opt-in edge darkening that focuses attention on the subject. */
+  vignette?: boolean;
+  /** Opt-in subtle photographic film grain. */
+  filmGrain?: boolean;
+  // NOTE: all three route the raster view through a post-processing composer
+  // (lazy-loaded on first use — no cost or bundle weight if unused), so they
+  // add a per-frame pass while the scene renders; leave them off for the
+  // lazy-loading many-viewers grid. All are ignored while path tracing is
+  // active (the tracer writes to the canvas directly).
 }

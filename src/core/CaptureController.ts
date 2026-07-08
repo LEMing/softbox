@@ -390,7 +390,11 @@ export class CaptureController {
     renderer.setPixelRatio(1);
     renderer.setSize(targetWidth, targetHeight);
     applyCameraAspect(camera, targetWidth / targetHeight);
-    const rendered = renderer.render(scene, camera);
+    // Through the post-processing composer when present, so a captured still
+    // carries the same bloom/vignette/grain as the on-screen view.
+    const rendered = renderer.renderPostProcessed
+      ? renderer.renderPostProcessed(scene, camera)
+      : renderer.render(scene, camera);
     const still = rendered.ok ? this.readCanvasPng() : Result.err(rendered.error);
     // Size first, ratio second: three re-applies the last logical size when the
     // pixel ratio changes, so this order never allocates a target×DPR buffer.

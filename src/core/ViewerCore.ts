@@ -430,9 +430,12 @@ export class ViewerCore {
 
     this.stateManager.startRendering();
 
+    // The raster branch routes through the post-processing composer (bloom/
+    // vignette/grain) when the renderer has one; path tracing (when it returns
+    // a frame) bypasses it — the tracer draws to the canvas itself.
     const renderResult = await (
       this.pathTracing.render(this.scene, this.camera) ??
-      Promise.resolve(this.renderer.render(this.scene, this.camera))
+      Promise.resolve(this.renderRaster())
     );
 
     if (!renderResult.ok) {
@@ -446,6 +449,13 @@ export class ViewerCore {
       renderTime: performance.now() - startTime,
       samples: this.pathTracing.getSampleCount()
     });
+  }
+
+  /** Plain raster render, through the post-processing composer when present. */
+  private renderRaster(): Result<void> {
+    return this.renderer.renderPostProcessed
+      ? this.renderer.renderPostProcessed(this.scene, this.camera)
+      : this.renderer.render(this.scene, this.camera);
   }
 
   /**

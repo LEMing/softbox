@@ -51,6 +51,7 @@ export interface IGridOptions {
 }
 
 export enum GridType {
+  SHADOW_FLOOR = 'shadow_floor',
   SQUARE_WIRE = 'square_wire',
   HEXAGONAL_WIRE = 'hexagonal_wire',
   HEXAGONAL_GLASS = 'hexagonal_glass',
