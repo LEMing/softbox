@@ -1,6 +1,18 @@
 Changelog
 =========
 
+4.8.0
+---
+
+### Opt-in post-processing + a cleaner studio default
+
+* **New: opt-in post-processing effects.** `renderer.bloom`, `renderer.vignette` and `renderer.filmGrain` route the raster view through a lazily-loaded composer — the chunk only downloads when at least one effect is on, so a viewer that uses none pays nothing in bundle weight or per-frame cost. Bloom adds a restrained glow to genuinely blown highlights (headlights, hot speculars), the vignette darkens the frame edges to focus the subject, and the film grain lays a **fixed, non-animated** photographic speckle over the frame. Each is off by default and toggles independently; all are ignored while path tracing is active (the tracer draws to the canvas itself).
+* The composited path keeps the renderer's tone mapping and exposure (through `OutputPass`), so an effect-on frame matches the plain-render look; it carries MSAA so the model's edges don't alias; and it refreshes its scene/camera every frame so it tracks a swapped camera or a reloaded model instead of freezing on the ones captured when the composer was built.
+* **New default floor: a clean studio "shadow floor."** The default is now an invisible shadow-catching disc (`helpers.grid.type: 'shadow_floor'`) instead of the matte hex-paver tiles — the model reads as a product shot sitting on the background with a soft contact shadow, not on a patterned field. The real-scale hex "ruler" floor is one option away (`helpers.grid.type: 'hexagonal_glass'`).
+* **Tighter default framing: field of view 45° → 30°.** A longer lens flattens the perspective for a more product-like hero shot; the deep fallbacks in `ViewerFactory`/`ThreeCamera` match the default.
+* **The camera can no longer dip below the floor.** `controls.maxPolarAngle` now defaults to the horizon (π/2), so orbiting never swings under the ground to look up at the model's underside.
+* Playground: a new **POST** row toggles bloom / vignette / grain live.
+
 4.7.0
 ---
 

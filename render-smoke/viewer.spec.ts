@@ -226,6 +226,38 @@ test('the baked contact shadow grounds the model: floor under the base is darker
   expect(errors).toEqual([]);
 });
 
+test('opt-in post-processing renders the model (no wash-out) and darkens the corners', async ({ page }) => {
+  const errors = await openScene(page, '?effects=1');
+  const png = await screenshotCanvas(page);
+
+  // Model survives the composer: a solid chunk of the frame still carries the
+  // torus knot's saturated orange. The wash-out regression (the composer
+  // over-exposing the whole frame to near-white, or the beauty pass drawing an
+  // empty scene) crushes chroma everywhere — so real coloured geometry on
+  // screen is the guard.
+  let colored = 0;
+  const total = png.width * png.height;
+  for (let i = 0; i < total; i += 1) {
+    const offset = i << 2;
+    const r = png.data[offset];
+    const g = png.data[offset + 1];
+    const b = png.data[offset + 2];
+    if (Math.max(r, g, b) - Math.min(r, g, b) > 40) {
+      colored += 1;
+    }
+  }
+  expect(colored / total).toBeGreaterThan(0.02);
+
+  // The vignette reaches the canvas: the extreme corner is darker than a
+  // point the same height in from the top edge (both background, the corner
+  // simply further out on the radial falloff).
+  const cornerLum = patchLuminance(png, 6, 6);
+  const topCenterLum = patchLuminance(png, Math.floor(png.width / 2), 6);
+  expect(cornerLum).toBeLessThan(topCenterLum);
+
+  expect(errors).toEqual([]);
+});
+
 /** Fraction of pixels that clearly changed between two frames. */
 const changedFraction = (before: PNG, after: PNG): number => {
   let differing = 0;

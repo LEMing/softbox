@@ -142,7 +142,7 @@ export class ViewerFactory {
     // 45° matches the defaultOptions.camera.fov and a product/Sketchfab-style
     // flatter perspective; the fallback only applies if camera options are
     // cleared entirely.
-    const fov = legacyOptions.fov || legacyOptions.cameraFov || 45;
+    const fov = legacyOptions.fov || legacyOptions.cameraFov || 30;
     const near = legacyOptions.near || legacyOptions.cameraNear || 0.1;
     const far = legacyOptions.far || legacyOptions.cameraFar || 100000;
     const position = legacyOptions.position || legacyOptions.cameraPosition;

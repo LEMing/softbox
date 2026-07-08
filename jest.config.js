@@ -119,6 +119,19 @@ export default {
       functions: 95,
       lines: 95,
     },
+    // 2026-07-09 new-module pins (opt-in post-processing + shadow-floor default).
+    './src/infrastructure/three/postprocessing/PostProcessingPipeline.ts': {
+      statements: 95,
+      branches: 90,
+      functions: 95,
+      lines: 95,
+    },
+    './src/infrastructure/three/grids/ShadowFloorGrid.ts': {
+      statements: 100,
+      branches: 90,
+      functions: 100,
+      lines: 100,
+    },
   },
   extensionsToTreatAsEsm: ['.ts', '.tsx'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],

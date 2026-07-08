@@ -4,9 +4,11 @@ import { SquareWireGrid } from './SquareWireGrid';
 import { HexagonalWireGrid } from './HexagonalWireGrid';
 import { HexagonalGlassGrid } from './HexagonalGlassGrid';
 import { StoneTileGrid } from './StoneTileGrid';
+import { ShadowFloorGrid } from './ShadowFloorGrid';
 
 export class GridFactory {
   private static gridStyles = new Map<GridType, IGridStyle>([
+    [GridType.SHADOW_FLOOR, new ShadowFloorGrid()],
     [GridType.SQUARE_WIRE, new SquareWireGrid()],
     [GridType.HEXAGONAL_WIRE, new HexagonalWireGrid()],
     [GridType.HEXAGONAL_GLASS, new HexagonalGlassGrid()],

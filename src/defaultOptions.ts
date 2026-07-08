@@ -32,7 +32,7 @@ const defaultOptions: SimpleViewerOptions = {
   camera: {
     position: [60, 60, 60],
     target: [0, 0, 0],
-    fov: 45,
+    fov: 30,
     near: 0.1,
     far: 100000,
     autoFitToObject: true,
@@ -129,16 +129,24 @@ const defaultOptions: SimpleViewerOptions = {
     enableZoom: true,
     enableRotate: true,
     enablePan: true,
+    // Stop the orbit at the horizon so the camera never dips below the floor
+    // to look up at the model's underside from under the ground.
+    maxPolarAngle: Math.PI / 2,
   },
 
   // Helpers
   helpers: {
     grid: {
-      type: 'hexagonal_glass', // Matte concrete-look hex floor that catches the model's shadow. Options: 'square_wire', 'hexagonal_wire', 'hexagonal_glass', 'stone_tiles'
+      // A clean studio floor (invisible shadow catcher only): the model reads
+      // as a product shot on the background with a soft contact shadow, not on
+      // a patterned field. The real-scale hex-paver "ruler" floor is still one
+      // option away — set type: 'hexagonal_glass'. Options: 'shadow_floor',
+      // 'square_wire', 'hexagonal_wire', 'hexagonal_glass', 'stone_tiles'.
+      type: 'shadow_floor',
       size: 20,              // Grid size (triggers default grid creation)
       divisions: 20,         // Grid divisions
-      colorGrid: '#a8a8a2',  // Concrete grey
-      opacity: 0.5,          // Grid opacity
+      colorGrid: '#a8a8a2',  // Concrete grey (hex/tile floors only)
+      opacity: 0.5,          // Grid opacity (hex/tile floors only)
       styleOptions: {
         // A real, specific physical object — the NYC hexagonal sidewalk
         // paver — 8 inches across flats per the NYC Street Design Manual

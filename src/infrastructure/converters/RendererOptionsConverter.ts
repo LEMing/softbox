@@ -28,6 +28,19 @@ export class RendererOptionsConverter {
       };
     }
 
+    // Opt-in post-processing effects — only carried through when at least one
+    // is set, so a plain viewer has no `postProcessing` block at all.
+    const bloom = options.bloom as boolean | undefined;
+    const vignette = options.vignette as boolean | undefined;
+    const filmGrain = options.filmGrain as boolean | undefined;
+    if (bloom || vignette || filmGrain) {
+      converted.postProcessing = {
+        bloom: bloom ?? false,
+        vignette: vignette ?? false,
+        filmGrain: filmGrain ?? false,
+      };
+    }
+
     return converted;
   }
 
