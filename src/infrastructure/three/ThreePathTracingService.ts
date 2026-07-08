@@ -217,16 +217,14 @@ export class ThreePathTracingService implements IPathTracingService {
       this.pathTracer.dynamicLowRes = this.settings.dynamicLowRes;
       this.pathTracer.lowResScale = this.settings.lowResScale;
 
-      // Set environment intensity for brighter lighting
-      if (this.pathTracer.environmentIntensity !== undefined) {
-        this.pathTracer.environmentIntensity = 2.0; // Increase environment contribution
-      }
-
-      // Enable tone mapping for path tracing
-      if (threeRenderer.toneMapping !== THREE.ACESFilmicToneMapping) {
-        threeRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-        threeRenderer.toneMappingExposure = 1.5; // Increase exposure for brighter output
-      }
+      // Env intensity and tone mapping are inherited from the scene/renderer,
+      // NOT overridden here: three-gpu-pathtracer reads scene.environmentIntensity
+      // on ingest and shares the renderer's tone-mapping operator + exposure, so
+      // the converged frame matches the raster preview. (Two dead overrides were
+      // removed: a `pathTracer.environmentIntensity = 2.0` assignment the tracer
+      // never reads — it exposes no such accessor, and its `!== undefined` guard
+      // was false anyway — and a paired exposure=1.5 block whose
+      // `toneMapping !== ACES` guard was always false.)
 
       // autoClear stays ON: the accumulation blit manages its own clear state
       // per pass (accumulateOneSample), while every raster fallback frame —

@@ -44,7 +44,7 @@ export interface IRendererOptions {
     type?: 'basic' | 'pcf' | 'pcfsoft' | 'vsm';
   };
   toneMapping?: {
-    type: 'none' | 'linear' | 'reinhard' | 'cineon' | 'aces';
+    type: 'none' | 'linear' | 'reinhard' | 'cineon' | 'aces' | 'agx' | 'neutral';
     exposure: number;
   };
 }

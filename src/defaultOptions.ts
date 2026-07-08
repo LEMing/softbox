@@ -43,27 +43,35 @@ const defaultOptions: SimpleViewerOptions = {
   // Set `environment.url` to an HDR/EXR/image to use a custom environment map.
   environment: {
     backgroundIntensity: 1,
-    // The studio environment (RoomEnvironment) is the primary light source, so
-    // keep image-based lighting moderate — at 1.0 it blows out PBR materials.
-    environmentIntensity: 0.7,
+    // Kept moderate: environmentIntensity drives the IBL REFLECTION strength
+    // as well as the fill, so pushing it high to brighten also makes the paint
+    // read glossy/plasticky. Brightness instead comes from the diffuse
+    // ambient/hemisphere fill below, keeping a bright-but-matte studio look.
+    environmentIntensity: 0.5,
   },
 
-  // Lighting: the studio environment does most of the work, so the explicit
-  // lights are subtle accents (not a second full light rig). A single directional
-  // key light gives form and shadows; ambient/hemisphere just lift the shadows.
+  // Lighting: a near-neutral directional key gives gentle form and the contact
+  // shadow, while a generous ambient/hemisphere fill keeps the shadowed side
+  // and crevices bright and open — a soft high-key studio look. Warmth is left
+  // to the model's own materials rather than a tinted key, so genuinely
+  // white/neutral models are not pushed yellow.
   lighting: {
     ambientLight: {
-      color: '#404040',
-      intensity: 0.3,
+      color: '#4a4a4a',
+      intensity: 0.5,
     },
     hemisphereLight: {
-      skyColor: '#ffffbb',
-      groundColor: '#080820',
-      intensity: 0.3,
+      skyColor: '#fff6ec',
+      // Warm-neutral bounce (not a cold blue, which cooled the shadowed side).
+      groundColor: '#3c3630',
+      intensity: 0.45,
     },
     directionalLight: {
-      color: '#ffffff',
-      intensity: 2,
+      // Barely-warm, near-white key: enough to avoid a clinical cool cast but
+      // not enough to tint the render orange — the model's albedo carries the
+      // warmth. Restrained intensity so the specular hotspot stays soft.
+      color: '#fff8f2',
+      intensity: 1.9,
       // Steeper than a 45-degree key light so the cast shadow falls mostly
       // directly under the model (a tight contact shadow) instead of
       // streaking off to one side.
@@ -105,8 +113,11 @@ const defaultOptions: SimpleViewerOptions = {
     // object's size (see fitShadowCameraToObject), texel density is high
     // enough that a moderate radius already reads soft and clean.
     shadowMapType: 1, // PCFShadowMap
-    toneMapping: 6, // ACESFilmicToneMapping
-    toneMappingExposure: 1.1,
+    // Khronos PBR Neutral (THREE.NeutralToneMapping = 7): keeps saturated
+    // material colours through the highlight rolloff instead of clipping them
+    // to white the way ACES does — the right operator for a product viewer.
+    toneMapping: 7,
+    toneMappingExposure: 1.15,
   },
 
   // Controls

@@ -13,28 +13,28 @@ import { deepMerge } from './utils/deepMerge';
 export const VIEWER_PRESETS: Record<ViewerPreset, Partial<SimpleViewerOptions>> = {
   studio: {
     backgroundColor: '#f0f0f7',
-    renderer: { toneMappingExposure: 1.1 },
-    environment: { environmentIntensity: 0.7 },
+    renderer: { toneMappingExposure: 1.15 },
+    environment: { environmentIntensity: 0.5 },
   },
   product: {
     backgroundColor: '#ffffff',
-    renderer: { toneMappingExposure: 1.25 },
-    environment: { environmentIntensity: 0.85 },
+    renderer: { toneMappingExposure: 1.2 },
+    environment: { environmentIntensity: 0.55 },
   },
   neutral: {
     backgroundColor: '#d9d9de',
-    renderer: { toneMappingExposure: 1 },
-    environment: { environmentIntensity: 0.6 },
+    renderer: { toneMappingExposure: 1.1 },
+    environment: { environmentIntensity: 0.45 },
   },
   dark: {
     backgroundColor: '#1a1a1f',
-    renderer: { toneMappingExposure: 1.15 },
-    environment: { environmentIntensity: 0.8 },
+    renderer: { toneMappingExposure: 1.2 },
+    environment: { environmentIntensity: 0.5 },
   },
   outdoor: {
     backgroundColor: '#bcd4e6',
-    renderer: { toneMappingExposure: 1.15 },
-    environment: { environmentIntensity: 0.85 },
+    renderer: { toneMappingExposure: 1.2 },
+    environment: { environmentIntensity: 0.6 },
   },
 };
 

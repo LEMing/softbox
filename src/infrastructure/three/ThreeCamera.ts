@@ -112,7 +112,7 @@ export class ThreePerspectiveCameraAdapter extends ThreeCameraAdapter implements
   }
 
   static create(
-    fov: number = 75,
+    fov: number = 45,
     aspect: number = 1,
     near: number = 0.1,
     far: number = 1000

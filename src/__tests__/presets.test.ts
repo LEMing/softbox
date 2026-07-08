@@ -61,7 +61,7 @@ describe('mergeWithPreset', () => {
   it('layers the preset over the defaults without clobbering unrelated fields', () => {
     const merged = mergeWithPreset(defaults, { preset: 'product' });
     expect(merged.backgroundColor).toBe('#ffffff');
-    expect(merged.renderer?.toneMappingExposure).toBe(1.25);
+    expect(merged.renderer?.toneMappingExposure).toBe(1.2);
     expect(merged.renderer?.antialias).toBe(true); // preserved via deep merge
   });
 
@@ -75,7 +75,7 @@ describe('mergeWithPreset', () => {
     // wipe out the preset's toneMappingExposure entirely.
     const merged = mergeWithPreset(defaults, { preset: 'product', renderer: { antialias: false } });
     expect(merged.renderer?.antialias).toBe(false);
-    expect(merged.renderer?.toneMappingExposure).toBe(1.25);
+    expect(merged.renderer?.toneMappingExposure).toBe(1.2);
   });
 
   it('returns the defaults when no preset is set', () => {

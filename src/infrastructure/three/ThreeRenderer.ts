@@ -64,6 +64,11 @@ export class ThreeRendererAdapter implements IRenderer {
           'reinhard': THREE.ReinhardToneMapping,
           'cineon': THREE.CineonToneMapping,
           'aces': THREE.ACESFilmicToneMapping,
+          'agx': THREE.AgXToneMapping,
+          // Khronos PBR Neutral: rolls highlights off filmically while
+          // preserving material hue/saturation (unlike ACES, which desaturates
+          // bright values toward white) — the default for this product viewer.
+          'neutral': THREE.NeutralToneMapping,
         };
         this.renderer.toneMapping = toneMappingTypes[options.toneMapping.type];
         this.renderer.toneMappingExposure = options.toneMapping.exposure;
