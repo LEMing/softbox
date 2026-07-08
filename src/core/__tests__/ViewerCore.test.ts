@@ -1900,6 +1900,44 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     viewer.dispose();
   });
 
+  it('aborts a stale enable when disabled while the tracer chunk is still loading', async () => {
+    // The tracer loads lazily, so enableRuntime awaits service.initialize().
+    // Hold that promise open to interleave a disable during the load.
+    let resolveInit: () => void = () => {};
+    const initGate = new Promise<void>((res) => {
+      resolveInit = res;
+    });
+    const bundle = makeDeps({
+      options: { staticScene: true, pathTracing: { enabled: false } },
+      withPathTracing: true,
+      pathTracingOverrides: {
+        initialize: jest.fn(() => initGate.then(() => Result.ok(undefined))),
+      },
+    });
+    const requireSpy = jest.spyOn(RenderLoopManager.prototype, 'requireContinuous');
+    const viewer = new ViewerCore(bundle.deps);
+    await viewer.initialize();
+    requireSpy.mockClear();
+    bundle.pathTracingService!.setEnabled.mockClear();
+
+    viewer.updateOptions({ pathTracing: { enabled: true } }); // enable → suspends on init
+    await tick();
+    viewer.updateOptions({ pathTracing: { enabled: false } }); // disable while loading
+    await tick();
+
+    resolveInit(); // the enable's await now resolves — but intent is OFF
+    await tick(6);
+
+    // The stale enable must NOT turn the tracer back on or leak a continuous
+    // demand behind a UI that reads OFF.
+    expect(bundle.pathTracingService!.setEnabled).not.toHaveBeenCalledWith(true);
+    expect(requireSpy).not.toHaveBeenCalledWith('path-tracing');
+    // The disable did take effect.
+    expect(bundle.pathTracingService!.setEnabled).toHaveBeenCalledWith(false);
+
+    viewer.dispose();
+  });
+
   it('ignores updates that do not include a background color', () => {
     const bundle = makeDeps({ withSceneSetup: true });
     const viewer = new ViewerCore(bundle.deps);

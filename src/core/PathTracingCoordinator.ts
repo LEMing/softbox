@@ -145,12 +145,20 @@ export class PathTracingCoordinator {
    * is now active — false when it could not initialize (e.g. no WebGL2).
    */
   async enableRuntime(): Promise<boolean> {
-    const { service, renderLoopManager } = this.deps;
+    const { service, renderLoopManager, getOptions } = this.deps;
     if (!service) {
       return false;
     }
     await this.ensureInitialized();
     if (!this.initialized) {
+      return false;
+    }
+    // A disable can land while the tracer chunk was loading (the await above).
+    // updateOptions merges the request before calling us, so the option now
+    // reflects the LATEST intent — honor it, or a stale enable would turn the
+    // tracer back on and leak a 'path-tracing' continuous-render demand behind
+    // a UI that reads OFF.
+    if (!(getOptions().pathTracing?.enabled ?? false)) {
       return false;
     }
     service.setEnabled(true);
