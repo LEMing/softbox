@@ -216,6 +216,11 @@ export class ThreeRendererAdapter implements IRenderer {
   setPixelRatio(ratio: number): void {
     if (this.renderer) {
       this.renderer.setPixelRatio(ratio);
+      // Keep the composer's internal pixel ratio in sync, or its next setSize
+      // would scale targets by a stale ratio — a still capture drops to DPR 1
+      // before resizing, and a frozen ratio would over-allocate the composer
+      // targets (wasted work, and a GPU-limit overflow the size guard misses).
+      this.postPipeline?.setPixelRatio(ratio);
     }
   }
 

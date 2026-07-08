@@ -8,6 +8,7 @@ class FakeComposer {
   disposed = false;
   renderTarget1 = { samples: 0 };
   renderTarget2 = { samples: 0 };
+  pixelRatio: number | null = null;
   constructor(
     public renderer: unknown,
     public target: unknown
@@ -20,6 +21,9 @@ class FakeComposer {
   }
   setSize(w: number, h: number): void {
     this.size = [w, h];
+  }
+  setPixelRatio(ratio: number): void {
+    this.pixelRatio = ratio;
   }
   dispose(): void {
     this.disposed = true;
@@ -37,6 +41,7 @@ class FakeBloomPass {
 }
 interface ShaderLike {
   uniforms?: Record<string, { value: unknown }>;
+  fragmentShader?: string;
 }
 class FakeShaderPass {
   uniforms: Record<string, { value: unknown }>;
@@ -143,18 +148,18 @@ describe('PostProcessingPipeline', () => {
     expect(shader.uniforms.darkness.value as number).toBeGreaterThan(0);
   });
 
-  it('gives the static grain a non-animated, resolution-seeded shader', async () => {
+  it('gives the static grain a non-animated shader (intensity, no time uniform)', async () => {
     const pipeline = new PostProcessingPipeline(fakeRenderer(), { ...allOff, filmGrain: true });
     await flush();
     pipeline.render(scene, camera);
     const grain = getComposer(pipeline).passes.find((p) => p instanceof FakeShaderPass) as FakeShaderPass;
-    // Grain shader carries intensity + resolution uniforms and NO time uniform
-    // (a time uniform is what would make it shimmer frame to frame).
+    // Grain carries an intensity uniform and NO time uniform (a time uniform is
+    // what would make it shimmer frame to frame); it seeds off gl_FragCoord so
+    // it needs no resolution uniform to track resizes.
     expect(grain.uniforms.intensity).toBeDefined();
     expect(grain.uniforms.time).toBeUndefined();
-    const resolution = grain.uniforms.resolution.value as THREE.Vector2;
-    expect(resolution.x).toBe(1600);
-    expect(resolution.y).toBe(1200);
+    expect(grain.uniforms.resolution).toBeUndefined();
+    expect(grain.shader.fragmentShader).toContain('gl_FragCoord');
   });
 
   it('caps MSAA samples at 4 even when the GPU reports more', async () => {
@@ -172,6 +177,19 @@ describe('PostProcessingPipeline', () => {
     pipeline.render(scene, camera);
     pipeline.setSize(320, 240);
     expect(getComposer(pipeline).size).toEqual([320, 240]);
+  });
+
+  it('forwards setPixelRatio to the composer so its targets are not scaled by a stale ratio', async () => {
+    const pipeline = new PostProcessingPipeline(fakeRenderer(), { ...allOff, bloom: true });
+    await flush();
+    pipeline.render(scene, camera);
+    pipeline.setPixelRatio(1);
+    expect(getComposer(pipeline).pixelRatio).toBe(1);
+  });
+
+  it('setPixelRatio before the composer builds does not throw', () => {
+    const pipeline = new PostProcessingPipeline(fakeRenderer(), { ...allOff, bloom: true });
+    expect(() => pipeline.setPixelRatio(1)).not.toThrow();
   });
 
   it('dispose() tears down the composer and blocks further rendering', async () => {

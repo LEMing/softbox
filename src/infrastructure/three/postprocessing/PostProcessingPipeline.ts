@@ -42,12 +42,12 @@ interface PostModules {
 
 // A deterministic, per-pixel grain applied once in display space — NOT animated
 // (a fixed photographic grain layer, not shimmering noise). The hash seeds off
-// the device-pixel coordinate, so the same speckle pattern rides on every frame.
+// gl_FragCoord (the device-pixel coordinate), so the speckle is one pixel wide
+// at any canvas resolution and needs no resolution uniform to track resizes.
 const STATIC_GRAIN_SHADER = {
   uniforms: {
     tDiffuse: { value: null as THREE.Texture | null },
     intensity: { value: 0.05 },
-    resolution: { value: new THREE.Vector2(1, 1) },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -59,14 +59,13 @@ const STATIC_GRAIN_SHADER = {
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
     uniform float intensity;
-    uniform vec2 resolution;
     varying vec2 vUv;
     float hash( vec2 p ) {
       return fract( sin( dot( p, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
     }
     void main() {
       vec4 color = texture2D( tDiffuse, vUv );
-      float grain = hash( floor( vUv * resolution ) ) - 0.5;
+      float grain = hash( floor( gl_FragCoord.xy ) ) - 0.5;
       gl_FragColor = vec4( color.rgb + grain * intensity, color.a );
     }
   `,
@@ -206,11 +205,7 @@ export class PostProcessingPipeline {
     }
 
     if (this.config.filmGrain && modules.ShaderPass) {
-      const grain = new modules.ShaderPass(STATIC_GRAIN_SHADER);
-      // Seed the hash off the actual device-pixel grid so grain size stays a
-      // pixel regardless of canvas resolution.
-      (grain.uniforms.resolution.value as THREE.Vector2).set(bufferSize.x, bufferSize.y);
-      composer.addPass(grain as object);
+      composer.addPass(new modules.ShaderPass(STATIC_GRAIN_SHADER) as object);
     }
 
     this.composer = composer;
@@ -219,6 +214,10 @@ export class PostProcessingPipeline {
 
   setSize(width: number, height: number): void {
     this.composer?.setSize(width, height);
+  }
+
+  setPixelRatio(ratio: number): void {
+    this.composer?.setPixelRatio?.(ratio);
   }
 
   dispose(): void {
