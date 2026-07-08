@@ -1,6 +1,16 @@
 Changelog
 =========
 
+4.7.0
+---
+
+### Warmer, richer default render (Khronos PBR Neutral tone mapping)
+* **Default tone mapping is now Khronos PBR Neutral instead of ACES Filmic.** ACES desaturates bright values toward white, which clipped saturated paint highlights (a glossy orange roof went white and lost its colour) and left the whole render looking pale. PBR Neutral — designed for product/e-commerce — rolls highlights off filmically while preserving material hue, so colours stay rich and highlights keep their tint.
+* **Fixed a latent tone-mapping-operator bug:** the numeric tone-mapping enum was renumbered in three r160+ (AgX/Neutral were added), so `toneMapping: 6` in the defaults — commented "ACESFilmic" — was actually AgX and only rendered as ACES via an unrelated string fallback. The operator map now covers `agx` and `neutral` and maps the real `THREE.*ToneMapping` constants, so selecting AgX or Neutral works instead of silently falling back to ACES.
+* **Brighter, softer, bright-but-matte default lighting:** a near-neutral studio key (was pure white, so genuinely white models are no longer tinted) over a generous diffuse ambient/hemisphere fill for an evenly-lit high-key studio look, with a warm-neutral bounce instead of a cold blue one. Brightness comes from the diffuse fill rather than the IBL, so `environmentIntensity` drops 0.7 → 0.5 (reflections read matte instead of mirror-glossy) while exposure nudges 1.1 → 1.15 to keep the frame bright. Presets retuned to match the new operator.
+* The default camera field of view is normalized to 45° everywhere (the `defaultOptions` already used 45; the deep fallbacks in ViewerFactory/ThreeCamera were 75° — a wide, distorted perspective — and now match), for a flatter, product-style framing.
+* **Removed two dead path-tracing colour overrides** — a `pathTracer.environmentIntensity = 2.0` assignment (three-gpu-pathtracer never reads that property; it reads `scene.environmentIntensity`) and a paired `exposure = 1.5` block behind an always-false guard. Path tracing already inherited the scene/renderer colour state; this just deletes the misleading dead code so the converged frame's exposure/env is unambiguously the raster path's.
+
 4.6.0
 ---
 

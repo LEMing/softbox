@@ -300,7 +300,7 @@ describe('useViewerCore', () => {
     const builtWith = (ViewerFactory.createViewer as jest.Mock).mock.calls[0][1] as SimpleViewerOptions;
     // Preset look applied...
     expect(builtWith.backgroundColor).toBe('#ffffff');
-    expect(builtWith.renderer?.toneMappingExposure).toBe(1.25);
+    expect(builtWith.renderer?.toneMappingExposure).toBe(1.2);
     // ...without clobbering unrelated defaults (deep merge, not replace).
     expect(builtWith.renderer?.shadowMapEnabled).toBe(true);
     expect(builtWith.camera?.autoFitToObject).toBe(true);

@@ -746,11 +746,16 @@ describe('ThreePathTracingService', () => {
 
       const tracer = lastPathTracer();
       expect(tracer.tiles.set).toHaveBeenCalledWith(1, 1);
-      expect(tracer.environmentIntensity).toBe(2.0);
-      expect(ctx.internal.toneMapping).toBe(THREE.ACESFilmicToneMapping);
+      // Env intensity and tone mapping are NO LONGER overridden here — the
+      // tracer inherits scene.environmentIntensity and the renderer's operator
+      // so the converged frame matches the raster preview. (The removed
+      // `environmentIntensity = 2.0` was dead code: three-gpu-pathtracer reads
+      // scene.environmentIntensity, not this property, so the mock's value
+      // stays at its constructor default.)
+      expect(tracer.environmentIntensity).toBe(0);
     });
 
-    it('skips tone mapping reconfiguration when already configured', async () => {
+    it('does not override the renderer tone mapping (inherits it)', async () => {
       const ctx = setup();
       ctx.internal.toneMapping = THREE.ACESFilmicToneMapping;
       ctx.internal.toneMappingExposure = 0.25;

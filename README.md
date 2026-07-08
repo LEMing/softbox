@@ -212,9 +212,11 @@ const options: SimpleViewerOptions = {
 
   // The procedural studio environment lights the scene by default (zero network
   // requests). Point environment.url at an HDR/EXR/image to use your own.
-  environment: { environmentIntensity: 0.7 },
+  environment: { environmentIntensity: 0.5 },
 
-  renderer: { antialias: true, toneMappingExposure: 1.1 },
+  // Khronos PBR Neutral tone mapping by default — keeps saturated material
+  // colours through the highlight rolloff (see renderer.toneMapping to change).
+  renderer: { antialias: true, toneMappingExposure: 1.0 },
 
   controls: { type: ControlType.OrbitControls, enableDamping: true, autoRotate: false },
 

@@ -42,15 +42,23 @@ export class RendererOptionsConverter {
     return typeof type === 'string' ? type as 'basic' | 'pcf' | 'pcfsoft' | 'vsm' : undefined;
   }
 
-  private static convertToneMappingType(type: unknown): 'none' | 'linear' | 'reinhard' | 'cineon' | 'aces' {
+  private static convertToneMappingType(
+    type: unknown
+  ): 'none' | 'linear' | 'reinhard' | 'cineon' | 'aces' | 'agx' | 'neutral' {
     if (typeof type === 'number') {
-      // Map THREE constants to string values
+      // Map THREE constants to string values. NOTE: the numeric enum was
+      // renumbered in three r160+ (AgX/Neutral were added), so these must map
+      // the actual constants, not hardcoded numbers — a stale number would
+      // silently select the wrong operator via the fallback below.
       if (type === THREE.NoToneMapping) return 'none';
       if (type === THREE.LinearToneMapping) return 'linear';
       if (type === THREE.ReinhardToneMapping) return 'reinhard';
       if (type === THREE.CineonToneMapping) return 'cineon';
       if (type === THREE.ACESFilmicToneMapping) return 'aces';
+      if (type === THREE.AgXToneMapping) return 'agx';
+      if (type === THREE.NeutralToneMapping) return 'neutral';
     }
-    return (typeof type === 'string' ? type : 'aces') as 'none' | 'linear' | 'reinhard' | 'cineon' | 'aces';
+    return (typeof type === 'string' ? type : 'neutral') as
+      | 'none' | 'linear' | 'reinhard' | 'cineon' | 'aces' | 'agx' | 'neutral';
   }
 }
