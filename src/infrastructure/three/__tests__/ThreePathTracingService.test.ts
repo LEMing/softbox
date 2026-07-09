@@ -103,6 +103,8 @@ interface StubThreeRenderer {
   setRenderTarget: jest.Mock;
   getRenderTarget: jest.Mock;
   clear: jest.Mock;
+  getDrawingBufferSize: jest.Mock;
+  copyFramebufferToTexture: jest.Mock;
 }
 
 function createStubThreeRenderer(domElement?: HTMLCanvasElement): StubThreeRenderer {
@@ -114,6 +116,8 @@ function createStubThreeRenderer(domElement?: HTMLCanvasElement): StubThreeRende
     setRenderTarget: jest.fn(),
     getRenderTarget: jest.fn(() => null),
     clear: jest.fn(),
+    getDrawingBufferSize: jest.fn((target: THREE.Vector2) => target.set(800, 600)),
+    copyFramebufferToTexture: jest.fn(),
   };
 }
 

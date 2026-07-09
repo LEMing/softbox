@@ -20,7 +20,7 @@ const defaultOptions: SimpleViewerOptions = {
   // Path tracing
   pathTracing: {
     enabled: false,
-    maxSamples: 512,
+    maxSamples: 1024,
     bounces: 16,
     transmissiveBounces: 4,
     renderScale: 0.8,

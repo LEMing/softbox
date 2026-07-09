@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { IGridStyle, IGridOptions } from './IGridStyle';
 import {
   CONTACT_SHADOW_HELPER_FLAG,
@@ -16,12 +17,13 @@ import {
  * ContactShadowBaker and the path tracer's helper-hiding treat it identically.
  *
  * `ShadowMaterial` is a raster shadow-map trick the path tracer can't use, so
- * the group also carries a real matte ground disc that is normally invisible
- * and only shown to the tracer during scene ingest (see PATH_TRACING_FLOOR_FLAG)
- * — that gives the traced render a physical surface to cast a contact shadow
- * onto, so the model is grounded there too instead of floating. Left neutral on
- * purpose: the tracer lights it with the scene environment, so it takes on each
- * preset's tone (dark under a dark studio, light under a bright one) by itself.
+ * the group also carries a real matte 3-sided cyclorama (see
+ * PATH_TRACING_FLOOR_FLAG) that is normally invisible and only shown to the
+ * tracer during scene ingest — that gives the traced render a physical surface
+ * to cast a contact shadow onto and a seamless soft-lit backdrop, so the model
+ * is grounded and wrapped instead of floating. Left neutral on purpose: the
+ * tracer lights it with the scene environment, so it takes on each preset's
+ * tone (dark under a dark studio, light under a bright one) by itself.
  *
  * The real-scale hex-paver "ruler" floor is still available via
  * `helpers.grid.type: 'hexagonal_glass'`; this is simply the default.
@@ -36,7 +38,7 @@ export class ShadowFloorGrid implements IGridStyle {
     // baked contact shadow clips itself to this disc, so oversizing is safe.
     const radius = Math.max(options.size || 1, 1) * 1.5;
     group.add(this.createShadowCatcher(radius));
-    group.add(this.createPathTracingFloor(radius));
+    group.add(this.createPathTracingCyclorama(radius));
     return group;
   }
 
@@ -53,25 +55,68 @@ export class ShadowFloorGrid implements IGridStyle {
     return catcher;
   }
 
-  private createPathTracingFloor(discRadius: number): THREE.Mesh {
-    // Much larger than the shadow disc so its edge never falls inside the
-    // traced frame — it reads as a seamless studio sweep rather than a plate.
-    const floor = new THREE.Mesh(
-      new THREE.CircleGeometry(Math.max(discRadius, 1) * 8, 96),
-      new THREE.MeshStandardMaterial({ color: '#b8b8b8', roughness: 1, metalness: 0 })
+  /**
+   * A 3-sided studio cyclorama for the path tracer: a rounded box with the
+   * ceiling and the front (camera side) trimmed away, so the floor sweeps up
+   * into a back wall and two side walls through big fillets — no visible seam —
+   * while the open top and front let the studio environment and key light in.
+   * The model sits in a seamless soft-lit "infinity cove" with a real contact
+   * shadow, instead of on a bare plate. Like the flat floor it replaced it is
+   * hidden from the raster view and shown to the tracer only during ingest.
+   */
+  private createPathTracingCyclorama(footprint: number): THREE.Mesh {
+    const size = Math.max(footprint, 1);
+    const half = size * 0.85; // half-width/depth of the cove floor
+    const height = size * 1.4; // wall height before the ceiling is trimmed
+    const fillet = size * 0.6; // radius of the floor→wall / wall→wall sweep
+
+    const rounded = new RoundedBoxGeometry(half * 2, height, half * 2, 10, fillet).toNonIndexed();
+    const cove = this.openTopAndFront(rounded, height / 2 - fillet, half - fillet);
+    // Sink the geometry so the cove floor sits at the mesh's local origin;
+    // addDynamicGrid then lifts the mesh to the catcher height so a floor-
+    // snapped model rests flush on the sweep.
+    cove.translate(0, height / 2, 0);
+    cove.computeVertexNormals();
+
+    const mesh = new THREE.Mesh(
+      cove,
+      new THREE.MeshStandardMaterial({
+        color: '#b8b8b8',
+        roughness: 1,
+        metalness: 0,
+        side: THREE.DoubleSide,
+      })
     );
-    floor.userData[PATH_TRACING_FLOOR_FLAG] = true;
-    floor.rotation.x = -Math.PI / 2;
-    // A placeholder height; addDynamicGrid resets it to the catcher's
-    // object-scaled lift so the floor-snapped model sits flush on it. (The
-    // catcher and this floor are never visible to the same renderer at once —
-    // the raster view hides this, the tracer hides the catcher — so they can
-    // share a height without z-fighting.)
-    floor.position.y = 0.001;
-    floor.receiveShadow = true;
-    // Hidden from the raster view; the tracer flips it on only during ingest.
-    floor.visible = false;
-    return floor;
+    mesh.userData[PATH_TRACING_FLOOR_FLAG] = true;
+    mesh.position.y = 0.001;
+    mesh.receiveShadow = true;
+    mesh.visible = false;
+    return mesh;
+  }
+
+  /** Drop every triangle in the ceiling (y above `yCut`) or the front wall
+   * (z beyond `zCut`), leaving an open-topped, camera-facing cove. */
+  private openTopAndFront(
+    geometry: THREE.BufferGeometry,
+    yCut: number,
+    zCut: number
+  ): THREE.BufferGeometry {
+    const position = geometry.getAttribute('position');
+    const kept: number[] = [];
+    for (let i = 0; i < position.count; i += 3) {
+      const cy = (position.getY(i) + position.getY(i + 1) + position.getY(i + 2)) / 3;
+      const cz = (position.getZ(i) + position.getZ(i + 1) + position.getZ(i + 2)) / 3;
+      if (cy > yCut || cz > zCut) {
+        continue;
+      }
+      for (let v = 0; v < 3; v += 1) {
+        kept.push(position.getX(i + v), position.getY(i + v), position.getZ(i + v));
+      }
+    }
+    geometry.dispose();
+    const trimmed = new THREE.BufferGeometry();
+    trimmed.setAttribute('position', new THREE.Float32BufferAttribute(kept, 3));
+    return trimmed;
   }
 
   dispose(): void {

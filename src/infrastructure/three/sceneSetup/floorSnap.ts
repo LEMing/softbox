@@ -4,6 +4,7 @@ import { IObject3D } from '../../../core/interfaces/IObject3D';
 import { Result } from '../../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../../errors';
 import { toThreeObject, toThreeScene } from '../unwrap';
+import { PATH_TRACING_FLOOR_FLAG } from '../ContactShadowBaker';
 
 export function snapObjectToFloor(scene: IScene, object: IObject3D): Result<void> {
   try {
@@ -44,6 +45,13 @@ export function snapObjectToFloor(scene: IScene, object: IObject3D): Result<void
     threeScene.updateMatrixWorld(true);
     const gridMeshes: THREE.Mesh[] = [];
     threeScene.traverse((child) => {
+      // Skip the tracer-only cyclorama: it is a tall shell whose walls would
+      // drag floorTopY up to their rim and float the model, and it is a
+      // path-tracing construct anyway — the real floor level is the raster
+      // catcher, which the cove floor is separately aligned to.
+      if (child.userData?.[PATH_TRACING_FLOOR_FLAG]) {
+        return;
+      }
       if ((child as THREE.Mesh).isMesh && isGridTagged(child)) {
         gridMeshes.push(child as THREE.Mesh);
       }

@@ -22,20 +22,29 @@ describe('ShadowFloorGrid', () => {
     expect(catcher.material).toBeInstanceOf(THREE.ShadowMaterial);
   });
 
-  it('adds a tracer-only ground floor: real, matte, receiving, hidden from the raster view', () => {
-    const floor = ptFloorOf(build(20));
-    expect(floor).toBeInstanceOf(THREE.Mesh);
-    expect(floor.material).toBeInstanceOf(THREE.MeshStandardMaterial);
-    expect((floor.material as THREE.MeshStandardMaterial).roughness).toBe(1);
-    expect(floor.receiveShadow).toBe(true);
+  it('adds a tracer-only cyclorama: real, matte, receiving, hidden from the raster view', () => {
+    const cove = ptFloorOf(build(20));
+    expect(cove).toBeInstanceOf(THREE.Mesh);
+    expect(cove.material).toBeInstanceOf(THREE.MeshStandardMaterial);
+    expect((cove.material as THREE.MeshStandardMaterial).roughness).toBe(1);
+    // Two-sided so the tracer lights the concave interior of the cove.
+    expect((cove.material as THREE.MeshStandardMaterial).side).toBe(THREE.DoubleSide);
+    expect(cove.receiveShadow).toBe(true);
     // Off in the raster view; the path tracer flips it on only during ingest.
-    expect(floor.visible).toBe(false);
+    expect(cove.visible).toBe(false);
     // NOT tagged as a raster shadow helper (that flag hides it from the tracer,
-    // which is the opposite of what this floor is for).
-    expect(floor.userData[CONTACT_SHADOW_HELPER_FLAG]).toBeUndefined();
-    // Large enough that its edge never falls inside the traced frame.
-    const geometry = floor.geometry as THREE.CircleGeometry;
-    expect(geometry.parameters.radius).toBeGreaterThan(30);
+    // which is the opposite of what this cove is for).
+    expect(cove.userData[CONTACT_SHADOW_HELPER_FLAG]).toBeUndefined();
+  });
+
+  it('sweeps the cove up into walls (has geometry rising well above the floor)', () => {
+    const cove = ptFloorOf(build(20));
+    cove.geometry.computeBoundingBox();
+    const box = cove.geometry.boundingBox!;
+    // The floor sits at local y=0; the back/side walls rise above it, and the
+    // ceiling is trimmed away (open top), so the top is a fraction of the span.
+    expect(box.min.y).toBeCloseTo(0, 1);
+    expect(box.max.y).toBeGreaterThan(1);
   });
 
   it('names and flags the catcher so the baker and path tracer treat it as the contact shadow', () => {
