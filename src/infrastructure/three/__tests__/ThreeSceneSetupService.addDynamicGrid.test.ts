@@ -3,6 +3,7 @@ import { ThreeSceneSetupService } from '../ThreeSceneSetupService';
 import { ThreeSceneAdapter } from '../ThreeScene';
 import { ThreeObject3DAdapter } from '../ThreeObject3D';
 import { GridType } from '../grids/IGridStyle';
+import { CONTACT_SHADOW_LIVE_NAME, PATH_TRACING_FLOOR_FLAG } from '../ContactShadowBaker';
 
 const makeSceneWithGridOptions = () => {
   const threeScene = new THREE.Scene();
@@ -73,5 +74,31 @@ describe('ThreeSceneSetupService.addDynamicGrid', () => {
     expect(grids).toHaveLength(1);
     expect(grids[0].position.x).toBeCloseTo(0);
     expect(grids[0].position.z).toBeCloseTo(0);
+  });
+
+  it('rides the shadow_floor tracer floor at the catcher height so the model sits flush on it', () => {
+    const threeScene = new THREE.Scene();
+    threeScene.userData = { gridOptions: { enabled: true, type: GridType.SHADOW_FLOOR } };
+    // A tall model drives the catcher lift to its clamp ceiling; the fixed
+    // placeholder height on the floor would otherwise leave it hovering below.
+    const model = new THREE.Mesh(new THREE.BoxGeometry(2, 40, 2));
+    model.position.set(0, 20, 0);
+    threeScene.add(model);
+
+    new ThreeSceneSetupService().addDynamicGrid(
+      new ThreeSceneAdapter(threeScene),
+      new ThreeObject3DAdapter(model)
+    );
+
+    const grid = findGrid(threeScene)!;
+    const catcher = grid.getObjectByName(CONTACT_SHADOW_LIVE_NAME)!;
+    let ptFloor: THREE.Object3D | undefined;
+    grid.traverse((child) => {
+      if (child.userData?.[PATH_TRACING_FLOOR_FLAG]) ptFloor = child;
+    });
+    expect(catcher).toBeDefined();
+    expect(ptFloor).toBeDefined();
+    expect(ptFloor!.position.y).toBeCloseTo(catcher.position.y);
+    expect(catcher.position.y).toBeGreaterThan(0);
   });
 });

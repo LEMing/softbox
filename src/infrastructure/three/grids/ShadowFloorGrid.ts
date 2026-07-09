@@ -62,8 +62,11 @@ export class ShadowFloorGrid implements IGridStyle {
     );
     floor.userData[PATH_TRACING_FLOOR_FLAG] = true;
     floor.rotation.x = -Math.PI / 2;
-    // Just under the shadow catcher so the two never z-fight in the (brief)
-    // window the tracer sees both.
+    // A placeholder height; addDynamicGrid resets it to the catcher's
+    // object-scaled lift so the floor-snapped model sits flush on it. (The
+    // catcher and this floor are never visible to the same renderer at once —
+    // the raster view hides this, the tracer hides the catcher — so they can
+    // share a height without z-fighting.)
     floor.position.y = 0.001;
     floor.receiveShadow = true;
     // Hidden from the raster view; the tracer flips it on only during ingest.

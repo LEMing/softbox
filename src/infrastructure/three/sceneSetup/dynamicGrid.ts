@@ -4,7 +4,7 @@ import { IObject3D } from '../../../core/interfaces/IObject3D';
 import { Result } from '../../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../../errors';
 import { toThreeObject, toThreeScene } from '../unwrap';
-import { CONTACT_SHADOW_LIVE_NAME } from '../ContactShadowBaker';
+import { CONTACT_SHADOW_LIVE_NAME, PATH_TRACING_FLOOR_FLAG } from '../ContactShadowBaker';
 import { disposeObject3D } from '../disposal';
 import { HexTileConfig } from '../HexTileConfig';
 import { GridFactory } from '../grids/GridFactory';
@@ -137,11 +137,20 @@ export function addDynamicGrid(scene: IScene, object: IObject3D, scaleFactor: nu
     // The catcher's default lift above the tile tops is sized for
     // car-scale models; over a centimeter-scale object the same fixed lift
     // covers a visible slice of the model's base, so scale it down with
-    // the object (mirrors the baked contact shadow's own offset rule).
+    // the object (mirrors the baked contact shadow's own offset rule). The
+    // tracer-only floor (shadow_floor) rides at the same height, so the model —
+    // floor-snapped to the tallest grid surface — sits flush on it in the
+    // traced view instead of hovering a hair above a fixed-height plane.
+    const catcherLift = THREE.MathUtils.clamp(size.y * 0.0025, 0.0002, 0.002);
     const liveCatcher = grid.getObjectByName(CONTACT_SHADOW_LIVE_NAME);
     if (liveCatcher) {
-      liveCatcher.position.y = THREE.MathUtils.clamp(size.y * 0.0025, 0.0002, 0.002);
+      liveCatcher.position.y = catcherLift;
     }
+    grid.traverse((child) => {
+      if (child.userData?.[PATH_TRACING_FLOOR_FLAG]) {
+        child.position.y = catcherLift;
+      }
+    });
 
     // Center the floor under the model, not at the origin: an off-origin
     // model would otherwise stand beside its own floor (and shadow disc).
