@@ -5,6 +5,7 @@ import {
   CONTACT_SHADOW_BAKED_NAME,
   CONTACT_SHADOW_HELPER_FLAG,
   CONTACT_SHADOW_LIVE_NAME,
+  PATH_TRACING_FLOOR_FLAG,
 } from '../ContactShadowBaker';
 import { PathTracingScene } from '../types/PathTracerTypes';
 import { IRenderer } from '../../../core/interfaces/IRenderer';
@@ -568,6 +569,37 @@ describe('ThreePathTracingService', () => {
       expect(liveCatcher.visible).toBe(false);
       // The same-named consumer node is untouched — it stays in the ingest.
       expect(impostor.visible).toBe(true);
+    });
+
+    it('shows the tracer-only ground floor for the ingest and hides it again after', async () => {
+      const ctx = setup();
+      await initialize(ctx, true);
+      ctx.threeScene.environment = equirectTexture();
+
+      const ptFloor = new THREE.Mesh(new THREE.CircleGeometry(1), new THREE.MeshStandardMaterial());
+      ptFloor.userData[PATH_TRACING_FLOOR_FLAG] = true;
+      ptFloor.visible = false;
+      ctx.threeScene.add(ptFloor);
+
+      const floorVisibilityWrites: boolean[] = [];
+      let floorVisible = false;
+      Object.defineProperty(ptFloor, 'visible', {
+        configurable: true,
+        get: () => floorVisible,
+        set: (value: boolean) => {
+          floorVisibilityWrites.push(value);
+          floorVisible = value;
+        },
+      });
+
+      const result = await ctx.service.render(ctx.scene, ctx.camera);
+
+      expect(result.ok).toBe(true);
+      expect(lastPathTracer().setScene).toHaveBeenCalled();
+      // Shown so the tracer ingests it into the BVH, then hidden again so the
+      // raster fallback keeps its clean invisible-floor look.
+      expect(floorVisibilityWrites).toEqual([true, false]);
+      expect(ptFloor.visible).toBe(false);
     });
 
     it('initializes from a cube-captured original (procedural studio room)', async () => {

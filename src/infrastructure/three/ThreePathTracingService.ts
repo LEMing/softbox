@@ -20,16 +20,20 @@ import {
   hasGetInternalRenderer
 } from './types/PathTracerTypes';
 import { TypedEventEmitter } from '../../events/EventEmitter';
-import { CONTACT_SHADOW_HELPER_FLAG } from './ContactShadowBaker';
+import { CONTACT_SHADOW_HELPER_FLAG, PATH_TRACING_FLOOR_FLAG } from './ContactShadowBaker';
 
 export class ThreePathTracingService implements IPathTracingService {
   /**
-   * Hand the scene to the path tracer with the viewer's own contact-shadow
-   * helpers hidden: the tracer computes physically-correct contact shadows
-   * itself, so ingesting the baked disc double-darkens the contact area (and
-   * the live ShadowMaterial catcher is equally meaningless to it). The
-   * generator skips invisible nodes; visibility is restored right after the
-   * ingest so the raster fallback path keeps its baked shadow.
+   * Hand the scene to the path tracer with the raster-only contact-shadow
+   * helpers hidden and the tracer-only ground floor shown. The `ShadowMaterial`
+   * catcher (and the baked disc) are raster shadow-map tricks the tracer can't
+   * use — ingesting them double-darkens or floats the contact area — so they're
+   * hidden; the PATH_TRACING_FLOOR_FLAG disc is the mirror image, a real matte
+   * surface kept invisible in the raster view and flipped on only here so the
+   * tracer has something physical to cast a contact shadow onto (otherwise the
+   * model floats in the traced render). The generator only reads currently-
+   * visible nodes, and both sets are restored right after the ingest so the
+   * raster fallback keeps its clean invisible-floor look.
    */
   private ingestSceneWithoutShadowHelpers(
     threeScene: THREE.Scene,
@@ -38,17 +42,22 @@ export class ThreePathTracingService implements IPathTracingService {
     // Tag-based (not name-based): a consumer's GLB may legitimately contain a
     // node with any name, and getObjectByName's first depth-first match would
     // hide that node instead of the helper. The userData tag is viewer-owned.
-    const helpers: THREE.Object3D[] = [];
+    const hideForIngest: THREE.Object3D[] = [];
+    const showForIngest: THREE.Object3D[] = [];
     threeScene.traverse((object) => {
       if (object.userData?.[CONTACT_SHADOW_HELPER_FLAG] && object.visible) {
-        helpers.push(object);
+        hideForIngest.push(object);
+      } else if (object.userData?.[PATH_TRACING_FLOOR_FLAG] && !object.visible) {
+        showForIngest.push(object);
       }
     });
-    helpers.forEach((object) => (object.visible = false));
+    hideForIngest.forEach((object) => (object.visible = false));
+    showForIngest.forEach((object) => (object.visible = true));
     try {
       this.pathTracer?.setScene(threeScene, threeCamera);
     } finally {
-      helpers.forEach((object) => (object.visible = true));
+      hideForIngest.forEach((object) => (object.visible = true));
+      showForIngest.forEach((object) => (object.visible = false));
     }
   }
 

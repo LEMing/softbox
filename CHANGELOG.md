@@ -1,6 +1,14 @@
 Changelog
 =========
 
+4.9.0
+---
+
+### Path tracing: converges cleanly and grounds the model
+
+* **The path tracer now accumulates to 512 samples by default (was 16).** Sixteen samples is far too few to resolve a traced frame — it came out as a heavy stipple of noise. It now refines to a clean image while the camera rests. `pathTracing.maxSamples` still overrides it to trade convergence time for cleanliness.
+* **The model is grounded in the traced render with a real contact shadow instead of floating.** The default studio floor is an invisible `ShadowMaterial` catcher — a raster shadow-map trick the path tracer can't use — so the traced view had no surface to cast a shadow onto and the model floated. The shadow floor now also carries a real matte ground disc that stays invisible in the raster view and is shown to the tracer only while it ingests the scene, giving the traced frame a physically-correct contact shadow. The raster view is unchanged (still the clean invisible-floor look).
+
 4.8.0
 ---
 

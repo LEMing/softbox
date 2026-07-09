@@ -1,19 +1,41 @@
 import * as THREE from 'three';
 import { ShadowFloorGrid } from '../ShadowFloorGrid';
-import { CONTACT_SHADOW_HELPER_FLAG, CONTACT_SHADOW_LIVE_NAME } from '../../ContactShadowBaker';
+import {
+  CONTACT_SHADOW_HELPER_FLAG,
+  CONTACT_SHADOW_LIVE_NAME,
+  PATH_TRACING_FLOOR_FLAG,
+} from '../../ContactShadowBaker';
 
-const catcherOf = (grid: THREE.Object3D): THREE.Mesh => grid.children[0] as THREE.Mesh;
+const catcherOf = (grid: THREE.Object3D): THREE.Mesh =>
+  grid.children.find((c) => (c as THREE.Mesh).material instanceof THREE.ShadowMaterial) as THREE.Mesh;
+const ptFloorOf = (grid: THREE.Object3D): THREE.Mesh =>
+  grid.children.find((c) => c.userData[PATH_TRACING_FLOOR_FLAG]) as THREE.Mesh;
 const build = (size: number | undefined) =>
   new ShadowFloorGrid().createGrid({ size: size as number, divisions: 20 });
 
 describe('ShadowFloorGrid', () => {
-  it('builds a single invisible shadow-catching disc, no visible tiles', () => {
+  it('builds a raster shadow-catcher (ShadowMaterial disc) with no visible tiles', () => {
     const grid = build(20);
-    expect(grid.children).toHaveLength(1);
     const catcher = catcherOf(grid);
     expect(catcher).toBeInstanceOf(THREE.Mesh);
     expect(catcher.geometry).toBeInstanceOf(THREE.CircleGeometry);
     expect(catcher.material).toBeInstanceOf(THREE.ShadowMaterial);
+  });
+
+  it('adds a tracer-only ground floor: real, matte, receiving, hidden from the raster view', () => {
+    const floor = ptFloorOf(build(20));
+    expect(floor).toBeInstanceOf(THREE.Mesh);
+    expect(floor.material).toBeInstanceOf(THREE.MeshStandardMaterial);
+    expect((floor.material as THREE.MeshStandardMaterial).roughness).toBe(1);
+    expect(floor.receiveShadow).toBe(true);
+    // Off in the raster view; the path tracer flips it on only during ingest.
+    expect(floor.visible).toBe(false);
+    // NOT tagged as a raster shadow helper (that flag hides it from the tracer,
+    // which is the opposite of what this floor is for).
+    expect(floor.userData[CONTACT_SHADOW_HELPER_FLAG]).toBeUndefined();
+    // Large enough that its edge never falls inside the traced frame.
+    const geometry = floor.geometry as THREE.CircleGeometry;
+    expect(geometry.parameters.radius).toBeGreaterThan(30);
   });
 
   it('names and flags the catcher so the baker and path tracer treat it as the contact shadow', () => {
