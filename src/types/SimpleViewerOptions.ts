@@ -34,6 +34,14 @@ export interface SimpleViewerOptions {
    */
   units?: ModelUnits;
 
+  /**
+   * Drop the loaded model onto the floor at y=0 on load (default `true`). Set
+   * `false` for a model that carries its own ground and must keep its authored
+   * Y — otherwise softbox snaps the model's lowest point (e.g. the bottom of an
+   * embedded ground slab) to the floor, shifting everything above it upward.
+   */
+  floorAlignment?: boolean;
+
   // Scene settings
   backgroundColor?: string | number;
   staticScene?: boolean;

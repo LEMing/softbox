@@ -14,6 +14,8 @@ export interface ModelManagerDependencies {
   sceneSetupService?: ISceneSetupService;
   renderer?: IRenderer;
   autoFitToObject?: boolean;
+  /** Drop the loaded model onto the floor at y=0 (default true). */
+  floorAlignment?: boolean;
   /** Factor converting the model's authored units to meters (1 = already meters). */
   unitsScaleToMeters?: number;
 }
@@ -33,6 +35,7 @@ export class ModelManager {
   private readonly sceneSetupService?: ISceneSetupService;
   private readonly renderer?: IRenderer;
   private readonly autoFitToObject: boolean;
+  private readonly floorAlignment: boolean;
   private readonly unitsScaleToMeters: number;
 
   constructor(dependencies: ModelManagerDependencies) {
@@ -44,6 +47,7 @@ export class ModelManager {
     this.sceneSetupService = dependencies.sceneSetupService;
     this.renderer = dependencies.renderer;
     this.autoFitToObject = dependencies.autoFitToObject ?? false;
+    this.floorAlignment = dependencies.floorAlignment ?? true;
     this.unitsScaleToMeters = dependencies.unitsScaleToMeters ?? 1;
   }
 
@@ -118,8 +122,9 @@ export class ModelManager {
         throw addResult.error;
       }
 
-      // Align model to floor
-      if (this.floorAlignmentService) {
+      // Align model to floor (skipped when the model already carries its own
+      // ground and must keep its authored Y — see the `floorAlignment` option).
+      if (this.floorAlignment && this.floorAlignmentService) {
         const alignResult = this.floorAlignmentService.alignToFloor(model);
         if (!alignResult.ok) {
           console.warn('Failed to align model to floor:', alignResult.error);
@@ -148,10 +153,13 @@ export class ModelManager {
         // some models' overall bounding box (e.g. a baked ground-shadow decal
         // sitting lower than the wheels/feet) doesn't match their true lowest
         // contact point. Now that the floor mesh exists, raycast the object
-        // down onto it and correct any residual gap.
-        const snapResult = this.sceneSetupService.snapObjectToFloor(this.scene, model);
-        if (!snapResult.ok) {
-          console.warn('Failed to snap object to floor:', snapResult.error);
+        // down onto it and correct any residual gap. Skipped with floor
+        // alignment so a model that keeps its authored Y is not snapped down.
+        if (this.floorAlignment) {
+          const snapResult = this.sceneSetupService.snapObjectToFloor(this.scene, model);
+          if (!snapResult.ok) {
+            console.warn('Failed to snap object to floor:', snapResult.error);
+          }
         }
 
         // The key light's shadow-camera frustum is otherwise a fixed

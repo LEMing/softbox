@@ -17,6 +17,10 @@ const defaultOptions: SimpleViewerOptions = {
   // to the viewer's 1-unit-=-1-meter convention (real-scale floor, shadows).
   units: 'meters',
 
+  // Drop the model onto the floor at y=0 on load; disable for models that
+  // carry their own ground and must keep their authored Y.
+  floorAlignment: true,
+
   // Path tracing
   pathTracing: {
     enabled: false,
