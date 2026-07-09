@@ -278,6 +278,70 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     return originalTexture ? new ThreeTextureAdapter(originalTexture) : null;
   }
 
+  /**
+   * Set the scene background to a plain (non-equirect) LDR image without touching
+   * scene.environment — the studio/HDRI lighting stays, only the backdrop changes.
+   * Accepts an image URL/data-URL, a File, or an HTMLImageElement.
+   */
+  async setBackgroundImage(
+    scene: IScene,
+    source: string | File | HTMLImageElement
+  ): Promise<Result<void>> {
+    try {
+      const threeScene = toThreeScene(scene);
+      if (!threeScene) {
+        return Result.err(
+          new ThreeViewerError('Scene must be ThreeSceneAdapter', ErrorCode.INVALID_PARAMETER)
+        );
+      }
+
+      const texture = await this.loadBackgroundTexture(source);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.needsUpdate = true;
+
+      const previous = threeScene.background;
+      threeScene.background = texture;
+      // Free the outgoing background unless it is aliased as the environment map.
+      if (previous instanceof THREE.Texture && previous !== threeScene.environment) {
+        previous.dispose();
+      }
+      return Result.ok(undefined);
+    } catch (error) {
+      return Result.err(
+        new ThreeViewerError('Failed to set background image', ErrorCode.TEXTURE_LOAD_FAILED, {
+          originalError: error,
+        })
+      );
+    }
+  }
+
+  private loadBackgroundTexture(
+    source: string | File | HTMLImageElement
+  ): Promise<THREE.Texture> {
+    if (typeof HTMLImageElement !== 'undefined' && source instanceof HTMLImageElement) {
+      const texture = new THREE.Texture(source);
+      texture.needsUpdate = true;
+      return Promise.resolve(texture);
+    }
+    const objectUrl =
+      typeof File !== 'undefined' && source instanceof File ? URL.createObjectURL(source) : null;
+    const url = objectUrl ?? (source as string);
+    return new Promise<THREE.Texture>((resolve, reject) => {
+      new THREE.TextureLoader().load(
+        url,
+        texture => {
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          resolve(texture);
+        },
+        undefined,
+        error => {
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          reject(error);
+        }
+      );
+    });
+  }
+
   createStudioEnvironment(_options: IStudioEnvironmentOptions = {}): Result<ITexture> {
     try {
       if (!this.pmremGenerator) {

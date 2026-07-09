@@ -23,7 +23,13 @@ export interface IEnvironmentService {
    * Create studio environment
    */
   createStudioEnvironment(options?: IStudioEnvironmentOptions): Result<ITexture>;
-  
+
+  /**
+   * Set the scene background to a plain LDR image (URL, File, or HTMLImageElement)
+   * without changing scene.environment.
+   */
+  setBackgroundImage(scene: IScene, source: string | File | HTMLImageElement): Promise<Result<void>>;
+
   /**
    * Dispose of resources
    */

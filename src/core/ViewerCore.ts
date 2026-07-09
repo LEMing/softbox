@@ -363,7 +363,12 @@ export class ViewerCore {
       const fps = deltaTime > 0 ? 1000 / deltaTime : 0;
 
       const isAnimating = this.animationService?.isPlaying() ?? false;
-      const controlsChanged = this.controls.update();
+      // Skip the controls update while they are disabled so an external camera
+      // driver (e.g. a consumer's first-person controls) can own the camera —
+      // OrbitControls.update() re-aims at the orbit target every frame and would
+      // otherwise fight it. The loop still renders unconditionally below, so the
+      // externally-driven camera is shown.
+      const controlsChanged = this.controls.enabled ? this.controls.update() : false;
       if (controlsChanged) {
         this.events.emit('controls:change', { controls: this.controls });
         // A camera move invalidates the accumulated path-traced frame. While
@@ -561,6 +566,135 @@ export class ViewerCore {
       console.warn('Failed to update background color:', result.error);
       return;
     }
+    this.renderLoopManager.requestRender();
+  }
+
+  /**
+   * Runtime: replace the environment map (reflections + background) with the HDRI
+   * at `url`. Textures are cached by URL, so toggling the same map on/off is cheap.
+   */
+  async setEnvironmentMap(url: string): Promise<Result<void>> {
+    if (this.disposed) {
+      return Result.ok(undefined);
+    }
+    if (!this.environmentService) {
+      return Result.err(
+        new ThreeViewerError('Environment service unavailable', ErrorCode.INVALID_STATE)
+      );
+    }
+    const loadResult = await this.environmentService.loadEnvironmentMap(url);
+    if (this.disposed) {
+      return Result.ok(undefined);
+    }
+    if (!loadResult.ok) {
+      return Result.err(loadResult.error);
+    }
+    const applyResult = this.environmentService.applyToScene(this.scene, loadResult.value, {
+      backgroundBlurriness: this.options.environment?.backgroundBlurriness,
+      backgroundIntensity: this.options.environment?.backgroundIntensity,
+      environmentIntensity: this.options.environment?.environmentIntensity,
+      setBackground: true,
+    });
+    if (!applyResult.ok) {
+      return applyResult;
+    }
+    this.options = deepMerge(this.options, { environment: { url } });
+    this.repaintAfterEnvironmentChange();
+    return Result.ok(undefined);
+  }
+
+  /**
+   * Runtime: drop back to the built-in studio environment and the clean gradient
+   * background, undoing a prior setEnvironmentMap / setBackgroundImage.
+   */
+  resetEnvironment(): Result<void> {
+    if (this.disposed) {
+      return Result.ok(undefined);
+    }
+    if (!this.environmentService) {
+      return Result.err(
+        new ThreeViewerError('Environment service unavailable', ErrorCode.INVALID_STATE)
+      );
+    }
+    const studioResult = this.environmentService.createStudioEnvironment();
+    if (!studioResult.ok) {
+      return Result.err(studioResult.error);
+    }
+    this.environmentService.applyToScene(this.scene, studioResult.value, { setBackground: false });
+    if (this.options.environment) {
+      this.options.environment.url = undefined;
+    }
+    this.restoreBackgroundColor();
+    this.repaintAfterEnvironmentChange();
+    return Result.ok(undefined);
+  }
+
+  /**
+   * Runtime: paint an uploaded image as the scene backdrop, leaving the studio/HDRI
+   * lighting (scene.environment) untouched.
+   */
+  async setBackgroundImage(source: string | File | HTMLImageElement): Promise<Result<void>> {
+    if (this.disposed) {
+      return Result.ok(undefined);
+    }
+    if (!this.environmentService) {
+      return Result.err(
+        new ThreeViewerError('Environment service unavailable', ErrorCode.INVALID_STATE)
+      );
+    }
+    const result = await this.environmentService.setBackgroundImage(this.scene, source);
+    if (this.disposed) {
+      return Result.ok(undefined);
+    }
+    if (!result.ok) {
+      return result;
+    }
+    this.repaintAfterEnvironmentChange();
+    return Result.ok(undefined);
+  }
+
+  /**
+   * Runtime: set a solid background color (e.g. to clear a background image back to
+   * the theme color). Unlike updateOptions this is an explicit override, so it paints
+   * even when an environment URL is configured.
+   */
+  setBackgroundColor(color: string | number): Result<void> {
+    if (this.disposed) {
+      return Result.ok(undefined);
+    }
+    if (!this.sceneSetupService) {
+      return Result.err(
+        new ThreeViewerError('Scene setup service unavailable', ErrorCode.INVALID_STATE)
+      );
+    }
+    const result = this.sceneSetupService.createGradientBackground(this.scene, {
+      topColor: String(color),
+      bottomColor: String(color),
+    });
+    if (!result.ok) {
+      return result;
+    }
+    this.options = deepMerge(this.options, { backgroundColor: color });
+    this.repaintAfterEnvironmentChange();
+    return Result.ok(undefined);
+  }
+
+  private restoreBackgroundColor(): void {
+    const color = this.options.backgroundColor;
+    if (color === undefined || !this.sceneSetupService) {
+      return;
+    }
+    this.sceneSetupService.createGradientBackground(this.scene, {
+      topColor: String(color),
+      bottomColor: String(color),
+    });
+  }
+
+  private repaintAfterEnvironmentChange(): void {
+    // A live path-traced session must re-ingest the new environment/background;
+    // the forced reset re-runs the tracer's scene setup on the next frame.
+    this.pathTracing.resetAccumulation(true);
+    this.reviveRenderLoop();
     this.renderLoopManager.requestRender();
   }
 

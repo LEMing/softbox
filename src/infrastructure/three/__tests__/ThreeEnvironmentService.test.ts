@@ -215,4 +215,119 @@ describe('ThreeEnvironmentService render-target lifecycle', () => {
 
     expect(result.ok).toBe(false);
   });
+
+  describe('setBackgroundImage', () => {
+    let loadSpy: jest.SpyInstance | undefined;
+
+    const initialized = async (): Promise<ThreeEnvironmentService> => {
+      const service = new ThreeEnvironmentService();
+      const renderer = { renderer: {} as THREE.WebGLRenderer } as unknown as IRenderer;
+      const result = await service.initialize({ renderer });
+      expect(result.ok).toBe(true);
+      return service;
+    };
+
+    afterEach(() => {
+      loadSpy?.mockRestore();
+      loadSpy = undefined;
+    });
+
+    const mockLoad = (onLoadTexture: THREE.Texture) => {
+      loadSpy = jest.spyOn(THREE.TextureLoader.prototype, 'load').mockImplementation(((
+        _url: string,
+        onLoad: (t: THREE.Texture) => void
+      ) => {
+        onLoad(onLoadTexture);
+        return onLoadTexture;
+      }) as never);
+    };
+
+    it('loads a URL as an sRGB background and leaves the environment untouched', async () => {
+      const service = await initialized();
+      const texture = new THREE.Texture();
+      mockLoad(texture);
+      const sceneAdapter = new ThreeSceneAdapter(new THREE.Scene());
+      const threeScene = sceneAdapter.getThreeScene();
+
+      const result = await service.setBackgroundImage(sceneAdapter, '/photo.jpg');
+
+      expect(result.ok).toBe(true);
+      expect(threeScene.background).toBe(texture);
+      expect(texture.colorSpace).toBe(THREE.SRGBColorSpace);
+      expect(threeScene.environment).toBeNull();
+    });
+
+    it('disposes the previous background texture on replace', async () => {
+      const service = await initialized();
+      const sceneAdapter = new ThreeSceneAdapter(new THREE.Scene());
+      const threeScene = sceneAdapter.getThreeScene();
+      const previous = new THREE.Texture();
+      threeScene.background = previous;
+      const disposeSpy = jest.spyOn(previous, 'dispose');
+      mockLoad(new THREE.Texture());
+
+      await service.setBackgroundImage(sceneAdapter, '/photo.jpg');
+
+      expect(disposeSpy).toHaveBeenCalled();
+    });
+
+    it('accepts an HTMLImageElement directly without loading', async () => {
+      const service = await initialized();
+      const sceneAdapter = new ThreeSceneAdapter(new THREE.Scene());
+      const image = document.createElement('img');
+
+      const result = await service.setBackgroundImage(sceneAdapter, image);
+
+      expect(result.ok).toBe(true);
+      expect((sceneAdapter.getThreeScene().background as THREE.Texture).image).toBe(image);
+    });
+
+    it('creates and revokes an object URL for a File source', async () => {
+      const service = await initialized();
+      const urlApi = URL as unknown as {
+        createObjectURL?: (blob: Blob) => string;
+        revokeObjectURL?: (url: string) => void;
+      };
+      const originalCreate = urlApi.createObjectURL;
+      const originalRevoke = urlApi.revokeObjectURL;
+      const createObjectURL = jest.fn(() => 'blob:bg');
+      const revokeObjectURL = jest.fn();
+      urlApi.createObjectURL = createObjectURL;
+      urlApi.revokeObjectURL = revokeObjectURL;
+      mockLoad(new THREE.Texture());
+      const file = new File(['x'], 'bg.png', { type: 'image/png' });
+
+      await service.setBackgroundImage(new ThreeSceneAdapter(new THREE.Scene()), file);
+
+      expect(createObjectURL).toHaveBeenCalledWith(file);
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:bg');
+      urlApi.createObjectURL = originalCreate;
+      urlApi.revokeObjectURL = originalRevoke;
+    });
+
+    it('returns an error when the loader fails', async () => {
+      const service = await initialized();
+      loadSpy = jest.spyOn(THREE.TextureLoader.prototype, 'load').mockImplementation(((
+        _url: string,
+        _onLoad: unknown,
+        _onProgress: unknown,
+        onError: (e: unknown) => void
+      ) => {
+        onError(new Error('404'));
+        return new THREE.Texture();
+      }) as never);
+
+      const result = await service.setBackgroundImage(new ThreeSceneAdapter(new THREE.Scene()), '/missing.jpg');
+
+      expect(result.ok).toBe(false);
+    });
+
+    it('rejects a scene that is not a ThreeSceneAdapter', async () => {
+      const service = await initialized();
+
+      const result = await service.setBackgroundImage({} as unknown as IScene, '/x.jpg');
+
+      expect(result.ok).toBe(false);
+    });
+  });
 });
