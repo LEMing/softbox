@@ -5,6 +5,7 @@ import {
   CONTACT_SHADOW_BAKED_NAME,
   CONTACT_SHADOW_HELPER_FLAG,
   CONTACT_SHADOW_LIVE_NAME,
+  PATH_TRACING_FLOOR_FLAG,
 } from '../ContactShadowBaker';
 import { PathTracingScene } from '../types/PathTracerTypes';
 import { IRenderer } from '../../../core/interfaces/IRenderer';
@@ -102,6 +103,8 @@ interface StubThreeRenderer {
   setRenderTarget: jest.Mock;
   getRenderTarget: jest.Mock;
   clear: jest.Mock;
+  getDrawingBufferSize: jest.Mock;
+  copyFramebufferToTexture: jest.Mock;
 }
 
 function createStubThreeRenderer(domElement?: HTMLCanvasElement): StubThreeRenderer {
@@ -113,6 +116,8 @@ function createStubThreeRenderer(domElement?: HTMLCanvasElement): StubThreeRende
     setRenderTarget: jest.fn(),
     getRenderTarget: jest.fn(() => null),
     clear: jest.fn(),
+    getDrawingBufferSize: jest.fn((target: THREE.Vector2) => target.set(800, 600)),
+    copyFramebufferToTexture: jest.fn(),
   };
 }
 
@@ -568,6 +573,37 @@ describe('ThreePathTracingService', () => {
       expect(liveCatcher.visible).toBe(false);
       // The same-named consumer node is untouched — it stays in the ingest.
       expect(impostor.visible).toBe(true);
+    });
+
+    it('shows the tracer-only ground floor for the ingest and hides it again after', async () => {
+      const ctx = setup();
+      await initialize(ctx, true);
+      ctx.threeScene.environment = equirectTexture();
+
+      const ptFloor = new THREE.Mesh(new THREE.CircleGeometry(1), new THREE.MeshStandardMaterial());
+      ptFloor.userData[PATH_TRACING_FLOOR_FLAG] = true;
+      ptFloor.visible = false;
+      ctx.threeScene.add(ptFloor);
+
+      const floorVisibilityWrites: boolean[] = [];
+      let floorVisible = false;
+      Object.defineProperty(ptFloor, 'visible', {
+        configurable: true,
+        get: () => floorVisible,
+        set: (value: boolean) => {
+          floorVisibilityWrites.push(value);
+          floorVisible = value;
+        },
+      });
+
+      const result = await ctx.service.render(ctx.scene, ctx.camera);
+
+      expect(result.ok).toBe(true);
+      expect(lastPathTracer().setScene).toHaveBeenCalled();
+      // Shown so the tracer ingests it into the BVH, then hidden again so the
+      // raster fallback keeps its clean invisible-floor look.
+      expect(floorVisibilityWrites).toEqual([true, false]);
+      expect(ptFloor.visible).toBe(false);
     });
 
     it('initializes from a cube-captured original (procedural studio room)', async () => {
@@ -1153,6 +1189,34 @@ describe('ThreePathTracingService', () => {
       ctx.service.dispose();
       expect(() => ctx.service.dispose()).not.toThrow();
       expect(ctx.service.isPathTracerDisposed()).toBe(true);
+    });
+  });
+
+  describe('startup dissolve opacity curve', () => {
+    const layerOpacity = (service: ThreePathTracingService, samples: number): number =>
+      (service as unknown as { pathTracedLayerOpacity(n: number): number }).pathTracedLayerOpacity(samples);
+
+    it('hides the tracer at the start, caps it while grainy, and releases it once resolved', () => {
+      const service = new ThreePathTracingService();
+      // Opening samples: fully hidden under the raster.
+      expect(layerOpacity(service, 0)).toBe(0);
+      expect(layerOpacity(service, 4)).toBeCloseTo(0);
+      // Grainy phase: the tracer never reads above the 0.3 preview cap.
+      for (const samples of [10, 40, 90, 128]) {
+        expect(layerOpacity(service, samples)).toBeLessThanOrEqual(0.3 + 1e-6);
+      }
+      // Released to fully opaque by the end of the fade window.
+      expect(layerOpacity(service, 256)).toBeCloseTo(1);
+    });
+
+    it('never decreases as accumulation progresses', () => {
+      const service = new ThreePathTracingService();
+      let previous = -1;
+      for (let samples = 0; samples <= 256; samples += 4) {
+        const value = layerOpacity(service, samples);
+        expect(value).toBeGreaterThanOrEqual(previous - 1e-9);
+        previous = value;
+      }
     });
   });
 });

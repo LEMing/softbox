@@ -10,6 +10,15 @@ export const CONTACT_SHADOW_LIVE_NAME = 'contact-shadow-live';
  * key on this instead of the names above.
  */
 export const CONTACT_SHADOW_HELPER_FLAG = 'softboxContactShadowHelper';
+/**
+ * userData marker for a real ground surface that exists ONLY for the path
+ * tracer: it stays `visible = false` (so the raster view keeps its clean
+ * invisible-floor look) and is flipped visible only while the tracer ingests
+ * the scene into its BVH, giving the model a physical surface to cast a
+ * contact shadow onto. The raster shadow-catcher above stays raster-only —
+ * these two are mirror images (one hidden from the tracer, one shown only to it).
+ */
+export const PATH_TRACING_FLOOR_FLAG = 'softboxPathTracingFloor';
 
 export interface ContactShadowBakeContext {
   renderer: THREE.WebGLRenderer;

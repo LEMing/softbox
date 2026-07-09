@@ -1,6 +1,15 @@
 Changelog
 =========
 
+4.9.0
+---
+
+### Path tracing: converges cleanly, grounds the model, and dissolves in smoothly
+
+* **The path tracer now accumulates to 1024 samples by default (was 16).** Sixteen samples is far too few to resolve a traced frame — it came out as a heavy stipple of noise. It now refines to a clean image while the camera rests. `pathTracing.maxSamples` still overrides it to trade convergence time for cleanliness.
+* **The model is grounded in a studio cyclorama with a real contact shadow instead of floating.** The default studio floor is an invisible `ShadowMaterial` catcher — a raster shadow-map trick the path tracer can't use — so the traced view had no surface to cast a shadow onto and the model floated. The shadow floor now also carries a real matte **3-sided cyclorama** (floor sweeping up into a back wall and two side walls through big rounded fillets, open at the top and front) that stays invisible in the raster view and is shown to the tracer only while it ingests the scene. The traced frame gets a physically-correct contact shadow and a seamless soft-lit wraparound backdrop; the raster view is unchanged (still the clean invisible-floor look).
+* **Enabling path tracing now dissolves in from the raster frame instead of flashing coarse noise.** The first path-traced samples are near-random (salt-and-pepper + fireflies); previously that noise slammed straight over the clean raster view. The viewer now snapshots the raster the instant accumulation starts and fades it out over the resolving tracer image (held fully opaque for the first few samples, then eased out), so the ugly early frames stay hidden and only the converging image shows through. The snapshot is tone-mapped to match the on-screen frame exactly, and the whole effect is cosmetic — if it can't run it silently falls back to showing samples directly.
+
 4.8.0
 ---
 

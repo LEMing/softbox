@@ -1,5 +1,6 @@
 import { WebGLPathTracer } from 'three-gpu-pathtracer';
 import * as THREE from 'three';
+import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import {
   IPathTracingService,
   IPathTracingOptions,
@@ -20,16 +21,20 @@ import {
   hasGetInternalRenderer
 } from './types/PathTracerTypes';
 import { TypedEventEmitter } from '../../events/EventEmitter';
-import { CONTACT_SHADOW_HELPER_FLAG } from './ContactShadowBaker';
+import { CONTACT_SHADOW_HELPER_FLAG, PATH_TRACING_FLOOR_FLAG } from './ContactShadowBaker';
 
 export class ThreePathTracingService implements IPathTracingService {
   /**
-   * Hand the scene to the path tracer with the viewer's own contact-shadow
-   * helpers hidden: the tracer computes physically-correct contact shadows
-   * itself, so ingesting the baked disc double-darkens the contact area (and
-   * the live ShadowMaterial catcher is equally meaningless to it). The
-   * generator skips invisible nodes; visibility is restored right after the
-   * ingest so the raster fallback path keeps its baked shadow.
+   * Hand the scene to the path tracer with the raster-only contact-shadow
+   * helpers hidden and the tracer-only ground floor shown. The `ShadowMaterial`
+   * catcher (and the baked disc) are raster shadow-map tricks the tracer can't
+   * use — ingesting them double-darkens or floats the contact area — so they're
+   * hidden; the PATH_TRACING_FLOOR_FLAG disc is the mirror image, a real matte
+   * surface kept invisible in the raster view and flipped on only here so the
+   * tracer has something physical to cast a contact shadow onto (otherwise the
+   * model floats in the traced render). The generator only reads currently-
+   * visible nodes, and both sets are restored right after the ingest so the
+   * raster fallback keeps its clean invisible-floor look.
    */
   private ingestSceneWithoutShadowHelpers(
     threeScene: THREE.Scene,
@@ -38,17 +43,22 @@ export class ThreePathTracingService implements IPathTracingService {
     // Tag-based (not name-based): a consumer's GLB may legitimately contain a
     // node with any name, and getObjectByName's first depth-first match would
     // hide that node instead of the helper. The userData tag is viewer-owned.
-    const helpers: THREE.Object3D[] = [];
+    const hideForIngest: THREE.Object3D[] = [];
+    const showForIngest: THREE.Object3D[] = [];
     threeScene.traverse((object) => {
       if (object.userData?.[CONTACT_SHADOW_HELPER_FLAG] && object.visible) {
-        helpers.push(object);
+        hideForIngest.push(object);
+      } else if (object.userData?.[PATH_TRACING_FLOOR_FLAG] && !object.visible) {
+        showForIngest.push(object);
       }
     });
-    helpers.forEach((object) => (object.visible = false));
+    hideForIngest.forEach((object) => (object.visible = false));
+    showForIngest.forEach((object) => (object.visible = true));
     try {
       this.pathTracer?.setScene(threeScene, threeCamera);
     } finally {
-      helpers.forEach((object) => (object.visible = true));
+      hideForIngest.forEach((object) => (object.visible = true));
+      showForIngest.forEach((object) => (object.visible = false));
     }
   }
 
@@ -124,6 +134,16 @@ export class ThreePathTracingService implements IPathTracingService {
   private cameraDirty: boolean = false;
   public readonly events = new TypedEventEmitter<{ 'pathtracing:paused': PathTracingPausedEvent }>();
 
+  // Startup dissolve: the first path-traced samples are near-random noise
+  // (salt-and-pepper + fireflies), so instead of slamming that over the clean
+  // raster frame we snapshot the raster the moment accumulation starts and fade
+  // it out over the tracer as it resolves — the ugly early samples stay hidden
+  // under the still-opaque snapshot and only the converged image shows through.
+  private rasterFadeTarget: THREE.WebGLRenderTarget | null = null;
+  private fadeQuad: FullScreenQuad | null = null;
+  private fadeToneMapping: THREE.ToneMapping | null = null;
+  private fadeSupported = true;
+
   /**
    * How long the camera must rest before accumulation (re)starts. While it
    * moves, every frame is a plain raster render: presenting path-traced
@@ -132,12 +152,30 @@ export class ThreePathTracingService implements IPathTracingService {
    */
   private static readonly CAMERA_SETTLE_MS = 200;
 
+  /** Samples over which the raster snapshot fades out (full path-traced image
+   * by here). Sized so the dissolve completes only once the tracer has resolved
+   * enough that its noise never shows at high opacity (~1.2s of accumulation). */
+  private static readonly FADE_SAMPLES = 256;
+
+  /** The raster snapshot is held fully opaque for this many opening samples
+   * (the noisiest ones) before the dissolve begins to ease it out. */
+  private static readonly FADE_HOLD_SAMPLES = 4;
+
+  /** While the tracer is still grainy the path-traced layer is capped to this
+   * opacity (a faint preview over the dominant raster), so its noise never
+   * reads at more than this level — it only opens to full once resolved. */
+  private static readonly FADE_PREVIEW_OPACITY = 0.3;
+
+  /** Fraction of the fade spent grainy (path-traced layer held at the preview
+   * cap); past it the layer releases from the cap to fully opaque. */
+  private static readonly FADE_RELEASE_FRACTION = 0.5;
+
   constructor() {
     this.settings = {
       samples: DEFAULT_PATH_TRACING_SAMPLES,
       bounces: 4, // Reduce bounces for better performance
       transmissiveBounces: 2, // Reduce transmissive bounces
-      renderScale: 0.5, // Start with lower resolution for better performance
+      renderScale: 1, // Start with lower resolution for better performance
       lowResScale: 0.5,
       dynamicLowRes: true,
       enablePathTracing: true,
@@ -575,14 +613,179 @@ export class ThreePathTracingService implements IPathTracingService {
       this.pathTracer?.updateCamera();
     }
 
+    // Startup dissolve: snapshot the clean raster the instant accumulation
+    // (re)starts. Guarded and cosmetic — a snapshot failure just disables the
+    // fade for the session, it must never break the render (unlike the
+    // accumulation below, whose failures are real and propagate).
+    if (this.fadeSupported && this.sampleCount === 0) {
+      this.runFadeStep(() => this.captureRasterFade(renderer, scene, camera));
+    }
+
     this.accumulateOneSample();
     this.sampleCount++;
+
+    // Dissolve the raster out as the tracer resolves.
+    if (this.fadeSupported && this.sampleCount < ThreePathTracingService.FADE_SAMPLES) {
+      const rasterOpacity = 1 - this.pathTracedLayerOpacity(this.sampleCount);
+      this.runFadeStep(() => this.renderRasterFade(rasterOpacity));
+    }
 
     if (this.sampleCount === this.settings.samples) {
       return this.captureCompletedFrame();
     }
 
     return Result.ok(undefined);
+  }
+
+  /** Run a cosmetic dissolve step, disabling the dissolve for the rest of the
+   * session if it throws — it must never take the render down with it. */
+  private runFadeStep(step: () => void): void {
+    try {
+      step();
+    } catch (fadeError) {
+      console.warn('Path-tracing startup dissolve unavailable; showing samples directly:', fadeError);
+      this.fadeSupported = false;
+    }
+  }
+
+  /** Opacity of the path-traced layer over the raster snapshot as accumulation
+   * progresses: 0 for the opening (noisiest) samples, eased up to a low preview
+   * cap while the image is still grainy — so the tracer's noise never reads
+   * above the cap — then released to fully opaque as it resolves. */
+  private pathTracedLayerOpacity(sampleCount: number): number {
+    const hold = ThreePathTracingService.FADE_HOLD_SAMPLES;
+    const full = ThreePathTracingService.FADE_SAMPLES;
+    const cap = ThreePathTracingService.FADE_PREVIEW_OPACITY;
+    const release = hold + (full - hold) * ThreePathTracingService.FADE_RELEASE_FRACTION;
+    if (sampleCount < release) {
+      return cap * ThreePathTracingService.smoothstep(hold, release, sampleCount);
+    }
+    return cap + (1 - cap) * ThreePathTracingService.smoothstep(release, full, sampleCount);
+  }
+
+  private static smoothstep(edge0: number, edge1: number, x: number): number {
+    const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+    return t * t * (3 - 2 * t);
+  }
+
+  /** Render the current raster frame into a linear offscreen target to fade out
+   * over the resolving path-traced image. It is captured pre-tone-mapping
+   * (three only tone-maps when drawing to the canvas, never to a target), so the
+   * fade shader applies the renderer's tone mapping + sRGB itself and the
+   * snapshot matches the frame on screen instead of coming out dark. */
+  private captureRasterFade(renderer: IRenderer, scene: IScene, camera: ICamera): void {
+    const threeRenderer = hasGetInternalRenderer(this.renderer)
+      ? (this.renderer.getInternalRenderer() as PathTracingWebGLRenderer)
+      : null;
+    if (!threeRenderer) {
+      return;
+    }
+    const size = threeRenderer.getDrawingBufferSize(new THREE.Vector2());
+    if (!this.rasterFadeTarget) {
+      this.rasterFadeTarget = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType });
+      this.rasterFadeTarget.texture.colorSpace = THREE.LinearSRGBColorSpace;
+    } else if (this.rasterFadeTarget.width !== size.x || this.rasterFadeTarget.height !== size.y) {
+      this.rasterFadeTarget.setSize(size.x, size.y);
+    }
+    const prevTarget = threeRenderer.getRenderTarget();
+    threeRenderer.setRenderTarget(this.rasterFadeTarget);
+    renderer.render(scene, camera);
+    threeRenderer.setRenderTarget(prevTarget);
+  }
+
+  /** Composite the captured raster over the on-canvas path-traced frame at the
+   * given opacity (1 = pure raster, 0 = fully revealed path tracing). */
+  private renderRasterFade(opacity: number): void {
+    const threeRenderer = hasGetInternalRenderer(this.renderer)
+      ? (this.renderer.getInternalRenderer() as PathTracingWebGLRenderer)
+      : null;
+    if (!threeRenderer || !this.rasterFadeTarget) {
+      return;
+    }
+    // Rebuild the material if the operator changed (e.g. a preset switch); the
+    // exposure is a live uniform so it never needs a rebuild.
+    if (!this.fadeQuad || this.fadeToneMapping !== threeRenderer.toneMapping) {
+      (this.fadeQuad?.material as THREE.Material | undefined)?.dispose();
+      this.fadeToneMapping = threeRenderer.toneMapping;
+      this.fadeQuad = new FullScreenQuad(this.createFadeMaterial(threeRenderer.toneMapping));
+    }
+    const material = this.fadeQuad.material as THREE.ShaderMaterial;
+    material.uniforms.tRaster.value = this.rasterFadeTarget.texture;
+    material.uniforms.uOpacity.value = opacity;
+
+    const prevAutoClear = threeRenderer.autoClear;
+    const prevTarget = threeRenderer.getRenderTarget();
+    threeRenderer.setRenderTarget(null);
+    threeRenderer.autoClear = false; // blend over the path-traced frame, don't clear it
+    try {
+      this.fadeQuad.render(threeRenderer);
+    } finally {
+      // Always restore, even if the quad render throws: a leaked autoClear=false
+      // would make every later raster frame stack instead of clear (ghosting).
+      threeRenderer.autoClear = prevAutoClear;
+      threeRenderer.setRenderTarget(prevTarget);
+    }
+  }
+
+  /** A fade material that tone-maps + sRGB-encodes a linear snapshot exactly the
+   * way the renderer would when drawing to the canvas (mirrors OutputPass), then
+   * applies the fade alpha — so the dissolve's first frame matches the on-screen
+   * raster instead of the darker un-tone-mapped image. */
+  private createFadeMaterial(toneMapping: THREE.ToneMapping): THREE.ShaderMaterial {
+    const toneMappingDefine: Record<number, string> = {
+      [THREE.LinearToneMapping]: 'LINEAR_TONE_MAPPING',
+      [THREE.ReinhardToneMapping]: 'REINHARD_TONE_MAPPING',
+      [THREE.CineonToneMapping]: 'CINEON_TONE_MAPPING',
+      [THREE.ACESFilmicToneMapping]: 'ACES_FILMIC_TONE_MAPPING',
+      [THREE.AgXToneMapping]: 'AGX_TONE_MAPPING',
+      [THREE.NeutralToneMapping]: 'NEUTRAL_TONE_MAPPING',
+    };
+    // No tonemapping_pars/colorspace_pars includes here: three already injects
+    // them (and the toneMappingExposure uniform) into a ShaderMaterial's prefix
+    // when the renderer has tone mapping on, so re-including them redefines the
+    // operators — which real-GPU GLSL rejects (SwiftShader silently tolerated
+    // it). We just call the operators + sRGBTransferOETF that the prefix defines.
+    const defines: Record<string, string> = {};
+    const operator = toneMappingDefine[toneMapping];
+    if (operator) {
+      defines[operator] = '';
+    }
+    return new THREE.ShaderMaterial({
+      defines,
+      uniforms: {
+        tRaster: { value: null },
+        uOpacity: { value: 1 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 ); }
+      `,
+      fragmentShader: `
+        uniform sampler2D tRaster;
+        uniform float uOpacity;
+        varying vec2 vUv;
+        void main() {
+          vec3 color = texture2D( tRaster, vUv ).rgb;
+          #ifdef LINEAR_TONE_MAPPING
+            color = LinearToneMapping( color );
+          #elif defined( REINHARD_TONE_MAPPING )
+            color = ReinhardToneMapping( color );
+          #elif defined( CINEON_TONE_MAPPING )
+            color = CineonToneMapping( color );
+          #elif defined( ACES_FILMIC_TONE_MAPPING )
+            color = ACESFilmicToneMapping( color );
+          #elif defined( AGX_TONE_MAPPING )
+            color = AgXToneMapping( color );
+          #elif defined( NEUTRAL_TONE_MAPPING )
+            color = NeutralToneMapping( color );
+          #endif
+          gl_FragColor = vec4( sRGBTransferOETF( vec4( color, 1.0 ) ).rgb, uOpacity );
+        }
+      `,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+    });
   }
 
   /**
@@ -734,6 +937,21 @@ export class ThreePathTracingService implements IPathTracingService {
     if (this.convertedEnvTexture) {
       this.convertedEnvTexture.dispose();
       this.convertedEnvTexture = null;
+    }
+
+    // Startup-dissolve resources. Only the material is ours to free — NOT the
+    // FullScreenQuad's geometry: three shares one module-level fullscreen
+    // geometry across every FullScreenQuad (including the post-processing
+    // composer's passes), so calling fadeQuad.dispose() would pull it out from
+    // under a consumer that also uses PostProcessingPipeline.
+    if (this.fadeQuad) {
+      (this.fadeQuad.material as THREE.Material).dispose();
+      this.fadeQuad = null;
+    }
+    this.fadeToneMapping = null;
+    if (this.rasterFadeTarget) {
+      this.rasterFadeTarget.dispose();
+      this.rasterFadeTarget = null;
     }
 
     this.sampleCount = 0;
