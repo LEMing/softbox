@@ -52,18 +52,37 @@ describe('ShadowFloorGrid', () => {
     expect(box.min.z).toBeCloseTo(-box.max.z, 1);
     expect(box.max.x).toBeCloseTo(box.max.z, 1);
 
+    const position = geometry.getAttribute('position');
+    expect(position.count).toBeGreaterThan(0);
+    const maxRadius = box.max.x; // wall radius
+
     // Open top (no ceiling cap): the top edge is a ring at the wall radius —
     // every vertex up there is far from the axis. A capped dome would have a
     // centre vertex (radius ~0) at the top instead.
-    const position = geometry.getAttribute('position');
-    expect(position.count).toBeGreaterThan(0);
     let topRingMinRadius = Infinity;
+    let floorEdgeRadius = 0;
+    let wallHeightSpan = { min: Infinity, max: -Infinity };
     for (let i = 0; i < position.count; i += 1) {
-      if (position.getY(i) > box.max.y - 1e-3) {
-        topRingMinRadius = Math.min(topRingMinRadius, Math.hypot(position.getX(i), position.getZ(i)));
+      const y = position.getY(i);
+      const r = Math.hypot(position.getX(i), position.getZ(i));
+      if (y > box.max.y - 1e-3) {
+        topRingMinRadius = Math.min(topRingMinRadius, r);
+      }
+      if (y < 1e-3) {
+        floorEdgeRadius = Math.max(floorEdgeRadius, r); // widest point of the flat floor
+      }
+      if (r > maxRadius - 1e-3) {
+        wallHeightSpan = { min: Math.min(wallHeightSpan.min, y), max: Math.max(wallHeightSpan.max, y) };
       }
     }
     expect(topRingMinRadius).toBeGreaterThan(1);
+
+    // Concave sweep, not a cone: the flat floor stops well short of the wall
+    // radius (a fillet bridges the gap), and the wall is genuinely VERTICAL —
+    // vertices at the max radius span a real height range. A straight cone
+    // would reach max radius only at its single apex height.
+    expect(floorEdgeRadius).toBeLessThan(maxRadius * 0.9);
+    expect(wallHeightSpan.max - wallHeightSpan.min).toBeGreaterThan(box.max.y * 0.3);
   });
 
   it('names and flags the catcher so the baker and path tracer treat it as the contact shadow', () => {

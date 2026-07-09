@@ -45,10 +45,10 @@ export function snapObjectToFloor(scene: IScene, object: IObject3D): Result<void
     threeScene.updateMatrixWorld(true);
     const gridMeshes: THREE.Mesh[] = [];
     threeScene.traverse((child) => {
-      // Skip the tracer-only cyclorama: it is a tall shell whose walls would
-      // drag floorTopY up to their rim and float the model, and it is a
+      // Skip the tracer-only infinity dome: it is a tall shell whose walls
+      // would drag floorTopY up to their rim and float the model, and it is a
       // path-tracing construct anyway — the real floor level is the raster
-      // catcher, which the cove floor is separately aligned to.
+      // catcher, which the dome floor is separately aligned to.
       if (child.userData?.[PATH_TRACING_FLOOR_FLAG]) {
         return;
       }
