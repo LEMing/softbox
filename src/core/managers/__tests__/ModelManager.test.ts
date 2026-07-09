@@ -134,6 +134,29 @@ describe('ModelManager', () => {
         expect(mockFloorAlignmentService.alignToFloor).toHaveBeenCalledWith(mockModel);
       });
 
+      it('should snap the model to the floor by default (floorAlignment enabled)', async () => {
+        await modelManager.loadModel('test.glb', mockEvents);
+
+        expect(mockSceneSetupService.snapObjectToFloor).toHaveBeenCalledWith(mockScene, mockModel);
+      });
+
+      it('should not align or snap to floor when floorAlignment is false', async () => {
+        modelManager = new ModelManager({
+          modelLoader: mockModelLoader,
+          scene: mockScene,
+          camera: mockCamera,
+          controls: mockControls,
+          floorAlignmentService: mockFloorAlignmentService,
+          sceneSetupService: mockSceneSetupService,
+          floorAlignment: false
+        });
+
+        await modelManager.loadModel('test.glb', mockEvents);
+
+        expect(mockFloorAlignmentService.alignToFloor).not.toHaveBeenCalled();
+        expect(mockSceneSetupService.snapObjectToFloor).not.toHaveBeenCalled();
+      });
+
       it('should enable shadows on model', async () => {
         const child = { castShadow: false, receiveShadow: false };
         (mockModel.traverse as jest.Mock).mockImplementation((callback: (obj: unknown) => void) => {

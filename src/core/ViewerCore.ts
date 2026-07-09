@@ -128,6 +128,7 @@ export class ViewerCore {
       sceneSetupService: this.sceneSetupService,
       renderer: this.renderer,
       autoFitToObject: this.options.camera?.autoFitToObject,
+      floorAlignment: this.options.floorAlignment,
       unitsScaleToMeters
     });
 
