@@ -1,6 +1,34 @@
 Changelog
 =========
 
+4.12.0
+---
+
+### A punchier hero look: radial-vignette backdrop, tighter crop, quieter shadow
+
+Closing the render-quality gap against reference viewers (Sketchfab et al.) on the
+same model — the cheap, high-leverage half: pure look tuning, no lighting rewrite yet.
+
+* **New: a radial-vignette backdrop, and the `dark` preset now uses it.** Set the new
+  top-level `backgroundColorEdge` option and the backdrop is painted as a soft radial
+  gradient — `backgroundColor` behind the subject falling off to `backgroundColorEdge`
+  in the corners — instead of a flat fill, so the model floats in a studio cove. The
+  `dark` preset ships this by default (a slightly-lifted centre `#242430` easing to a
+  near-black `#050507`), which reads far more "hero" than the old flat `#1a1a1f` scrim.
+  Omit the edge colour for a flat background (every light preset stays flat). It is a
+  runtime field, so switching presets applies it live with no viewer rebuild.
+* **Tighter default framing.** Auto-fit now leaves ~65% breathing room beyond an exact
+  fit instead of 100%, so the subject fills more of the frame — a more product-like
+  hero crop. (Models with a hand-tuned camera are unaffected.)
+* **A quieter, softer, tighter contact shadow.** The baked contact shadow was a large,
+  fairly dark smear; it is now lower-opacity (0.85 → 0.55), softer (a wider area-light
+  aperture and more per-pass blur) and tighter (the disc no longer stretches as far
+  under tall models), so it grounds the model with a calm soft pool instead of pulling
+  focus. The pre-bake/live catcher opacity drops to match.
+* **The `dark` preset reads punchier** — a touch more exposure (1.2 → 1.3) with lower
+  environment intensity (0.5 → 0.42) deepens the contrast while keeping the subject
+  bright.
+
 4.11.0
 ---
 

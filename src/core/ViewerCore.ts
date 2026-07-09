@@ -480,10 +480,22 @@ export class ViewerCore {
     const previousAutoRotate = this.options.controls?.autoRotate;
     const previousPathTracingEnabled = this.options.pathTracing?.enabled ?? false;
     this.options = deepMerge(this.options, partial);
+    // deepMerge intentionally ignores `undefined` overrides so they never wipe a
+    // base value — but switching away from the dark preset sends
+    // `backgroundColorEdge: undefined` precisely to CLEAR the radial vignette.
+    // Honour an explicit clear so a dark→light switch drops the vignette instead
+    // of leaving a dark-cornered scrim stuck on the light background.
+    if ('backgroundColorEdge' in partial) {
+      this.options.backgroundColorEdge = partial.backgroundColorEdge;
+    }
 
     let needsRender = false;
-    if (partial.backgroundColor !== undefined) {
-      this.applyBackgroundColor(partial.backgroundColor);
+    // A change to either the base colour or its radial-vignette edge repaints
+    // the backdrop; applyBackgroundColor reads the (now-reconciled) edge itself.
+    const backgroundChanged =
+      partial.backgroundColor !== undefined || partial.backgroundColorEdge !== undefined;
+    if (backgroundChanged && this.options.backgroundColor !== undefined) {
+      this.applyBackgroundColor(this.options.backgroundColor);
     }
     const exposure = partial.renderer?.toneMappingExposure;
     if (exposure !== undefined) {
@@ -553,15 +565,23 @@ export class ViewerCore {
     }
   }
 
+  // A flat fill, or a radial studio vignette when a `backgroundColorEdge` is set
+  // (base behind the subject → edge in the corners). Single source of truth so
+  // every backdrop repaint — preset switch, environment reset, solid override —
+  // agrees on flat-vs-radial.
+  private backgroundGradient(color: string | number, edge: string | number | undefined) {
+    return edge !== undefined
+      ? { topColor: String(color), bottomColor: String(edge), radial: true }
+      : { topColor: String(color), bottomColor: String(color) };
+  }
+
   private applyBackgroundColor(color: string | number): void {
     // An environment map owns the background when present; don't override it.
     if (this.options.environment?.url || !this.sceneSetupService) {
       return;
     }
-    const result = this.sceneSetupService.createGradientBackground(this.scene, {
-      topColor: String(color),
-      bottomColor: String(color),
-    });
+    const gradient = this.backgroundGradient(color, this.options.backgroundColorEdge);
+    const result = this.sceneSetupService.createGradientBackground(this.scene, gradient);
     if (!result.ok) {
       console.warn('Failed to update background color:', result.error);
       return;
@@ -667,14 +687,17 @@ export class ViewerCore {
         new ThreeViewerError('Scene setup service unavailable', ErrorCode.INVALID_STATE)
       );
     }
-    const result = this.sceneSetupService.createGradientBackground(this.scene, {
-      topColor: String(color),
-      bottomColor: String(color),
-    });
+    // An explicit solid override drops any radial vignette; clear the edge so the
+    // stored state matches the flat paint (and a later restore stays flat).
+    const result = this.sceneSetupService.createGradientBackground(
+      this.scene,
+      this.backgroundGradient(color, undefined)
+    );
     if (!result.ok) {
       return result;
     }
     this.options = deepMerge(this.options, { backgroundColor: color });
+    this.options.backgroundColorEdge = undefined;
     this.repaintAfterEnvironmentChange();
     return Result.ok(undefined);
   }
@@ -684,10 +707,11 @@ export class ViewerCore {
     if (color === undefined || !this.sceneSetupService) {
       return;
     }
-    this.sceneSetupService.createGradientBackground(this.scene, {
-      topColor: String(color),
-      bottomColor: String(color),
-    });
+    // Honour a preset's radial vignette (e.g. dark) so it survives a reset.
+    this.sceneSetupService.createGradientBackground(
+      this.scene,
+      this.backgroundGradient(color, this.options.backgroundColorEdge)
+    );
   }
 
   private repaintAfterEnvironmentChange(): void {

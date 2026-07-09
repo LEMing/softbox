@@ -63,4 +63,14 @@ describe('pickRuntimeOptions', () => {
     const options: SimpleViewerOptions = {};
     expect(pickRuntimeOptions(options)).toEqual({ backgroundColor: undefined });
   });
+
+  it('picks the radial-vignette edge colour so a live preset switch repaints it', () => {
+    const options: SimpleViewerOptions = {
+      backgroundColor: '#242430',
+      backgroundColorEdge: '#050507',
+    };
+    const result = pickRuntimeOptions(options);
+    expect(result.backgroundColor).toBe('#242430');
+    expect(result.backgroundColorEdge).toBe('#050507');
+  });
 });

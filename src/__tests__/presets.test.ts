@@ -47,7 +47,14 @@ describe('viewer presets', () => {
   it('product is the brightest and studio is the neutral-light default', () => {
     expect(VIEWER_PRESETS.product.backgroundColor).toBe('#ffffff');
     expect(VIEWER_PRESETS.studio.backgroundColor).toBe('#f0f0f7');
-    expect(VIEWER_PRESETS.dark.backgroundColor).toBe('#1a1a1f');
+    expect(VIEWER_PRESETS.dark.backgroundColor).toBe('#242430');
+  });
+
+  it('dark floats the subject in a radial cove (a near-black vignette edge)', () => {
+    expect(VIEWER_PRESETS.dark.backgroundColorEdge).toBe('#050507');
+    // Only the dark preset carries a vignette edge; the light presets stay flat.
+    expect(VIEWER_PRESETS.studio.backgroundColorEdge).toBeUndefined();
+    expect(VIEWER_PRESETS.product.backgroundColorEdge).toBeUndefined();
   });
 });
 

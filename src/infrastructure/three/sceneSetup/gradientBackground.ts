@@ -18,9 +18,11 @@ export function createGradientBackground(scene: IScene, options: IGradientOption
     }
 
 
-    // Create gradient shader
+    // A radial vignette needs a square canvas (a 2px-wide strip would smear the
+    // circle horizontally); the plain vertical gradient only varies down one
+    // column, so a 2px strip is enough and cheaper.
     const canvas = document.createElement('canvas');
-    canvas.width = 2;
+    canvas.width = options.radial ? 512 : 2;
     canvas.height = 512;
 
     const context = canvas.getContext('2d');
@@ -33,8 +35,12 @@ export function createGradientBackground(scene: IScene, options: IGradientOption
       );
     }
 
-    // Create gradient
-    const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
+    const gradient = options.radial
+      ? // Centre sits slightly ABOVE the middle (y=205 of 512 ≈ 40% down) so the
+        // bright lift lands behind the subject, and the outer radius reaches the
+        // corners/bottom so they fall off to the dark edge — a studio vignette.
+        context.createRadialGradient(256, 205, 0, 256, 256, 380)
+      : context.createLinearGradient(0, 0, 0, canvas.height);
     gradient.addColorStop(0, options.topColor);
     gradient.addColorStop(1, options.bottomColor);
 

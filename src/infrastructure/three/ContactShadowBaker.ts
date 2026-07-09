@@ -72,7 +72,7 @@ export class ContactShadowBaker {
    */
   private static readonly AMBIENT_RATIO = 0.45;
   /** Apex angle of the simulated area light — the main softness control. */
-  private static readonly LIGHT_APERTURE_DEGREES = 9;
+  private static readonly LIGHT_APERTURE_DEGREES = 13;
   /**
    * Ambient samples stay steep: each lower sample casts a long hard
    * silhouette, and with a few dozen discrete azimuths a tall thin model
@@ -86,7 +86,7 @@ export class ContactShadowBaker {
   /** Jitter averaging blurs far more than map resolution, so a small map is enough. */
   private static readonly BAKE_SHADOW_MAP_SIZE = 1024;
   /** Overall darkness: the floor keeps some ambient bounce even in full shadow. */
-  private static readonly SHADOW_STRENGTH = 0.85;
+  private static readonly SHADOW_STRENGTH = 0.55;
   /**
    * Main-thread time the adaptive bake is allowed to burn. The full-quality
    * pass count on a healthy GPU fits well inside it; a software rasterizer
@@ -191,7 +191,7 @@ export class ContactShadowBaker {
     // before the texture edge — a shadow clipped by its own plane reads as a
     // rendering artifact immediately.
     const MIN_HALF_EXTENT = 0.05;
-    const halfExtent = Math.max(Math.max(size.x, size.z) * 1.6 + size.y, MIN_HALF_EXTENT);
+    const halfExtent = Math.max(Math.max(size.x, size.z) * 1.4 + size.y * 0.65, MIN_HALF_EXTENT);
     return { center, halfExtent, objectHeight: size.y };
   }
 
@@ -356,7 +356,7 @@ export class ContactShadowBaker {
     // into each other (they are otherwise recognizable on thin models even
     // at 1% opacity each); the averaging still provides the real softness,
     // so the contact core stays sharp.
-    bakeLight.shadow.radius = 4;
+    bakeLight.shadow.radius = 6;
 
     const sourceCamera = light.shadow.camera;
     const bakeCamera = bakeLight.shadow.camera;

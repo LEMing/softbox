@@ -71,10 +71,12 @@ export class SceneConfigurator {
       (options.helpers?.studioEnvironment ?? false) && (options.helpers?.darkStudioMode ?? false);
     if (options.backgroundColor && !envUrl && !darkStudioOwnsBackground) {
       const color = String(options.backgroundColor);
-      const backgroundResult = sceneSetupService.createGradientBackground(scene, {
-        topColor: color,
-        bottomColor: color,
-      });
+      const edge = options.backgroundColorEdge;
+      const gradient =
+        edge !== undefined
+          ? { topColor: color, bottomColor: String(edge), radial: true }
+          : { topColor: color, bottomColor: color };
+      const backgroundResult = sceneSetupService.createGradientBackground(scene, gradient);
       if (!backgroundResult.ok) {
         console.warn('Failed to set background:', backgroundResult.error);
       }

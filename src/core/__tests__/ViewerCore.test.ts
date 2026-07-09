@@ -1849,6 +1849,50 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     expect(bundle.sceneSetupService!.createGradientBackground).not.toHaveBeenCalled();
   });
 
+  it('does not repaint on an edge colour alone when no base background is set', () => {
+    const bundle = makeDeps({ withSceneSetup: true, options: {} });
+    const viewer = new ViewerCore(bundle.deps);
+    bundle.sceneSetupService!.createGradientBackground.mockClear();
+
+    viewer.updateOptions({ backgroundColorEdge: '#050507' });
+
+    expect(bundle.sceneSetupService!.createGradientBackground).not.toHaveBeenCalled();
+  });
+
+  it('repaints a radial vignette when a backgroundColorEdge arrives live', () => {
+    const bundle = makeDeps({
+      withSceneSetup: true,
+      options: { backgroundColor: '#242430' },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+    bundle.sceneSetupService!.createGradientBackground.mockClear();
+
+    viewer.updateOptions({ backgroundColor: '#242430', backgroundColorEdge: '#050507' });
+
+    expect(bundle.sceneSetupService!.createGradientBackground).toHaveBeenCalledWith(
+      bundle.scene,
+      { topColor: '#242430', bottomColor: '#050507', radial: true }
+    );
+  });
+
+  it('drops the vignette back to a flat fill when switching away from an edge preset', () => {
+    const bundle = makeDeps({
+      withSceneSetup: true,
+      options: { backgroundColor: '#242430', backgroundColorEdge: '#050507' },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+    bundle.sceneSetupService!.createGradientBackground.mockClear();
+
+    // The runtime effect re-sends the whole set; a light preset carries an
+    // explicit `backgroundColorEdge: undefined` to clear the dark vignette.
+    viewer.updateOptions({ backgroundColor: '#f0f0f7', backgroundColorEdge: undefined });
+
+    expect(bundle.sceneSetupService!.createGradientBackground).toHaveBeenCalledWith(
+      bundle.scene,
+      { topColor: '#f0f0f7', bottomColor: '#f0f0f7' }
+    );
+  });
+
   it('enables path tracing live on a viewer booted with it off — no rebuild needed', async () => {
     const bundle = makeDeps({
       options: { staticScene: true, pathTracing: { enabled: false } },
@@ -2105,6 +2149,42 @@ describe('ViewerCore runtime environment/background', () => {
     const result = viewer.setBackgroundColor('#ffffff');
 
     expect(result.ok).toBe(false);
+  });
+
+  it('resetEnvironment restores a preset radial vignette instead of flattening it', async () => {
+    const { bundle, viewer } = await initialized({
+      options: { backgroundColor: '#242430', backgroundColorEdge: '#050507' },
+    });
+    bundle.sceneSetupService!.createGradientBackground.mockClear();
+
+    viewer.resetEnvironment();
+
+    expect(bundle.sceneSetupService!.createGradientBackground).toHaveBeenCalledWith(bundle.scene, {
+      topColor: '#242430',
+      bottomColor: '#050507',
+      radial: true,
+    });
+  });
+
+  it('setBackgroundColor clears a radial vignette to a flat solid fill (and keeps it flat on restore)', async () => {
+    const { bundle, viewer } = await initialized({
+      options: { backgroundColor: '#242430', backgroundColorEdge: '#050507' },
+    });
+
+    viewer.setBackgroundColor('#abcdef');
+
+    expect(bundle.sceneSetupService!.createGradientBackground).toHaveBeenLastCalledWith(bundle.scene, {
+      topColor: '#abcdef',
+      bottomColor: '#abcdef',
+    });
+
+    // The edge is cleared, so restoring the environment stays flat too.
+    bundle.sceneSetupService!.createGradientBackground.mockClear();
+    viewer.resetEnvironment();
+    expect(bundle.sceneSetupService!.createGradientBackground).toHaveBeenLastCalledWith(bundle.scene, {
+      topColor: '#abcdef',
+      bottomColor: '#abcdef',
+    });
   });
 });
 
