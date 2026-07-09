@@ -161,6 +161,15 @@ export class ThreePathTracingService implements IPathTracingService {
    * (the noisiest ones) before the dissolve begins to ease it out. */
   private static readonly FADE_HOLD_SAMPLES = 4;
 
+  /** While the tracer is still grainy the path-traced layer is capped to this
+   * opacity (a faint preview over the dominant raster), so its noise never
+   * reads at more than this level — it only opens to full once resolved. */
+  private static readonly FADE_PREVIEW_OPACITY = 0.3;
+
+  /** Fraction of the fade spent grainy (path-traced layer held at the preview
+   * cap); past it the layer releases from the cap to fully opaque. */
+  private static readonly FADE_RELEASE_FRACTION = 0.5;
+
   constructor() {
     this.settings = {
       samples: DEFAULT_PATH_TRACING_SAMPLES,
@@ -615,15 +624,10 @@ export class ThreePathTracingService implements IPathTracingService {
     this.accumulateOneSample();
     this.sampleCount++;
 
-    // Fade the raster snapshot out as the tracer resolves. Held fully opaque for
-    // the first few samples (smoothstep from FADE_HOLD_SAMPLES) so the noisiest
-    // opening frames stay completely covered, then eased out to the tracer.
+    // Dissolve the raster out as the tracer resolves.
     if (this.fadeSupported && this.sampleCount < ThreePathTracingService.FADE_SAMPLES) {
-      const span = ThreePathTracingService.FADE_SAMPLES - ThreePathTracingService.FADE_HOLD_SAMPLES;
-      const progress = Math.max(0, (this.sampleCount - ThreePathTracingService.FADE_HOLD_SAMPLES) / span);
-      const clamped = Math.min(1, progress);
-      const eased = clamped * clamped * (3 - 2 * clamped);
-      this.runFadeStep(() => this.renderRasterFade(1 - eased));
+      const rasterOpacity = 1 - this.pathTracedLayerOpacity(this.sampleCount);
+      this.runFadeStep(() => this.renderRasterFade(rasterOpacity));
     }
 
     if (this.sampleCount === this.settings.samples) {
@@ -642,6 +646,26 @@ export class ThreePathTracingService implements IPathTracingService {
       console.warn('Path-tracing startup dissolve unavailable; showing samples directly:', fadeError);
       this.fadeSupported = false;
     }
+  }
+
+  /** Opacity of the path-traced layer over the raster snapshot as accumulation
+   * progresses: 0 for the opening (noisiest) samples, eased up to a low preview
+   * cap while the image is still grainy — so the tracer's noise never reads
+   * above the cap — then released to fully opaque as it resolves. */
+  private pathTracedLayerOpacity(sampleCount: number): number {
+    const hold = ThreePathTracingService.FADE_HOLD_SAMPLES;
+    const full = ThreePathTracingService.FADE_SAMPLES;
+    const cap = ThreePathTracingService.FADE_PREVIEW_OPACITY;
+    const release = hold + (full - hold) * ThreePathTracingService.FADE_RELEASE_FRACTION;
+    if (sampleCount < release) {
+      return cap * ThreePathTracingService.smoothstep(hold, release, sampleCount);
+    }
+    return cap + (1 - cap) * ThreePathTracingService.smoothstep(release, full, sampleCount);
+  }
+
+  private static smoothstep(edge0: number, edge1: number, x: number): number {
+    const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+    return t * t * (3 - 2 * t);
   }
 
   /** Render the current raster frame into a linear offscreen target to fade out
@@ -694,9 +718,14 @@ export class ThreePathTracingService implements IPathTracingService {
     const prevTarget = threeRenderer.getRenderTarget();
     threeRenderer.setRenderTarget(null);
     threeRenderer.autoClear = false; // blend over the path-traced frame, don't clear it
-    this.fadeQuad.render(threeRenderer);
-    threeRenderer.autoClear = prevAutoClear;
-    threeRenderer.setRenderTarget(prevTarget);
+    try {
+      this.fadeQuad.render(threeRenderer);
+    } finally {
+      // Always restore, even if the quad render throws: a leaked autoClear=false
+      // would make every later raster frame stack instead of clear (ghosting).
+      threeRenderer.autoClear = prevAutoClear;
+      threeRenderer.setRenderTarget(prevTarget);
+    }
   }
 
   /** A fade material that tone-maps + sRGB-encodes a linear snapshot exactly the
@@ -912,10 +941,13 @@ export class ThreePathTracingService implements IPathTracingService {
       this.convertedEnvTexture = null;
     }
 
-    // Startup-dissolve resources.
+    // Startup-dissolve resources. Only the material is ours to free — NOT the
+    // FullScreenQuad's geometry: three shares one module-level fullscreen
+    // geometry across every FullScreenQuad (including the post-processing
+    // composer's passes), so calling fadeQuad.dispose() would pull it out from
+    // under a consumer that also uses PostProcessingPipeline.
     if (this.fadeQuad) {
       (this.fadeQuad.material as THREE.Material).dispose();
-      this.fadeQuad.dispose();
       this.fadeQuad = null;
     }
     this.fadeToneMapping = null;

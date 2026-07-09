@@ -37,14 +37,33 @@ describe('ShadowFloorGrid', () => {
     expect(cove.userData[CONTACT_SHADOW_HELPER_FLAG]).toBeUndefined();
   });
 
-  it('sweeps the cove up into walls (has geometry rising well above the floor)', () => {
-    const cove = ptFloorOf(build(20));
-    cove.geometry.computeBoundingBox();
-    const box = cove.geometry.boundingBox!;
-    // The floor sits at local y=0; the back/side walls rise above it, and the
-    // ceiling is trimmed away (open top), so the top is a fraction of the span.
+  it('sweeps the cove up into walls with an open top and front (no ceiling or camera-side wall)', () => {
+    const geometry = ptFloorOf(build(20)).geometry;
+    geometry.computeBoundingBox();
+    const box = geometry.boundingBox!;
+    // Floor at local y=0; walls rise above it.
     expect(box.min.y).toBeCloseTo(0, 1);
     expect(box.max.y).toBeGreaterThan(1);
+
+    // The trim removes the ceiling and the camera-side (front, +z) wall, so —
+    // unlike a closed box — no triangle *centroid* reaches the top or the front
+    // extreme (only wall edges do). This is what actually verifies the cut.
+    const position = geometry.getAttribute('position');
+    let maxVertexY = -Infinity;
+    let maxCentroidY = -Infinity;
+    let maxVertexZ = -Infinity;
+    let maxCentroidZ = -Infinity;
+    for (let i = 0; i < position.count; i += 3) {
+      maxCentroidY = Math.max(maxCentroidY, (position.getY(i) + position.getY(i + 1) + position.getY(i + 2)) / 3);
+      maxCentroidZ = Math.max(maxCentroidZ, (position.getZ(i) + position.getZ(i + 1) + position.getZ(i + 2)) / 3);
+      for (let v = 0; v < 3; v += 1) {
+        maxVertexY = Math.max(maxVertexY, position.getY(i + v));
+        maxVertexZ = Math.max(maxVertexZ, position.getZ(i + v));
+      }
+    }
+    expect(position.count).toBeGreaterThan(0);
+    expect(maxCentroidY).toBeLessThan(maxVertexY - 1e-3); // open top
+    expect(maxCentroidZ).toBeLessThan(maxVertexZ - 1e-3); // open front
   });
 
   it('names and flags the catcher so the baker and path tracer treat it as the contact shadow', () => {

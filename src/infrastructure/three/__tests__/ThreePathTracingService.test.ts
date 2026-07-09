@@ -1191,4 +1191,32 @@ describe('ThreePathTracingService', () => {
       expect(ctx.service.isPathTracerDisposed()).toBe(true);
     });
   });
+
+  describe('startup dissolve opacity curve', () => {
+    const layerOpacity = (service: ThreePathTracingService, samples: number): number =>
+      (service as unknown as { pathTracedLayerOpacity(n: number): number }).pathTracedLayerOpacity(samples);
+
+    it('hides the tracer at the start, caps it while grainy, and releases it once resolved', () => {
+      const service = new ThreePathTracingService();
+      // Opening samples: fully hidden under the raster.
+      expect(layerOpacity(service, 0)).toBe(0);
+      expect(layerOpacity(service, 4)).toBeCloseTo(0);
+      // Grainy phase: the tracer never reads above the 0.3 preview cap.
+      for (const samples of [10, 40, 90, 128]) {
+        expect(layerOpacity(service, samples)).toBeLessThanOrEqual(0.3 + 1e-6);
+      }
+      // Released to fully opaque by the end of the fade window.
+      expect(layerOpacity(service, 256)).toBeCloseTo(1);
+    });
+
+    it('never decreases as accumulation progresses', () => {
+      const service = new ThreePathTracingService();
+      let previous = -1;
+      for (let samples = 0; samples <= 256; samples += 4) {
+        const value = layerOpacity(service, samples);
+        expect(value).toBeGreaterThanOrEqual(previous - 1e-9);
+        previous = value;
+      }
+    });
+  });
 });
