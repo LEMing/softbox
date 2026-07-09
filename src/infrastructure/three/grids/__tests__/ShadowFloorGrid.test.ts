@@ -22,48 +22,67 @@ describe('ShadowFloorGrid', () => {
     expect(catcher.material).toBeInstanceOf(THREE.ShadowMaterial);
   });
 
-  it('adds a tracer-only cyclorama: real, matte, receiving, hidden from the raster view', () => {
-    const cove = ptFloorOf(build(20));
-    expect(cove).toBeInstanceOf(THREE.Mesh);
-    expect(cove.material).toBeInstanceOf(THREE.MeshStandardMaterial);
-    expect((cove.material as THREE.MeshStandardMaterial).roughness).toBe(1);
-    // Two-sided so the tracer lights the concave interior of the cove.
-    expect((cove.material as THREE.MeshStandardMaterial).side).toBe(THREE.DoubleSide);
-    expect(cove.receiveShadow).toBe(true);
+  it('adds a tracer-only infinity dome: real, matte, receiving, hidden from the raster view', () => {
+    const dome = ptFloorOf(build(20));
+    expect(dome).toBeInstanceOf(THREE.Mesh);
+    expect(dome.material).toBeInstanceOf(THREE.MeshStandardMaterial);
+    expect((dome.material as THREE.MeshStandardMaterial).roughness).toBe(1);
+    // Two-sided so the tracer lights the concave interior of the dome.
+    expect((dome.material as THREE.MeshStandardMaterial).side).toBe(THREE.DoubleSide);
+    expect(dome.receiveShadow).toBe(true);
     // Off in the raster view; the path tracer flips it on only during ingest.
-    expect(cove.visible).toBe(false);
+    expect(dome.visible).toBe(false);
     // NOT tagged as a raster shadow helper (that flag hides it from the tracer,
-    // which is the opposite of what this cove is for).
-    expect(cove.userData[CONTACT_SHADOW_HELPER_FLAG]).toBeUndefined();
+    // which is the opposite of what this dome is for).
+    expect(dome.userData[CONTACT_SHADOW_HELPER_FLAG]).toBeUndefined();
   });
 
-  it('sweeps the cove up into walls with an open top and front (no ceiling or camera-side wall)', () => {
+  it('is an open-top surface of revolution: floor at 0, walls rise, and it is axisymmetric', () => {
     const geometry = ptFloorOf(build(20)).geometry;
     geometry.computeBoundingBox();
     const box = geometry.boundingBox!;
-    // Floor at local y=0; walls rise above it.
+    // Floor at local y=0; walls rise well above it.
     expect(box.min.y).toBeCloseTo(0, 1);
     expect(box.max.y).toBeGreaterThan(1);
 
-    // The trim removes the ceiling and the camera-side (front, +z) wall, so —
-    // unlike a closed box — no triangle *centroid* reaches the top or the front
-    // extreme (only wall edges do). This is what actually verifies the cut.
+    // Axisymmetric about Y: the footprint is a full circle (same extent left/
+    // right/front/back), so it looks identical from every azimuth — the whole
+    // point of the dome over a directional cove.
+    expect(box.min.x).toBeCloseTo(-box.max.x, 1);
+    expect(box.min.z).toBeCloseTo(-box.max.z, 1);
+    expect(box.max.x).toBeCloseTo(box.max.z, 1);
+
     const position = geometry.getAttribute('position');
-    let maxVertexY = -Infinity;
-    let maxCentroidY = -Infinity;
-    let maxVertexZ = -Infinity;
-    let maxCentroidZ = -Infinity;
-    for (let i = 0; i < position.count; i += 3) {
-      maxCentroidY = Math.max(maxCentroidY, (position.getY(i) + position.getY(i + 1) + position.getY(i + 2)) / 3);
-      maxCentroidZ = Math.max(maxCentroidZ, (position.getZ(i) + position.getZ(i + 1) + position.getZ(i + 2)) / 3);
-      for (let v = 0; v < 3; v += 1) {
-        maxVertexY = Math.max(maxVertexY, position.getY(i + v));
-        maxVertexZ = Math.max(maxVertexZ, position.getZ(i + v));
+    expect(position.count).toBeGreaterThan(0);
+    const maxRadius = box.max.x; // wall radius
+
+    // Open top (no ceiling cap): the top edge is a ring at the wall radius —
+    // every vertex up there is far from the axis. A capped dome would have a
+    // centre vertex (radius ~0) at the top instead.
+    let topRingMinRadius = Infinity;
+    let floorEdgeRadius = 0;
+    let wallHeightSpan = { min: Infinity, max: -Infinity };
+    for (let i = 0; i < position.count; i += 1) {
+      const y = position.getY(i);
+      const r = Math.hypot(position.getX(i), position.getZ(i));
+      if (y > box.max.y - 1e-3) {
+        topRingMinRadius = Math.min(topRingMinRadius, r);
+      }
+      if (y < 1e-3) {
+        floorEdgeRadius = Math.max(floorEdgeRadius, r); // widest point of the flat floor
+      }
+      if (r > maxRadius - 1e-3) {
+        wallHeightSpan = { min: Math.min(wallHeightSpan.min, y), max: Math.max(wallHeightSpan.max, y) };
       }
     }
-    expect(position.count).toBeGreaterThan(0);
-    expect(maxCentroidY).toBeLessThan(maxVertexY - 1e-3); // open top
-    expect(maxCentroidZ).toBeLessThan(maxVertexZ - 1e-3); // open front
+    expect(topRingMinRadius).toBeGreaterThan(1);
+
+    // Concave sweep, not a cone: the flat floor stops well short of the wall
+    // radius (a fillet bridges the gap), and the wall is genuinely VERTICAL —
+    // vertices at the max radius span a real height range. A straight cone
+    // would reach max radius only at its single apex height.
+    expect(floorEdgeRadius).toBeLessThan(maxRadius * 0.9);
+    expect(wallHeightSpan.max - wallHeightSpan.min).toBeGreaterThan(box.max.y * 0.3);
   });
 
   it('names and flags the catcher so the baker and path tracer treat it as the contact shadow', () => {

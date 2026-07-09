@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { IGridStyle, IGridOptions } from './IGridStyle';
 import {
   CONTACT_SHADOW_HELPER_FLAG,
@@ -17,13 +16,15 @@ import {
  * ContactShadowBaker and the path tracer's helper-hiding treat it identically.
  *
  * `ShadowMaterial` is a raster shadow-map trick the path tracer can't use, so
- * the group also carries a real matte 3-sided cyclorama (see
+ * the group also carries a real matte studio "infinity dome" (see
  * PATH_TRACING_FLOOR_FLAG) that is normally invisible and only shown to the
  * tracer during scene ingest — that gives the traced render a physical surface
  * to cast a contact shadow onto and a seamless soft-lit backdrop, so the model
- * is grounded and wrapped instead of floating. Left neutral on purpose: the
- * tracer lights it with the scene environment, so it takes on each preset's
- * tone (dark under a dark studio, light under a bright one) by itself.
+ * is grounded and wrapped instead of floating. It is a surface of revolution
+ * (open at the top), so it looks identical from every azimuth — the reason it
+ * replaced a 3-sided cove, which broke when the camera orbited to its open
+ * side. Left neutral on purpose: the tracer lights it through the open top with
+ * the scene environment, so it takes on each preset's tone by itself.
  *
  * The real-scale hex-paver "ruler" floor is still available via
  * `helpers.grid.type: 'hexagonal_glass'`; this is simply the default.
@@ -38,7 +39,7 @@ export class ShadowFloorGrid implements IGridStyle {
     // baked contact shadow clips itself to this disc, so oversizing is safe.
     const radius = Math.max(options.size || 1, 1) * 1.5;
     group.add(this.createShadowCatcher(radius));
-    group.add(this.createPathTracingCyclorama(radius));
+    group.add(this.createPathTracingDome(radius));
     return group;
   }
 
@@ -56,69 +57,54 @@ export class ShadowFloorGrid implements IGridStyle {
   }
 
   /**
-   * A 3-sided studio cyclorama for the path tracer: a rounded box with the
-   * ceiling and the front (camera side) trimmed away, so the floor sweeps up
-   * into a back wall and two side walls through big fillets — no visible seam —
-   * while the open top and front let the studio environment and key light in.
-   * The model sits in a seamless soft-lit "infinity cove" with a real contact
-   * shadow, instead of on a bare plate. Like the flat floor it replaced it is
-   * hidden from the raster view and shown to the tracer only during ingest.
+   * A studio "infinity dome" for the path tracer: a surface of revolution about
+   * the vertical axis — a flat floor that sweeps up through a big concave fillet
+   * into a near-vertical wall, open at the top. Because it is axisymmetric it
+   * looks identical from every azimuth, so free 360° orbit never reveals a seam
+   * or an open side (the failing of the 3-sided cove it replaced). The open top
+   * lets the studio environment light the interior; a sealed box would occlude
+   * the tracer's infinite-env sampling and crush the inside to black. The model
+   * sits in a seamless soft-lit cove with a real contact shadow. Hidden from the
+   * raster view; shown to the tracer only during ingest.
    */
-  private createPathTracingCyclorama(footprint: number): THREE.Mesh {
+  private createPathTracingDome(footprint: number): THREE.Mesh {
     const size = Math.max(footprint, 1);
-    const half = size * 0.85; // half-width/depth of the cove floor
-    const height = size * 1.4; // wall height before the ceiling is trimmed
-    const fillet = size * 0.6; // radius of the floor→wall / wall→wall sweep
+    const wallRadius = size * 1.6; // outer radius of the dome wall
+    const wallHeight = size * 2; // how high the wall rises (open above it)
+    const fillet = size * 0.5; // radius of the concave floor→wall sweep
+    const floorRadius = wallRadius - fillet; // flat floor out to where the fillet starts
 
-    // RoundedBoxGeometry is non-indexed, so the per-triangle trim reads its
-    // position attribute directly (no toNonIndexed, which would just warn).
-    const box = new RoundedBoxGeometry(half * 2, height, half * 2, 10, fillet);
-    const cove = this.openTopAndFront(box, height / 2 - fillet, half - fillet);
-    // Sink the geometry so the cove floor sits at the mesh's local origin;
-    // addDynamicGrid then lifts the mesh to the catcher height so a floor-
-    // snapped model rests flush on the sweep.
-    cove.translate(0, height / 2, 0);
-    cove.computeVertexNormals();
+    // Lathe profile in (radius, height): flat floor → quarter-circle fillet →
+    // vertical wall. Revolving it about Y gives the open-topped dome.
+    const profile: THREE.Vector2[] = [
+      new THREE.Vector2(0, 0),
+      new THREE.Vector2(floorRadius, 0),
+    ];
+    const filletSegments = 16;
+    for (let i = 1; i <= filletSegments; i += 1) {
+      const a = (i / filletSegments) * (Math.PI / 2);
+      profile.push(new THREE.Vector2(floorRadius + fillet * Math.sin(a), fillet * (1 - Math.cos(a))));
+    }
+    profile.push(new THREE.Vector2(wallRadius, wallHeight));
 
     const mesh = new THREE.Mesh(
-      cove,
+      new THREE.LatheGeometry(profile, 96),
       new THREE.MeshStandardMaterial({
-        color: '#b8b8b8',
+        // Near-white seamless-paper matte (not the old muddy grey): the tracer
+        // lights it, so its rendered tone still follows the scene environment.
+        color: '#f0f0f0',
         roughness: 1,
         metalness: 0,
         side: THREE.DoubleSide,
       })
     );
     mesh.userData[PATH_TRACING_FLOOR_FLAG] = true;
+    // Placeholder; addDynamicGrid lifts the mesh (its floor sits at local y=0)
+    // to the catcher height so a floor-snapped model rests flush on the sweep.
     mesh.position.y = 0.001;
     mesh.receiveShadow = true;
     mesh.visible = false;
     return mesh;
-  }
-
-  /** Drop every triangle in the ceiling (y above `yCut`) or the front wall
-   * (z beyond `zCut`), leaving an open-topped, camera-facing cove. */
-  private openTopAndFront(
-    geometry: THREE.BufferGeometry,
-    yCut: number,
-    zCut: number
-  ): THREE.BufferGeometry {
-    const position = geometry.getAttribute('position');
-    const kept: number[] = [];
-    for (let i = 0; i < position.count; i += 3) {
-      const cy = (position.getY(i) + position.getY(i + 1) + position.getY(i + 2)) / 3;
-      const cz = (position.getZ(i) + position.getZ(i + 1) + position.getZ(i + 2)) / 3;
-      if (cy > yCut || cz > zCut) {
-        continue;
-      }
-      for (let v = 0; v < 3; v += 1) {
-        kept.push(position.getX(i + v), position.getY(i + v), position.getZ(i + v));
-      }
-    }
-    geometry.dispose();
-    const trimmed = new THREE.BufferGeometry();
-    trimmed.setAttribute('position', new THREE.Float32BufferAttribute(kept, 3));
-    return trimmed;
   }
 
   dispose(): void {
