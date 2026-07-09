@@ -1,6 +1,20 @@
 Changelog
 =========
 
+4.10.1
+---
+
+### Path-tracing backdrop survives free rotation (infinity dome)
+
+* **The path-traced studio backdrop is now an axisymmetric "infinity dome" instead of a 3-sided cove.** The 4.9.0 cove was open at the front and back-walled — fine head-on, but orbiting past ±90° swung its solid back wall between the camera and the model (a grey plane), and on the open side the model floated against raw background. The dome is a surface of revolution (a flat floor sweeping up through a big concave fillet into a near-vertical wall, open at the top), so it looks identical from every azimuth — a seamless soft-lit sweep behind the subject at any angle, with the same real contact shadow. The open top still lets the studio environment light the interior (a sealed box would occlude the tracer's environment sampling and go dark). It stays invisible in the raster view and is shown to the tracer only during ingest.
+
+4.10.0
+---
+
+### Let self-grounded models keep their authored height
+
+* **New `floorAlignment` option (default `true`).** By default softbox drops the loaded model onto the floor at y=0, snapping its lowest point down. For a model that carries its own ground (e.g. an embedded ground slab), that snap grabs the bottom of the slab and shifts everything above it upward. Set `floorAlignment: false` to skip both the align and the snap so such a model keeps its authored Y.
+
 4.9.0
 ---
 
