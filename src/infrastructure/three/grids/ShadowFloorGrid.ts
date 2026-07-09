@@ -70,7 +70,10 @@ export class ShadowFloorGrid implements IGridStyle {
     const height = size * 1.4; // wall height before the ceiling is trimmed
     const fillet = size * 0.6; // radius of the floor→wall / wall→wall sweep
 
-    const rounded = new RoundedBoxGeometry(half * 2, height, half * 2, 10, fillet).toNonIndexed();
+    const box = new RoundedBoxGeometry(half * 2, height, half * 2, 10, fillet);
+    // Per-triangle trimming needs a non-indexed geometry; RoundedBoxGeometry is
+    // already non-indexed, so only convert (which warns otherwise) if it isn't.
+    const rounded = box.index ? box.toNonIndexed() : box;
     const cove = this.openTopAndFront(rounded, height / 2 - fillet, half - fillet);
     // Sink the geometry so the cove floor sits at the mesh's local origin;
     // addDynamicGrid then lifts the mesh to the catcher height so a floor-

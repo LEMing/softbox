@@ -712,7 +712,6 @@ export class ThreePathTracingService implements IPathTracingService {
     const material = this.fadeQuad.material as THREE.ShaderMaterial;
     material.uniforms.tRaster.value = this.rasterFadeTarget.texture;
     material.uniforms.uOpacity.value = opacity;
-    material.uniforms.toneMappingExposure.value = threeRenderer.toneMappingExposure;
 
     const prevAutoClear = threeRenderer.autoClear;
     const prevTarget = threeRenderer.getRenderTarget();
@@ -741,7 +740,12 @@ export class ThreePathTracingService implements IPathTracingService {
       [THREE.AgXToneMapping]: 'AGX_TONE_MAPPING',
       [THREE.NeutralToneMapping]: 'NEUTRAL_TONE_MAPPING',
     };
-    const defines: Record<string, string> = { SRGB_TRANSFER: '' };
+    // No tonemapping_pars/colorspace_pars includes here: three already injects
+    // them (and the toneMappingExposure uniform) into a ShaderMaterial's prefix
+    // when the renderer has tone mapping on, so re-including them redefines the
+    // operators — which real-GPU GLSL rejects (SwiftShader silently tolerated
+    // it). We just call the operators + sRGBTransferOETF that the prefix defines.
+    const defines: Record<string, string> = {};
     const operator = toneMappingDefine[toneMapping];
     if (operator) {
       defines[operator] = '';
@@ -751,7 +755,6 @@ export class ThreePathTracingService implements IPathTracingService {
       uniforms: {
         tRaster: { value: null },
         uOpacity: { value: 1 },
-        toneMappingExposure: { value: 1 },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -760,8 +763,6 @@ export class ThreePathTracingService implements IPathTracingService {
       fragmentShader: `
         uniform sampler2D tRaster;
         uniform float uOpacity;
-        #include <tonemapping_pars_fragment>
-        #include <colorspace_pars_fragment>
         varying vec2 vUv;
         void main() {
           vec3 color = texture2D( tRaster, vUv ).rgb;
@@ -778,10 +779,7 @@ export class ThreePathTracingService implements IPathTracingService {
           #elif defined( NEUTRAL_TONE_MAPPING )
             color = NeutralToneMapping( color );
           #endif
-          #ifdef SRGB_TRANSFER
-            color = sRGBTransferOETF( vec4( color, 1.0 ) ).rgb;
-          #endif
-          gl_FragColor = vec4( color, uOpacity );
+          gl_FragColor = vec4( sRGBTransferOETF( vec4( color, 1.0 ) ).rgb, uOpacity );
         }
       `,
       transparent: true,
