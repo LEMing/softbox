@@ -1,6 +1,17 @@
 Changelog
 =========
 
+4.11.0
+---
+
+### Let an external camera driver own the camera (first-person / custom controls)
+
+* **The render loop now skips `controls.update()` while the controls are disabled.** Previously the loop called `OrbitControls.update()` every frame unconditionally, and because `update()` re-aims the camera at the orbit target, any consumer trying to drive the camera itself (e.g. its own `FirstPersonControls` for a walk mode) was fought frame-by-frame and could never take over. Now, setting `handle.controls.enabled = false` hands the camera to the consumer: the loop stops updating OrbitControls but keeps rendering, so the externally-driven camera is shown. One-shot `update()` calls (camera fit, serialization) are unaffected.
+
+### Runtime background & environment
+
+* **New handle methods to change the backdrop and lighting after init, without a rebuild:** `setEnvironmentMap(url)` loads an equirectangular HDRI/LDR image as the reflections + background (textures are cached by URL, so toggling the same map on/off is cheap); `resetEnvironment()` restores the built-in studio environment and the clean gradient background; `setBackgroundImage(source)` paints an uploaded image (URL, `File`, or `HTMLImageElement`) as a plain sRGB backdrop while leaving the environment lighting untouched; `setBackgroundColor(color)` sets a solid background (and clears a background image). These reuse the existing environment service, dispose the replaced background texture, and force a path-tracing re-accumulation so a live traced session picks up the change.
+
 4.10.1
 ---
 

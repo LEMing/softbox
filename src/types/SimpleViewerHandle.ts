@@ -40,5 +40,19 @@ export interface SimpleViewerHandle {
   playAnimations: (clipName?: string) => void;
   /** Freezes playback on the current pose; playAnimations() resumes. */
   pauseAnimations: () => void;
+  /**
+   * Replace the environment map (reflections + background) at runtime with the
+   * equirectangular HDRI/LDR image at `url`. Cached by URL, so re-applying is cheap.
+   */
+  setEnvironmentMap: (url: string) => Promise<void>;
+  /** Restore the built-in studio environment and clean gradient background. */
+  resetEnvironment: () => void;
+  /**
+   * Paint an uploaded image (URL, File, or HTMLImageElement) as the scene backdrop
+   * without changing the environment lighting. Clear it with setBackgroundColor.
+   */
+  setBackgroundImage: (source: string | File | HTMLImageElement) => Promise<void>;
+  /** Set a solid background color (also clears a background image). */
+  setBackgroundColor: (color: string | number) => void;
   dispose: () => void;
 }

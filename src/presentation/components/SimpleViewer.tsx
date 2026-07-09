@@ -134,6 +134,42 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
         pauseAnimations: () => {
           viewer?.pauseAnimations();
         },
+        setEnvironmentMap: async (url: string): Promise<void> => {
+          if (!viewer) {
+            throw notReadyError();
+          }
+          const result = await viewer.setEnvironmentMap(url);
+          if (!result.ok) {
+            throw result.error;
+          }
+        },
+        resetEnvironment: (): void => {
+          if (!viewer) {
+            throw notReadyError();
+          }
+          const result = viewer.resetEnvironment();
+          if (!result.ok) {
+            throw result.error;
+          }
+        },
+        setBackgroundImage: async (source: string | File | HTMLImageElement): Promise<void> => {
+          if (!viewer) {
+            throw notReadyError();
+          }
+          const result = await viewer.setBackgroundImage(source);
+          if (!result.ok) {
+            throw result.error;
+          }
+        },
+        setBackgroundColor: (color: string | number): void => {
+          if (!viewer) {
+            throw notReadyError();
+          }
+          const result = viewer.setBackgroundColor(color);
+          if (!result.ok) {
+            throw result.error;
+          }
+        },
         dispose: () => {
           viewer?.dispose();
         },

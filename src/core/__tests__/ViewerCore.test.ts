@@ -227,6 +227,7 @@ const makeEnvironmentService = (
     loadEnvironmentMap: jest.fn(async () => Result.ok(makeTexture())),
     applyToScene: jest.fn(() => Result.ok(undefined)),
     createStudioEnvironment: jest.fn(() => Result.ok(makeTexture())),
+    setBackgroundImage: jest.fn(async () => Result.ok(undefined)),
     dispose: jest.fn(),
   };
   return { ...base, ...overrides } as unknown as jest.Mocked<IEnvironmentService>;
@@ -1340,6 +1341,25 @@ describe('ViewerCore', () => {
       expect(bundle.pathTracingService!.reset).toHaveBeenCalled();
     });
 
+    it('skips the controls update while disabled so an external camera driver can own the camera', async () => {
+      const update = jest.fn(() => true);
+      const bundle = makeDeps({
+        options: { staticScene: true },
+        controlsOverrides: { enabled: false, update },
+      });
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+      const controlsHandler = jest.fn();
+      viewer.getEvents().on('controls:change', controlsHandler);
+      update.mockClear();
+
+      renderCallback!(16);
+      await tick();
+
+      expect(update).not.toHaveBeenCalled();
+      expect(controlsHandler).not.toHaveBeenCalled();
+    });
+
     it('renders through the path tracing service when enabled', async () => {
       const bundle = makeDeps({
         options: { staticScene: true, pathTracing: { enabled: true, maxSamples: 500 } },
@@ -1980,6 +2000,111 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     viewer.updateOptions({ backgroundColor: '#abcdef' });
 
     expect(bundle.sceneSetupService!.createGradientBackground).not.toHaveBeenCalled();
+  });
+});
+
+describe('ViewerCore runtime environment/background', () => {
+  const failure = (message: string) => Result.err(new ThreeViewerError(message, ErrorCode.OPERATION_FAILED));
+
+  const initialized = async (config: MakeDepsConfig = {}) => {
+    const bundle = makeDeps({ withEnvironment: true, withSceneSetup: true, ...config });
+    const viewer = new ViewerCore(bundle.deps);
+    await viewer.initialize();
+    return { bundle, viewer };
+  };
+
+  it('setEnvironmentMap loads the HDRI and applies it as environment + background', async () => {
+    const { bundle, viewer } = await initialized();
+
+    const result = await viewer.setEnvironmentMap('/env/sky_2k.hdr');
+
+    expect(result.ok).toBe(true);
+    expect(bundle.environmentService!.loadEnvironmentMap).toHaveBeenCalledWith('/env/sky_2k.hdr');
+    expect(bundle.environmentService!.applyToScene).toHaveBeenCalledWith(
+      bundle.scene,
+      expect.anything(),
+      expect.objectContaining({ setBackground: true })
+    );
+  });
+
+  it('setEnvironmentMap surfaces a load failure', async () => {
+    const { viewer } = await initialized({
+      environmentOverrides: { loadEnvironmentMap: jest.fn(async () => failure('boom')) },
+    });
+
+    const result = await viewer.setEnvironmentMap('/bad.hdr');
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('setEnvironmentMap errors without an environment service', async () => {
+    const bundle = makeDeps({ withSceneSetup: true });
+    const viewer = new ViewerCore(bundle.deps);
+    await viewer.initialize();
+
+    const result = await viewer.setEnvironmentMap('/env.hdr');
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('resetEnvironment restores the studio env (no background) and the clean color', async () => {
+    const { bundle, viewer } = await initialized({ options: { backgroundColor: '#101010' } });
+    bundle.sceneSetupService!.createGradientBackground.mockClear();
+
+    const result = viewer.resetEnvironment();
+
+    expect(result.ok).toBe(true);
+    expect(bundle.environmentService!.createStudioEnvironment).toHaveBeenCalled();
+    expect(bundle.environmentService!.applyToScene).toHaveBeenLastCalledWith(
+      bundle.scene,
+      expect.anything(),
+      expect.objectContaining({ setBackground: false })
+    );
+    expect(bundle.sceneSetupService!.createGradientBackground).toHaveBeenCalledWith(bundle.scene, {
+      topColor: '#101010',
+      bottomColor: '#101010',
+    });
+  });
+
+  it('setBackgroundImage delegates to the environment service', async () => {
+    const { bundle, viewer } = await initialized();
+
+    const result = await viewer.setBackgroundImage('/photo.jpg');
+
+    expect(result.ok).toBe(true);
+    expect(bundle.environmentService!.setBackgroundImage).toHaveBeenCalledWith(bundle.scene, '/photo.jpg');
+  });
+
+  it('setBackgroundImage surfaces a service failure', async () => {
+    const { viewer } = await initialized({
+      environmentOverrides: { setBackgroundImage: jest.fn(async () => failure('bad image')) },
+    });
+
+    const result = await viewer.setBackgroundImage('/bad.png');
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('setBackgroundColor paints a solid gradient even with an env url configured', async () => {
+    const { bundle, viewer } = await initialized({ options: { environment: { url: '/env.hdr' } } });
+
+    const result = viewer.setBackgroundColor('#abcdef');
+
+    expect(result.ok).toBe(true);
+    expect(bundle.sceneSetupService!.createGradientBackground).toHaveBeenLastCalledWith(bundle.scene, {
+      topColor: '#abcdef',
+      bottomColor: '#abcdef',
+    });
+  });
+
+  it('setBackgroundColor errors without a scene setup service', async () => {
+    const bundle = makeDeps({ withEnvironment: true });
+    const viewer = new ViewerCore(bundle.deps);
+    await viewer.initialize();
+
+    const result = viewer.setBackgroundColor('#ffffff');
+
+    expect(result.ok).toBe(false);
   });
 });
 
