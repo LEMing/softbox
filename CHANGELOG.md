@@ -1,6 +1,23 @@
 Changelog
 =========
 
+4.15.2
+---
+
+### Fix a stretched frame after switching models, and soften the bloom further
+
+* **Switching the model no longer stretches the render.** When a switch rebuilt the viewer
+  (e.g. to/from a model with its own camera), the fresh camera could keep its default aspect
+  and the frame rendered stretched (a round model read as an ellipse), especially on wide
+  windows. Two causes: the resize routine skipped applying the camera aspect when the reused
+  canvas was already the right size, and the resize effect only re-ran on an
+  `isInitialized` toggle — which a fast rebuild can batch away to a net no-op. The aspect is
+  now applied whenever it doesn't match (not just on a size change), and the resize wiring
+  re-runs on every rebuild.
+* **Bloom is softer still.** The threshold is raised further (1.8 → 2.5) and the strength
+  lowered (0.12 → 0.08) so `renderer.bloom` only lightly touches genuinely blown highlights
+  (a headlight, a direct sun glint) rather than glowing the glossy paint and chrome.
+
 4.15.1
 ---
 

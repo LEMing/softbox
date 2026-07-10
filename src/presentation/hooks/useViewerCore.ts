@@ -127,7 +127,7 @@ export function useViewerCore(
         }
         
         // Only process if dimensions actually changed
-        if (lastResizeRef.current.width === clientWidth && 
+        if (lastResizeRef.current.width === clientWidth &&
             lastResizeRef.current.height === clientHeight) {
           return;
         }
@@ -168,7 +168,11 @@ export function useViewerCore(
         cancelAnimationFrame(resizeFrameId);
       }
     };
-  }, [isInitialized, canvasRef]);
+    // structuralKey is the reliable "a new viewer was built" signal: a fast
+    // rebuild can flip isInitialized false→true within one React batch (net
+    // unchanged), so keying on isInitialized alone would skip re-sizing the fresh
+    // viewer and its camera would keep its default aspect (a stretched frame).
+  }, [isInitialized, canvasRef, structuralKey]);
 
   return {
     viewer: viewerRef.current,

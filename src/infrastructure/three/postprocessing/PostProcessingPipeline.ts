@@ -197,14 +197,14 @@ export class PostProcessingPipeline {
 
     if (this.config.bloom && modules.UnrealBloomPass) {
       // Restrained: a HIGH threshold means only genuinely blown highlights
-      // (headlights, hot speculars) seed the glow, so it reads as a studio touch
-      // rather than a haze over the whole brightly-lit scene. The threshold was
-      // raised (1.0 → 1.8) and strength lowered (0.18 → 0.12) once the brighter
-      // three-point rig + contrastier studio env pushed far more of the specular
-      // above 1.0 — the old values then bloomed broad hot patches. Params:
+      // (headlights, direct sun glints) seed the glow, so it reads as a subtle
+      // studio touch rather than a haze over the whole brightly-lit scene. The
+      // brighter three-point rig + contrastier studio env push a lot of glossy
+      // specular into HDR, so the threshold is high (2.5) and the strength low
+      // (0.08) to keep it from blooming the paint/chrome. Params:
       // (resolution, strength, radius, threshold).
       composer.addPass(
-        new modules.UnrealBloomPass(new THREE.Vector2(bufferSize.x, bufferSize.y), 0.12, 0.25, 1.8) as object
+        new modules.UnrealBloomPass(new THREE.Vector2(bufferSize.x, bufferSize.y), 0.08, 0.25, 2.5) as object
       );
     }
 
