@@ -1,6 +1,20 @@
 Changelog
 =========
 
+4.15.3
+---
+
+### Tighter contact shadow for small / tall models
+
+* **The baked contact shadow now reads as a tight pool under small and tall models**
+  (an avocado, a bottle) instead of a large, offset blob detached from the object. It
+  leans more on the top-down ambient-occlusion samples (so the shadow pools at the base
+  rather than streaking sideways under the grazing key light), and the disc no longer
+  grows so much with the model's height, so a tall, small-footprint object gets a shadow
+  at its base rather than one that dwarfs it. Larger models are unchanged.
+* Cleanup: the contact-shadow disc sizing / floor-lift and the bloom/vignette/grain
+  tuning are now named constants instead of inline literals.
+
 4.15.2
 ---
 

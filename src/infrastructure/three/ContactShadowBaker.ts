@@ -70,7 +70,7 @@ export class ContactShadowBaker {
    * Weighted toward ambient: it's what pools darkness at the contact points,
    * and thin upright models (no overhang) get little of it otherwise.
    */
-  private static readonly AMBIENT_RATIO = 0.45;
+  private static readonly AMBIENT_RATIO = 0.62;
   /** Apex angle of the simulated area light — the main softness control. */
   private static readonly LIGHT_APERTURE_DEGREES = 13;
   /**
@@ -87,6 +87,27 @@ export class ContactShadowBaker {
   private static readonly BAKE_SHADOW_MAP_SIZE = 1024;
   /** Overall darkness: the floor keeps some ambient bounce even in full shadow. */
   private static readonly SHADOW_STRENGTH = 0.55;
+  /**
+   * Shadow-disc half-extent = footprint * FOOTPRINT_MARGIN + height *
+   * HEIGHT_STRETCH, floored at MIN_HALF_EXTENT. Wide enough that the directional
+   * stretch (the object's height tilted along the key light) and the outer
+   * penumbra both fade well before the disc edge — a shadow clipped by its own
+   * plane reads as a hard-edged artifact immediately. The height term is kept
+   * modest so a tall, small-footprint object (a bottle) gets a contact pool at
+   * its base rather than a disc that dwarfs it.
+   */
+  private static readonly DISC_FOOTPRINT_MARGIN = 1.4;
+  private static readonly DISC_HEIGHT_STRETCH = 0.45;
+  private static readonly DISC_MIN_HALF_EXTENT = 0.05;
+  /**
+   * The baked disc sits just above the floor (y=0) to avoid z-fighting, lifted
+   * in proportion to the object's height and clamped: a fixed offset that is
+   * invisible under a car would cover a visible slice of a 6cm avocado's base,
+   * reading as the model sunk into a dark pool.
+   */
+  private static readonly FLOOR_LIFT_PER_HEIGHT = 0.0025;
+  private static readonly FLOOR_LIFT_MIN = 0.0002;
+  private static readonly FLOOR_LIFT_MAX = 0.01;
   /**
    * Main-thread time the adaptive bake is allowed to burn. The full-quality
    * pass count on a healthy GPU fits well inside it; a software rasterizer
@@ -186,12 +207,12 @@ export class ContactShadowBaker {
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
 
-    // Wide enough that the directional stretch (roughly the object's height
-    // tilted along the key light) and the outer penumbra both fade out well
-    // before the texture edge — a shadow clipped by its own plane reads as a
-    // rendering artifact immediately.
-    const MIN_HALF_EXTENT = 0.05;
-    const halfExtent = Math.max(Math.max(size.x, size.z) * 1.4 + size.y * 0.65, MIN_HALF_EXTENT);
+    const footprint = Math.max(size.x, size.z);
+    const halfExtent = Math.max(
+      footprint * ContactShadowBaker.DISC_FOOTPRINT_MARGIN +
+        size.y * ContactShadowBaker.DISC_HEIGHT_STRETCH,
+      ContactShadowBaker.DISC_MIN_HALF_EXTENT
+    );
     return { center, halfExtent, objectHeight: size.y };
   }
 
@@ -489,10 +510,11 @@ export class ContactShadowBaker {
     mesh.name = CONTACT_SHADOW_BAKED_NAME;
     mesh.userData[CONTACT_SHADOW_HELPER_FLAG] = true;
     mesh.rotation.x = -Math.PI / 2;
-    // The lift above the tile tops (y=0) must scale with the object: a fixed
-    // offset that is invisible under a car covers a visible slice of a
-    // 6cm avocado's base, reading as the model sunk into a dark pool.
-    const floorOffset = THREE.MathUtils.clamp(region.objectHeight * 0.0025, 0.0002, 0.01);
+    const floorOffset = THREE.MathUtils.clamp(
+      region.objectHeight * ContactShadowBaker.FLOOR_LIFT_PER_HEIGHT,
+      ContactShadowBaker.FLOOR_LIFT_MIN,
+      ContactShadowBaker.FLOOR_LIFT_MAX
+    );
     mesh.position.set(region.center.x, floorOffset, region.center.z);
     mesh.userData.renderTarget = renderTarget;
     scene.add(mesh);
