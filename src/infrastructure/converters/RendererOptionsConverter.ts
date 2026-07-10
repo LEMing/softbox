@@ -33,15 +33,41 @@ export class RendererOptionsConverter {
     const bloom = options.bloom as boolean | undefined;
     const vignette = options.vignette as boolean | undefined;
     const filmGrain = options.filmGrain as boolean | undefined;
-    if (bloom || vignette || filmGrain) {
+    const colorGrade = this.resolveColorGrade(options.colorGrade);
+    if (bloom || vignette || filmGrain || colorGrade) {
       converted.postProcessing = {
         bloom: bloom ?? false,
         vignette: vignette ?? false,
         filmGrain: filmGrain ?? false,
+        colorGrade,
       };
     }
 
     return converted;
+  }
+
+  /** Balanced default punch when `colorGrade: true` (roughly -1..1, 0 = none). */
+  private static readonly DEFAULT_GRADE_CONTRAST = 0.12;
+  private static readonly DEFAULT_GRADE_SATURATION = 0.15;
+
+  /** Resolve the `boolean | {contrast?, saturation?}` option to concrete amounts. */
+  private static resolveColorGrade(
+    raw: unknown
+  ): { contrast: number; saturation: number } | undefined {
+    if (!raw) {
+      return undefined;
+    }
+    if (raw === true) {
+      return { contrast: this.DEFAULT_GRADE_CONTRAST, saturation: this.DEFAULT_GRADE_SATURATION };
+    }
+    if (typeof raw === 'object') {
+      const grade = raw as { contrast?: number; saturation?: number };
+      return {
+        contrast: grade.contrast ?? this.DEFAULT_GRADE_CONTRAST,
+        saturation: grade.saturation ?? this.DEFAULT_GRADE_SATURATION,
+      };
+    }
+    return undefined;
   }
 
   private static convertShadowMapType(type: unknown): 'basic' | 'pcf' | 'pcfsoft' | 'vsm' | undefined {

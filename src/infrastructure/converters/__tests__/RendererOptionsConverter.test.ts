@@ -27,6 +27,24 @@ describe('RendererOptionsConverter — post-processing', () => {
       filmGrain: true,
     });
   });
+
+  it('resolves colorGrade: true to the balanced default amounts (and enables the block alone)', () => {
+    expect(convert({ colorGrade: true }).postProcessing?.colorGrade).toEqual({
+      contrast: 0.12,
+      saturation: 0.15,
+    });
+  });
+
+  it('fills missing colorGrade amounts from the defaults', () => {
+    expect(convert({ colorGrade: { contrast: 0.3 } }).postProcessing?.colorGrade).toEqual({
+      contrast: 0.3,
+      saturation: 0.15,
+    });
+  });
+
+  it('omits colorGrade (and the block) when it is false', () => {
+    expect(convert({ colorGrade: false }).postProcessing).toBeUndefined();
+  });
 });
 
 describe('RendererOptionsConverter — tone mapping', () => {

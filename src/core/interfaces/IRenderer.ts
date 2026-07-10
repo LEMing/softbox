@@ -60,6 +60,8 @@ export interface IRendererOptions {
     bloom?: boolean;
     vignette?: boolean;
     filmGrain?: boolean;
+    /** Resolved contrast + saturation grade amounts, or absent when off. */
+    colorGrade?: { contrast: number; saturation: number };
   };
 }
 

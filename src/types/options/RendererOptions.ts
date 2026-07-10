@@ -16,6 +16,13 @@ export interface RendererOptions {
   vignette?: boolean;
   /** Opt-in subtle photographic film grain. */
   filmGrain?: boolean;
+  /**
+   * Opt-in contrast + saturation grade applied after tone mapping — adds punch
+   * (a more "hero" read) while keeping the tone-mapping operator's hue. Pass
+   * `true` for a balanced default, or an object to tune each amount (roughly
+   * `-1..1`, `0` = no change). Off by default.
+   */
+  colorGrade?: boolean | { contrast?: number; saturation?: number };
   // NOTE: all three route the raster view through a post-processing composer
   // (lazy-loaded on first use — no cost or bundle weight if unused), so they
   // add a per-frame pass while the scene renders; leave them off for the

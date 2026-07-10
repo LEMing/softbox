@@ -1,6 +1,24 @@
 Changelog
 =========
 
+4.15.0
+---
+
+### New: an opt-in contrast + saturation colour grade
+
+* **`renderer.colorGrade` adds punch after tone mapping.** The last piece of the render
+  wave: an opt-in grade that lifts contrast and saturation on the final image for a more
+  "hero" read — richer colours, deeper blacks — while keeping the tone-mapping operator's
+  hue (so the default Khronos PBR Neutral look still doesn't wash saturated highlights
+  toward white the way swapping to a contrastier operator would). Pass `renderer.colorGrade:
+  true` for a balanced default, or `{ contrast?, saturation? }` (roughly `-1..1`, `0` = no
+  change) to tune each amount. It runs as two of three.js's stock display-space shader
+  passes (BrightnessContrast → HueSaturation) appended after `OutputPass`, and, like the
+  other post-processing effects, routes through the lazily-loaded composer — off by default,
+  so a viewer that doesn't use it pays nothing in bundle weight or per-frame cost, and it is
+  ignored while path tracing is active. The playground gains a **grade** toggle in the POST
+  row.
+
 4.14.0
 ---
 

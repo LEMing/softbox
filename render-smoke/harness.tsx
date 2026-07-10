@@ -109,7 +109,7 @@ const Harness = () => {
       animations={animate}
       options={
         withEffects
-          ? { renderer: { bloom: true, vignette: true, filmGrain: true } }
+          ? { renderer: { bloom: true, vignette: true, filmGrain: true, colorGrade: true } }
           : undefined
       }
     >
