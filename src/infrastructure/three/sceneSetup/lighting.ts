@@ -100,6 +100,33 @@ export function addLighting(scene: IScene, options: ILightingOptions): Result<vo
       }
     }
 
+    // Shadowless studio accents. Added AFTER the key so findDirectionalLight
+    // (which resolves the FIRST directional as the shadow/contact-shadow source)
+    // still returns the key, not a fill/rim. Neither casts shadows — one shadow,
+    // from the key, keeps the contact shadow single and clean.
+    const addAccent = (
+      accent: NonNullable<ILightingOptions['fill']>,
+      fallback: [number, number, number]
+    ) => {
+      const light = new THREE.DirectionalLight(
+        new THREE.Color(accent.color || '#ffffff'),
+        accent.intensity ?? 1
+      );
+      const pos = accent.position ?? fallback;
+      light.position.set(pos[0], pos[1], pos[2]);
+      light.target.position.set(0, 0, 0);
+      threeScene.add(light);
+      threeScene.add(light.target);
+    };
+    // Soft opposite-side fill opens the shadow; rim/back light behind the
+    // subject separates its silhouette from the backdrop.
+    if (options.fill) {
+      addAccent(options.fill, [-60, 30, 30]);
+    }
+    if (options.rim) {
+      addAccent(options.rim, [20, 50, -70]);
+    }
+
     return Result.ok(undefined);
   } catch (error) {
     return Result.err(

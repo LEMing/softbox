@@ -3,8 +3,30 @@ import { ISceneSetupService, ILightingOptions, IHelperOptions } from './services
 import { IEnvironmentService } from './services/IEnvironmentService';
 import { IRenderer } from './interfaces/IRenderer';
 import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
+import { Vec3Like } from './interfaces/Vec3Like';
 
 const DARK_STUDIO_BACKGROUND = '#1a1a1f';
+
+/**
+ * Normalize a light position to the `[x, y, z]` tuple the engine layer expects.
+ * The public option types accept a `{x, y, z}` `Vec3Like` too, so honour it
+ * here rather than silently dropping it to the light's fallback direction.
+ */
+const toPositionArray = (
+  position: Vec3Like | [number, number, number] | undefined
+): [number, number, number] | undefined => {
+  if (Array.isArray(position)) {
+    return position;
+  }
+  if (position && typeof position === 'object') {
+    return [position.x, position.y, position.z];
+  }
+  return undefined;
+};
+
+/** A colour as a string, or undefined so the engine layer can default cleanly. */
+const toColor = (color: string | number | undefined): string | undefined =>
+  color !== undefined ? String(color) : undefined;
 
 /**
  * Configures a scene's visual setup — helpers, lighting, background and the
@@ -47,13 +69,21 @@ export class SceneConfigurator {
           intensity: lightingConfig.hemisphereLight.intensity
         } : undefined,
         directional: lightingConfig.directionalLight ? {
-          color: String(lightingConfig.directionalLight.color),
+          color: toColor(lightingConfig.directionalLight.color),
           intensity: lightingConfig.directionalLight.intensity,
-          position: Array.isArray(lightingConfig.directionalLight.position)
-            ? lightingConfig.directionalLight.position as [number, number, number]
-            : undefined,
+          position: toPositionArray(lightingConfig.directionalLight.position),
           castShadow: lightingConfig.directionalLight.castShadow,
           shadow: lightingConfig.directionalLight.shadow
+        } : undefined,
+        fill: lightingConfig.fillLight ? {
+          color: toColor(lightingConfig.fillLight.color),
+          intensity: lightingConfig.fillLight.intensity,
+          position: toPositionArray(lightingConfig.fillLight.position),
+        } : undefined,
+        rim: lightingConfig.rimLight ? {
+          color: toColor(lightingConfig.rimLight.color),
+          intensity: lightingConfig.rimLight.intensity,
+          position: toPositionArray(lightingConfig.rimLight.position),
         } : undefined,
       };
       const lightingResult = sceneSetupService.addLighting(scene, lightingOptions);

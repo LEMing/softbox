@@ -64,6 +64,46 @@ describe('SceneConfigurator', () => {
       });
     });
 
+    it('maps fill/rim accent lights through to addLighting', () => {
+      const sceneSetup = makeSceneSetup();
+      configurator.configureScene(makeScene(), sceneSetup, {
+        lighting: {
+          directionalLight: { color: '#fff', intensity: 2, position: [40, 90, 40], castShadow: true },
+          fillLight: { color: '#eef2ff', intensity: 0.6, position: [-55, 28, 34] },
+          rimLight: { color: '#f2f6ff', intensity: 2.6, position: [18, 52, -72] },
+        },
+      });
+      expect(sceneSetup.addLighting).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          fill: { color: '#eef2ff', intensity: 0.6, position: [-55, 28, 34] },
+          rim: { color: '#f2f6ff', intensity: 2.6, position: [18, 52, -72] },
+        })
+      );
+    });
+
+    it('leaves an accent colour undefined rather than passing the string "undefined"', () => {
+      const sceneSetup = makeSceneSetup();
+      configurator.configureScene(makeScene(), sceneSetup, {
+        lighting: { fillLight: { intensity: 0.6 } },
+      });
+      const mapped = sceneSetup.addLighting.mock.calls[0][1];
+      expect(mapped.fill).toEqual({ color: undefined, intensity: 0.6, position: undefined });
+    });
+
+    it('normalizes a {x,y,z} light position to a tuple (honours the Vec3Like type)', () => {
+      const sceneSetup = makeSceneSetup();
+      configurator.configureScene(makeScene(), sceneSetup, {
+        lighting: {
+          directionalLight: { position: { x: 40, y: 90, z: 40 }, castShadow: true },
+          rimLight: { position: { x: 18, y: 52, z: -72 } },
+        },
+      });
+      const mapped = sceneSetup.addLighting.mock.calls[0][1];
+      expect(mapped.directional?.position).toEqual([40, 90, 40]);
+      expect(mapped.rim?.position).toEqual([18, 52, -72]);
+    });
+
     it('paints a radial vignette when a backgroundColorEdge is given', () => {
       const sceneSetup = makeSceneSetup();
       const scene = makeScene();

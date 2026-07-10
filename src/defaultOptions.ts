@@ -54,28 +54,31 @@ const defaultOptions: SimpleViewerOptions = {
     environmentIntensity: 0.5,
   },
 
-  // Lighting: a near-neutral directional key gives gentle form and the contact
-  // shadow, while a generous ambient/hemisphere fill keeps the shadowed side
-  // and crevices bright and open — a soft high-key studio look. Warmth is left
-  // to the model's own materials rather than a tinted key, so genuinely
+  // Lighting: a proper studio three-point rig. A near-neutral directional KEY
+  // gives form + the contact shadow; a soft opposite-side FILL opens the shadow
+  // without a second cast; a cool RIM behind the subject kicks a bright edge
+  // that separates the silhouette from the backdrop (the "hero" read). Ambient +
+  // hemisphere are a restrained omnidirectional base — kept low so the shadow
+  // side stays deep enough for contrast, letting the key/rim do the shaping.
+  // Warmth is left to the model's own materials, not a tinted key, so genuinely
   // white/neutral models are not pushed yellow.
   lighting: {
     ambientLight: {
       color: '#4a4a4a',
-      intensity: 0.5,
+      intensity: 0.32,
     },
     hemisphereLight: {
       skyColor: '#fff6ec',
       // Warm-neutral bounce (not a cold blue, which cooled the shadowed side).
       groundColor: '#3c3630',
-      intensity: 0.45,
+      intensity: 0.3,
     },
     directionalLight: {
       // Barely-warm, near-white key: enough to avoid a clinical cool cast but
       // not enough to tint the render orange — the model's albedo carries the
-      // warmth. Restrained intensity so the specular hotspot stays soft.
+      // warmth. Stronger now that the fill is lower, for a crisper specular.
       color: '#fff8f2',
-      intensity: 1.9,
+      intensity: 2.4,
       // Steeper than a 45-degree key light so the cast shadow falls mostly
       // directly under the model (a tight contact shadow) instead of
       // streaking off to one side.
@@ -98,6 +101,22 @@ const defaultOptions: SimpleViewerOptions = {
         // world-space span, so texel density stays high regardless of scale.
         radius: 14,
       },
+    },
+    // Soft, cool-neutral fill from the opposite/lower side of the key: opens the
+    // shadowed side so it reads as form, not a black void, without casting a
+    // competing shadow. ~1/4 the key so the key still clearly dominates.
+    fillLight: {
+      color: '#eef2ff',
+      intensity: 0.6,
+      position: [-55, 28, 34],
+    },
+    // Cool rim/back light behind and above the subject (opposite the default
+    // left-front camera): grazes a bright edge along the top/back silhouette so
+    // it separates from the backdrop — the single biggest "hero" cue.
+    rimLight: {
+      color: '#f2f6ff',
+      intensity: 2.6,
+      position: [18, 52, -72],
     },
   },
 
