@@ -80,11 +80,13 @@ export class ThreeRendererAdapter implements IRenderer {
       // full-screen shader per pixel), so on a HiDPI display it does 4-9x the
       // work; cap the ratio at 2 when any effect is on to keep it affordable on
       // mobile.
-      const postEnabled = anyPostEffectEnabled({
+      const postConfig = {
         bloom: options.postProcessing?.bloom ?? false,
         vignette: options.postProcessing?.vignette ?? false,
         filmGrain: options.postProcessing?.filmGrain ?? false,
-      });
+        colorGrade: options.postProcessing?.colorGrade ?? null,
+      };
+      const postEnabled = anyPostEffectEnabled(postConfig);
       const requestedRatio = options.pixelRatio ?? window.devicePixelRatio;
       this.renderer.setPixelRatio(postEnabled ? Math.min(requestedRatio, 2) : requestedRatio);
 
@@ -103,11 +105,7 @@ export class ThreeRendererAdapter implements IRenderer {
       // It lazy-loads its chunk, so this is cheap and adds no bundle weight for
       // viewers that use no effects.
       if (postEnabled) {
-        this.postPipeline = new PostProcessingPipeline(this.renderer, {
-          bloom: options.postProcessing?.bloom ?? false,
-          vignette: options.postProcessing?.vignette ?? false,
-          filmGrain: options.postProcessing?.filmGrain ?? false,
-        });
+        this.postPipeline = new PostProcessingPipeline(this.renderer, postConfig);
       }
 
       return Result.ok(undefined);

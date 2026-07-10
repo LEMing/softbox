@@ -40,15 +40,20 @@ class FakeBloomPass {
   ) {}
 }
 interface ShaderLike {
+  name?: string;
   uniforms?: Record<string, { value: unknown }>;
   fragmentShader?: string;
 }
 class FakeShaderPass {
   uniforms: Record<string, { value: unknown }>;
   constructor(public shader: ShaderLike) {
-    // Mirror the real ShaderPass, which clones the shader's uniforms; fall back
-    // to the vignette uniforms when the mocked shader carries none.
-    this.uniforms = shader?.uniforms ?? { offset: { value: 0 }, darkness: { value: 0 } };
+    // Mirror the real ShaderPass, which CLONES the shader's uniforms (so setting
+    // a pass uniform never mutates the shared shader module); fall back to the
+    // vignette uniforms when the mocked shader carries none.
+    const source = shader?.uniforms ?? { offset: { value: 0 }, darkness: { value: 0 } };
+    this.uniforms = Object.fromEntries(
+      Object.entries(source).map(([key, uniform]) => [key, { value: uniform.value }])
+    );
   }
 }
 
@@ -58,6 +63,12 @@ jest.mock('three/examples/jsm/postprocessing/OutputPass.js', () => ({ OutputPass
 jest.mock('three/examples/jsm/postprocessing/UnrealBloomPass.js', () => ({ UnrealBloomPass: FakeBloomPass }));
 jest.mock('three/examples/jsm/postprocessing/ShaderPass.js', () => ({ ShaderPass: FakeShaderPass }));
 jest.mock('three/examples/jsm/shaders/VignetteShader.js', () => ({ VignetteShader: { name: 'vignette' } }));
+jest.mock('three/examples/jsm/shaders/BrightnessContrastShader.js', () => ({
+  BrightnessContrastShader: { name: 'brightnessContrast', uniforms: { brightness: { value: 0 }, contrast: { value: 0 } } },
+}));
+jest.mock('three/examples/jsm/shaders/HueSaturationShader.js', () => ({
+  HueSaturationShader: { name: 'hueSaturation', uniforms: { hue: { value: 0 }, saturation: { value: 0 } } },
+}));
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -71,7 +82,7 @@ const fakeRenderer = () =>
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera();
 
-const allOff: PostProcessingConfig = { bloom: false, vignette: false, filmGrain: false };
+const allOff: PostProcessingConfig = { bloom: false, vignette: false, filmGrain: false, colorGrade: null };
 
 describe('anyPostEffectEnabled', () => {
   it('is false when every effect is off', () => {
@@ -82,6 +93,7 @@ describe('anyPostEffectEnabled', () => {
     expect(anyPostEffectEnabled({ ...allOff, bloom: true })).toBe(true);
     expect(anyPostEffectEnabled({ ...allOff, vignette: true })).toBe(true);
     expect(anyPostEffectEnabled({ ...allOff, filmGrain: true })).toBe(true);
+    expect(anyPostEffectEnabled({ ...allOff, colorGrade: { contrast: 0.1, saturation: 0.1 } })).toBe(true);
   });
 });
 
@@ -107,6 +119,26 @@ describe('PostProcessingPipeline', () => {
     expect(composer.renderCount).toBe(2);
   });
 
+  it('appends contrast + saturation grade passes after OutputPass with the configured amounts', async () => {
+    const pipeline = new PostProcessingPipeline(fakeRenderer(), {
+      ...allOff,
+      colorGrade: { contrast: 0.2, saturation: 0.3 },
+    });
+    await flush();
+    pipeline.render(scene, camera);
+    const passes = getComposer(pipeline).passes;
+    const shaderName = (p: unknown) => (p as FakeShaderPass).shader?.name as string | undefined;
+    const outputIndex = passes.findIndex((p) => p instanceof FakeOutputPass);
+    const contrastPass = passes.find((p) => shaderName(p) === 'brightnessContrast') as FakeShaderPass;
+    const saturationPass = passes.find((p) => shaderName(p) === 'hueSaturation') as FakeShaderPass;
+    // Both grade passes run in display space (after tone mapping)…
+    expect(passes.indexOf(contrastPass)).toBeGreaterThan(outputIndex);
+    expect(passes.indexOf(saturationPass)).toBeGreaterThan(outputIndex);
+    // …and the configured amounts reach the shader uniforms.
+    expect(contrastPass.uniforms.contrast.value).toBe(0.2);
+    expect(saturationPass.uniforms.saturation.value).toBe(0.3);
+  });
+
   it('wires only RenderPass + OutputPass when just one display effect is on', async () => {
     const pipeline = new PostProcessingPipeline(fakeRenderer(), { ...allOff, vignette: true });
     await flush();
@@ -127,6 +159,7 @@ describe('PostProcessingPipeline', () => {
       bloom: true,
       vignette: false,
       filmGrain: true,
+      colorGrade: null,
     });
     await flush();
     pipeline.render(scene, camera);

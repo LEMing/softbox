@@ -5,11 +5,13 @@ export interface PostProcessingConfig {
   bloom: boolean;
   vignette: boolean;
   filmGrain: boolean;
+  /** Contrast + saturation grade amounts, or null when off. */
+  colorGrade: { contrast: number; saturation: number } | null;
 }
 
 /** True when at least one effect is on (so a composer is worth building). */
 export function anyPostEffectEnabled(config: PostProcessingConfig): boolean {
-  return config.bloom || config.vignette || config.filmGrain;
+  return config.bloom || config.vignette || config.filmGrain || config.colorGrade !== null;
 }
 
 // Structural typing over the three/examples pass classes we lazy-load, so this
@@ -38,6 +40,8 @@ interface PostModules {
   UnrealBloomPass?: new (resolution: THREE.Vector2, strength: number, radius: number, threshold: number) => unknown;
   ShaderPass?: new (shader: unknown) => ShaderPassInstance;
   VignetteShader?: unknown;
+  BrightnessContrastShader?: unknown;
+  HueSaturationShader?: unknown;
 }
 
 // A deterministic, per-pixel grain applied once in display space — NOT animated
@@ -98,11 +102,12 @@ export class PostProcessingPipeline {
 
   private async load(): Promise<void> {
     try {
-      // The vignette and the static grain both run through ShaderPass, so load
-      // it when either is on; the Vignette shader itself only when the vignette
-      // is on (grain uses the in-module STATIC_GRAIN_SHADER).
-      const needsShaderPass = this.config.vignette || this.config.filmGrain;
-      const [ec, rp, op, bloom, sp, vig] = await Promise.all([
+      // The vignette, the static grain and the colour grade all run through
+      // ShaderPass, so load it when any is on; each shader itself only when its
+      // effect is on (grain uses the in-module STATIC_GRAIN_SHADER).
+      const grade = this.config.colorGrade !== null;
+      const needsShaderPass = this.config.vignette || this.config.filmGrain || grade;
+      const [ec, rp, op, bloom, sp, vig, grade2] = await Promise.all([
         import('three/examples/jsm/postprocessing/EffectComposer.js'),
         import('three/examples/jsm/postprocessing/RenderPass.js'),
         import('three/examples/jsm/postprocessing/OutputPass.js'),
@@ -115,6 +120,12 @@ export class PostProcessingPipeline {
         this.config.vignette
           ? import('three/examples/jsm/shaders/VignetteShader.js')
           : Promise.resolve(null),
+        grade
+          ? Promise.all([
+              import('three/examples/jsm/shaders/BrightnessContrastShader.js'),
+              import('three/examples/jsm/shaders/HueSaturationShader.js'),
+            ])
+          : Promise.resolve(null),
       ]);
       if (this.disposed) {
         return;
@@ -126,6 +137,8 @@ export class PostProcessingPipeline {
         UnrealBloomPass: bloom?.UnrealBloomPass as PostModules['UnrealBloomPass'],
         ShaderPass: sp?.ShaderPass as PostModules['ShaderPass'],
         VignetteShader: vig?.VignetteShader,
+        BrightnessContrastShader: grade2?.[0].BrightnessContrastShader,
+        HueSaturationShader: grade2?.[1].HueSaturationShader,
       };
     } catch (error) {
       this.loadFailed = true;
@@ -196,6 +209,20 @@ export class PostProcessingPipeline {
     // composited frame matches the plain-render look. Everything above runs in
     // linear HDR; everything below is a display-space touch.
     composer.addPass(new modules.OutputPass() as object);
+
+    // Colour grade in display space (after tone mapping): contrast then
+    // saturation, via three's stock shaders — they keep the tone-mapping
+    // operator's hue while adding punch, unlike swapping to a contrastier
+    // operator (which would wash saturated highlights toward white).
+    const grade = this.config.colorGrade;
+    if (grade && modules.ShaderPass && modules.BrightnessContrastShader && modules.HueSaturationShader) {
+      const contrastPass = new modules.ShaderPass(modules.BrightnessContrastShader);
+      contrastPass.uniforms.contrast.value = grade.contrast;
+      composer.addPass(contrastPass as object);
+      const saturationPass = new modules.ShaderPass(modules.HueSaturationShader);
+      saturationPass.uniforms.saturation.value = grade.saturation;
+      composer.addPass(saturationPass as object);
+    }
 
     if (this.config.vignette && modules.ShaderPass && modules.VignetteShader) {
       const vignette = new modules.ShaderPass(modules.VignetteShader);

@@ -76,6 +76,7 @@ export function SiteApp() {
   const [bloom, setBloom] = useState(false);
   const [vignette, setVignette] = useState(false);
   const [filmGrain, setFilmGrain] = useState(false);
+  const [colorGrade, setColorGrade] = useState(false);
   const [pins, setPins] = useState<Pin[]>([]);
   const [stillState, setStillState] = useState<'idle' | 'capturing' | 'failed'>('idle');
   const pinIdRef = useRef(0);
@@ -194,6 +195,7 @@ export function SiteApp() {
             { key: 'bloom', label: 'bloom', active: bloom, onToggle: setBloom },
             { key: 'vignette', label: 'vignette', active: vignette, onToggle: setVignette },
             { key: 'grain', label: 'grain', active: filmGrain, onToggle: setFilmGrain },
+            { key: 'grade', label: 'grade', active: colorGrade, onToggle: setColorGrade },
           ]}
         />
         <div style={{ fontSize: 11.5, color: rejectedName ? '#b3261e' : '#7a7a85' }} role="status">
@@ -280,7 +282,7 @@ export function SiteApp() {
         // Enabling a renderer effect is a structural change that rebuilds the
         // viewer; remounting on a key gives it a clean canvas + fresh model load
         // rather than an in-place rebuild, so the demo swaps effects reliably.
-        key={`fx-${bloom}-${vignette}-${filmGrain}`}
+        key={`fx-${bloom}-${vignette}-${filmGrain}-${colorGrade}`}
         ref={viewerRef}
         object={modelUrl}
         turntable={turntable}
@@ -302,8 +304,8 @@ export function SiteApp() {
               }
             : {}),
           ...(pathTraced ? { pathTracing: { enabled: true } } : {}),
-          ...((bloom || vignette || filmGrain)
-            ? { renderer: { bloom, vignette, filmGrain } }
+          ...((bloom || vignette || filmGrain || colorGrade)
+            ? { renderer: { bloom, vignette, filmGrain, colorGrade } }
             : {}),
         }}
       >
