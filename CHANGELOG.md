@@ -1,6 +1,22 @@
 Changelog
 =========
 
+4.14.0
+---
+
+### A higher-contrast studio environment for crisper reflections
+
+The default image-based lighting was three's stock `RoomEnvironment` — an even, neutral
+room that gave glossy materials a soft, flat wash with no distinct highlights. The studio
+environment is now pushed to a higher-contrast "product-shot" look before it's baked: the
+reflected surround (the room walls + furniture) is darkened and the emissive soft-box
+panels are slightly concentrated, so metals and glossy surfaces show crisp, distinct
+highlights against a deeper background instead of an even grey reflection. The contrast is
+applied to the one shared room scene before PMREM, so the raster environment map and the
+path tracer's cube capture stay identical, and the raster/traced looks continue to match.
+Combined with the 4.13.0 three-point rig, the default read is noticeably more dimensional
+without touching material colours or the neutral white balance.
+
 4.13.0
 ---
 

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment';
+import { applyStudioContrast } from './studioEnvironmentContrast';
 import { 
   IEnvironmentService, 
   IEnvironmentOptions,
@@ -353,8 +354,11 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         );
       }
 
-      // Create RoomEnvironment scene
+      // Create RoomEnvironment scene, pushed to a higher-contrast studio look
+      // (darker surround, punchier soft-boxes) before it is baked — so both the
+      // PMREM env map and the path tracer's cube capture below share it.
       const roomEnvironment = new RoomEnvironment();
+      applyStudioContrast(roomEnvironment);
       const renderTarget = this.pmremGenerator.fromScene(roomEnvironment);
       this.renderTargets.push(renderTarget);
       const roomTexture = renderTarget.texture;
