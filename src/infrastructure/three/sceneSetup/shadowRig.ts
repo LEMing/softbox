@@ -70,6 +70,24 @@ export function fitShadowCameraToObject(scene: IScene, object: IObject3D): Resul
     shadowCamera.right = halfExtent;
     shadowCamera.top = halfExtent;
     shadowCamera.bottom = -halfExtent;
+    // The DEPTH range must scale with the object too: shadow bias is specified
+    // in normalized depth, so against the configured fixed near/far span its
+    // world-space offset is constant (~2cm for the default rig) regardless of
+    // model size — invisible under a car, but it erases a 6cm object's whole
+    // contact shadow (peter-panning: the shadow detaches from the mesh).
+    // Bracketing the object along the light axis makes the offset proportional
+    // to the model at every scale, and keeps shadow-map depth precision high.
+    // Padding 2×halfExtent: a receiver fragment inside the (square) lateral
+    // frustum sits at most √2·halfExtent off-centre, and the shadow lookup
+    // treats a fragment whose depth falls past `far` as lit — the doubled pad
+    // keeps the floor inside the depth bracket at any light tilt.
+    const lightWorld = directionalLight.getWorldPosition(new THREE.Vector3());
+    const targetWorld = directionalLight.target.getWorldPosition(new THREE.Vector3());
+    const viewDirection = targetWorld.sub(lightWorld).normalize();
+    const centerDepth = center.clone().sub(lightWorld).dot(viewDirection);
+    const depthPadding = halfExtent * 2;
+    shadowCamera.near = Math.max(centerDepth - depthPadding, centerDepth * 0.01);
+    shadowCamera.far = centerDepth + depthPadding;
     shadowCamera.updateProjectionMatrix();
 
     return Result.ok(undefined);
