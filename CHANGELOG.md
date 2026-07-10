@@ -1,6 +1,25 @@
 Changelog
 =========
 
+4.15.4
+---
+
+### Small models get a real contact shadow (the shadow now touches the mesh)
+
+* **The baked contact shadow no longer detaches from small models.** On an avocado or a
+  water bottle the shadow rendered as an offset blob (or a ring) that never touched the
+  mesh, while a car-sized model looked perfect. Root cause: shadow **bias** is specified
+  in normalized depth against the shadow camera's **fixed** 0.5..200 depth span, so its
+  world-space offset was a constant ~2cm at every model size — classic *peter-panning*.
+  Two centimetres is 0.2% of a motorhome (invisible) but a third of a 6cm avocado: the
+  entire contact pool was erased and only the sideways-displaced silhouette survived.
+* Two scale-invariant fixes: the **bake** now uses zero bias (its receiver plane casts no
+  shadow, so it is absent from the depth map and shadow acne on it is impossible) and
+  brackets the depth range tightly around the object per jittered sample; the **live**
+  pre-bake shadow rig now fits the shadow camera's near/far to the object as well, so the
+  bias offset scales with the model (~0.02% of its size) instead of a fixed ~2cm.
+  Large models are unchanged.
+
 4.15.3
 ---
 
