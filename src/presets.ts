@@ -5,10 +5,11 @@ import { deepMerge } from './utils/deepMerge';
 /**
  * Visual presets: cohesive deltas layered over the defaults (deep-merged) so a
  * model looks intentional on first paint. Each preset only sets **runtime** look
- * fields — background color, tone-mapping exposure and environment intensity —
- * so switching presets is applied live (no viewer rebuild, no model reload) and
- * everything else (camera auto-framing, lighting rig, controls, grid) is
- * inherited from the defaults. Explicit user options always win.
+ * fields — background color (plus an optional radial-vignette edge colour),
+ * tone-mapping exposure and environment intensity — so switching presets is
+ * applied live (no viewer rebuild, no model reload) and everything else (camera
+ * auto-framing, lighting rig, controls, grid) is inherited from the defaults.
+ * Explicit user options always win.
  */
 export const VIEWER_PRESETS: Record<ViewerPreset, Partial<SimpleViewerOptions>> = {
   studio: {
@@ -27,9 +28,14 @@ export const VIEWER_PRESETS: Record<ViewerPreset, Partial<SimpleViewerOptions>> 
     environment: { environmentIntensity: 0.45 },
   },
   dark: {
-    backgroundColor: '#1a1a1f',
-    renderer: { toneMappingExposure: 1.2 },
-    environment: { environmentIntensity: 0.5 },
+    // A radial cove: a slightly-lifted centre behind the subject falling off to
+    // a near-black edge, so the model floats in a dark studio instead of on a
+    // flat grey scrim. Lower env intensity + a touch more exposure deepen the
+    // contrast while keeping the subject bright — a punchier hero read.
+    backgroundColor: '#242430',
+    backgroundColorEdge: '#050507',
+    renderer: { toneMappingExposure: 1.3 },
+    environment: { environmentIntensity: 0.42 },
   },
   outdoor: {
     backgroundColor: '#bcd4e6',

@@ -336,7 +336,7 @@ describe('useViewerCore', () => {
     // The dark preset's look is applied live via updateOptions...
     await waitFor(() =>
       expect(viewer.updateOptions).toHaveBeenCalledWith(
-        expect.objectContaining({ backgroundColor: '#1a1a1f' })
+        expect.objectContaining({ backgroundColor: '#242430', backgroundColorEdge: '#050507' })
       )
     );
     // ...and the viewer is neither rebuilt nor torn down (no model reload).

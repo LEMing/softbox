@@ -44,6 +44,14 @@ export interface SimpleViewerOptions {
 
   // Scene settings
   backgroundColor?: string | number;
+  /**
+   * Optional darker edge colour for a RADIAL backdrop vignette. When set,
+   * `backgroundColor` is painted as the centre (behind the subject) and this as
+   * the corners/bottom, floating the model in a soft cove instead of a flat
+   * fill. Omit for a flat background. Runtime-tunable (applies on a live preset
+   * switch without a rebuild), same as `backgroundColor`.
+   */
+  backgroundColorEdge?: string | number;
   staticScene?: boolean;
 
   // Component options

@@ -23,6 +23,7 @@ export const RUNTIME_PATH_TRACING_FIELDS = ['enabled'] as const;
 export function pickRuntimeOptions(options: SimpleViewerOptions): Partial<SimpleViewerOptions> {
   const runtime: Partial<SimpleViewerOptions> = {
     backgroundColor: options.backgroundColor,
+    backgroundColorEdge: options.backgroundColorEdge,
   };
   if (options.renderer?.toneMappingExposure !== undefined) {
     runtime.renderer = { toneMappingExposure: options.renderer.toneMappingExposure };

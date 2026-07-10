@@ -139,4 +139,11 @@ export interface IGradientOptions {
   bottomColor: string;
   offset?: number;
   exponent?: number;
+  /**
+   * Draw a RADIAL gradient (a soft studio vignette) instead of the default
+   * top-to-bottom vertical one: `topColor` becomes the centre (behind the
+   * subject) and `bottomColor` the darker edge/corner. Used by the dark preset
+   * to float the model in a near-black cove instead of a flat scrim.
+   */
+  radial?: boolean;
 }

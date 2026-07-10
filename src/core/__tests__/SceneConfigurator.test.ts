@@ -64,6 +64,20 @@ describe('SceneConfigurator', () => {
       });
     });
 
+    it('paints a radial vignette when a backgroundColorEdge is given', () => {
+      const sceneSetup = makeSceneSetup();
+      const scene = makeScene();
+      configurator.configureScene(scene, sceneSetup, {
+        backgroundColor: '#242430',
+        backgroundColorEdge: '#050507',
+      });
+      expect(sceneSetup.createGradientBackground).toHaveBeenCalledWith(scene, {
+        topColor: '#242430',
+        bottomColor: '#050507',
+        radial: true,
+      });
+    });
+
     it('skips the background when an environment URL will own it', () => {
       const sceneSetup = makeSceneSetup();
       configurator.configureScene(makeScene(), sceneSetup, {

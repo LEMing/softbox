@@ -65,8 +65,9 @@ export function fitCameraToObject(object: IObject3D, camera: ICamera, controls: 
     // Calculate distance needed to fit object in view
     let distance = Math.abs(maxDim / 2 / Math.tan(fov / 2));
 
-    // Add padding (100% extra space for better view)
-    distance *= 2.0;
+    // Breathing room beyond an exact fit (~65% extra): a tighter hero crop than
+    // the old 2.0x, which left the subject filling only about half the frame.
+    distance *= 1.65;
 
     // Left-front view at eye level
     // Angle: -45 degrees (315 degrees) for left-front

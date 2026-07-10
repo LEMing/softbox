@@ -46,7 +46,7 @@ export class ShadowFloorGrid implements IGridStyle {
   private createShadowCatcher(discRadius: number): THREE.Mesh {
     const catcher = new THREE.Mesh(
       new THREE.CircleGeometry(Math.max(discRadius, 1), 64),
-      new THREE.ShadowMaterial({ opacity: 0.35 })
+      new THREE.ShadowMaterial({ opacity: 0.28 })
     );
     catcher.name = CONTACT_SHADOW_LIVE_NAME;
     catcher.userData[CONTACT_SHADOW_HELPER_FLAG] = true;

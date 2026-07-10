@@ -63,7 +63,7 @@ describe('SimpleViewer preset picker (real hooks, live-apply seam)', () => {
 
     await waitFor(() =>
       expect(viewer.updateOptions).toHaveBeenCalledWith(
-        expect.objectContaining({ backgroundColor: '#1a1a1f' })
+        expect.objectContaining({ backgroundColor: '#242430', backgroundColorEdge: '#050507' })
       )
     );
     expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(1);
