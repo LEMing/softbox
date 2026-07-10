@@ -44,6 +44,22 @@ interface PostModules {
   HueSaturationShader?: unknown;
 }
 
+/**
+ * Bloom (UnrealBloomPass) tuning. A HIGH threshold means only genuinely blown
+ * highlights (a headlight, a direct sun glint) seed the glow, so it reads as a
+ * subtle studio touch rather than a haze over the whole brightly-lit scene — the
+ * brighter three-point rig + contrastier studio env push a lot of glossy
+ * specular into HDR, hence the high threshold + low strength.
+ */
+const BLOOM_STRENGTH = 0.08;
+const BLOOM_RADIUS = 0.25;
+const BLOOM_THRESHOLD = 2.5;
+/** Vignette (VignetteShader) tuning: darken the frame corners to focus the subject. */
+const VIGNETTE_OFFSET = 1.15;
+const VIGNETTE_DARKNESS = 1.05;
+/** Film-grain speckle strength (added to rgb in display space). */
+const GRAIN_INTENSITY = 0.05;
+
 // A deterministic, per-pixel grain applied once in display space — NOT animated
 // (a fixed photographic grain layer, not shimmering noise). The hash seeds off
 // gl_FragCoord (the device-pixel coordinate), so the speckle is one pixel wide
@@ -51,7 +67,7 @@ interface PostModules {
 const STATIC_GRAIN_SHADER = {
   uniforms: {
     tDiffuse: { value: null as THREE.Texture | null },
-    intensity: { value: 0.05 },
+    intensity: { value: GRAIN_INTENSITY },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -196,15 +212,14 @@ export class PostProcessingPipeline {
     composer.addPass(renderPass as object);
 
     if (this.config.bloom && modules.UnrealBloomPass) {
-      // Restrained: a HIGH threshold means only genuinely blown highlights
-      // (headlights, direct sun glints) seed the glow, so it reads as a subtle
-      // studio touch rather than a haze over the whole brightly-lit scene. The
-      // brighter three-point rig + contrastier studio env push a lot of glossy
-      // specular into HDR, so the threshold is high (2.5) and the strength low
-      // (0.08) to keep it from blooming the paint/chrome. Params:
-      // (resolution, strength, radius, threshold).
+      // Params: (resolution, strength, radius, threshold) — see the BLOOM_* consts.
       composer.addPass(
-        new modules.UnrealBloomPass(new THREE.Vector2(bufferSize.x, bufferSize.y), 0.08, 0.25, 2.5) as object
+        new modules.UnrealBloomPass(
+          new THREE.Vector2(bufferSize.x, bufferSize.y),
+          BLOOM_STRENGTH,
+          BLOOM_RADIUS,
+          BLOOM_THRESHOLD
+        ) as object
       );
     }
 
@@ -229,8 +244,8 @@ export class PostProcessingPipeline {
 
     if (this.config.vignette && modules.ShaderPass && modules.VignetteShader) {
       const vignette = new modules.ShaderPass(modules.VignetteShader);
-      vignette.uniforms.offset.value = 1.15;
-      vignette.uniforms.darkness.value = 1.05;
+      vignette.uniforms.offset.value = VIGNETTE_OFFSET;
+      vignette.uniforms.darkness.value = VIGNETTE_DARKNESS;
       composer.addPass(vignette as object);
     }
 

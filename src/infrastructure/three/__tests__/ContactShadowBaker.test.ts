@@ -206,7 +206,7 @@ describe('ContactShadowBaker', () => {
     const baked = scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME) as THREE.Mesh;
     const geometry = baked.geometry as THREE.CircleGeometry;
     expect(geometry.type).toBe('CircleGeometry');
-    // The 1m box would otherwise get a ~2.05 half-extent — the 0.5 floor wins.
+    // The 1m box would otherwise get a ~1.85 half-extent — the 0.5 floor wins.
     expect(geometry.parameters.radius).toBe(0.5);
   });
 
