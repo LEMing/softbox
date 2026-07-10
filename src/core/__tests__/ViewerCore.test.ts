@@ -866,14 +866,21 @@ describe('ViewerCore', () => {
   });
 
   describe('resize', () => {
-    it('does nothing when the canvas dimensions are unchanged', () => {
+    it('does nothing when the canvas dimensions AND camera aspect are unchanged', () => {
       const canvas = makeCanvas(640, 480);
       const bundle = makeDeps({ canvas });
+      // Both already correct → the early-return must fire: no setSize, no aspect
+      // reproject, no repaint (a rebuild is what makes the aspect stale, tested above).
+      (bundle.camera as unknown as { aspect: number }).aspect = 640 / 480;
       const viewer = new ViewerCore(bundle.deps);
+      (bundle.camera.updateProjectionMatrix as jest.Mock).mockClear();
+      bundle.renderer.render.mockClear();
 
       viewer.resize(640, 480);
 
       expect(bundle.renderer.setSize).not.toHaveBeenCalled();
+      expect(bundle.renderer.render).not.toHaveBeenCalled();
+      expect(bundle.camera.updateProjectionMatrix).not.toHaveBeenCalled();
     });
 
     it('is a no-op after dispose (prevents render against a disposed renderer)', () => {
@@ -902,6 +909,26 @@ describe('ViewerCore', () => {
       expect(aspect).toBeCloseTo(800 / 600);
       expect(bundle.camera.updateProjectionMatrix).toHaveBeenCalled();
       expect(bundle.renderer.setSize).toHaveBeenCalledWith(800, 600);
+      expect(bundle.renderer.render).toHaveBeenCalled();
+    });
+
+    it('re-applies the camera aspect on a rebuild that reuses an already-sized canvas', () => {
+      // A rebuild hands the fresh viewer a canvas already sized by the previous
+      // one, but a fresh camera at a stale aspect. Size alone matches, so a
+      // size-only guard would skip the aspect fix and the frame stretches.
+      const canvas = makeCanvas(1920, 1000);
+      const bundle = makeDeps({ canvas });
+      (bundle.camera as unknown as { aspect: number }).aspect = 1;
+      const viewer = new ViewerCore(bundle.deps);
+
+      viewer.resize(1920, 1000);
+
+      const aspect = (bundle.camera as unknown as { aspect: number }).aspect;
+      expect(aspect).toBeCloseTo(1920 / 1000);
+      expect(bundle.camera.updateProjectionMatrix).toHaveBeenCalled();
+      // Canvas already the right size — no redundant setSize, but repaint so the
+      // corrected aspect shows immediately.
+      expect(bundle.renderer.setSize).not.toHaveBeenCalled();
       expect(bundle.renderer.render).toHaveBeenCalled();
     });
 

@@ -729,15 +729,28 @@ export class ViewerCore {
     if (this.disposed) {
       return;
     }
+    const targetAspect = width / height;
     const canvas = this.renderer.getDomElement();
-    if (canvas.width === width && canvas.height === height) {
+    const sizeMatches = canvas.width === width && canvas.height === height;
+    // A structural rebuild reuses the already-sized canvas but with a FRESH
+    // camera still at its construction-default aspect. A size-only guard would
+    // then skip applyCameraAspect and the frame renders stretched (a round model
+    // reads as an ellipse). So skip only when the camera aspect is ALSO already
+    // correct, not on canvas size alone.
+    const isPerspective = this.camera.type === 'perspective' && 'aspect' in this.camera;
+    const aspectMatches =
+      !isPerspective ||
+      Math.abs((this.camera as unknown as { aspect: number }).aspect - targetAspect) < 1e-6;
+    if (sizeMatches && aspectMatches) {
       return;
     }
 
     const wasPathTracingActive = this.pathTracing.onResizeStart();
 
-    applyCameraAspect(this.camera, width / height);
-    this.renderer.setSize(width, height);
+    applyCameraAspect(this.camera, targetAspect);
+    if (!sizeMatches) {
+      this.renderer.setSize(width, height);
+    }
 
     // Render immediately so the resized frame never shows stretched.
     try {
