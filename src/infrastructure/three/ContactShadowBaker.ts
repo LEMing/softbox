@@ -406,14 +406,19 @@ export class ContactShadowBaker {
    * Bracket the depth range tightly around the object for the CURRENT sample
    * position. The distance is the exact projection of the object's centre onto
    * the light's view axis (aperture-jittered samples sit off-axis, so a plain
-   * centre distance would over-estimate and could clip the object), padded by
-   * the bounding radius so every vertex lands inside near..far.
+   * centre distance would over-estimate and could clip the object). The padding
+   * must cover BOTH every caster vertex (within `boundingRadius` of the centre)
+   * AND every fragment of the receiver disc: the shadow lookup treats a
+   * receiver whose depth falls past `far` as lit (`frustumTest`), so a tilted
+   * key sample would otherwise truncate the shadow tail at the disc edge —
+   * hence the extra `halfExtent` (the disc radius, an upper bound on a
+   * receiver fragment's along-axis depth offset at any tilt).
    */
   private fitBakeDepthRange(bakeLight: THREE.DirectionalLight, region: BakeRegion): void {
     const viewDirection = bakeLight.target.position.clone().sub(bakeLight.position).normalize();
     const toCenter = region.center.clone().sub(bakeLight.position);
     const centerDepth = toCenter.dot(viewDirection);
-    const padding = region.boundingRadius * 1.5;
+    const padding = region.boundingRadius * 1.5 + region.halfExtent;
 
     const camera = bakeLight.shadow.camera;
     camera.near = Math.max(centerDepth - padding, centerDepth * 0.01);
