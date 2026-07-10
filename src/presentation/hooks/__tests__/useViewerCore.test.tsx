@@ -108,9 +108,41 @@ describe('useViewerCore', () => {
 
     await waitFor(() =>
       expect(viewer.updateOptions).toHaveBeenCalledWith(
-        expect.objectContaining({ renderer: { toneMappingExposure: 0.42 } })
+        expect.objectContaining({
+          renderer: expect.objectContaining({ toneMappingExposure: 0.42 }),
+        })
       )
     );
+    expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(1);
+    expect(viewer.dispose).not.toHaveBeenCalled();
+  });
+
+  it('applies a post-effect toggle live via updateOptions, without rebuilding the viewer', async () => {
+    const canvasRef = makeCanvasRef();
+    const { result, rerender } = renderHook(
+      ({ options }: { options: SimpleViewerOptions }) => useViewerCore(canvasRef, options),
+      { initialProps: { options: testDefaultOptions } }
+    );
+    await waitFor(() => expect(result.current.isInitialized).toBe(true));
+    const viewer = createdViewers[0];
+    viewer.updateOptions.mockClear();
+
+    rerender({
+      options: {
+        ...testDefaultOptions,
+        renderer: { ...testDefaultOptions.renderer, bloom: true, colorGrade: true },
+      },
+    });
+
+    await waitFor(() =>
+      expect(viewer.updateOptions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          renderer: expect.objectContaining({ bloom: true, colorGrade: true }),
+        })
+      )
+    );
+    // The whole point: an effect toggle must not tear the viewer down (the old
+    // behavior forced the demo to remount on a key and reload the model).
     expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(1);
     expect(viewer.dispose).not.toHaveBeenCalled();
   });

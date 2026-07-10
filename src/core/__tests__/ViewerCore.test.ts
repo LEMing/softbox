@@ -21,6 +21,7 @@ import { SimpleViewerOptions } from '../../types/SimpleViewerOptions';
 import { TypedEventEmitter } from '../../events/EventEmitter';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import { RenderLoopManager } from '../utils/RenderLoopManager';
+import { PathTracingCoordinator } from '../PathTracingCoordinator';
 import { ScreenshotManager } from '../managers/ScreenshotManager';
 import { ModelManager } from '../managers/ModelManager';
 import { ResourceManager } from '../managers/ResourceManager';
@@ -102,6 +103,7 @@ const makeRenderer = (
     setPixelRatio: jest.fn(),
     getPixelRatio: jest.fn(() => 1),
     setToneMappingExposure: jest.fn(),
+    setPostProcessing: jest.fn(),
     getDomElement: jest.fn(() => canvas),
     getContext: jest.fn(() => null),
     dispose: jest.fn(),
@@ -1883,6 +1885,83 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     viewer.updateOptions({ backgroundColor: '#abcdef' });
 
     expect(bundle.sceneSetupService!.createGradientBackground).not.toHaveBeenCalled();
+  });
+
+  it('swaps the post-processing effects live when a toggle changes', () => {
+    const bundle = makeDeps({ options: {} });
+    const viewer = new ViewerCore(bundle.deps);
+
+    viewer.updateOptions({
+      renderer: { bloom: true, vignette: false, filmGrain: false, colorGrade: true },
+    });
+
+    expect(bundle.renderer.setPostProcessing).toHaveBeenCalledWith({
+      bloom: true,
+      vignette: false,
+      filmGrain: false,
+      colorGrade: true,
+    });
+  });
+
+  it('force-resets path-tracing accumulation on an effect toggle (a completed frame must repaint)', () => {
+    // The ratio-cap swap can resize the drawing buffer and clear a COMPLETED
+    // traced frame, whose presentation path never repaints by design — without
+    // the forced reset the viewer sticks blank until the controls move.
+    const resetSpy = jest.spyOn(PathTracingCoordinator.prototype, 'resetAccumulation');
+    const bundle = makeDeps({ options: {} });
+    const viewer = new ViewerCore(bundle.deps);
+
+    viewer.updateOptions({
+      renderer: { bloom: true, vignette: false, filmGrain: false, colorGrade: false },
+    });
+
+    expect(resetSpy).toHaveBeenCalledWith(true);
+  });
+
+  it('replaces an object colorGrade wholesale instead of merging its sub-fields', () => {
+    // deepMerge would keep the dropped `saturation`, silently pinning the old
+    // amount AND filtering the change as a no-op re-send.
+    const bundle = makeDeps({
+      options: { renderer: { colorGrade: { contrast: 0.2, saturation: 0.8 } } },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    viewer.updateOptions({
+      renderer: { bloom: false, vignette: false, filmGrain: false, colorGrade: { contrast: 0.2 } },
+    });
+
+    expect(bundle.renderer.setPostProcessing).toHaveBeenCalledWith(
+      expect.objectContaining({ colorGrade: { contrast: 0.2 } })
+    );
+  });
+
+  it('does not rebuild the composer on a re-send of an unchanged effect set', () => {
+    const bundle = makeDeps({ options: {} });
+    const viewer = new ViewerCore(bundle.deps);
+    const effects = { bloom: true, vignette: false, filmGrain: false, colorGrade: false };
+
+    viewer.updateOptions({ renderer: effects });
+    viewer.updateOptions({ renderer: effects });
+    // The runtime effect re-sends the whole set alongside unrelated changes too.
+    viewer.updateOptions({ renderer: { ...effects, toneMappingExposure: 1.3 } });
+
+    expect(bundle.renderer.setPostProcessing).toHaveBeenCalledTimes(1);
+  });
+
+  it('turns the effects off live when the set resolves back to all-false', () => {
+    const bundle = makeDeps({ options: { renderer: { bloom: true } } });
+    const viewer = new ViewerCore(bundle.deps);
+
+    viewer.updateOptions({
+      renderer: { bloom: false, vignette: false, filmGrain: false, colorGrade: false },
+    });
+
+    expect(bundle.renderer.setPostProcessing).toHaveBeenCalledWith({
+      bloom: false,
+      vignette: false,
+      filmGrain: false,
+      colorGrade: false,
+    });
   });
 
   it('does not repaint on an edge colour alone when no base background is set', () => {

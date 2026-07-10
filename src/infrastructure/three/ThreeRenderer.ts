@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import {
   IRenderer,
   IRendererOptions,
-  IRendererCapabilities
+  IRendererCapabilities,
+  IPostProcessingEffects
 } from '../../core/interfaces/IRenderer';
 import { IScene } from '../../core/interfaces/IScene';
 import { ICamera } from '../../core/interfaces/ICamera';
@@ -11,7 +12,12 @@ import { ThreeSceneAdapter } from './ThreeScene';
 import { ThreeCameraAdapter } from './ThreeCamera';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import { generateUUID } from '../../utils/uuid';
-import { PostProcessingPipeline, anyPostEffectEnabled } from './postprocessing/PostProcessingPipeline';
+import { RendererOptionsConverter } from '../converters/RendererOptionsConverter';
+import {
+  PostProcessingPipeline,
+  PostProcessingConfig,
+  anyPostEffectEnabled,
+} from './postprocessing/PostProcessingPipeline';
 
 /**
  * Adapter for Three.js WebGLRenderer to implement IRenderer
@@ -21,6 +27,10 @@ export class ThreeRendererAdapter implements IRenderer {
   private _id: string = generateUUID();
   private canvas?: HTMLCanvasElement;
   private postPipeline: PostProcessingPipeline | null = null;
+  // The consumer-requested pixel ratio, before the post-processing cap — kept
+  // so a runtime effect toggle can re-derive the right ratio in either
+  // direction (cap on enable, restore on disable).
+  private requestedPixelRatio = 1;
 
   constructor(canvas?: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -87,8 +97,10 @@ export class ThreeRendererAdapter implements IRenderer {
         colorGrade: options.postProcessing?.colorGrade ?? null,
       };
       const postEnabled = anyPostEffectEnabled(postConfig);
-      const requestedRatio = options.pixelRatio ?? window.devicePixelRatio;
-      this.renderer.setPixelRatio(postEnabled ? Math.min(requestedRatio, 2) : requestedRatio);
+      this.requestedPixelRatio = options.pixelRatio ?? window.devicePixelRatio;
+      this.renderer.setPixelRatio(
+        postEnabled ? Math.min(this.requestedPixelRatio, 2) : this.requestedPixelRatio
+      );
 
       // Set initial size if canvas has dimensions
       if (this.canvas) {
@@ -229,6 +241,39 @@ export class ThreeRendererAdapter implements IRenderer {
   setToneMappingExposure(exposure: number): void {
     if (this.renderer) {
       this.renderer.toneMappingExposure = exposure;
+    }
+  }
+
+  /**
+   * Live-swap the opt-in post-processing effects without a viewer rebuild:
+   * tears down the current composer (if any) and lazily builds one for the new
+   * set — or none, dropping back to the plain zero-cost render path. Also
+   * re-derives the pixel-ratio cap (post-processing is fragment-bound, so the
+   * ratio is capped at 2 while any effect is on and restored when all are off).
+   */
+  setPostProcessing(effects: IPostProcessingEffects): void {
+    if (!this.renderer) {
+      return;
+    }
+    const config: PostProcessingConfig = {
+      bloom: effects.bloom,
+      vignette: effects.vignette,
+      filmGrain: effects.filmGrain,
+      colorGrade: RendererOptionsConverter.resolveColorGrade(effects.colorGrade) ?? null,
+    };
+
+    this.postPipeline?.dispose();
+    this.postPipeline = null;
+
+    const postEnabled = anyPostEffectEnabled(config);
+    // setPixelRatio re-applies the renderer's stored size, so the drawing
+    // buffer picks the new ratio up immediately; the fresh pipeline sizes its
+    // composer from that buffer when it lazily builds on first render.
+    this.renderer.setPixelRatio(
+      postEnabled ? Math.min(this.requestedPixelRatio, 2) : this.requestedPixelRatio
+    );
+    if (postEnabled) {
+      this.postPipeline = new PostProcessingPipeline(this.renderer, config);
     }
   }
 

@@ -11,7 +11,17 @@ import { SimpleViewerOptions } from './SimpleViewerOptions';
 // animations has no non-runtime fields, so unlike its siblings it needs no
 // entry here — useStableOptions never has to strip anything from it via
 // structuralPart.
-export const RUNTIME_RENDERER_FIELDS = ['toneMappingExposure'] as const;
+// The post-processing effects are runtime: toggling one swaps the composer
+// pipeline on the live renderer (ThreeRendererAdapter.setPostProcessing) —
+// tearing down the whole viewer (and re-fetching the model) for a display-
+// space effect would be the aspect-stretch class of over-rebuild.
+export const RUNTIME_RENDERER_FIELDS = [
+  'toneMappingExposure',
+  'bloom',
+  'vignette',
+  'filmGrain',
+  'colorGrade',
+] as const;
 export const RUNTIME_ENVIRONMENT_FIELDS = ['environmentIntensity'] as const;
 export const RUNTIME_CONTROLS_FIELDS = ['autoRotate', 'autoRotateSpeed'] as const;
 // `enabled` toggles the tracer on a live viewer (no rebuild, no model refetch);
@@ -25,8 +35,19 @@ export function pickRuntimeOptions(options: SimpleViewerOptions): Partial<Simple
     backgroundColor: options.backgroundColor,
     backgroundColorEdge: options.backgroundColorEdge,
   };
+  // The effect toggles are always emitted resolved-to-boolean (`?? false`), so
+  // REMOVING an effect from the options turns it off on the live viewer —
+  // deepMerge ignores `undefined`, which would otherwise leave it stuck on
+  // (the backgroundColorEdge lesson). updateOptions guards against re-sends
+  // of an unchanged set, so the constant emission costs nothing per update.
+  runtime.renderer = {
+    bloom: options.renderer?.bloom ?? false,
+    vignette: options.renderer?.vignette ?? false,
+    filmGrain: options.renderer?.filmGrain ?? false,
+    colorGrade: options.renderer?.colorGrade ?? false,
+  };
   if (options.renderer?.toneMappingExposure !== undefined) {
-    runtime.renderer = { toneMappingExposure: options.renderer.toneMappingExposure };
+    runtime.renderer.toneMappingExposure = options.renderer.toneMappingExposure;
   }
   if (options.environment?.environmentIntensity !== undefined) {
     runtime.environment = { environmentIntensity: options.environment.environmentIntensity };

@@ -280,10 +280,6 @@ export function SiteApp() {
       )}
 
       <SimpleViewer
-        // Enabling a renderer effect is a structural change that rebuilds the
-        // viewer; remounting on a key gives it a clean canvas + fresh model load
-        // rather than an in-place rebuild, so the demo swaps effects reliably.
-        key={`fx-${bloom}-${vignette}-${filmGrain}-${colorGrade}`}
         ref={viewerRef}
         object={modelUrl}
         turntable={turntable}
@@ -291,8 +287,7 @@ export function SiteApp() {
         options={{
           ui: { presets: true },
           // The Motorhome gets a declarative hero-shot camera so the framing
-          // survives every structural rebuild (a renderer-effect or path-tracing
-          // toggle spins up a fresh viewer). autoFitToObject is off so the
+          // survives any structural rebuild. autoFitToObject is off so the
           // hand-tuned 30° framing sticks instead of being re-fit.
           ...(selected === 'Motorhome'
             ? {
@@ -305,9 +300,10 @@ export function SiteApp() {
               }
             : {}),
           ...(pathTraced ? { pathTracing: { enabled: true } } : {}),
-          ...((bloom || vignette || filmGrain || colorGrade)
-            ? { renderer: { bloom, vignette, filmGrain, colorGrade } }
-            : {}),
+          // Post-processing effects are RUNTIME fields: toggling one swaps the
+          // composer on the live viewer — no rebuild, no model reload, and the
+          // picked preset survives (the old remount-on-key hack is gone).
+          renderer: { bloom, vignette, filmGrain, colorGrade },
         }}
       >
         {pins.map((pin, index) => (

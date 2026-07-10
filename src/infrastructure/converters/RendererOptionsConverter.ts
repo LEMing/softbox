@@ -50,8 +50,12 @@ export class RendererOptionsConverter {
   private static readonly DEFAULT_GRADE_CONTRAST = 0.12;
   private static readonly DEFAULT_GRADE_SATURATION = 0.15;
 
-  /** Resolve the `boolean | {contrast?, saturation?}` option to concrete amounts. */
-  private static resolveColorGrade(
+  /**
+   * Resolve the `boolean | {contrast?, saturation?}` option to concrete
+   * amounts. Shared by the construction-time conversion above and the runtime
+   * post-effect toggle (`ThreeRendererAdapter.setPostProcessing`).
+   */
+  static resolveColorGrade(
     raw: unknown
   ): { contrast: number; saturation: number } | undefined {
     if (!raw) {
