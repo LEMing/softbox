@@ -371,6 +371,41 @@ describe('ContactShadowBaker', () => {
     expect(bakeLight!.target.position.z).toBeCloseTo(-40);
   });
 
+  it('bakes with zero bias and an object-fitted depth range (small models keep their contact shadow)', () => {
+    const { scene, light, model } = createBakeFixture();
+    // The live rig's bias is tuned for its fixed 0.5..200 depth span; copied
+    // into the bake it erases a constant ~2cm world-space band of shadow at
+    // every contact — a third of a 6cm model (peter-panning: the shadow
+    // detaches from the mesh). The bake receiver casts no shadow, so the bake
+    // needs no bias at all.
+    light.shadow.bias = -0.0001;
+    light.shadow.camera.near = 0.5;
+    light.shadow.camera.far = 200;
+    const renderer = createMockRenderer();
+    const capturedScenes: THREE.Scene[] = [];
+    renderer.render.mockImplementation((bakeScene: THREE.Scene) => {
+      capturedScenes.push(bakeScene);
+    });
+
+    new ContactShadowBaker({ passes: 2 }).bake({
+      renderer: renderer as unknown as THREE.WebGLRenderer,
+      scene,
+      object: model,
+      light,
+    });
+
+    const bakeLight = capturedScenes[0].children.find(
+      (child): child is THREE.DirectionalLight => child instanceof THREE.DirectionalLight
+    );
+    expect(bakeLight!.shadow.bias).toBe(0);
+    // The depth range brackets the ~1m fixture box around the light distance
+    // (~106) instead of inheriting the live camera's 199.5-unit span.
+    const bakeCamera = bakeLight!.shadow.camera;
+    expect(bakeCamera.far - bakeCamera.near).toBeLessThan(10);
+    expect(bakeCamera.near).toBeGreaterThan(100);
+    expect(bakeCamera.far).toBeGreaterThan(bakeCamera.near);
+  });
+
   it('does nothing for an object with an empty bounding box', () => {
     const { scene, light } = createBakeFixture();
     const renderer = createMockRenderer();

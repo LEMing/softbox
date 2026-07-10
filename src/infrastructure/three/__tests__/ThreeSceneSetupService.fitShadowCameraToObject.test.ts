@@ -56,6 +56,37 @@ describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
     expect(light.shadow.camera.right).toBeGreaterThan(50);
   });
 
+  it('brackets the depth range around the object so the bias offset scales with it', () => {
+    const threeScene = new THREE.Scene();
+    const light = new THREE.DirectionalLight('#ffffff', 2);
+    light.position.set(40, 90, 40);
+    light.castShadow = true;
+    // The configured fixed span: bias × (far − near) ≈ 2cm in world space at
+    // ANY model size — which erases a 6cm object's entire contact shadow.
+    light.shadow.camera.near = 0.5;
+    light.shadow.camera.far = 200;
+    threeScene.add(light);
+    threeScene.add(light.target);
+
+    const object = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.06));
+    threeScene.add(object);
+
+    const service = new ThreeSceneSetupService();
+    const result = service.fitShadowCameraToObject(
+      new ThreeSceneAdapter(threeScene),
+      new ThreeObject3DAdapter(object)
+    );
+
+    expect(result.ok).toBe(true);
+    const camera = light.shadow.camera;
+    const lightDistance = light.position.distanceTo(light.target.position);
+    // The span hugs the object (2 × the fitted half-extent), so the same
+    // normalized bias now offsets by a model-proportional world distance.
+    expect(camera.far - camera.near).toBeLessThan(1);
+    expect(camera.near).toBeLessThan(lightDistance);
+    expect(camera.far).toBeGreaterThan(lightDistance);
+  });
+
   it('does nothing when there is no shadow-casting directional light', () => {
     const threeScene = new THREE.Scene();
     const object = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));

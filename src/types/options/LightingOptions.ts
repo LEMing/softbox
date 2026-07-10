@@ -39,8 +39,9 @@ export interface DirectionalLightOptions {
       height: number;
     };
     /**
-     * Orthographic frustum: left/right/top/bottom are overridden by the
-     * auto-fit on load; near/far keep their configured values.
+     * Orthographic frustum: every plane (left/right/top/bottom AND near/far)
+     * is overridden by the auto-fit on load, so the shadow-map texel density
+     * and the bias's world-space offset both scale with the model.
      */
     camera?: {
       near?: number;

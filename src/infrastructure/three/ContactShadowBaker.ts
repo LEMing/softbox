@@ -31,6 +31,8 @@ interface BakeRegion {
   center: THREE.Vector3;
   halfExtent: number;
   objectHeight: number;
+  /** Half-diagonal of the object's bounding box: every vertex is within this of `center`. */
+  boundingRadius: number;
 }
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
@@ -213,7 +215,7 @@ export class ContactShadowBaker {
         size.y * ContactShadowBaker.DISC_HEIGHT_STRETCH,
       ContactShadowBaker.DISC_MIN_HALF_EXTENT
     );
-    return { center, halfExtent, objectHeight: size.y };
+    return { center, halfExtent, objectHeight: size.y, boundingRadius: size.length() / 2 };
   }
 
   private accumulateShadowPasses(
@@ -285,6 +287,7 @@ export class ContactShadowBaker {
 
       for (const lightPosition of this.sampleLightPositions(light, passCount)) {
         bakeLight.position.copy(lightPosition);
+        this.fitBakeDepthRange(bakeLight, region);
         renderer.render(bakeScene, camera);
       }
     } finally {
@@ -371,8 +374,16 @@ export class ContactShadowBaker {
       ContactShadowBaker.BAKE_SHADOW_MAP_SIZE,
       ContactShadowBaker.BAKE_SHADOW_MAP_SIZE
     );
-    bakeLight.shadow.bias = light.shadow.bias;
-    bakeLight.shadow.normalBias = light.shadow.normalBias;
+    // No depth bias: the accumulation receiver (the ShadowMaterial plane)
+    // casts no shadow, so it is absent from the bake depth map and shadow
+    // acne on it is impossible. Copying the live light's bias — specified in
+    // NORMALIZED depth against its huge fixed 0.5..200 range — would instead
+    // erase a constant ~2cm world-space band of shadow at every contact
+    // (classic peter-panning): invisible under a car, but a third of a 6cm
+    // avocado, whose entire contact pool vanished and left the shadow as a
+    // detached blob.
+    bakeLight.shadow.bias = 0;
+    bakeLight.shadow.normalBias = 0;
     // A touch of per-pass PCF blur melts the individual sample silhouettes
     // into each other (they are otherwise recognizable on thin models even
     // at 1% opacity each); the averaging still provides the real softness,
@@ -385,10 +396,29 @@ export class ContactShadowBaker {
     bakeCamera.right = sourceCamera.right;
     bakeCamera.top = sourceCamera.top;
     bakeCamera.bottom = sourceCamera.bottom;
-    bakeCamera.near = sourceCamera.near;
-    bakeCamera.far = sourceCamera.far;
+    // near/far are NOT copied: fitBakeDepthRange brackets the object per
+    // sample, keeping depth precision object-scaled at any model size.
     bakeCamera.updateProjectionMatrix();
     return bakeLight;
+  }
+
+  /**
+   * Bracket the depth range tightly around the object for the CURRENT sample
+   * position. The distance is the exact projection of the object's centre onto
+   * the light's view axis (aperture-jittered samples sit off-axis, so a plain
+   * centre distance would over-estimate and could clip the object), padded by
+   * the bounding radius so every vertex lands inside near..far.
+   */
+  private fitBakeDepthRange(bakeLight: THREE.DirectionalLight, region: BakeRegion): void {
+    const viewDirection = bakeLight.target.position.clone().sub(bakeLight.position).normalize();
+    const toCenter = region.center.clone().sub(bakeLight.position);
+    const centerDepth = toCenter.dot(viewDirection);
+    const padding = region.boundingRadius * 1.5;
+
+    const camera = bakeLight.shadow.camera;
+    camera.near = Math.max(centerDepth - padding, centerDepth * 0.01);
+    camera.far = centerDepth + padding;
+    camera.updateProjectionMatrix();
   }
 
   private createBakeCamera(region: BakeRegion): THREE.OrthographicCamera {
