@@ -991,6 +991,15 @@ export class ViewerCore {
     this.renderLoopManager.requestRender();
   }
 
+  /**
+   * True once dispose() has run. Lets callers skip work on a viewer that a
+   * structural rebuild tore down underneath an in-flight async op (e.g. a model
+   * load racing a rebuild) instead of surfacing a benign "after dispose" error.
+   */
+  isDisposed(): boolean {
+    return this.disposed;
+  }
+
   dispose(): void {
     // Mark as disposed first to prevent any further operations
     this.disposed = true;

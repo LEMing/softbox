@@ -1757,6 +1757,15 @@ describe('ViewerCore', () => {
   });
 
   describe('dispose', () => {
+    it('reports isDisposed() false before dispose and true after', async () => {
+      const bundle = makeDeps();
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+      expect(viewer.isDisposed()).toBe(false);
+      viewer.dispose();
+      expect(viewer.isDisposed()).toBe(true);
+    });
+
     it('tears down managers, controls and the renderer', async () => {
       const bundle = makeDeps({
         withPathTracing: true,
