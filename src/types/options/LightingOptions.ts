@@ -58,11 +58,31 @@ export interface DirectionalLightOptions {
 }
 
 /**
- * The three-light studio rig. Every light is optional; the defaults are a
- * balanced product-shot setup (see `defaultOptions.lighting`).
+ * A soft, shadowless directional light used for the fill and rim/back roles of
+ * a studio three-point rig. Same direction semantics as the key, but it never
+ * casts shadows (only the key does — see `findDirectionalLight`, which resolves
+ * the first directional as the shadow/contact-shadow source).
+ */
+export interface AccentLightOptions {
+  color?: string | number;
+  intensity?: number;
+  /** Direction is position → origin; distance does not attenuate. */
+  position?: Vec3Like | [number, number, number];
+}
+
+/**
+ * The studio rig. Every light is optional; the defaults are a balanced
+ * product-shot three-point setup (see `defaultOptions.lighting`): a shadow-
+ * casting key, a soft opposite-side fill that opens the shadow, and a rim/back
+ * light behind the subject that separates its silhouette from the background.
+ * Ambient + hemisphere add a gentle omnidirectional base.
  */
 export interface LightingOptions {
   ambientLight?: AmbientLightOptions;
   hemisphereLight?: HemisphereLightOptions;
   directionalLight?: DirectionalLightOptions;
+  /** Soft opposite-side fill; opens the shadow side without a second shadow. */
+  fillLight?: AccentLightOptions;
+  /** Rim/back light behind the subject; separates the silhouette from the backdrop. */
+  rimLight?: AccentLightOptions;
 }

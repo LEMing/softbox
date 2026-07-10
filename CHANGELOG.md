@@ -1,6 +1,29 @@
 Changelog
 =========
 
+4.13.0
+---
+
+### A real studio three-point lighting rig
+
+The default lighting was a single key plus a generous omnidirectional ambient/hemisphere
+wash — soft and flat, with no crisp specular and no edge separation. It's now a proper
+studio three-point rig, the first (biggest) half of the "expensive" render-quality wave.
+
+* **New `fillLight` and `rimLight` options** (`AccentLightOptions`: colour, intensity,
+  position) join the existing `directionalLight` key. Both are soft and **shadowless** —
+  only the key casts a shadow, so the contact shadow stays single and clean. The fill is
+  added after the key so `findDirectionalLight` still resolves the key as the shadow source.
+* **The default rig is now a balanced three-point setup:** a stronger key (intensity 1.9 →
+  2.4) for a crisper specular; a soft cool-neutral **fill** from the opposite/lower side
+  that opens the shadowed side so it reads as form, not a black void; and a cool **rim/back
+  light** behind and above the subject that kicks a bright edge along the top/back
+  silhouette — the single biggest cue that separates the model from the backdrop. The
+  omnidirectional base drops (ambient 0.5 → 0.32, hemisphere 0.45 → 0.3) so the shadow side
+  stays deep enough for contrast and the key/rim do the shaping. The result reads more
+  dimensional and "hero" — crisper metals, real form, a separated silhouette — while
+  neutral models are still not tinted (warmth stays in the materials, not the key).
+
 4.12.0
 ---
 

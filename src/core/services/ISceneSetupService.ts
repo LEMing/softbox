@@ -132,6 +132,17 @@ export interface ILightingOptions {
       radius?: number;
     };
   };
+  /** Soft, shadowless fill and rim/back accents of the studio three-point rig. */
+  fill?: {
+    color?: string;
+    intensity?: number;
+    position?: [number, number, number];
+  };
+  rim?: {
+    color?: string;
+    intensity?: number;
+    position?: [number, number, number];
+  };
 }
 
 export interface IGradientOptions {
