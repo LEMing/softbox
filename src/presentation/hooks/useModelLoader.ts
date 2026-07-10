@@ -44,7 +44,11 @@ export function useModelLoader(
   }, [objectKey]);
 
   useEffect(() => {
-    if (!viewer || !isInitialized || !object) {
+    // A structural rebuild disposes the previous viewer in the SAME commit that
+    // this effect runs with the (now stale) viewer reference — loading into it
+    // would hit the "after dispose" guard and surface a scary error, even though
+    // the fresh viewer will load the model correctly. Skip the disposed one.
+    if (!viewer || !isInitialized || !object || viewer.isDisposed()) {
       return;
     }
 
@@ -53,8 +57,9 @@ export function useModelLoader(
       ? object
       : new ThreeObject3DAdapter(object as THREE.Object3D);
     viewer.loadModel(toLoad).then((result) => {
-      // A newer object superseded this load — don't write its stale result.
-      if (!active) {
+      // A newer object superseded this load, or the viewer was torn down while
+      // it was in flight — don't write (or log) a stale/dead result.
+      if (!active || viewer.isDisposed()) {
         return;
       }
       if (result.ok) {

@@ -170,6 +170,11 @@ describe('PostProcessingPipeline', () => {
     expect(bloomIndex).toBeGreaterThanOrEqual(0);
     expect(bloomIndex).toBeLessThan(outputIndex);
     expect(grainIndex).toBeGreaterThan(outputIndex);
+    // Restrained bloom: a high threshold + low strength so only genuinely blown
+    // highlights glow (raised after the brighter rig pushed more above 1.0).
+    const bloomPass = passes[bloomIndex] as FakeBloomPass;
+    expect(bloomPass.threshold).toBe(1.8);
+    expect(bloomPass.strength).toBe(0.12);
   });
 
   it('sets the vignette shader uniforms from the tuned defaults', async () => {

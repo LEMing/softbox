@@ -36,9 +36,10 @@ const DROPPED_KEY = 'yours';
 // Values are absolute world coordinates measured against this model's own
 // bounding box, so this preset is only meaningful for it.
 const MOTORHOME_CAMERA = {
-  // Pulled back ~1.43x from the target vs the old 42° framing so the narrower
-  // 30° lens frames the whole model instead of cropping it.
-  position: [-7.03, 6.93, 12.11] as const,
+  // Pulled back a further ~1.35x from the target: the earlier framing filled the
+  // whole frame edge-to-edge (jarringly tight next to the roomy auto-fit models,
+  // and worse on wide windows), so give the hero shot breathing room.
+  position: [-9.5, 8.88, 16.38] as const,
   target: [0.02, 1.37, -0.1] as const,
   fov: 30,
 };

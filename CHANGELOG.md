@@ -1,6 +1,25 @@
 Changelog
 =========
 
+4.15.1
+---
+
+### Fix a model-switch error and tame the bloom
+
+* **Switching the model no longer logs a "Cannot load model after dispose" error.** When a
+  new model also changed a structural option (so the viewer rebuilt), the model-load effect
+  could fire against the previous viewer in the very commit that disposed it — surfacing a
+  scary (but benign) error even though the fresh viewer loaded the model correctly. The
+  loader now skips a viewer that a rebuild has torn down, at both the start of the load and
+  when it resolves.
+* **The bloom effect is restrained again.** The brighter three-point rig (4.13.0) and the
+  higher-contrast studio environment (4.14.0) pushed far more of the specular above the
+  bloom threshold, so `renderer.bloom` had started blooming broad hot patches. The threshold
+  is raised (1.0 → 1.8) and the strength lowered (0.18 → 0.12) so only genuinely blown
+  highlights glow — a studio touch, not a haze.
+* Playground: the flagship Motorhome hero shot is pulled back so it has breathing room
+  instead of filling the frame edge-to-edge (especially on wide windows).
+
 4.15.0
 ---
 

@@ -38,6 +38,7 @@ const makeViewer = (loadModel: jest.Mock) =>
     getEvents: () => new TypedEventEmitter(),
     requestRender: jest.fn(),
     loadModel,
+    isDisposed: jest.fn(() => false),
     dispose: jest.fn(),
   }) as unknown as ReturnType<typeof useViewerCore>['viewer'];
 
