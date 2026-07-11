@@ -1,6 +1,21 @@
 Changelog
 =========
 
+4.16.0
+---
+
+### Post-processing effects now toggle live — no rebuild, no model reload
+
+* **`renderer.bloom` / `vignette` / `filmGrain` / `colorGrade` are now RUNTIME fields.**
+  Toggling one used to be a structural change: the whole viewer tore down and rebuilt, the
+  model re-fetched, and (in the playground) the picked preset reset. Now the toggle swaps
+  the post-processing composer on the live renderer — the scene, camera pose, model and
+  preset all survive, and switching every effect off drops back to the plain zero-cost
+  render path (the pixel-ratio cap is applied on enable and restored on disable). Removing
+  an effect from the options also switches it off live (explicitly resolved, so it can't
+  get stuck on). The playground's remount-on-toggle workaround is gone — effects can now
+  be combined with any preset, e.g. Dark + vignette + grade.
+
 4.15.4
 ---
 

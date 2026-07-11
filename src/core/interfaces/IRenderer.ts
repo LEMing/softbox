@@ -28,6 +28,14 @@ export interface IRenderer extends IRendererExtension {
   /** Live-tunable tone-mapping exposure (applied without a rebuild). */
   setToneMappingExposure(exposure: number): void;
 
+  /**
+   * Live-swap the opt-in post-processing effects (applied without a rebuild):
+   * rebuilds the composer pipeline for the new set, or drops back to the plain
+   * zero-cost render path when every effect is off. Optional, like
+   * `renderPostProcessed`.
+   */
+  setPostProcessing?(effects: IPostProcessingEffects): void;
+
   getDomElement(): HTMLCanvasElement;
   getContext(): WebGLRenderingContext | WebGL2RenderingContext | null;
 
@@ -38,6 +46,14 @@ export interface IRenderer extends IRendererExtension {
 
   // Renderer capabilities
   capabilities: IRendererCapabilities;
+}
+
+/** Raw opt-in post-effect toggles, in the shape the public options express them. */
+export interface IPostProcessingEffects {
+  bloom: boolean;
+  vignette: boolean;
+  filmGrain: boolean;
+  colorGrade: boolean | { contrast?: number; saturation?: number };
 }
 
 export interface IRendererOptions {

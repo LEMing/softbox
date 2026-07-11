@@ -23,9 +23,11 @@ export interface RendererOptions {
    * `-1..1`, `0` = no change). Off by default.
    */
   colorGrade?: boolean | { contrast?: number; saturation?: number };
-  // NOTE: all three route the raster view through a post-processing composer
-  // (lazy-loaded on first use — no cost or bundle weight if unused), so they
-  // add a per-frame pass while the scene renders; leave them off for the
-  // lazy-loading many-viewers grid. All are ignored while path tracing is
-  // active (the tracer writes to the canvas directly).
+  // NOTE: all four effects route the raster view through a post-processing
+  // composer (lazy-loaded on first use — no cost or bundle weight if unused),
+  // so they add a per-frame pass while the scene renders; leave them off for
+  // the lazy-loading many-viewers grid. All are ignored while path tracing is
+  // active (the tracer writes to the canvas directly). They are RUNTIME
+  // fields: toggling one swaps the composer on the live viewer — no rebuild,
+  // no model reload.
 }

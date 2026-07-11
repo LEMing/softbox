@@ -468,9 +468,10 @@ export class ViewerCore {
    * Apply runtime-tunable options to a live viewer without rebuilding it.
    *
    * Only options that are safe to change on a running viewer are honoured here
-   * (background color, tone-mapping exposure, environment intensity).
-   * Structural options — renderer, controls type, path tracing, lighting,
-   * helpers — take effect at construction time and require a rebuild.
+   * (background color, tone-mapping exposure, environment intensity, the
+   * post-processing effect toggles). Structural options — antialias, controls
+   * type, path-tracing tuning, lighting, helpers — take effect at construction
+   * time and require a rebuild.
    */
   updateOptions(partial: Partial<SimpleViewerOptions>): void {
     if (this.disposed) {
@@ -479,6 +480,7 @@ export class ViewerCore {
     const previousAutoplay = this.options.animations?.autoplay;
     const previousAutoRotate = this.options.controls?.autoRotate;
     const previousPathTracingEnabled = this.options.pathTracing?.enabled ?? false;
+    const previousPostEffects = ViewerCore.postEffectsKey(this.options);
     this.options = deepMerge(this.options, partial);
     // deepMerge intentionally ignores `undefined` overrides so they never wipe a
     // base value — but switching away from the dark preset sends
@@ -487,6 +489,13 @@ export class ViewerCore {
     // of leaving a dark-cornered scrim stuck on the light background.
     if ('backgroundColorEdge' in partial) {
       this.options.backgroundColorEdge = partial.backgroundColorEdge;
+    }
+    // Same lesson one level down: deepMerge merges plain objects key-by-key,
+    // but an object `colorGrade` is a VALUE — the consumer's latest shape must
+    // win wholesale, or a removed sub-field (dropping `saturation`, say)
+    // silently keeps its old amount and the change is filtered as a no-op.
+    if (partial.renderer && 'colorGrade' in partial.renderer && this.options.renderer) {
+      this.options.renderer.colorGrade = partial.renderer.colorGrade;
     }
 
     let needsRender = false;
@@ -500,6 +509,30 @@ export class ViewerCore {
     const exposure = partial.renderer?.toneMappingExposure;
     if (exposure !== undefined) {
       this.renderer.setToneMappingExposure(exposure);
+      needsRender = true;
+    }
+    // Post-processing effects swap the composer live. Guarded against re-sends
+    // of an unchanged set (the runtime-options effect re-sends everything):
+    // rebuilding the composer costs a pipeline chunk + target allocation, so it
+    // must only happen when an effect actually changed.
+    const nextPostEffects = ViewerCore.postEffectsKey(this.options);
+    if (
+      partial.renderer &&
+      nextPostEffects !== previousPostEffects &&
+      this.renderer.setPostProcessing
+    ) {
+      this.renderer.setPostProcessing({
+        bloom: this.options.renderer?.bloom ?? false,
+        vignette: this.options.renderer?.vignette ?? false,
+        filmGrain: this.options.renderer?.filmGrain ?? false,
+        colorGrade: this.options.renderer?.colorGrade ?? false,
+      });
+      // The swap re-derives the pixel-ratio cap, which can resize the drawing
+      // buffer (DPR > 2) and CLEAR a completed path-traced frame — whose
+      // presentation path deliberately never repaints (it preserves the
+      // canvas). Force a re-accumulation so a live traced session repaints
+      // instead of sticking blank; same treatment as an environment change.
+      this.pathTracing.resetAccumulation(true);
       needsRender = true;
     }
     const environmentIntensity = partial.environment?.environmentIntensity;
@@ -563,6 +596,17 @@ export class ViewerCore {
       this.reviveRenderLoop();
       this.renderLoopManager.requestRender();
     }
+  }
+
+  /** Content key of the resolved post-effect set, for cheap change detection. */
+  private static postEffectsKey(options: SimpleViewerOptions): string {
+    const renderer = options.renderer;
+    return JSON.stringify([
+      renderer?.bloom ?? false,
+      renderer?.vignette ?? false,
+      renderer?.filmGrain ?? false,
+      renderer?.colorGrade ?? false,
+    ]);
   }
 
   // A flat fill, or a radial studio vignette when a `backgroundColorEdge` is set

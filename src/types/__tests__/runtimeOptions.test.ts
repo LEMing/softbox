@@ -16,7 +16,15 @@ describe('pickRuntimeOptions', () => {
 
     expect(pickRuntimeOptions(options)).toEqual({
       backgroundColor: '#fff',
-      renderer: { toneMappingExposure: 1.2 },
+      // The effect toggles are always emitted resolved (`?? false`) so removing
+      // one from the options turns it off live; antialias stays structural.
+      renderer: {
+        toneMappingExposure: 1.2,
+        bloom: false,
+        vignette: false,
+        filmGrain: false,
+        colorGrade: false,
+      },
       environment: { environmentIntensity: 0.5 },
       controls: { autoRotate: true, autoRotateSpeed: 3 },
       animations: { autoplay: true, speed: 2 },
@@ -45,7 +53,14 @@ describe('pickRuntimeOptions', () => {
     };
 
     const result = pickRuntimeOptions(options);
-    expect(result.renderer).toBeUndefined();
+    // renderer is the exception: the effect toggles are always emitted
+    // resolved-to-false so a removed effect is switched off live.
+    expect(result.renderer).toEqual({
+      bloom: false,
+      vignette: false,
+      filmGrain: false,
+      colorGrade: false,
+    });
     expect(result.environment).toBeUndefined();
     expect(result.controls).toBeUndefined();
     expect(result.animations).toBeUndefined();
@@ -59,9 +74,24 @@ describe('pickRuntimeOptions', () => {
     });
   });
 
-  it('returns just backgroundColor when nothing else is set', () => {
+  it('returns just backgroundColor and the resolved effect toggles when nothing else is set', () => {
     const options: SimpleViewerOptions = {};
-    expect(pickRuntimeOptions(options)).toEqual({ backgroundColor: undefined });
+    expect(pickRuntimeOptions(options)).toEqual({
+      backgroundColor: undefined,
+      renderer: { bloom: false, vignette: false, filmGrain: false, colorGrade: false },
+    });
+  });
+
+  it('picks the effect toggles through so switching one applies live', () => {
+    const options: SimpleViewerOptions = {
+      renderer: { bloom: true, colorGrade: { contrast: 0.2 } },
+    };
+    expect(pickRuntimeOptions(options).renderer).toEqual({
+      bloom: true,
+      vignette: false,
+      filmGrain: false,
+      colorGrade: { contrast: 0.2 },
+    });
   });
 
   it('picks the radial-vignette edge colour so a live preset switch repaints it', () => {
