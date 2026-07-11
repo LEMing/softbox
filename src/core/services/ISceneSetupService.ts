@@ -75,6 +75,13 @@ export interface ISceneSetupService {
   bakeContactShadow(scene: IScene, object: IObject3D, renderer: IRenderer): Result<void>;
 
   /**
+   * Evict any (stale) baked contact-shadow disc and put the live realtime
+   * catcher back in charge — called at the start of a model load, whose own
+   * bake is deferred past the first painted frames.
+   */
+  resetContactShadow(scene: IScene): Result<void>;
+
+  /**
    * Switch between the baked contact shadow and the real-time catcher —
    * playback of animations must fall back to 'live' because the baked
    * texture is a snapshot of one pose.

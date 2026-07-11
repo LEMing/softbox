@@ -17,6 +17,7 @@ import {
   addHelpers,
   addLighting,
   bakeContactShadow,
+  resetContactShadow,
   createGradientBackground,
   fitCameraToObject,
   fitShadowCameraToObject,
@@ -52,6 +53,10 @@ export class ThreeSceneSetupService implements ISceneSetupService {
 
   bakeContactShadow(scene: IScene, object: IObject3D, renderer: IRenderer): Result<void> {
     return bakeContactShadow(scene, object, renderer, this.contactShadowBaker);
+  }
+
+  resetContactShadow(scene: IScene): Result<void> {
+    return resetContactShadow(scene);
   }
 
   setContactShadowMode(scene: IScene, mode: ContactShadowMode): Result<void> {

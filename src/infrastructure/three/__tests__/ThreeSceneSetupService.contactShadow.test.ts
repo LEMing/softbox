@@ -117,6 +117,34 @@ describe('ThreeSceneSetupService contact shadow', () => {
     });
   });
 
+  describe('resetContactShadow', () => {
+    it('evicts the stale baked disc and puts the live catcher back in charge', () => {
+      const threeScene = new THREE.Scene();
+      const baked = new THREE.Mesh(new THREE.PlaneGeometry(1, 1));
+      baked.name = CONTACT_SHADOW_BAKED_NAME;
+      const disposeSpy = jest.spyOn(baked.geometry, 'dispose');
+      const live = new THREE.Mesh(new THREE.CircleGeometry(1, 8));
+      live.name = CONTACT_SHADOW_LIVE_NAME;
+      live.visible = false;
+      threeScene.add(baked, live);
+      const service = new ThreeSceneSetupService();
+
+      const result = service.resetContactShadow(new ThreeSceneAdapter(threeScene));
+
+      expect(result.ok).toBe(true);
+      // Evicted AND disposed (the real disc owns a render target), not hidden.
+      expect(threeScene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeUndefined();
+      expect(disposeSpy).toHaveBeenCalled();
+      expect(live.visible).toBe(true);
+    });
+
+    it('rejects a scene that is not a ThreeSceneAdapter', () => {
+      const service = new ThreeSceneSetupService();
+      const result = service.resetContactShadow({} as never);
+      expect(result.ok).toBe(false);
+    });
+  });
+
   describe('setContactShadowMode', () => {
     const createSceneWithBothShadows = () => {
       const threeScene = new THREE.Scene();

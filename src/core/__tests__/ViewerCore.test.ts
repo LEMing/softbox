@@ -216,6 +216,7 @@ const makeSceneSetupService = (
     snapObjectToFloor: jest.fn(() => Result.ok(undefined)),
     fitShadowCameraToObject: jest.fn(() => Result.ok(undefined)),
     bakeContactShadow: jest.fn(() => Result.ok(undefined)),
+    resetContactShadow: jest.fn(() => Result.ok(undefined)),
     setContactShadowMode: jest.fn(() => Result.ok(undefined)),
   };
   return { ...base, ...overrides } as unknown as jest.Mocked<ISceneSetupService>;
@@ -325,6 +326,9 @@ const makeDeps = (config: MakeDepsConfig = {}): DepsBundle => {
     environmentService,
     pathTracingService,
     floorAlignmentService,
+    // Immediate by default so the deferred load-time bake behaves like the old
+    // synchronous one in tests; deferral-specific tests inject a manual queue.
+    deferToNextFrame: (callback) => callback(),
   };
 
   return {
@@ -1855,6 +1859,87 @@ describe('ViewerCore', () => {
 
       expect(captureSpy).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('ViewerCore deferred contact-shadow bake', () => {
+  const makeFrameQueue = () => {
+    const queue: Array<() => void> = [];
+    return {
+      defer: (callback: () => void) => {
+        queue.push(callback);
+      },
+      flush: () => queue.splice(0).forEach((callback) => callback()),
+    };
+  };
+
+  it('bakes after the deferred frame, not during the load', async () => {
+    const frames = makeFrameQueue();
+    const bundle = makeDeps({ withSceneSetup: true });
+    const viewer = new ViewerCore({ ...bundle.deps, deferToNextFrame: frames.defer });
+    await viewer.initialize();
+
+    await viewer.loadModel(makeObject3D());
+
+    // The load resolves (overlay clears, first frame paints) with the live
+    // catcher in charge — the synchronous bake must not have run yet.
+    expect(bundle.sceneSetupService!.bakeContactShadow).not.toHaveBeenCalled();
+    frames.flush();
+    expect(bundle.sceneSetupService!.bakeContactShadow).toHaveBeenCalledTimes(1);
+  });
+
+  it('bakes only the latest model when a new load supersedes the deferred bake', async () => {
+    const frames = makeFrameQueue();
+    const bundle = makeDeps({ withSceneSetup: true });
+    const viewer = new ViewerCore({ ...bundle.deps, deferToNextFrame: frames.defer });
+    await viewer.initialize();
+
+    await viewer.loadModel(makeObject3D());
+    await viewer.loadModel(makeObject3D());
+    frames.flush();
+
+    // The first model's callback sees itself superseded and skips.
+    expect(bundle.sceneSetupService!.bakeContactShadow).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips the deferred bake when the viewer was disposed before the frame', async () => {
+    const frames = makeFrameQueue();
+    const bundle = makeDeps({ withSceneSetup: true });
+    const viewer = new ViewerCore({ ...bundle.deps, deferToNextFrame: frames.defer });
+    await viewer.initialize();
+
+    await viewer.loadModel(makeObject3D());
+    viewer.dispose();
+    frames.flush();
+
+    expect(bundle.sceneSetupService!.bakeContactShadow).not.toHaveBeenCalled();
+  });
+
+  it('skips the deferred bake while animations are playing (live shadow is the right mode)', async () => {
+    const frames = makeFrameQueue();
+    const bundle = makeDeps({ withSceneSetup: true });
+    const animationService = {
+      attach: jest.fn(),
+      play: jest.fn(() => Result.ok(undefined)),
+      pause: jest.fn(),
+      isPlaying: jest.fn(() => true),
+      getClipNames: jest.fn(() => []),
+      setSpeed: jest.fn(),
+      update: jest.fn(),
+      detach: jest.fn(),
+    };
+    const viewer = new ViewerCore({
+      ...bundle.deps,
+      deferToNextFrame: frames.defer,
+      animationService,
+    });
+    await viewer.initialize();
+
+    await viewer.loadModel(makeObject3D());
+    frames.flush();
+
+    // Playing runs in live-shadow mode; the pause handler re-bakes itself.
+    expect(bundle.sceneSetupService!.bakeContactShadow).not.toHaveBeenCalled();
   });
 });
 

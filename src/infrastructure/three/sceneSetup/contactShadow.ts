@@ -8,7 +8,8 @@ import { toThreeObject, toThreeRenderer, toThreeScene } from '../unwrap';
 import {
   ContactShadowBaker,
   CONTACT_SHADOW_BAKED_NAME,
-  CONTACT_SHADOW_LIVE_NAME
+  CONTACT_SHADOW_LIVE_NAME,
+  restoreLiveContactShadow
 } from '../ContactShadowBaker';
 import { findDirectionalLight } from './findDirectionalLight';
 
@@ -63,6 +64,37 @@ export function bakeContactShadow(
     return Result.err(
       new ThreeViewerError(
         'Failed to bake contact shadow',
+        ErrorCode.SCENE_OPERATION_FAILED,
+        { originalError: error }
+      )
+    );
+  }
+}
+
+/**
+ * Evict any (stale) baked contact-shadow disc and put the live realtime
+ * catcher back in charge. Called at the start of a model load: the new
+ * model's bake is deferred past the first painted frames, and without this
+ * the PREVIOUS model's baked shadow would keep showing underneath it for the
+ * whole deferral window.
+ */
+export function resetContactShadow(scene: IScene): Result<void> {
+  try {
+    const threeScene = toThreeScene(scene);
+    if (!threeScene) {
+      return Result.err(
+        new ThreeViewerError(
+          'Scene must be ThreeSceneAdapter',
+          ErrorCode.INVALID_PARAMETER
+        )
+      );
+    }
+    restoreLiveContactShadow(threeScene);
+    return Result.ok(undefined);
+  } catch (error) {
+    return Result.err(
+      new ThreeViewerError(
+        'Failed to reset the contact shadow',
         ErrorCode.SCENE_OPERATION_FAILED,
         { originalError: error }
       )

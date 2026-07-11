@@ -38,6 +38,33 @@ interface BakeRegion {
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
 /**
+ * Remove (and dispose — the disc owns a WebGLRenderTarget) any baked
+ * contact-shadow disc from the scene.
+ */
+export function evictBakedContactShadow(scene: THREE.Scene): void {
+  const existing = scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME);
+  if (existing) {
+    scene.remove(existing);
+    disposeObject3D(existing);
+  }
+}
+
+/**
+ * Evict any baked disc and put the real-time catcher back in charge. Used
+ * when the baked disc is (or is about to be) STALE: a bake aborted, or a new
+ * model is loading and its bake is deferred — without this, the previous
+ * model's shadow (wrong shape, size and position) would keep showing under
+ * the new model for the whole deferral window.
+ */
+export function restoreLiveContactShadow(scene: THREE.Scene): void {
+  evictBakedContactShadow(scene);
+  const liveCatcher = scene.getObjectByName(CONTACT_SHADOW_LIVE_NAME);
+  if (liveCatcher) {
+    liveCatcher.visible = true;
+  }
+}
+
+/**
  * Bakes a soft area-light contact shadow onto the floor plane by averaging
  * many one-sample shadow renders, each with the key light jittered as if it
  * were a physical light of finite size. A single shadow-map pass has a
@@ -186,19 +213,11 @@ export class ContactShadowBaker {
    * charge rather than leaving the floor shadowless or double-shadowed.
    */
   private leaveLiveCatcherInCharge(scene: THREE.Scene): void {
-    this.evictBakedMesh(scene);
-    const liveCatcher = scene.getObjectByName(CONTACT_SHADOW_LIVE_NAME);
-    if (liveCatcher) {
-      liveCatcher.visible = true;
-    }
+    restoreLiveContactShadow(scene);
   }
 
   private evictBakedMesh(scene: THREE.Scene): void {
-    const existing = scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME);
-    if (existing) {
-      scene.remove(existing);
-      disposeObject3D(existing);
-    }
+    evictBakedContactShadow(scene);
   }
 
   private measureBakeRegion(object: THREE.Object3D): BakeRegion | null {

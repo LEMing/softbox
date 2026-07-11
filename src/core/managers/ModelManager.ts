@@ -1,4 +1,4 @@
-import { IModelLoader, IObject3D, IScene, ICamera, IControls, IRenderer, Result } from '../interfaces';
+import { IModelLoader, IObject3D, IScene, ICamera, IControls, Result } from '../interfaces';
 import { IFloorAlignmentService } from '../services/IFloorAlignmentService';
 import { ISceneSetupService } from '../services/ISceneSetupService';
 import { ThreeViewerError, ErrorCode } from '../../errors';
@@ -12,7 +12,6 @@ export interface ModelManagerDependencies {
   controls: IControls;
   floorAlignmentService?: IFloorAlignmentService;
   sceneSetupService?: ISceneSetupService;
-  renderer?: IRenderer;
   autoFitToObject?: boolean;
   /** Drop the loaded model onto the floor at y=0 (default true). */
   floorAlignment?: boolean;
@@ -33,7 +32,6 @@ export class ModelManager {
   private readonly controls: IControls;
   private readonly floorAlignmentService?: IFloorAlignmentService;
   private readonly sceneSetupService?: ISceneSetupService;
-  private readonly renderer?: IRenderer;
   private readonly autoFitToObject: boolean;
   private readonly floorAlignment: boolean;
   private readonly unitsScaleToMeters: number;
@@ -45,7 +43,6 @@ export class ModelManager {
     this.controls = dependencies.controls;
     this.floorAlignmentService = dependencies.floorAlignmentService;
     this.sceneSetupService = dependencies.sceneSetupService;
-    this.renderer = dependencies.renderer;
     this.autoFitToObject = dependencies.autoFitToObject ?? false;
     this.floorAlignment = dependencies.floorAlignment ?? true;
     this.unitsScaleToMeters = dependencies.unitsScaleToMeters ?? 1;
@@ -173,14 +170,18 @@ export class ModelManager {
           console.warn('Failed to fit shadow camera to object:', shadowFitResult.error);
         }
 
-        // With the frustum fitted, bake the soft area-light contact shadow
-        // (sharp and dark at the contact point, softer with distance) that a
-        // single real-time shadow-map pass cannot produce.
-        if (this.renderer) {
-          const bakeResult = this.sceneSetupService.bakeContactShadow(this.scene, model, this.renderer);
-          if (!bakeResult.ok) {
-            console.warn('Failed to bake contact shadow:', bakeResult.error);
-          }
+        // NOTE: the soft contact-shadow BAKE is deliberately NOT run here. It
+        // is a synchronous multi-pass render that can take a long beat on a
+        // weak GPU, and running it inside the load would hold the loading
+        // overlay up (and the first paint back) for its whole duration.
+        // ViewerCore defers it past the first painted frame instead — the
+        // live realtime catcher grounds the model until the bake swaps in.
+        // Any PREVIOUS model's baked disc is stale from this point (wrong
+        // shape, size and position under the new model), so evict it and put
+        // the live catcher back in charge for the deferral window.
+        const resetResult = this.sceneSetupService.resetContactShadow(this.scene);
+        if (!resetResult.ok) {
+          console.warn('Failed to reset the contact shadow:', resetResult.error);
         }
       }
 
