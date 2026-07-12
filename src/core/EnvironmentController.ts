@@ -65,7 +65,11 @@ export class EnvironmentController {
    */
   async setEnvironmentMap(url: string): Promise<Result<void>> {
     if (this.deps.isDisposed()) {
-      return Result.ok(undefined);
+      // Same contract as the capture APIs: a disposed viewer reports the
+      // failure instead of claiming success for work it never did.
+      return Result.err(
+        new ThreeViewerError('Viewer is disposed', ErrorCode.INVALID_STATE)
+      );
     }
     if (!this.deps.environmentService) {
       return Result.err(
@@ -74,7 +78,11 @@ export class EnvironmentController {
     }
     const loadResult = await this.deps.environmentService.loadEnvironmentMap(url);
     if (this.deps.isDisposed()) {
-      return Result.ok(undefined);
+      // Same contract as the capture APIs: a disposed viewer reports the
+      // failure instead of claiming success for work it never did.
+      return Result.err(
+        new ThreeViewerError('Viewer is disposed', ErrorCode.INVALID_STATE)
+      );
     }
     if (!loadResult.ok) {
       return Result.err(loadResult.error);
@@ -100,7 +108,11 @@ export class EnvironmentController {
    */
   resetEnvironment(): Result<void> {
     if (this.deps.isDisposed()) {
-      return Result.ok(undefined);
+      // Same contract as the capture APIs: a disposed viewer reports the
+      // failure instead of claiming success for work it never did.
+      return Result.err(
+        new ThreeViewerError('Viewer is disposed', ErrorCode.INVALID_STATE)
+      );
     }
     if (!this.deps.environmentService) {
       return Result.err(
@@ -111,9 +123,14 @@ export class EnvironmentController {
     if (!studioResult.ok) {
       return Result.err(studioResult.error);
     }
-    this.deps.environmentService.applyToScene(this.deps.scene, studioResult.value, {
-      setBackground: false,
-    });
+    const applyResult = this.deps.environmentService.applyToScene(
+      this.deps.scene,
+      studioResult.value,
+      { setBackground: false }
+    );
+    if (!applyResult.ok) {
+      return applyResult;
+    }
     const options = this.deps.getOptions();
     if (options.environment) {
       options.environment.url = undefined;
@@ -129,7 +146,11 @@ export class EnvironmentController {
    */
   async setBackgroundImage(source: string | File | HTMLImageElement): Promise<Result<void>> {
     if (this.deps.isDisposed()) {
-      return Result.ok(undefined);
+      // Same contract as the capture APIs: a disposed viewer reports the
+      // failure instead of claiming success for work it never did.
+      return Result.err(
+        new ThreeViewerError('Viewer is disposed', ErrorCode.INVALID_STATE)
+      );
     }
     if (!this.deps.environmentService) {
       return Result.err(
@@ -138,7 +159,11 @@ export class EnvironmentController {
     }
     const result = await this.deps.environmentService.setBackgroundImage(this.deps.scene, source);
     if (this.deps.isDisposed()) {
-      return Result.ok(undefined);
+      // Same contract as the capture APIs: a disposed viewer reports the
+      // failure instead of claiming success for work it never did.
+      return Result.err(
+        new ThreeViewerError('Viewer is disposed', ErrorCode.INVALID_STATE)
+      );
     }
     if (!result.ok) {
       return result;
@@ -154,7 +179,11 @@ export class EnvironmentController {
    */
   setBackgroundColor(color: string | number): Result<void> {
     if (this.deps.isDisposed()) {
-      return Result.ok(undefined);
+      // Same contract as the capture APIs: a disposed viewer reports the
+      // failure instead of claiming success for work it never did.
+      return Result.err(
+        new ThreeViewerError('Viewer is disposed', ErrorCode.INVALID_STATE)
+      );
     }
     if (!this.deps.sceneSetupService) {
       return Result.err(
@@ -183,10 +212,13 @@ export class EnvironmentController {
       return;
     }
     // Honour a preset's radial vignette (e.g. dark) so it survives a reset.
-    this.deps.sceneSetupService.createGradientBackground(
+    const result = this.deps.sceneSetupService.createGradientBackground(
       this.deps.scene,
       this.backgroundGradient(color, options.backgroundColorEdge)
     );
+    if (!result.ok) {
+      console.warn('Failed to restore the background color:', result.error);
+    }
   }
 
   private repaintAfterEnvironmentChange(): void {

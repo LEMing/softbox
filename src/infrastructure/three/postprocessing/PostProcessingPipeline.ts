@@ -114,10 +114,16 @@ export class PostProcessingPipeline {
   private passes: Array<{ dispose?: () => void }> = [];
   private disposed = false;
   private loadFailed = false;
+  private readonly onLoadError?: (error: unknown) => void;
 
-  constructor(renderer: THREE.WebGLRenderer, config: PostProcessingConfig) {
+  constructor(
+    renderer: THREE.WebGLRenderer,
+    config: PostProcessingConfig,
+    onLoadError?: (error: unknown) => void
+  ) {
     this.renderer = renderer;
     this.config = config;
+    this.onLoadError = onLoadError;
     void this.load();
   }
 
@@ -163,6 +169,13 @@ export class PostProcessingPipeline {
       };
     } catch (error) {
       this.loadFailed = true;
+      // The render fallback keeps the viewer alive, but the consumer who asked
+      // for the effects must be able to SEE the degradation programmatically.
+      // Not after a mid-load dispose though: the effects were already swapped
+      // away, so a stale failure event would report on a pipeline nobody owns.
+      if (!this.disposed) {
+        this.onLoadError?.(error);
+      }
       console.warn('Failed to load post-processing effects; falling back to the plain renderer:', error);
     }
   }

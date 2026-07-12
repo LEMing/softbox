@@ -99,6 +99,10 @@ export class PathTracingCoordinator {
         return;
       }
       if (!result.ok) {
+        // A consumer who set pathTracing.enabled must be able to SEE that it
+        // could not start (no WebGL2, chunk fetch failed) — a console line is
+        // invisible to programs.
+        this.deps.events.emit('error', { error: result.error });
         console.warn('Failed to initialize path tracing:', result.error);
         return;
       }

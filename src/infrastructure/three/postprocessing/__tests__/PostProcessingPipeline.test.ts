@@ -78,7 +78,15 @@ class FakeShaderPass {
 jest.mock('three/examples/jsm/postprocessing/EffectComposer.js', () => ({ EffectComposer: FakeComposer }));
 jest.mock('three/examples/jsm/postprocessing/RenderPass.js', () => ({ RenderPass: FakeRenderPass }));
 jest.mock('three/examples/jsm/postprocessing/OutputPass.js', () => ({ OutputPass: FakeOutputPass }));
-jest.mock('three/examples/jsm/postprocessing/UnrealBloomPass.js', () => ({ UnrealBloomPass: FakeBloomPass }));
+let bloomImportShouldFail = false;
+jest.mock('three/examples/jsm/postprocessing/UnrealBloomPass.js', () => ({
+  get UnrealBloomPass() {
+    if (bloomImportShouldFail) {
+      throw new Error('chunk fetch failed');
+    }
+    return FakeBloomPass;
+  },
+}));
 jest.mock('three/examples/jsm/postprocessing/ShaderPass.js', () => ({ ShaderPass: FakeShaderPass }));
 jest.mock('three/examples/jsm/shaders/VignetteShader.js', () => ({ VignetteShader: { name: 'vignette' } }));
 jest.mock('three/examples/jsm/shaders/BrightnessContrastShader.js', () => ({
@@ -257,6 +265,45 @@ describe('PostProcessingPipeline', () => {
     expect(composer.disposed).toBe(true);
     expect(pipeline.isReady()).toBe(false);
     expect(pipeline.render(scene, camera)).toBe(false);
+  });
+
+  it('reports a chunk-load failure through onLoadError and falls back', async () => {
+    bloomImportShouldFail = true;
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const onLoadError = jest.fn();
+    try {
+      const pipeline = new PostProcessingPipeline(
+        fakeRenderer(),
+        { ...allOff, bloom: true },
+        onLoadError
+      );
+      await flush();
+      expect(pipeline.isReady()).toBe(false);
+      expect(pipeline.render(scene, camera)).toBe(false);
+      expect(onLoadError).toHaveBeenCalledWith(expect.any(Error));
+    } finally {
+      bloomImportShouldFail = false;
+      warn.mockRestore();
+    }
+  });
+
+  it('suppresses the failure callback when disposed mid-load (nobody owns the pipeline)', async () => {
+    bloomImportShouldFail = true;
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const onLoadError = jest.fn();
+    try {
+      const pipeline = new PostProcessingPipeline(
+        fakeRenderer(),
+        { ...allOff, bloom: true },
+        onLoadError
+      );
+      pipeline.dispose();
+      await flush();
+      expect(onLoadError).not.toHaveBeenCalled();
+    } finally {
+      bloomImportShouldFail = false;
+      warn.mockRestore();
+    }
   });
 
   it('does not become ready if disposed before the chunk resolves', async () => {

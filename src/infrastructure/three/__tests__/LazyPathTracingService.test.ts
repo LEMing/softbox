@@ -25,8 +25,13 @@ class MockInner {
   }
 }
 
+let importShouldFail = false;
+
 jest.mock('../ThreePathTracingService', () => ({
   get ThreePathTracingService() {
+    if (importShouldFail) {
+      throw new Error('chunk fetch failed');
+    }
     return MockInner;
   },
 }));
@@ -41,6 +46,25 @@ beforeEach(() => {
 });
 
 describe('LazyPathTracingService', () => {
+  afterEach(() => {
+    importShouldFail = false;
+  });
+
+  it('returns a PATH_TRACING_INIT_FAILED Result when the tracer chunk fails to load', async () => {
+    importShouldFail = true;
+    const service = new LazyPathTracingService();
+
+    const result = await service.initialize({
+      renderer: {} as IRenderer,
+      enabled: true,
+    } as IPathTracingOptions);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('PATH_TRACING_INIT_FAILED');
+    }
+  });
+
   it('is a safe idle tracer before initialization', async () => {
     const service = new LazyPathTracingService();
 

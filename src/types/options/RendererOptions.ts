@@ -1,6 +1,13 @@
 export interface RendererOptions {
   antialias?: boolean;
   alpha?: boolean;
+  premultipliedAlpha?: boolean;
+  /**
+   * Note: the viewer forces this ON regardless — a completed path-traced
+   * frame must survive on the canvas for captureStill to read back.
+   */
+  preserveDrawingBuffer?: boolean;
+  powerPreference?: 'high-performance' | 'low-power' | 'default';
   shadowMapEnabled?: boolean;
   pixelRatio?: number;
   /** A `THREE.ShadowMapType` constant (e.g. `THREE.PCFShadowMap` === 1). */

@@ -45,19 +45,9 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     try {
       // Get the Three.js renderer
       const rendererAccess = options.renderer as RendererWithInternalAccess;
-      let threeRenderer = rendererAccess.renderer || 
+      const threeRenderer = rendererAccess.renderer ||
         rendererAccess.getThreeRenderer?.();
-      
-      if (!threeRenderer && rendererAccess.getDomElement) {
-        const canvas = rendererAccess.getDomElement();
-        if (canvas && 'parentElement' in canvas && canvas.parentElement) {
-          const parentRenderer = (canvas.parentElement as unknown as { renderer?: THREE.WebGLRenderer }).renderer;
-          if (parentRenderer instanceof THREE.WebGLRenderer) {
-            threeRenderer = parentRenderer;
-          }
-        }
-      }
-      
+
       if (!threeRenderer) {
         return Result.err(
           new ThreeViewerError(

@@ -91,4 +91,29 @@ describe('ThreeRendererAdapter.setPostProcessing', () => {
     ).not.toThrow();
     expect(pipelineOf(adapter)).toBeNull();
   });
+
+  it('forwards a pipeline chunk-load failure to the registered error handler', async () => {
+    const { adapter } = makeAdapter(1);
+    const onError = jest.fn();
+    adapter.setPostProcessingErrorHandler(onError);
+
+    adapter.setPostProcessing({ bloom: true, vignette: false, filmGrain: false, colorGrade: false });
+    const pipeline = pipelineOf(adapter)! as unknown as {
+      onLoadError?: (error: unknown) => void;
+    };
+    // Drive the pipeline's failure path directly: the load-catch calls the
+    // constructor-injected callback, which must reach the adapter handler.
+    pipeline.onLoadError?.(new Error('chunk fetch failed'));
+
+    expect(onError).toHaveBeenCalledWith(expect.any(Error));
+  });
+
+  it('tolerates a chunk-load failure with no handler registered', () => {
+    const { adapter } = makeAdapter(1);
+    adapter.setPostProcessing({ bloom: true, vignette: false, filmGrain: false, colorGrade: false });
+    const pipeline = pipelineOf(adapter)! as unknown as {
+      onLoadError?: (error: unknown) => void;
+    };
+    expect(() => pipeline.onLoadError?.(new Error('chunk fetch failed'))).not.toThrow();
+  });
 });
