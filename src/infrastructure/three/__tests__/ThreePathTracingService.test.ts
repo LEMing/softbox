@@ -523,6 +523,35 @@ describe('ThreePathTracingService', () => {
       expect(ctx.service.getSampleCount()).toBe(1);
     });
 
+    it('allocates the dissolve resources once and reuses them across samples', async () => {
+      const ctx = setup();
+      await initialize(ctx, true);
+      ctx.threeScene.environment = equirectTexture();
+
+      const first = await ctx.service.render(ctx.scene, ctx.camera);
+      expect(first.ok).toBe(true);
+      const internals = ctx.service as unknown as {
+        rasterFadeTarget: object | null;
+        fadeQuad: object | null;
+        fadeSupported: boolean;
+      };
+      // Vacuity guard: the dissolve must actually be active in this setup —
+      // a disabled fade would make the reuse assertions compare null to null.
+      expect(internals.fadeSupported).toBe(true);
+      expect(internals.rasterFadeTarget).not.toBeNull();
+      expect(internals.fadeQuad).not.toBeNull();
+      const firstTarget = internals.rasterFadeTarget;
+      const firstQuad = internals.fadeQuad;
+
+      const second = await ctx.service.render(ctx.scene, ctx.camera);
+      expect(second.ok).toBe(true);
+
+      // The allocate-once guard is load-bearing: dropping it re-creates a
+      // full-canvas HalfFloat render target and a shader material EVERY sample.
+      expect(internals.rasterFadeTarget).toBe(firstTarget);
+      expect(internals.fadeQuad).toBe(firstQuad);
+    });
+
     it('hides the contact-shadow helpers during scene ingest and restores them after', async () => {
       const ctx = setup();
       await initialize(ctx, true);

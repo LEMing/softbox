@@ -31,13 +31,14 @@ export default {
   // so future work cannot silently gut their tests. Ratchet upward over time.
   coverageThreshold: {
     // Global floors sit just under the remaining-pool actuals (jest subtracts
-    // the path-pinned files below) — ratcheted 2026-07-02 from the stale
-    // 48/32/34/48; re-tighten after major additions.
+    // the path-pinned files below) — ratcheted 2026-07-12 from 72/64/58/72
+    // after the audit found ~10 points of slack; re-tighten after major
+    // additions.
     global: {
-      statements: 72,
-      branches: 64,
-      functions: 58,
-      lines: 72,
+      statements: 80,
+      branches: 72,
+      functions: 60,
+      lines: 80,
     },
     './src/core/managers/': {
       statements: 95,
@@ -61,16 +62,30 @@ export default {
       lines: 100,
     },
     './src/core/CaptureController.ts': {
-      statements: 92,
+      statements: 95,
       branches: 88,
-      functions: 78,
-      lines: 92,
+      functions: 80,
+      lines: 95,
     },
     './src/core/PathTracingCoordinator.ts': {
       statements: 95,
       branches: 88,
       functions: 95,
       lines: 95,
+    },
+    // 2026-07-12 audit T1: the two highest-risk GPU-lifecycle modules were the
+    // only unpinned ones — deleting their tests sailed through the global pool.
+    './src/infrastructure/three/ThreePathTracingService.ts': {
+      statements: 95,
+      branches: 84,
+      functions: 95,
+      lines: 95,
+    },
+    './src/infrastructure/three/LazyPathTracingService.ts': {
+      statements: 90,
+      branches: 85,
+      functions: 95,
+      lines: 90,
     },
     './src/infrastructure/three/disposal.ts': {
       statements: 100,
@@ -85,16 +100,16 @@ export default {
       lines: 100,
     },
     './src/infrastructure/three/ThreeSelectionService.ts': {
-      statements: 88,
-      branches: 80,
-      functions: 88,
-      lines: 88,
+      statements: 93,
+      branches: 90,
+      functions: 95,
+      lines: 93,
     },
     './src/presentation/components/Hotspot.tsx': {
-      statements: 85,
-      branches: 80,
-      functions: 85,
-      lines: 85,
+      statements: 88,
+      branches: 84,
+      functions: 82,
+      lines: 88,
     },
     // 2026-07-07 B-tier pins: the modules the audit flagged as unpinned —
     // deleting any of their test files must fail CI, not slip through the
