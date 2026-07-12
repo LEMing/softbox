@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import dts from 'vite-plugin-dts'
+import dts from 'unplugin-dts/vite'
 import { resolve } from 'path'
 
 export default defineConfig({
@@ -12,8 +12,8 @@ export default defineConfig({
       // Bundle all declarations into a single dist/index.d.ts (implies a types
       // entry). This removes the extensionless relative imports that break
       // `moduleResolution: nodenext` (TS2834) and keeps only bare external
-      // imports (three, react). Requires @microsoft/api-extractor, a peer of
-      // the plugin since v5 (v4 called this option `rollupTypes`).
+      // imports (three, react). Requires @microsoft/api-extractor, an
+      // unplugin-dts peer (vite-plugin-dts v4 called this option `rollupTypes`).
       bundleTypes: true,
     }),
   ],
