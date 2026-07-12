@@ -1276,12 +1276,20 @@ describe('ThreePathTracingService', () => {
     });
 
     it('keeps finite opacity for pathological sample budgets (window floor)', () => {
-      const service = new ThreePathTracingService();
-      service.updateSettings({ samples: 1 });
-      // Without the floor, samples <= FADE_HOLD_SAMPLES collapsed the
-      // smoothstep edges (hold === release -> 0/0).
-      for (let count = 0; count <= 6; count++) {
-        expect(Number.isFinite(layerOpacity(service, count))).toBe(true);
+      // samples = 4 is the exact collapse point without the floor: window =
+      // hold -> release === hold -> smoothstep(4, 4, 4) divides 0/0 to NaN.
+      // Sweep every pathological budget so the pin sits on the true trigger.
+      for (const samples of [1, 2, 3, 4, 5]) {
+        const service = new ThreePathTracingService();
+        service.updateSettings({ samples });
+        for (let count = 0; count <= 6; count++) {
+          const opacity = layerOpacity(service, count);
+          expect({ samples, count, finite: Number.isFinite(opacity) }).toEqual({
+            samples,
+            count,
+            finite: true,
+          });
+        }
       }
     });
 
