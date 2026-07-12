@@ -12,7 +12,16 @@ import { IScene, ITexture } from '../../core/interfaces/IScene';
 import { Result } from '../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import { toThreeScene, toThreeTexture } from './unwrap';
+import { markViewerOwnedBackground, disposeViewerOwnedBackground } from './backgroundOwnership';
 import { RendererWithInternalAccess } from '../../types/CommonTypes';
+
+/** Cube face size for the studio-room capture the path tracer ingests:
+ * enough for soft studio lighting (the tracer blurs it into an equirect
+ * anyway), cheap enough to bake once per session. */
+const STUDIO_CUBE_CAPTURE_SIZE = 256;
+/** Near/far span covering the RoomEnvironment's ~10m procedural room. */
+const STUDIO_CUBE_NEAR_METERS = 0.1;
+const STUDIO_CUBE_FAR_METERS = 100;
 
 type SceneWithOriginalTexture = THREE.Scene & {
   __originalEnvironmentTexture?: THREE.Texture;
@@ -228,6 +237,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       // cube capture is not equirect and never reaches here as a backdrop (the
       // studio path applies with setBackground: false).
       if (options?.setBackground ?? true) {
+        disposeViewerOwnedBackground(threeScene);
         if (
           threeTexture.mapping === THREE.CubeUVReflectionMapping &&
           original?.mapping === THREE.EquirectangularReflectionMapping
@@ -278,13 +288,12 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       const texture = await this.loadBackgroundTexture(source);
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.needsUpdate = true;
+      markViewerOwnedBackground(texture);
 
-      const previous = threeScene.background;
+      // Free the outgoing background ONLY if the viewer painted it — an
+      // env-map backdrop is the cached original the cache/tracer still hold.
+      disposeViewerOwnedBackground(threeScene);
       threeScene.background = texture;
-      // Free the outgoing background unless it is aliased as the environment map.
-      if (previous instanceof THREE.Texture && previous !== threeScene.environment) {
-        previous.dispose();
-      }
       return Result.ok(undefined);
     } catch (error) {
       return Result.err(
@@ -380,8 +389,14 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       return;
     }
     try {
-      const cubeTarget = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType });
-      const cubeCamera = new THREE.CubeCamera(0.1, 100, cubeTarget);
+      const cubeTarget = new THREE.WebGLCubeRenderTarget(STUDIO_CUBE_CAPTURE_SIZE, {
+        type: THREE.HalfFloatType,
+      });
+      const cubeCamera = new THREE.CubeCamera(
+        STUDIO_CUBE_NEAR_METERS,
+        STUDIO_CUBE_FAR_METERS,
+        cubeTarget
+      );
       // Capture raw HDR radiance like PMREM does internally: tone mapping
       // would bake the display transform into the light values and the room
       // reads several stops too dark as an environment.

@@ -1,3 +1,7 @@
+// npm test runs jest with --runInBand: the suites are fast (~7s total) and
+// several drive real three objects whose module-level state (shared Pass
+// geometry, texture caches) is simplest to reason about single-worker; the
+// parallel speedup measured below ~2s and was not worth the isolation risk.
 export default {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',

@@ -12,7 +12,7 @@ import { ThreeSceneAdapter } from './ThreeScene';
 import { ThreeCameraAdapter } from './ThreeCamera';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import { generateUUID } from '../../utils/uuid';
-import { RendererOptionsConverter } from '../converters/RendererOptionsConverter';
+import { RendererOptionsConverter, TONE_MAPPING_BY_NAME } from '../converters/RendererOptionsConverter';
 import {
   PostProcessingPipeline,
   PostProcessingConfig,
@@ -75,19 +75,7 @@ export class ThreeRendererAdapter implements IRenderer {
 
       // Configure tone mapping
       if (options.toneMapping) {
-        const toneMappingTypes = {
-          'none': THREE.NoToneMapping,
-          'linear': THREE.LinearToneMapping,
-          'reinhard': THREE.ReinhardToneMapping,
-          'cineon': THREE.CineonToneMapping,
-          'aces': THREE.ACESFilmicToneMapping,
-          'agx': THREE.AgXToneMapping,
-          // Khronos PBR Neutral: rolls highlights off filmically while
-          // preserving material hue/saturation (unlike ACES, which desaturates
-          // bright values toward white) — the default for this product viewer.
-          'neutral': THREE.NeutralToneMapping,
-        };
-        this.renderer.toneMapping = toneMappingTypes[options.toneMapping.type];
+        this.renderer.toneMapping = TONE_MAPPING_BY_NAME[options.toneMapping.type];
         this.renderer.toneMappingExposure = options.toneMapping.exposure;
       }
 

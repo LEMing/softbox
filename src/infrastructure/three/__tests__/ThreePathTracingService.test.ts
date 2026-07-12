@@ -125,26 +125,26 @@ function createStubThreeRenderer(domElement?: HTMLCanvasElement): StubThreeRende
 interface RendererMockHandle {
   renderer: IRenderer;
   render: jest.Mock<Result<void>, [IScene, ICamera]>;
-  getInternalRenderer: jest.Mock<unknown, []>;
+  getThreeRenderer: jest.Mock<unknown, []>;
   internal: StubThreeRenderer;
 }
 
 function createRendererMock(internal: StubThreeRenderer): RendererMockHandle {
   const render = jest.fn<Result<void>, [IScene, ICamera]>(() => Result.ok(undefined));
-  const getInternalRenderer = jest.fn<unknown, []>(() => internal);
-  const renderer = { render, getInternalRenderer } as unknown as IRenderer;
-  return { renderer, render, getInternalRenderer, internal };
+  const getThreeRenderer = jest.fn<unknown, []>(() => internal);
+  const renderer = { render, getThreeRenderer } as unknown as IRenderer;
+  return { renderer, render, getThreeRenderer, internal };
 }
 
 function createSceneMock(threeScene: THREE.Scene | null): IScene {
   return {
-    getInternalRenderer: jest.fn<THREE.Scene | null, []>(() => threeScene),
+    getThreeScene: jest.fn<THREE.Scene | null, []>(() => threeScene),
   } as unknown as IScene;
 }
 
 function createCameraMock(threeCamera: THREE.Camera | null): ICamera {
   return {
-    getInternalRenderer: jest.fn<THREE.Camera | null, []>(() => threeCamera),
+    getThreeCamera: jest.fn<THREE.Camera | null, []>(() => threeCamera),
   } as unknown as ICamera;
 }
 
@@ -416,7 +416,7 @@ describe('ThreePathTracingService', () => {
     it('falls back to the standard renderer while the renderer is not ready', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.rendererHandle.getInternalRenderer.mockReturnValue(null);
+      ctx.rendererHandle.getThreeRenderer.mockReturnValue(null);
 
       const result = await ctx.service.render(ctx.scene, ctx.camera);
 
@@ -900,7 +900,7 @@ describe('ThreePathTracingService', () => {
       ctx.threeScene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
 
-      ctx.rendererHandle.getInternalRenderer.mockReturnValueOnce(null);
+      ctx.rendererHandle.getThreeRenderer.mockReturnValueOnce(null);
 
       const result = await ctx.service.render(ctx.scene, ctx.camera);
 

@@ -316,18 +316,35 @@ describe('ThreeEnvironmentService render-target lifecycle', () => {
       expect(threeScene.environment).toBeNull();
     });
 
-    it('disposes the previous background texture on replace', async () => {
+    it('disposes the previous VIEWER-painted background on replace', async () => {
       const service = await initialized();
       const sceneAdapter = new ThreeSceneAdapter(new THREE.Scene());
       const threeScene = sceneAdapter.getThreeScene();
-      const previous = new THREE.Texture();
-      threeScene.background = previous;
+      mockLoad(new THREE.Texture());
+      await service.setBackgroundImage(sceneAdapter, '/first.jpg');
+      const previous = threeScene.background as THREE.Texture;
       const disposeSpy = jest.spyOn(previous, 'dispose');
+      mockLoad(new THREE.Texture());
+
+      await service.setBackgroundImage(sceneAdapter, '/second.jpg');
+
+      expect(disposeSpy).toHaveBeenCalled();
+    });
+
+    it('leaves a consumer-set background texture alone on replace', async () => {
+      const service = await initialized();
+      const sceneAdapter = new ThreeSceneAdapter(new THREE.Scene());
+      const threeScene = sceneAdapter.getThreeScene();
+      // Set directly by the consumer, not painted by a viewer API — not ours
+      // to free (it may be shared with the consumer's own scene work).
+      const consumerTexture = new THREE.Texture();
+      threeScene.background = consumerTexture;
+      const disposeSpy = jest.spyOn(consumerTexture, 'dispose');
       mockLoad(new THREE.Texture());
 
       await service.setBackgroundImage(sceneAdapter, '/photo.jpg');
 
-      expect(disposeSpy).toHaveBeenCalled();
+      expect(disposeSpy).not.toHaveBeenCalled();
     });
 
     it('accepts an HTMLImageElement directly without loading', async () => {

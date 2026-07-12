@@ -29,3 +29,6 @@ site-dist
 # Playwright render-smoke artifacts
 test-results
 playwright-report
+
+# Per-user Claude Code settings (permissions allowlist) — never shared.
+.claude/settings.local.json

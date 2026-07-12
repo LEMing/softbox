@@ -2,6 +2,32 @@ import * as THREE from 'three';
 import { IRendererOptions } from '../../core/interfaces/IRenderer';
 import { RendererOptions } from '../../types/options/RendererOptions';
 
+export type ToneMappingName = 'none' | 'linear' | 'reinhard' | 'cineon' | 'aces' | 'agx' | 'neutral';
+
+/**
+ * The single name<->constant tone-mapping table; the inverse is derived so
+ * adding an operator is one edit, not three. NOTE: three renumbered the enum
+ * in r160+ (AgX/Neutral) — always map through the constants, never numbers.
+ */
+export const TONE_MAPPING_BY_NAME: Record<ToneMappingName, THREE.ToneMapping> = {
+  none: THREE.NoToneMapping,
+  linear: THREE.LinearToneMapping,
+  reinhard: THREE.ReinhardToneMapping,
+  cineon: THREE.CineonToneMapping,
+  aces: THREE.ACESFilmicToneMapping,
+  agx: THREE.AgXToneMapping,
+  // Khronos PBR Neutral: rolls highlights off filmically while preserving
+  // material hue/saturation (unlike ACES, which desaturates bright values
+  // toward white) — the default for this product viewer.
+  neutral: THREE.NeutralToneMapping,
+};
+
+const TONE_MAPPING_NAMES = new Map<THREE.ToneMapping, ToneMappingName>(
+  (Object.entries(TONE_MAPPING_BY_NAME) as Array<[ToneMappingName, THREE.ToneMapping]>).map(
+    ([name, constant]) => [constant, name]
+  )
+);
+
 export class RendererOptionsConverter {
   static convertRendererOptions(options: RendererOptions): IRendererOptions {
     const converted: IRendererOptions = {
@@ -86,23 +112,13 @@ export class RendererOptionsConverter {
     return typeof type === 'string' ? type as 'basic' | 'pcf' | 'pcfsoft' | 'vsm' : undefined;
   }
 
-  private static convertToneMappingType(
-    type: unknown
-  ): 'none' | 'linear' | 'reinhard' | 'cineon' | 'aces' | 'agx' | 'neutral' {
+  private static convertToneMappingType(type: unknown): ToneMappingName {
     if (typeof type === 'number') {
-      // Map THREE constants to string values. NOTE: the numeric enum was
-      // renumbered in three r160+ (AgX/Neutral were added), so these must map
-      // the actual constants, not hardcoded numbers — a stale number would
-      // silently select the wrong operator via the fallback below.
-      if (type === THREE.NoToneMapping) return 'none';
-      if (type === THREE.LinearToneMapping) return 'linear';
-      if (type === THREE.ReinhardToneMapping) return 'reinhard';
-      if (type === THREE.CineonToneMapping) return 'cineon';
-      if (type === THREE.ACESFilmicToneMapping) return 'aces';
-      if (type === THREE.AgXToneMapping) return 'agx';
-      if (type === THREE.NeutralToneMapping) return 'neutral';
+      const name = TONE_MAPPING_NAMES.get(type as THREE.ToneMapping);
+      if (name) {
+        return name;
+      }
     }
-    return (typeof type === 'string' ? type : 'neutral') as
-      | 'none' | 'linear' | 'reinhard' | 'cineon' | 'aces' | 'agx' | 'neutral';
+    return (typeof type === 'string' ? type : 'neutral') as ToneMappingName;
   }
 }

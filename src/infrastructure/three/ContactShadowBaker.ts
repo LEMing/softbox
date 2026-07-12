@@ -110,6 +110,8 @@ export class ContactShadowBaker {
    * a wide gentle gradient makes the floor read as fabric dented by the
    * model rather than a hard surface it stands on.
    */
+  private static readonly DEPTH_PADDING_FACTOR = 1.5;
+  private static readonly AMBIENT_MAX_ELEVATION_SIN = 0.98;
   private static readonly AMBIENT_MIN_ELEVATION_DEGREES = 55;
   private static readonly ACCUMULATION_TEXTURE_SIZE = 1024;
   /** Jitter averaging blurs far more than map resolution, so a small map is enough. */
@@ -191,7 +193,15 @@ export class ContactShadowBaker {
     // exactly the bake camera's frustum — so the accumulated texture maps
     // onto the disc 1:1.
     const shadowDiscGeometry = new THREE.CircleGeometry(region.halfExtent, 64);
-    this.accumulateShadowPasses(renderer, object, light, region, renderTarget, shadowDiscGeometry);
+    try {
+      this.accumulateShadowPasses(renderer, object, light, region, renderTarget, shadowDiscGeometry);
+    } catch (error) {
+      // Any accumulation failure strands the 1024^2 target and the disc —
+      // ownership only transfers to the installed mesh on success.
+      renderTarget.dispose();
+      shadowDiscGeometry.dispose();
+      throw error;
+    }
 
     // A context lost DURING the accumulation leaves the texture partial or
     // empty — installing it would swap a working live shadow for a broken
@@ -437,7 +447,9 @@ export class ContactShadowBaker {
     const viewDirection = bakeLight.target.position.clone().sub(bakeLight.position).normalize();
     const toCenter = region.center.clone().sub(bakeLight.position);
     const centerDepth = toCenter.dot(viewDirection);
-    const padding = region.boundingRadius * 1.5 + region.halfExtent;
+    // 1.5× the bounding radius keeps every caster fragment inside the depth
+    // window at any light tilt (radius alone clips grazing-angle geometry).
+    const padding = region.boundingRadius * ContactShadowBaker.DEPTH_PADDING_FACTOR + region.halfExtent;
 
     const camera = bakeLight.shadow.camera;
     camera.near = Math.max(centerDepth - padding, centerDepth * 0.01);
@@ -507,7 +519,9 @@ export class ContactShadowBaker {
     const minElevationSin = Math.sin(
       THREE.MathUtils.degToRad(ContactShadowBaker.AMBIENT_MIN_ELEVATION_DEGREES)
     );
-    const maxElevationSin = 0.98;
+    // sin(~78°): stop just short of the zenith — an exactly-vertical pass
+    // adds nothing over the key light and wastes an ambient sample.
+    const maxElevationSin = ContactShadowBaker.AMBIENT_MAX_ELEVATION_SIN;
     for (let i = 0; i < ambientPasses; i++) {
       // sqrt biases the sequence toward the zenith, like cosine-weighted sky
       // light: high samples pool darkness tightly around the contact points,

@@ -15,7 +15,7 @@ export class ScreenshotManager {
   private isShowingScreenshot: boolean = false;
   private screenshotResizeHandler?: () => void;
   private serializedSceneState?: SerializedSceneState;
-  
+
   private readonly renderer: IRenderer;
   private readonly onRestore?: () => Promise<void>;
 
@@ -24,9 +24,6 @@ export class ScreenshotManager {
     this.onRestore = dependencies.onRestore;
   }
 
-  /**
-   * Check if currently showing a screenshot
-   */
   isActive(): boolean {
     return this.isShowingScreenshot;
   }
@@ -53,7 +50,6 @@ export class ScreenshotManager {
       return;
     }
 
-    // Create an image element
     const img = document.createElement('img');
     img.src = dataURL;
     img.style.position = 'absolute';
@@ -63,7 +59,7 @@ export class ScreenshotManager {
     img.style.height = '100%';
     img.style.pointerEvents = 'auto';
     img.style.cursor = 'grab';
-    
+
     // Insert the image in place of the canvas
     const parent = canvas.parentElement;
     if (parent) {
@@ -74,20 +70,20 @@ export class ScreenshotManager {
         controls,
         canvas
       );
-      
+
       canvas.style.display = 'none';
       parent.appendChild(img);
       this.screenshotElement = img;
       this.isShowingScreenshot = true;
-      
+
       // Add interaction listeners to restore 3D scene
       const restoreScene = () => {
         this.restore();
       };
-      
+
       img.addEventListener('mousedown', restoreScene);
       img.addEventListener('touchstart', restoreScene);
-      
+
       // Also restore on window resize
       const resizeHandler = () => {
         if (this.isShowingScreenshot) {
@@ -96,7 +92,7 @@ export class ScreenshotManager {
       };
       window.addEventListener('resize', resizeHandler);
       this.screenshotResizeHandler = resizeHandler;
-      
+
       // The capture was validated above, so it is safe to release scene resources.
       onResourcesDisposed?.();
     }
@@ -107,25 +103,22 @@ export class ScreenshotManager {
    */
   async restore(): Promise<void> {
     if (!this.isShowingScreenshot || !this.screenshotElement) return;
-    
+
     const canvas = this.renderer.getDomElement();
     const parent = this.screenshotElement.parentElement;
-    
+
     if (parent) {
-      // Remove resize handler
       if (this.screenshotResizeHandler) {
         window.removeEventListener('resize', this.screenshotResizeHandler);
         this.screenshotResizeHandler = undefined;
       }
-      
-      // Remove screenshot and show canvas again
+
       parent.removeChild(this.screenshotElement);
       canvas.style.display = '';
-      
+
       this.screenshotElement = null;
       this.isShowingScreenshot = false;
-      
-      // Call restore callback if provided
+
       if (this.onRestore) {
         await this.onRestore();
       }
@@ -139,9 +132,6 @@ export class ScreenshotManager {
     return this.serializedSceneState;
   }
 
-  /**
-   * Clean up resources
-   */
   dispose(): void {
     if (this.screenshotResizeHandler) {
       window.removeEventListener('resize', this.screenshotResizeHandler);
