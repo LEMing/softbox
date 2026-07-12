@@ -152,6 +152,87 @@ describe('ThreeEnvironmentService', () => {
     expect((original as THREE.CubeTexture).isCubeTexture).toBe(true);
   });
 
+  it('binds the backdrop and PT original to the APPLIED environment, not the first-loaded one', async () => {
+    const service = await initialized();
+    const first = await service.loadEnvironmentMap('first.hdr');
+    const second = await service.loadEnvironmentMap('second.hdr');
+    if (!first.ok || !second.ok) throw new Error('loads failed');
+
+    const scene = new ThreeSceneAdapter();
+    const applied = service.applyToScene(scene, second.value);
+    expect(applied.ok).toBe(true);
+
+    const secondOriginal = rawTexture(service.getOriginalEnvironmentTexture('second.hdr')!);
+    const firstOriginal = rawTexture(service.getOriginalEnvironmentTexture('first.hdr')!);
+    const threeScene = scene.getThreeScene() as THREE.Scene & {
+      __originalEnvironmentTexture?: THREE.Texture;
+    };
+    expect(threeScene.background).toBe(secondOriginal);
+    expect(threeScene.background).not.toBe(firstOriginal);
+    expect(threeScene.__originalEnvironmentTexture).toBe(secondOriginal);
+  });
+
+  it('hands the path tracer the studio cube capture even after an HDRI was loaded', async () => {
+    const cubeCapableRenderer = {
+      coordinateSystem: THREE.WebGLCoordinateSystem,
+      toneMapping: THREE.NoToneMapping,
+      xr: { enabled: false },
+      getRenderTarget: () => null,
+      getActiveCubeFace: () => 0,
+      getActiveMipmapLevel: () => 0,
+      setRenderTarget: jest.fn(),
+      render: jest.fn(),
+    } as unknown as THREE.WebGLRenderer;
+    const service = new ThreeEnvironmentService();
+    const init = await service.initialize({
+      renderer: { renderer: cubeCapableRenderer } as unknown as IRenderer,
+    });
+    expect(init.ok).toBe(true);
+
+    // An HDRI in the cache used to shadow the studio branch entirely.
+    const hdri = await service.loadEnvironmentMap('room.hdr');
+    expect(hdri.ok).toBe(true);
+    const studio = service.createStudioEnvironment();
+    if (!studio.ok) throw studio.error;
+
+    const scene = new ThreeSceneAdapter();
+    const applied = service.applyToScene(scene, studio.value, { setBackground: false });
+    expect(applied.ok).toBe(true);
+
+    const original = (scene.getThreeScene() as THREE.Scene & {
+      __originalEnvironmentTexture?: THREE.Texture;
+    }).__originalEnvironmentTexture;
+    expect((original as THREE.CubeTexture).isCubeTexture).toBe(true);
+  });
+
+  it('caches the studio bake: a second createStudioEnvironment reuses the same texture', async () => {
+    const cubeCapableRenderer = {
+      coordinateSystem: THREE.WebGLCoordinateSystem,
+      toneMapping: THREE.NoToneMapping,
+      xr: { enabled: false },
+      getRenderTarget: () => null,
+      getActiveCubeFace: () => 0,
+      getActiveMipmapLevel: () => 0,
+      setRenderTarget: jest.fn(),
+      render: jest.fn(),
+    } as unknown as THREE.WebGLRenderer;
+    const service = new ThreeEnvironmentService();
+    const init = await service.initialize({
+      renderer: { renderer: cubeCapableRenderer } as unknown as IRenderer,
+    });
+    expect(init.ok).toBe(true);
+
+    const firstStudio = service.createStudioEnvironment();
+    const secondStudio = service.createStudioEnvironment();
+    if (!firstStudio.ok || !secondStudio.ok) throw new Error('studio builds failed');
+
+    expect(rawTexture(secondStudio.value)).toBe(rawTexture(firstStudio.value));
+    const generator = (service as unknown as {
+      pmremGenerator: { fromScene: jest.Mock };
+    }).pmremGenerator;
+    expect(generator.fromScene).toHaveBeenCalledTimes(1);
+  });
+
   it('leaves the studio environment usable when the cube capture fails', async () => {
     // The minimal stub renderer cannot run CubeCamera.update — the capture
     // must fail soft: studio PMREM still applies, just no PT original.

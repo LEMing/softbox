@@ -128,7 +128,11 @@ export class ThreePathTracingService implements IPathTracingService {
   private environmentWaitFrames: number = 0;
   private maxEnvironmentWaitFrames: number = 300; // Wait up to ~5 seconds at 60fps
   private disposed: boolean = false;
-  private convertedEnvTexture: THREE.DataTexture | null = null; // Store converted texture for reuse and disposal
+  // Converted-for-the-tracer copy of an image-backed equirect, reused across
+  // re-ingests. Keyed by the source texture's uuid: a runtime environment
+  // switch must not hand the tracer the PREVIOUS environment's conversion.
+  private convertedEnvTexture: THREE.DataTexture | null = null;
+  private convertedEnvSourceUuid: string | null = null;
   private resumable: boolean = false;
   private lastCameraMoveTime: number = -Infinity;
   private cameraDirty: boolean = false;
@@ -510,14 +514,18 @@ export class ThreePathTracingService implements IPathTracingService {
         // an HTMLImageElement-backed texture to a DataTexture the tracer can read.
         let textureForPathTracing: THREE.Texture = originalEnvTexture;
         if (originalEnvTexture.image instanceof HTMLImageElement) {
-          if (this.convertedEnvTexture) {
+          if (this.convertedEnvTexture && this.convertedEnvSourceUuid === originalEnvTexture.uuid) {
             textureForPathTracing = this.convertedEnvTexture;
           } else {
+            this.convertedEnvTexture?.dispose();
+            this.convertedEnvTexture = null;
+            this.convertedEnvSourceUuid = null;
             const dataTexture = this.convertToDataTexture(originalEnvTexture);
             if (!dataTexture) {
               throw new Error('Failed to convert environment texture to DataTexture');
             }
             this.convertedEnvTexture = dataTexture;
+            this.convertedEnvSourceUuid = originalEnvTexture.uuid;
             textureForPathTracing = dataTexture;
           }
         }
@@ -937,6 +945,7 @@ export class ThreePathTracingService implements IPathTracingService {
     if (this.convertedEnvTexture) {
       this.convertedEnvTexture.dispose();
       this.convertedEnvTexture = null;
+      this.convertedEnvSourceUuid = null;
     }
 
     // Startup-dissolve resources. Only the material is ours to free — NOT the

@@ -72,6 +72,7 @@ const lastPathTracer = (): MockPathTracerInstance =>
 interface ServiceInternals {
   pathTracer: MockPathTracerInstance | null;
   convertedEnvTexture: THREE.DataTexture | null;
+  convertedEnvSourceUuid: string | null;
   sceneInitialized: boolean;
   sampleCount: number;
   disposed: boolean;
@@ -653,7 +654,7 @@ describe('ThreePathTracingService', () => {
       expect(lastPathTracer().setScene).toHaveBeenCalled();
     });
 
-    it('reuses an already converted environment texture', async () => {
+    it('reuses an already converted environment texture for the SAME source', async () => {
       const ctx = setup();
       await initialize(ctx, true);
       const img = document.createElement('img');
@@ -665,11 +666,37 @@ describe('ThreePathTracingService', () => {
 
       const cached = new THREE.DataTexture(new Float32Array(4), 1, 1);
       peek(ctx.service).convertedEnvTexture = cached;
+      peek(ctx.service).convertedEnvSourceUuid = texture.uuid;
 
       const result = await ctx.service.render(ctx.scene, ctx.camera);
 
       expect(result.ok).toBe(true);
       expect(peek(ctx.service).convertedEnvTexture).toBe(cached);
+    });
+
+    it('re-converts (and frees the stale conversion) when the environment source changed', async () => {
+      const ctx = setup();
+      await initialize(ctx, true);
+      const img = document.createElement('img');
+      Object.defineProperty(img, 'width', { value: 2 });
+      Object.defineProperty(img, 'height', { value: 2 });
+      const newEnv = new THREE.Texture(img);
+      newEnv.mapping = THREE.EquirectangularReflectionMapping;
+      (ctx.threeScene as PathTracingScene).__originalEnvironmentTexture = newEnv;
+
+      // A conversion left over from the PREVIOUS environment.
+      const stale = new THREE.DataTexture(new Float32Array(4), 1, 1);
+      const staleDispose = jest.spyOn(stale, 'dispose');
+      peek(ctx.service).convertedEnvTexture = stale;
+      peek(ctx.service).convertedEnvSourceUuid = 'some-other-env-uuid';
+
+      const result = await ctx.service.render(ctx.scene, ctx.camera);
+
+      expect(result.ok).toBe(true);
+      expect(peek(ctx.service).convertedEnvTexture).not.toBe(stale);
+      expect(peek(ctx.service).convertedEnvTexture).not.toBeNull();
+      expect(peek(ctx.service).convertedEnvSourceUuid).toBe(newEnv.uuid);
+      expect(staleDispose).toHaveBeenCalled();
     });
 
     it('awaits an incomplete image during scene initialization', async () => {

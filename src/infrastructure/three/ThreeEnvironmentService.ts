@@ -30,6 +30,11 @@ export class ThreeEnvironmentService implements IEnvironmentService {
   // a plain cube texture to the equirectangular map it needs by itself.
   private studioPmremTexture: THREE.Texture | null = null;
   private studioCubeTarget: THREE.WebGLCubeRenderTarget | null = null;
+  // Each PMREM texture mapped to the source the path tracer can actually read
+  // (the loaded equirect, or the studio cube capture). applyToScene receives
+  // only the PMREM, and scanning the cache for "any _original" instead binds
+  // every later environment to the FIRST one ever loaded.
+  private readonly originalByPmrem = new WeakMap<THREE.Texture, THREE.Texture>();
   private disposed = false;
 
   constructor() {
@@ -151,8 +156,8 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         // Store both textures - PMREM for standard rendering, original for path tracing
         this.loadedTextures.set(url, pmremTexture);
         this.loadedTextures.set(url + '_original', texture);
-        
-        
+        this.originalByPmrem.set(pmremTexture, texture);
+
         return Result.ok(new ThreeTextureAdapter(pmremTexture));
       }
 
@@ -207,53 +212,32 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         }
       }
       
-      // IMPORTANT: Also set the original texture for path tracing
-      // Path tracer needs equirectangular texture, not PMREM
+      // Also hand the path tracer a source it can read: the tracer cannot
+      // consume PMREM's packed CubeUV layout, so a PMREM environment resolves
+      // through originalByPmrem to ITS OWN source (the loaded equirect, or the
+      // studio cube capture) — never to whichever original happens to sit
+      // first in the cache.
+      const original = this.originalByPmrem.get(threeTexture);
       if (threeTexture.mapping === THREE.CubeUVReflectionMapping) {
-        // Find the original equirectangular texture
-        const originalTextures = Array.from(this.loadedTextures.entries());
-        const originalEntry = originalTextures.find(([key, tex]) =>
-          key.endsWith('_original') && tex.mapping === THREE.EquirectangularReflectionMapping
-        );
-
-        if (originalEntry) {
-          // Store original texture reference for path tracer
-          (threeScene as SceneWithOriginalTexture).__originalEnvironmentTexture = originalEntry[1];
-        } else if (threeTexture === this.studioPmremTexture && this.studioCubeTarget) {
-          // The procedural studio room has no file-loaded original; its cube
-          // capture is what the path tracer can convert and ingest.
-          (threeScene as SceneWithOriginalTexture).__originalEnvironmentTexture =
-            this.studioCubeTarget.texture;
+        if (original) {
+          (threeScene as SceneWithOriginalTexture).__originalEnvironmentTexture = original;
         }
       } else if (threeTexture.mapping === THREE.EquirectangularReflectionMapping) {
-        // If we already have equirectangular, use it directly
+        // Already equirectangular — usable by the tracer directly.
         (threeScene as SceneWithOriginalTexture).__originalEnvironmentTexture = threeTexture;
       }
-      
-      // For background, try to use the original texture if available
-      // PMREM textures can cause the weird sphere effect when used as background
-      if (options?.setBackground ?? true) {
-        if (threeTexture.mapping === THREE.EquirectangularReflectionMapping) {
-          // Equirectangular textures can be used directly as background
-          threeScene.background = threeTexture;
-        } else if (threeTexture.mapping === THREE.CubeUVReflectionMapping) {
-          // For PMREM textures, try to find the original texture
-          // Check if we have the original texture stored
-          const originalTextures = Array.from(this.loadedTextures.entries());
-          const originalEntry = originalTextures.find(([key, tex]) =>
-            key.endsWith('_original') && tex.mapping === THREE.EquirectangularReflectionMapping
-          );
 
-          if (originalEntry) {
-            // Use the original equirectangular texture as background
-            threeScene.background = originalEntry[1];
-          } else {
-            // If no original available, use the PMREM texture anyway
-            // It might look weird but it's better than black
-            threeScene.background = threeTexture;
-          }
+      // For the visible backdrop prefer the matching equirect original: a PMREM
+      // texture used as background renders as a weird low-res sphere. The studio
+      // cube capture is not equirect and never reaches here as a backdrop (the
+      // studio path applies with setBackground: false).
+      if (options?.setBackground ?? true) {
+        if (
+          threeTexture.mapping === THREE.CubeUVReflectionMapping &&
+          original?.mapping === THREE.EquirectangularReflectionMapping
+        ) {
+          threeScene.background = original;
         } else {
-          // For other textures, use them as background
           threeScene.background = threeTexture;
         }
       }
@@ -353,6 +337,14 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         );
       }
 
+      // The studio room is deterministic, so one bake serves the whole session:
+      // without this cache every setEnvironmentMap↔resetEnvironment round trip
+      // pushed another PMREM render target (only freed at dispose) and re-ran
+      // the full room bake + cube capture.
+      if (this.studioPmremTexture && this.studioCubeTarget) {
+        return Result.ok(new ThreeTextureAdapter(this.studioPmremTexture));
+      }
+
       // Create RoomEnvironment scene, pushed to a higher-contrast studio look
       // (darker surround, punchier soft-boxes) before it is baked — so both the
       // PMREM env map and the path tracer's cube capture below share it.
@@ -407,6 +399,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       this.studioCubeTarget?.dispose();
       this.studioCubeTarget = cubeTarget;
       this.studioPmremTexture = pmremTexture;
+      this.originalByPmrem.set(pmremTexture, cubeTarget.texture);
     } catch (error) {
       console.warn('Failed to capture the studio environment for path tracing:', error);
     }
