@@ -547,6 +547,10 @@ export class ViewerCore {
       partial.backgroundColor !== undefined || partial.backgroundColorEdge !== undefined;
     if (backgroundChanged && this.options.backgroundColor !== undefined) {
       this.environment.applyBackgroundColor(this.options.backgroundColor);
+      // The tracer reads scene.background only at ingest — without a forced
+      // re-ingest a converged traced frame keeps the old backdrop forever
+      // (camera-move resets are non-forced and never re-read it).
+      this.pathTracing.resetAccumulation(true);
     }
     const exposure = partial.renderer?.toneMappingExposure;
     if (exposure !== undefined) {
@@ -580,6 +584,9 @@ export class ViewerCore {
     const environmentIntensity = partial.environment?.environmentIntensity;
     if (environmentIntensity !== undefined) {
       this.scene.setEnvironmentIntensity(environmentIntensity);
+      // Ingest-visible like the background: the tracer samples
+      // scene.environmentIntensity only inside setScene.
+      this.pathTracing.resetAccumulation(true);
       needsRender = true;
     }
     const autoRotate = partial.controls?.autoRotate;
@@ -721,9 +728,11 @@ export class ViewerCore {
       this.renderer.setSize(width, height);
     }
 
-    // Render immediately so the resized frame never shows stretched.
+    // Render immediately so the resized frame never shows stretched — through
+    // the composer when effects are on, or every ResizeObserver tick of a
+    // drag-resize paints an effect-free frame (a visible shimmer).
     try {
-      this.renderer.render(this.scene, this.camera);
+      this.renderRaster();
     } catch {
       // The scene may not be ready yet; the render loop repaints shortly.
     }

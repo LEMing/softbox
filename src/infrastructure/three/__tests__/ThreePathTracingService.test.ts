@@ -1265,6 +1265,16 @@ describe('ThreePathTracingService', () => {
       expect(layerOpacity(service, 256)).toBeCloseTo(1);
     });
 
+    it('compresses the fade window to the sample budget (no pop at completion)', () => {
+      const service = new ThreePathTracingService();
+      service.updateSettings({ samples: 12 });
+      // By the final sample the tracer must be fully revealed — with the old
+      // fixed 256-sample window, opacity(12) sat under the 0.3 preview cap and
+      // completion presented the pure traced frame as a hard jump.
+      expect(layerOpacity(service, 12)).toBeCloseTo(1);
+      expect(layerOpacity(service, 6)).toBeLessThanOrEqual(0.3 + 1e-6);
+    });
+
     it('never decreases as accumulation progresses', () => {
       const service = new ThreePathTracingService();
       let previous = -1;

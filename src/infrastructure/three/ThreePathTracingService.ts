@@ -633,7 +633,7 @@ export class ThreePathTracingService implements IPathTracingService {
     this.sampleCount++;
 
     // Dissolve the raster out as the tracer resolves.
-    if (this.fadeSupported && this.sampleCount < ThreePathTracingService.FADE_SAMPLES) {
+    if (this.fadeSupported && this.sampleCount < this.fadeWindowSamples()) {
       const rasterOpacity = 1 - this.pathTracedLayerOpacity(this.sampleCount);
       this.runFadeStep(() => this.renderRasterFade(rasterOpacity));
     }
@@ -660,9 +660,17 @@ export class ThreePathTracingService implements IPathTracingService {
    * progresses: 0 for the opening (noisiest) samples, eased up to a low preview
    * cap while the image is still grainy — so the tracer's noise never reads
    * above the cap — then released to fully opaque as it resolves. */
+  /** The dissolve must finish by the accumulation's LAST sample: for a
+   * consumer budget below FADE_SAMPLES the window compresses, else completion
+   * would present the pure traced frame while the fade still held the raster
+   * at high opacity — a hard pop instead of a dissolve. */
+  private fadeWindowSamples(): number {
+    return Math.min(ThreePathTracingService.FADE_SAMPLES, this.settings.samples);
+  }
+
   private pathTracedLayerOpacity(sampleCount: number): number {
     const hold = ThreePathTracingService.FADE_HOLD_SAMPLES;
-    const full = ThreePathTracingService.FADE_SAMPLES;
+    const full = this.fadeWindowSamples();
     const cap = ThreePathTracingService.FADE_PREVIEW_OPACITY;
     const release = hold + (full - hold) * ThreePathTracingService.FADE_RELEASE_FRACTION;
     if (sampleCount < release) {

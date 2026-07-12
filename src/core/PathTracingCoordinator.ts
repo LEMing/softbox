@@ -126,7 +126,11 @@ export class PathTracingCoordinator {
       service.events.on('pathtracing:paused', ({ reason }) => {
         renderLoopManager.releaseContinuous('path-tracing');
         if (!getOptions().staticScene) {
-          renderLoopManager.setAlwaysRender(false);
+          // A COMPLETED accumulation must keep the converged frame on the
+          // canvas, so continuous raster rendering stays off. A give-up pause
+          // produced nothing to preserve — the raster view is live and the
+          // staticScene:false contract (external mutations repaint) resumes.
+          renderLoopManager.setAlwaysRender(reason === 'gave-up');
         }
         schedule(() => {
           if (!renderLoopManager.hasContinuousDemand()) {
@@ -193,6 +197,11 @@ export class PathTracingCoordinator {
     // path-traced frame.
     service.reset();
     renderLoopManager.releaseContinuous('path-tracing');
+    // PT no longer owns the canvas: hand the staticScene:false contract back
+    // (completion had turned continuous rendering off to preserve the frame).
+    if (!this.deps.getOptions().staticScene) {
+      renderLoopManager.setAlwaysRender(true);
+    }
     this.completeHandled = false;
     this.suspendedForAnimation = false;
     // A capture awaiting 'pathtracing:complete' must not hang forever now that

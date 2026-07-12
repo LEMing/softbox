@@ -697,6 +697,41 @@ describe('ViewerCore', () => {
       jest.advanceTimersByTime(150);
       expect(stopSpy).toHaveBeenCalled();
     });
+
+    it('a gave-up pause hands the staticScene:false contract back (alwaysRender on)', async () => {
+      const bundle = makeDeps({
+        options: { staticScene: false, pathTracing: { enabled: true } },
+        withPathTracing: true,
+      });
+      const setAlwaysRenderSpy = jest.spyOn(RenderLoopManager.prototype, 'setAlwaysRender');
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+      setAlwaysRenderSpy.mockClear();
+
+      bundle.pathTracingService!.events.emit('pathtracing:paused', { samples: 0, reason: 'gave-up' });
+
+      // Nothing was preserved on the canvas — external scene mutations must
+      // keep repainting, unlike the completed case that freezes the frame.
+      expect(setAlwaysRenderSpy).toHaveBeenCalledWith(true);
+      expect(setAlwaysRenderSpy).not.toHaveBeenCalledWith(false);
+    });
+
+    it('disabling path tracing at runtime restores alwaysRender for staticScene:false', async () => {
+      const bundle = makeDeps({
+        options: { staticScene: false, pathTracing: { enabled: true } },
+        withPathTracing: true,
+      });
+      const setAlwaysRenderSpy = jest.spyOn(RenderLoopManager.prototype, 'setAlwaysRender');
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+      // Converged: completion turned continuous rendering off.
+      bundle.pathTracingService!.events.emit('pathtracing:paused', { samples: 50, reason: 'completed' });
+      setAlwaysRenderSpy.mockClear();
+
+      viewer.updateOptions({ pathTracing: { enabled: false } });
+
+      expect(setAlwaysRenderSpy).toHaveBeenCalledWith(true);
+    });
   });
 
   describe('initialize disposal race', () => {
@@ -1164,6 +1199,18 @@ describe('ViewerCore', () => {
       expect(onError).toHaveBeenCalledWith({
         error: expect.objectContaining({ code: ErrorCode.OPERATION_FAILED }),
       });
+    });
+
+    it('renders the immediate resize frame through the composer when effects are on', () => {
+      const canvas = makeCanvas(640, 480);
+      const renderPostProcessed = jest.fn(() => Result.ok(undefined));
+      const bundle = makeDeps({ canvas, rendererOverrides: { renderPostProcessed } });
+      const viewer = new ViewerCore(bundle.deps);
+
+      viewer.resize(1024, 768);
+
+      expect(renderPostProcessed).toHaveBeenCalled();
+      expect(bundle.renderer.render).not.toHaveBeenCalled();
     });
 
     it('silently ignores render failures during resize', () => {
@@ -2154,6 +2201,36 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
       bundle.scene,
       { topColor: '#abcdef', bottomColor: '#abcdef' }
     );
+  });
+
+  it('forces a PT re-ingest when the background color changes at runtime', () => {
+    const bundle = makeDeps({
+      withSceneSetup: true,
+      withPathTracing: true,
+      options: { backgroundColor: '#000000', pathTracing: { enabled: true } },
+      pathTracingOverrides: { isEnabled: jest.fn(() => true) },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    viewer.updateOptions({ backgroundColor: '#abcdef' });
+
+    // Non-forced resets never re-read scene.background — only a forced
+    // re-ingest does, so a converged frame must not keep the old backdrop.
+    expect(bundle.pathTracingService!.reset).toHaveBeenCalledWith(true);
+  });
+
+  it('forces a PT re-ingest when the environment intensity changes at runtime', () => {
+    const bundle = makeDeps({
+      withSceneSetup: true,
+      withPathTracing: true,
+      options: { pathTracing: { enabled: true } },
+      pathTracingOverrides: { isEnabled: jest.fn(() => true) },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    viewer.updateOptions({ environment: { environmentIntensity: 1.7 } });
+
+    expect(bundle.pathTracingService!.reset).toHaveBeenCalledWith(true);
   });
 
   it('does not override the background when an environment map is set', () => {
