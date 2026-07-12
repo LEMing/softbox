@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { LoadingOverlay } from '../LoadingOverlay';
 
@@ -29,5 +29,60 @@ describe('LoadingOverlay', () => {
       <LoadingOverlay status="loading" label="x" color="#fff" backdrop="rgba(0,0,0,0.4)" />
     );
     expect(getByTestId('viewer-loading-overlay')).toHaveStyle({ pointerEvents: 'none' });
+  });
+
+  it('stops the spin live when prefers-reduced-motion flips mid-load', () => {
+    let matches = false;
+    let changeListener: (() => void) | null = null;
+    const mediaQueryList = {
+      get matches() {
+        return matches;
+      },
+      addEventListener: jest.fn((_type: string, listener: () => void) => {
+        changeListener = listener;
+      }),
+      removeEventListener: jest.fn(),
+    };
+    Object.defineProperty(window, 'matchMedia', {
+      value: jest.fn(() => mediaQueryList),
+      configurable: true,
+    });
+    try {
+      const { container } = render(
+        <LoadingOverlay status="loading" label="x" color="#fff" backdrop="rgba(0,0,0,0.4)" />
+      );
+      expect(container.querySelector('animateTransform')).toBeTruthy();
+
+      matches = true;
+      act(() => changeListener?.());
+
+      expect(container.querySelector('animateTransform')).toBeNull();
+    } finally {
+      Object.defineProperty(window, 'matchMedia', { value: undefined, configurable: true });
+    }
+  });
+
+  it('unsubscribes from the media query on unmount', () => {
+    const mediaQueryList = {
+      matches: false,
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+    };
+    Object.defineProperty(window, 'matchMedia', {
+      value: jest.fn(() => mediaQueryList),
+      configurable: true,
+    });
+    try {
+      const { unmount } = render(
+        <LoadingOverlay status="loading" label="x" color="#fff" backdrop="rgba(0,0,0,0.4)" />
+      );
+      unmount();
+      expect(mediaQueryList.removeEventListener).toHaveBeenCalledWith(
+        'change',
+        expect.any(Function)
+      );
+    } finally {
+      Object.defineProperty(window, 'matchMedia', { value: undefined, configurable: true });
+    }
   });
 });
