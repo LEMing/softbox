@@ -401,7 +401,13 @@ export class CaptureController {
     renderer.setSize(liveWidth, liveHeight);
     renderer.setPixelRatio(livePixelRatio);
     applyCameraAspect(camera, liveAspect);
-    renderer.render(scene, camera);
+    // Through the composer when effects are on — a plain render here paints
+    // one effect-free frame before the loop's next composed one (a flash).
+    if (renderer.renderPostProcessed) {
+      renderer.renderPostProcessed(scene, camera);
+    } else {
+      renderer.render(scene, camera);
+    }
     renderLoopManager.requestRender();
     return still;
   }
