@@ -36,6 +36,14 @@ export interface IRenderer extends IRendererExtension {
    */
   setPostProcessing?(effects: IPostProcessingEffects): void;
 
+  /**
+   * Register a handler for post-processing chunk-load failures. The composer
+   * degrades to the plain renderer on its own; this is how the degradation
+   * reaches the consumer's 'error' channel instead of dying on the console.
+   * Optional, like the other post-processing members.
+   */
+  setPostProcessingErrorHandler?(handler: (error: unknown) => void): void;
+
   getDomElement(): HTMLCanvasElement;
   getContext(): WebGLRenderingContext | WebGL2RenderingContext | null;
 

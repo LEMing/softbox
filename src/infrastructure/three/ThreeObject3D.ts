@@ -6,17 +6,73 @@ import { disposeObject3D } from './disposal';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 
 /**
+ * IVector3 view over a THREE.Euler. The rotation shares IVector3 with
+ * position/scale on the engine-agnostic surface, but an Euler is NOT a
+ * Vector3 — the previous double cast made `normalize()`/`length()` crash on
+ * the missing methods. Component reads/writes map 1:1 to the live Euler; the
+ * vector-space operations act on the raw component triple.
+ */
+class ThreeEulerAdapter implements IVector3 {
+  constructor(private readonly euler: THREE.Euler) {}
+
+  get x(): number {
+    return this.euler.x;
+  }
+  set x(value: number) {
+    this.euler.x = value;
+  }
+  get y(): number {
+    return this.euler.y;
+  }
+  set y(value: number) {
+    this.euler.y = value;
+  }
+  get z(): number {
+    return this.euler.z;
+  }
+  set z(value: number) {
+    this.euler.z = value;
+  }
+
+  set(x: number, y: number, z: number): void {
+    this.euler.set(x, y, z);
+  }
+
+  copy(v: IVector3): void {
+    this.euler.set(v.x, v.y, v.z);
+  }
+
+  add(v: IVector3): void {
+    this.euler.set(this.euler.x + v.x, this.euler.y + v.y, this.euler.z + v.z);
+  }
+
+  multiply(v: IVector3): void {
+    this.euler.set(this.euler.x * v.x, this.euler.y * v.y, this.euler.z * v.z);
+  }
+
+  normalize(): void {
+    const magnitude = this.length();
+    if (magnitude > 0) {
+      this.euler.set(this.euler.x / magnitude, this.euler.y / magnitude, this.euler.z / magnitude);
+    }
+  }
+
+  length(): number {
+    return Math.hypot(this.euler.x, this.euler.y, this.euler.z);
+  }
+}
+
+/**
  * Adapter for Three.js Object3D to implement IObject3D
  */
 export class ThreeObject3DAdapter implements IObject3D {
   private readonly positionAdapter: ThreeVector3Adapter;
-  private readonly rotationAdapter: ThreeVector3Adapter;
+  private readonly rotationAdapter: ThreeEulerAdapter;
   private readonly scaleAdapter: ThreeVector3Adapter;
 
   constructor(private object: THREE.Object3D) {
     this.positionAdapter = ThreeVector3Adapter.fromThreeVector(object.position);
-    // THREE.Euler has x, y, z properties similar to Vector3, so we can use a type assertion
-    this.rotationAdapter = ThreeVector3Adapter.fromThreeVector(object.rotation as unknown as THREE.Vector3);
+    this.rotationAdapter = new ThreeEulerAdapter(object.rotation);
     this.scaleAdapter = ThreeVector3Adapter.fromThreeVector(object.scale);
   }
 

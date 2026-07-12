@@ -87,7 +87,7 @@ export class ViewerFactory {
     
     // Convert renderer options
     const rendererOptions = RendererOptionsConverter.convertRendererOptions(
-      (options.renderer || {}) as Record<string, unknown>
+      options.renderer || {}
     );
 
     // Preserve the WebGL drawing buffer so a completed path-traced frame

@@ -6,6 +6,7 @@ import {
 } from '../../core/services/IPathTracingService';
 import { IScene, ICamera, Result } from '../../core/interfaces';
 import { TypedEventEmitter } from '../../events/EventEmitter';
+import { ThreeViewerError, ErrorCode } from '../../errors';
 
 /**
  * Lazy facade over ThreePathTracingService. three-gpu-pathtracer is ~60 kB
@@ -28,7 +29,21 @@ export class LazyPathTracingService implements IPathTracingService {
   private pendingEnabled?: boolean;
 
   async initialize(options: IPathTracingOptions): Promise<Result<void>> {
-    const { ThreePathTracingService } = await import('./ThreePathTracingService');
+    // The tracer chunk is a network fetch (offline, CDN failure) — a rejected
+    // import must surface as a Result like every other failure, not as an
+    // unhandled rejection racing up through the runtime-toggle chain.
+    let ThreePathTracingService: typeof import('./ThreePathTracingService').ThreePathTracingService;
+    try {
+      ({ ThreePathTracingService } = await import('./ThreePathTracingService'));
+    } catch (error) {
+      return Result.err(
+        new ThreeViewerError(
+          'Failed to load the path-tracing chunk',
+          ErrorCode.PATH_TRACING_INIT_FAILED,
+          { originalError: error }
+        )
+      );
+    }
     if (this.disposed) {
       return Result.ok(undefined);
     }

@@ -31,9 +31,14 @@ export class ThreeRendererAdapter implements IRenderer {
   // so a runtime effect toggle can re-derive the right ratio in either
   // direction (cap on enable, restore on disable).
   private requestedPixelRatio = 1;
+  private postLoadErrorHandler?: (error: unknown) => void;
 
   constructor(canvas?: HTMLCanvasElement) {
     this.canvas = canvas;
+  }
+
+  setPostProcessingErrorHandler(handler: (error: unknown) => void): void {
+    this.postLoadErrorHandler = handler;
   }
 
   get id(): string {
@@ -117,7 +122,9 @@ export class ThreeRendererAdapter implements IRenderer {
       // It lazy-loads its chunk, so this is cheap and adds no bundle weight for
       // viewers that use no effects.
       if (postEnabled) {
-        this.postPipeline = new PostProcessingPipeline(this.renderer, postConfig);
+        this.postPipeline = new PostProcessingPipeline(this.renderer, postConfig, (error) =>
+          this.postLoadErrorHandler?.(error)
+        );
       }
 
       return Result.ok(undefined);
@@ -273,7 +280,9 @@ export class ThreeRendererAdapter implements IRenderer {
       postEnabled ? Math.min(this.requestedPixelRatio, 2) : this.requestedPixelRatio
     );
     if (postEnabled) {
-      this.postPipeline = new PostProcessingPipeline(this.renderer, config);
+      this.postPipeline = new PostProcessingPipeline(this.renderer, config, (error) =>
+        this.postLoadErrorHandler?.(error)
+      );
     }
   }
 

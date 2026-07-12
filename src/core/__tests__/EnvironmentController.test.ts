@@ -130,10 +130,11 @@ describe('EnvironmentController.setEnvironmentMap', () => {
     expect(b.reviveRenderLoop).toHaveBeenCalled();
   });
 
-  it('no-ops on a disposed viewer', async () => {
+  it('reports INVALID_STATE on a disposed viewer without touching the service', async () => {
     const b = makeBundle({ disposed: () => true });
     const result = await b.controller.setEnvironmentMap('/studio.hdr');
-    expect(result.ok).toBe(true);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe(ErrorCode.INVALID_STATE);
     expect(b.environmentService!.loadEnvironmentMap).not.toHaveBeenCalled();
   });
 
@@ -163,7 +164,8 @@ describe('EnvironmentController.setEnvironmentMap', () => {
       },
     });
     const result = await b.controller.setEnvironmentMap('/studio.hdr');
-    expect(result.ok).toBe(true);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe(ErrorCode.INVALID_STATE);
     expect(b.environmentService!.applyToScene).not.toHaveBeenCalled();
   });
 
@@ -178,6 +180,38 @@ describe('EnvironmentController.setEnvironmentMap', () => {
 });
 
 describe('EnvironmentController.resetEnvironment', () => {
+  it('propagates a failed studio re-apply instead of claiming success', () => {
+    const b = makeBundle({
+      environmentOverrides: {
+        applyToScene: jest.fn(() =>
+          Result.err(new ThreeViewerError('apply failed', ErrorCode.SCENE_OPERATION_FAILED))
+        ),
+      },
+    });
+    const result = b.controller.resetEnvironment();
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe(ErrorCode.SCENE_OPERATION_FAILED);
+  });
+
+  it('warns but completes when the background restore paint fails', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const b = makeBundle({
+      options: { backgroundColor: '#111111' },
+      sceneSetupOverrides: {
+        createGradientBackground: jest.fn(() =>
+          Result.err(new ThreeViewerError('paint failed', ErrorCode.SCENE_OPERATION_FAILED))
+        ),
+      },
+    });
+    const result = b.controller.resetEnvironment();
+    expect(result.ok).toBe(true);
+    expect(warn).toHaveBeenCalledWith(
+      'Failed to restore the background color:',
+      expect.anything()
+    );
+    warn.mockRestore();
+  });
+
   it('restores the studio env, clears the url and repaints the stored backdrop', () => {
     const b = makeBundle({
       options: {
@@ -209,9 +243,11 @@ describe('EnvironmentController.resetEnvironment', () => {
     expect(b.sceneSetupService!.createGradientBackground).not.toHaveBeenCalled();
   });
 
-  it('no-ops on a disposed viewer', () => {
+  it('reports INVALID_STATE on a disposed viewer without touching the service', () => {
     const b = makeBundle({ disposed: () => true });
-    expect(b.controller.resetEnvironment().ok).toBe(true);
+    const result = b.controller.resetEnvironment();
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe(ErrorCode.INVALID_STATE);
     expect(b.environmentService!.createStudioEnvironment).not.toHaveBeenCalled();
   });
 
@@ -237,9 +273,11 @@ describe('EnvironmentController.setBackgroundImage', () => {
     expect((b.pathTracing as unknown as { resetAccumulation: jest.Mock }).resetAccumulation).toHaveBeenCalledWith(true);
   });
 
-  it('no-ops on a disposed viewer', async () => {
+  it('reports INVALID_STATE on a disposed viewer without touching the service', async () => {
     const b = makeBundle({ disposed: () => true });
-    expect((await b.controller.setBackgroundImage('/p.jpg')).ok).toBe(true);
+    const result = await b.controller.setBackgroundImage('/p.jpg');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe(ErrorCode.INVALID_STATE);
     expect(b.environmentService!.setBackgroundImage).not.toHaveBeenCalled();
   });
 
@@ -267,7 +305,8 @@ describe('EnvironmentController.setBackgroundImage', () => {
       },
     });
     const result = await b.controller.setBackgroundImage('/photo.jpg');
-    expect(result.ok).toBe(true);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe(ErrorCode.INVALID_STATE);
     expect((b.pathTracing as unknown as { resetAccumulation: jest.Mock }).resetAccumulation).not.toHaveBeenCalled();
   });
 });
@@ -287,9 +326,11 @@ describe('EnvironmentController.setBackgroundColor', () => {
     expect(b.getOptions().backgroundColorEdge).toBeUndefined();
   });
 
-  it('no-ops on a disposed viewer', () => {
+  it('reports INVALID_STATE on a disposed viewer without touching the service', () => {
     const b = makeBundle({ disposed: () => true });
-    expect(b.controller.setBackgroundColor('#fff').ok).toBe(true);
+    const result = b.controller.setBackgroundColor('#fff');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe(ErrorCode.INVALID_STATE);
     expect(b.sceneSetupService!.createGradientBackground).not.toHaveBeenCalled();
   });
 

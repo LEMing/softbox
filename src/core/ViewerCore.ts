@@ -206,6 +206,19 @@ export class ViewerCore {
 
   async initialize(): Promise<Result<void>> {
     try {
+      // Registered before renderer.initialize so a chunk failure on the
+      // INITIAL effects pipeline surfaces too, not only on runtime swaps.
+      this.renderer.setPostProcessingErrorHandler?.((error) => {
+        if (!this.disposed) {
+          this.events.emit('error', {
+            error: new ThreeViewerError(
+              'Post-processing effects failed to load; rendering without them',
+              ErrorCode.OPERATION_FAILED,
+              { originalError: error }
+            ),
+          });
+        }
+      });
       const rendererResult = this.renderer.initialize(this.rendererOptions || {});
       if (!rendererResult.ok) {
         return rendererResult;
@@ -793,12 +806,29 @@ export class ViewerCore {
    */
   private setPathTracingEnabled(enabled: boolean): void {
     if (enabled) {
-      void this.pathTracing.enableRuntime().then((active) => {
-        if (active && !this.disposed) {
-          this.reviveRenderLoop();
-          this.renderLoopManager.requestRender();
-        }
-      });
+      void this.pathTracing
+        .enableRuntime()
+        .then((active) => {
+          if (active && !this.disposed) {
+            this.reviveRenderLoop();
+            this.renderLoopManager.requestRender();
+          }
+        })
+        .catch((error) => {
+          // Init failures come back as Results (and emit 'error' in the
+          // coordinator); this catch is the backstop for anything thrown past
+          // that contract, so the runtime toggle can never surface as an
+          // unhandled rejection.
+          if (!this.disposed) {
+            this.events.emit('error', {
+              error: new ThreeViewerError(
+                'Failed to enable path tracing',
+                ErrorCode.PATH_TRACING_INIT_FAILED,
+                { originalError: error }
+              ),
+            });
+          }
+        });
     } else {
       this.pathTracing.disableRuntime();
       this.reviveRenderLoop();

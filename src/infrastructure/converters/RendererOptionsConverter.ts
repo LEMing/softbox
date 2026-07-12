@@ -1,21 +1,22 @@
 import * as THREE from 'three';
 import { IRendererOptions } from '../../core/interfaces/IRenderer';
+import { RendererOptions } from '../../types/options/RendererOptions';
 
 export class RendererOptionsConverter {
-  static convertRendererOptions(options: Record<string, unknown>): IRendererOptions {
+  static convertRendererOptions(options: RendererOptions): IRendererOptions {
     const converted: IRendererOptions = {
-      antialias: options.antialias as boolean | undefined,
-      alpha: options.alpha as boolean | undefined,
-      premultipliedAlpha: options.premultipliedAlpha as boolean | undefined,
-      preserveDrawingBuffer: options.preserveDrawingBuffer as boolean | undefined,
-      powerPreference: options.powerPreference as 'high-performance' | 'low-power' | 'default' | undefined,
-      pixelRatio: options.pixelRatio as number | undefined,
+      antialias: options.antialias,
+      alpha: options.alpha,
+      premultipliedAlpha: options.premultipliedAlpha,
+      preserveDrawingBuffer: options.preserveDrawingBuffer,
+      powerPreference: options.powerPreference,
+      pixelRatio: options.pixelRatio,
     };
 
     // Convert shadow map
     if (options.shadowMapEnabled !== undefined || options.shadowMapType !== undefined) {
       converted.shadowMap = {
-        enabled: (options.shadowMapEnabled ?? true) as boolean,
+        enabled: options.shadowMapEnabled ?? true,
         type: this.convertShadowMapType(options.shadowMapType),
       };
     }
@@ -24,15 +25,15 @@ export class RendererOptionsConverter {
     if (options.toneMapping !== undefined || options.toneMappingExposure !== undefined) {
       converted.toneMapping = {
         type: this.convertToneMappingType(options.toneMapping),
-        exposure: (options.toneMappingExposure ?? 1) as number,
+        exposure: options.toneMappingExposure ?? 1,
       };
     }
 
     // Opt-in post-processing effects — only carried through when at least one
     // is set, so a plain viewer has no `postProcessing` block at all.
-    const bloom = options.bloom as boolean | undefined;
-    const vignette = options.vignette as boolean | undefined;
-    const filmGrain = options.filmGrain as boolean | undefined;
+    const bloom = options.bloom;
+    const vignette = options.vignette;
+    const filmGrain = options.filmGrain;
     const colorGrade = this.resolveColorGrade(options.colorGrade);
     if (bloom || vignette || filmGrain || colorGrade) {
       converted.postProcessing = {
