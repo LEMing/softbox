@@ -125,18 +125,26 @@ export class PathTracingCoordinator {
       // unless another subsystem (turntable, animations) still needs frames.
       service.events.on('pathtracing:paused', ({ reason }) => {
         renderLoopManager.releaseContinuous('path-tracing');
-        if (!getOptions().staticScene) {
+        const staticScene = Boolean(getOptions().staticScene);
+        if (!staticScene) {
           // A COMPLETED accumulation must keep the converged frame on the
           // canvas, so continuous raster rendering stays off. A give-up pause
           // produced nothing to preserve — the raster view is live and the
           // staticScene:false contract (external mutations repaint) resumes.
           renderLoopManager.setAlwaysRender(reason === 'gave-up');
         }
-        schedule(() => {
-          if (!renderLoopManager.hasContinuousDemand()) {
-            renderLoopManager.stop();
-          }
-        }, 100);
+        // The wind-down must not follow a gave-up pause on a
+        // staticScene:false viewer: stop() clears every flag INCLUDING the
+        // alwaysRender just restored, which would re-break the contract
+        // 100ms after this handler repaired it.
+        const loopStaysAlive = !staticScene && reason === 'gave-up';
+        if (!loopStaysAlive) {
+          schedule(() => {
+            if (!renderLoopManager.hasContinuousDemand()) {
+              renderLoopManager.stop();
+            }
+          }, 100);
+        }
         if (reason === 'gave-up') {
           this.selfPauseListeners.forEach((callback) => callback());
         }

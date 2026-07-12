@@ -523,6 +523,9 @@ export class ViewerCore {
     const previousAutoRotate = this.options.controls?.autoRotate;
     const previousPathTracingEnabled = this.options.pathTracing?.enabled ?? false;
     const previousPostEffects = ViewerCore.postEffectsKey(this.options);
+    const previousBackgroundColor = this.options.backgroundColor;
+    const previousBackgroundColorEdge = this.options.backgroundColorEdge;
+    const previousEnvironmentIntensity = this.options.environment?.environmentIntensity;
     this.options = deepMerge(this.options, partial);
     // deepMerge intentionally ignores `undefined` overrides so they never wipe a
     // base value — but switching away from the dark preset sends
@@ -549,8 +552,17 @@ export class ViewerCore {
       this.environment.applyBackgroundColor(this.options.backgroundColor);
       // The tracer reads scene.background only at ingest — without a forced
       // re-ingest a converged traced frame keeps the old backdrop forever
-      // (camera-move resets are non-forced and never re-read it).
-      this.pathTracing.resetAccumulation(true);
+      // (camera-move resets are non-forced and never re-read it). Guarded on
+      // an ACTUAL value change: the runtime-options effect re-sends the whole
+      // set on every unrelated update, and defaults keep backgroundColor
+      // always defined — a presence check would force a BVH re-ingest per
+      // slider tick.
+      const backgroundValueChanged =
+        this.options.backgroundColor !== previousBackgroundColor ||
+        this.options.backgroundColorEdge !== previousBackgroundColorEdge;
+      if (backgroundValueChanged) {
+        this.pathTracing.resetAccumulation(true);
+      }
     }
     const exposure = partial.renderer?.toneMappingExposure;
     if (exposure !== undefined) {
@@ -585,8 +597,11 @@ export class ViewerCore {
     if (environmentIntensity !== undefined) {
       this.scene.setEnvironmentIntensity(environmentIntensity);
       // Ingest-visible like the background: the tracer samples
-      // scene.environmentIntensity only inside setScene.
-      this.pathTracing.resetAccumulation(true);
+      // scene.environmentIntensity only inside setScene. Same value-change
+      // guard — the default keeps this field defined on every re-send.
+      if (environmentIntensity !== previousEnvironmentIntensity) {
+        this.pathTracing.resetAccumulation(true);
+      }
       needsRender = true;
     }
     const autoRotate = partial.controls?.autoRotate;

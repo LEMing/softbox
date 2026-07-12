@@ -716,6 +716,25 @@ describe('ViewerCore', () => {
       expect(setAlwaysRenderSpy).not.toHaveBeenCalledWith(false);
     });
 
+    it('the gave-up restoration survives the wind-down window (no scheduled stop)', async () => {
+      jest.useFakeTimers();
+      const bundle = makeDeps({
+        options: { staticScene: false, pathTracing: { enabled: true } },
+        withPathTracing: true,
+      });
+      const stopSpy = jest.spyOn(RenderLoopManager.prototype, 'stop');
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+
+      bundle.pathTracingService!.events.emit('pathtracing:paused', { samples: 0, reason: 'gave-up' });
+      jest.advanceTimersByTime(200);
+
+      // stop() clears EVERY loop flag including alwaysRender — scheduling it
+      // after a gave-up pause would re-break the contract 100ms after this
+      // handler repaired it.
+      expect(stopSpy).not.toHaveBeenCalled();
+    });
+
     it('disabling path tracing at runtime restores alwaysRender for staticScene:false', async () => {
       const bundle = makeDeps({
         options: { staticScene: false, pathTracing: { enabled: true } },
@@ -2231,6 +2250,31 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     viewer.updateOptions({ environment: { environmentIntensity: 1.7 } });
 
     expect(bundle.pathTracingService!.reset).toHaveBeenCalledWith(true);
+  });
+
+  it('does NOT force a re-ingest when unchanged look values ride along an unrelated update', () => {
+    const bundle = makeDeps({
+      withSceneSetup: true,
+      withPathTracing: true,
+      options: {
+        backgroundColor: '#000000',
+        environment: { environmentIntensity: 0.5 },
+        pathTracing: { enabled: true },
+      },
+      pathTracingOverrides: { isEnabled: jest.fn(() => true) },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    // The runtime-options effect re-sends the WHOLE picked set on any runtime
+    // change; the defaults keep backgroundColor/environmentIntensity always
+    // defined. An unrelated update must not restart a converged accumulation.
+    viewer.updateOptions({
+      backgroundColor: '#000000',
+      environment: { environmentIntensity: 0.5 },
+      controls: { autoRotateSpeed: 3 },
+    });
+
+    expect(bundle.pathTracingService!.reset).not.toHaveBeenCalledWith(true);
   });
 
   it('does not override the background when an environment map is set', () => {
