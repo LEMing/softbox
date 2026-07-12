@@ -340,23 +340,4 @@ export class PathTracingCoordinator {
     schedule(stopUnlessDemanded, 100);
   }
 
-  /**
-   * A resize invalidates a completed frame on the canvas: drop the
-   * accumulation and report whether the tracer was running, so the caller can
-   * re-enable it after the resize.
-   */
-  onResizeStart(): boolean {
-    const wasActive = this.deps.service?.isEnabled() ?? false;
-    if (this.deps.service && this.completeHandled) {
-      this.deps.service.reset();
-      this.completeHandled = false;
-    }
-    return wasActive;
-  }
-
-  onResizeEnd(wasActive: boolean): void {
-    if (wasActive && this.deps.service) {
-      this.deps.service.setEnabled(true);
-    }
-  }
 }
