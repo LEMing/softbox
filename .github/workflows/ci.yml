@@ -3,9 +3,10 @@ name: CI
 permissions:
   contents: read
 
-# Superseded PR pushes cancel their stale runs; main runs are NEVER
-# cancelled — the release workflow's publish gate waits for green CI on the
-# exact merge commit, and a cancelled run would strand the release.
+# Superseded PR pushes cancel their stale runs; in-progress main runs are
+# not cancelled — the release workflow's publish gate waits for green CI on
+# the exact merge commit. (A QUEUED main run can still be superseded by a
+# newer push; the release gate's workflow_dispatch hatch covers that case.)
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}

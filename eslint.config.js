@@ -32,11 +32,24 @@ export default tseslint.config(
     ignores: ['src/core/**/__tests__/**'],
     rules: {
       // no-restricted-imports never inspects dynamic import() expressions —
-      // without this, `await import('three')` walks straight through the ban.
-      'no-restricted-syntax': ['error', {
-        selector: "ImportExpression Literal[value=/^(three($|\\/)|three-gpu-pathtracer|three-mesh-bvh|threedgizmo)/]",
-        message: 'Clean architecture: src/core must stay engine-agnostic — dynamic imports of the Three.js ecosystem included.',
-      }],
+      // without these, `await import('three')` or a lazy adapter import walks
+      // straight through the bans. Template-literal specifiers are covered
+      // separately (they are not Literal nodes).
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "ImportExpression Literal[value=/^(three($|\\/)|three-gpu-pathtracer|three-mesh-bvh|threedgizmo)/]",
+          message: 'Clean architecture: src/core must stay engine-agnostic — dynamic imports of the Three.js ecosystem included.',
+        },
+        {
+          selector: "ImportExpression Literal[value=/(^|\\/)(infrastructure|presentation|site)\\//]",
+          message: 'Clean architecture: src/core must not lazy-load infrastructure, presentation or the site either — depend on an interface in src/core instead.',
+        },
+        {
+          selector: 'ImportExpression TemplateLiteral',
+          message: 'Dynamic imports in core must use a plain string literal so the layer/ecosystem bans can inspect the specifier.',
+        },
+      ],
       'no-restricted-imports': ['error', {
         patterns: [
           {

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { disposeViewerOwnedBackground } from './backgroundOwnership';
 import { IScene, IColor, ITexture, IFog } from '../../core/interfaces/IScene';
 import { IObject3D } from '../../core/interfaces/IObject3D';
 import { Result } from '../../utils/Result';
@@ -100,6 +101,9 @@ export class ThreeSceneAdapter implements IScene {
   }
 
   set background(value: IColor | ITexture | null) {
+    // Overwriting a viewer-painted backdrop (gradient canvas, uploaded image)
+    // through the adapter must not leak it; foreign textures stay untouched.
+    disposeViewerOwnedBackground(this.scene);
     if (value instanceof ThreeColorAdapter) {
       this.scene.background = value.getThreeColor();
     } else if (value instanceof ThreeTextureAdapter) {
