@@ -1,16 +1,17 @@
 # softbox
 
 <!-- The size badges are static (bundlephobia/bundlejs both mismeasure this
-     dual-chunk package: they bundle `three`, our peer dep, or read the tiny
+     multi-chunk package: they bundle `three`, our peer dep, or read the tiny
      re-export entry). Refresh the numbers from our own build after a release
      that changes the bundle:
-       npm run build && for f in dist/index-*.js dist/ThreePathTracingService-*.js; do
+       npm run build && for f in dist/simple-viewer.es.js dist/ContactShadowBaker-*.js dist/ThreePathTracingService-*.js; do
          b=$(gzip -c "$f" | wc -c); awk -v b="$b" -v n="$f" 'BEGIN{printf "%s %.1f kB gzip\n", n, b/1000}'; done
-     index-* = core (badge rounds down to match the README's ~117 kB),
+     core = simple-viewer.es.js + ContactShadowBaker-* (the entry statically
+     imports that shared chunk, so both load eagerly);
      ThreePathTracingService-* = the lazy path-tracer chunk. -->
 [![npm version](https://img.shields.io/npm/v/softbox)](https://www.npmjs.com/package/softbox)
-[![core size](https://img.shields.io/badge/core-117%20kB%20gzip-blue)](https://bundlephobia.com/package/softbox)
-[![path tracer chunk](https://img.shields.io/badge/%2B%20path%20tracer-51%20kB%20gzip-lightgrey)](https://bundlephobia.com/package/softbox)
+[![core size](https://img.shields.io/badge/core-102%20kB%20gzip-blue)](https://bundlephobia.com/package/softbox)
+[![path tracer chunk](https://img.shields.io/badge/%2B%20path%20tracer-49%20kB%20gzip-lightgrey)](https://bundlephobia.com/package/softbox)
 [![CI](https://github.com/LEMing/softbox/actions/workflows/ci.yml/badge.svg)](https://github.com/LEMing/softbox/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/LEMing/softbox/blob/main/LICENSE)
 
@@ -22,7 +23,7 @@
 <SimpleViewer object="/model.glb" />
 ```
 
-Balanced studio lighting, a real-scale matte concrete floor with a baked soft contact shadow, auto-framing, compressed-asset decoders — all on by default, zero configuration. Lighting needs zero network requests (the studio environment is procedural); the DRACO/KTX2 decoder wasm is fetched only when a model actually uses that compression, from a CDN by default or [self-hosted](#loaders) for offline use. The core is ~117 kB gzip; the path tracer lives in a lazy chunk that loads only when enabled. Every release is gated by 590+ unit tests plus a Playwright suite that asserts **real WebGL pixels** in CI.
+Balanced studio lighting, a real-scale matte concrete floor with a baked soft contact shadow, auto-framing, compressed-asset decoders — all on by default, zero configuration. Lighting needs zero network requests (the studio environment is procedural); the DRACO/KTX2 decoder wasm is fetched only when a model actually uses that compression, from a CDN by default or [self-hosted](#loaders) for offline use. The core is ~102 kB gzip; the path tracer lives in a lazy chunk that loads only when enabled. Every release is gated by 790+ unit tests plus a Playwright suite that asserts **real WebGL pixels** in CI.
 
 [![softbox playground](https://raw.githubusercontent.com/LEMing/softbox/main/public/og-image.png)](https://leming.github.io/softbox/)
 

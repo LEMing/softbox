@@ -12,7 +12,11 @@
     "viewer",
     "glb",
     "gltf",
-    "product viewer"
+    "product viewer",
+    "webgl",
+    "model-viewer",
+    "path-tracing",
+    "turntable"
   ],
   "repository": {
     "type": "git",

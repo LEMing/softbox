@@ -55,6 +55,12 @@ const GitHubMark = () => (
   </svg>
 );
 
+const NpmMark = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <path d="M0 0v16h16V0H0zm13 13h-2V5H8v8H3V3h10v10z" />
+  </svg>
+);
+
 const downloadDataUrl = (dataUrl: string, filename: string) => {
   const anchor = document.createElement('a');
   anchor.href = dataUrl;
@@ -174,6 +180,15 @@ export function SiteApp() {
             style={{ color: '#3f3f4a', display: 'inline-flex', alignSelf: 'center', padding: 6, margin: -6 }}
           >
             <GitHubMark />
+          </a>
+          <a
+            href="https://www.npmjs.com/package/softbox"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="npm package"
+            style={{ color: '#3f3f4a', display: 'inline-flex', alignSelf: 'center', padding: 6, margin: -6 }}
+          >
+            <NpmMark />
           </a>
         </div>
         <Picker label="Model" items={pickerItems} value={selected} onChange={setSelected} />
