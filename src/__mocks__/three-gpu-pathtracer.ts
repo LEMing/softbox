@@ -27,24 +27,30 @@ export class WebGLPathTracer {
     // Mock implementation
   }
 
+  // Parity with the real surface the service calls (the API-drift canary in
+  // threeGpuPathtracerContract.test.ts asserts the REAL package still has
+  // these; the mock must not lag behind it).
+  renderSample(): void {
+    // Mock implementation
+  }
+
+  updateCamera(): void {
+    // Mock implementation
+  }
+
+  updateLights(): void {
+    // Mock implementation
+  }
+
+  reset(): void {
+    // Mock implementation
+  }
+
   dispose(): void {
     // Mock implementation
   }
 }
 
-export class BlurredEnvMapGenerator {
-  constructor(_renderer: THREE.WebGLRenderer, _mipmapBlur?: number) {
-    // Mock implementation
-  }
-
-  generate(_texture: THREE.Texture, _blur?: number): THREE.DataTexture {
-    return new THREE.DataTexture();
-  }
-
-  dispose(): void {
-    // Mock implementation
-  }
-}
 
 export class PhysicalCamera {
   constructor(_fov: number, _aspect: number, _near: number, _far: number) {

@@ -318,8 +318,11 @@ test('path tracing accumulates real samples and shows the model (not black)', as
   // tracer at 99%+ opacity, so an early screenshot would measure the raster
   // and a black tracer would pass. Completion clears the canvas and presents
   // the pure accumulated frame — that is the thing to measure.
+  // 180s: measured ~10-14s of tracer work under local SwiftShader, and the
+  // config budgets contended CI runners at 5-10x slower — 90s left the
+  // thinnest margin in the suite. The playwright test cap is 240s.
   await page.waitForFunction(() => window.__ptSamples >= 12, undefined, {
-    timeout: 90_000,
+    timeout: 180_000,
   });
   const png = await screenshotCanvas(page);
 

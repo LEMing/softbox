@@ -73,7 +73,7 @@ export abstract class ThreeCameraAdapter extends ThreeObject3DAdapter implements
     return this.camera;
   }
   
-  // Legacy method for backward compatibility
+  // The canonical unwrap surface (consumed by unwrap.ts via duck-typing).
   getThreeCamera(): THREE.Camera {
     return this.camera;
   }

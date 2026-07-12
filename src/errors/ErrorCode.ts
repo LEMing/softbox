@@ -29,6 +29,7 @@ export enum ErrorCode {
   
   // Operation errors
   OPERATION_FAILED = 'OPERATION_FAILED',
+  POST_PROCESSING_FAILED = 'POST_PROCESSING_FAILED',
   
   // Unknown error
   UNKNOWN = 'UNKNOWN',

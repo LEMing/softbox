@@ -155,7 +155,7 @@ export class ThreeSceneAdapter implements IScene {
     return this.scene;
   }
   
-  // Legacy method for backward compatibility
+  // The canonical unwrap surface (consumed by unwrap.ts via duck-typing).
   getThreeScene(): THREE.Scene {
     return this.scene;
   }

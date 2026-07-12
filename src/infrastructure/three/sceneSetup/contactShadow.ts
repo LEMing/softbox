@@ -42,7 +42,7 @@ export function bakeContactShadow(
 
     // No usable WebGL renderer (headless/SSR) or shadows disabled — the
     // live catcher, if any, stays in charge.
-    const threeRenderer = toThreeRenderer(renderer.getInternalRenderer());
+    const threeRenderer = toThreeRenderer(renderer);
     if (!threeRenderer || !threeRenderer.shadowMap.enabled) {
       return Result.ok(undefined);
     }

@@ -107,5 +107,8 @@
   "sideEffects": [
     "./dist/simple-viewer.es.js",
     "./dist/simple-viewer.cjs"
-  ]
+  ],
+  "bugs": {
+    "url": "https://github.com/LEMing/softbox/issues"
+  }
 }

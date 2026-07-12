@@ -655,7 +655,11 @@ export class ThreePathTracingService implements IPathTracingService {
    * would present the pure traced frame while the fade still held the raster
    * at high opacity — a hard pop instead of a dissolve. */
   private fadeWindowSamples(): number {
-    return Math.min(ThreePathTracingService.FADE_SAMPLES, this.settings.samples);
+    // Floored two past the hold so the smoothstep edges can never collapse
+    // (hold === release divides by zero). Budgets at or under the hold are
+    // pathological (nothing to dissolve over) and simply keep the raster up.
+    const floor = ThreePathTracingService.FADE_HOLD_SAMPLES + 2;
+    return Math.max(floor, Math.min(ThreePathTracingService.FADE_SAMPLES, this.settings.samples));
   }
 
   private pathTracedLayerOpacity(sampleCount: number): number {

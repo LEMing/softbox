@@ -46,7 +46,9 @@ export default tseslint.config(
           message: 'Clean architecture: src/core must not lazy-load infrastructure, presentation or the site either — depend on an interface in src/core instead.',
         },
         {
-          selector: 'ImportExpression TemplateLiteral',
+          // Anything that is not a plain string literal (template literal,
+          // concatenation, identifier) is uninspectable by the bans above.
+          selector: 'ImportExpression[source.type!="Literal"]',
           message: 'Dynamic imports in core must use a plain string literal so the layer/ecosystem bans can inspect the specifier.',
         },
       ],
@@ -97,6 +99,21 @@ export default tseslint.config(
       'src/events/index.ts',
     ],
     rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "ImportExpression Literal[value=/^(three($|\\/)|three-gpu-pathtracer|three-mesh-bvh|threedgizmo)/]",
+          message: 'This module is in engine-agnostic core\'s transitive import closure — dynamic imports of the Three.js ecosystem included.',
+        },
+        {
+          selector: "ImportExpression Literal[value=/(^|\\/)(infrastructure|presentation|site)\\//]",
+          message: 'This module is in engine-agnostic core\'s transitive import closure — lazy-loading an adapter would smuggle Three.js in through one hop.',
+        },
+        {
+          selector: 'ImportExpression[source.type!="Literal"]',
+          message: 'Dynamic imports here must use a plain string literal so the closure bans can inspect the specifier.',
+        },
+      ],
       'no-restricted-imports': ['error', {
         patterns: [
           {

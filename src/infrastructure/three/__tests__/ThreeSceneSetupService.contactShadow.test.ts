@@ -26,7 +26,7 @@ const createMockThreeRenderer = () => {
 };
 
 const asRenderer = (internal: unknown): IRenderer =>
-  ({ getInternalRenderer: () => internal } as unknown as IRenderer);
+  ({ getThreeRenderer: () => internal } as unknown as IRenderer);
 
 const createSceneWithLight = () => {
   const threeScene = new THREE.Scene();

@@ -1,6 +1,12 @@
 import { renderHook } from '@testing-library/react';
 import { useStableOptions } from '../useStableOptions';
 import { SimpleViewerOptions } from '../../../types/SimpleViewerOptions';
+import {
+  RUNTIME_RENDERER_FIELDS,
+  RUNTIME_ENVIRONMENT_FIELDS,
+  RUNTIME_CONTROLS_FIELDS,
+  RUNTIME_PATH_TRACING_FIELDS,
+} from '../../../types/runtimeOptions';
 
 /**
  * The option-partition contract. Every top-level `SimpleViewerOptions` key MUST
@@ -147,6 +153,51 @@ describe('useStableOptions option-partition contract', () => {
     });
     expect(after.structural).toBe(before.structural);
     expect(after.runtime).toBe(before.runtime);
+  });
+
+  it('every RUNTIME_* field genuinely moves the runtime key (list<->picker coupling)', () => {
+    // The RUNTIME_* lists and pickRuntimeOptions are coupled by hand; a field
+    // added to a list but missed in the picker recreates the silent-no-op bug
+    // class ONE LEVEL BELOW the top-level contract above. Derived, not
+    // example-based: iterate the lists themselves.
+    const sampleValues: Record<string, [unknown, unknown]> = {
+      toneMappingExposure: [1, 1.8],
+      bloom: [false, true],
+      vignette: [false, true],
+      filmGrain: [false, true],
+      colorGrade: [false, true],
+      environmentIntensity: [0.5, 1.5],
+      autoRotate: [false, true],
+      autoRotateSpeed: [2, 5],
+      enabled: [false, true],
+    };
+    const parents: Array<[keyof SimpleViewerOptions, readonly string[]]> = [
+      ['renderer', RUNTIME_RENDERER_FIELDS],
+      ['environment', RUNTIME_ENVIRONMENT_FIELDS],
+      ['controls', RUNTIME_CONTROLS_FIELDS],
+      ['pathTracing', RUNTIME_PATH_TRACING_FIELDS],
+    ];
+    for (const [parent, fields] of parents) {
+      for (const field of fields) {
+        const [a, b] = sampleValues[field] ?? [];
+        expect({ field, hasSamples: a !== undefined || b !== undefined }).toEqual({
+          field,
+          hasSamples: true,
+        });
+        const before = keysFor({ [parent]: { [field]: a } } as SimpleViewerOptions);
+        const after = keysFor({ [parent]: { [field]: b } } as SimpleViewerOptions);
+        expect({ parent, field, moved: after.runtime !== before.runtime }).toEqual({
+          parent,
+          field,
+          moved: true,
+        });
+        expect({ parent, field, structuralStable: after.structural === before.structural }).toEqual({
+          parent,
+          field,
+          structuralStable: true,
+        });
+      }
+    }
   });
 
   it('floorAlignment is normalized: absent and explicit true share a structural key', () => {

@@ -1216,7 +1216,7 @@ describe('ViewerCore', () => {
       registeredHandler?.(new Error('chunk fetch failed'));
 
       expect(onError).toHaveBeenCalledWith({
-        error: expect.objectContaining({ code: ErrorCode.OPERATION_FAILED }),
+        error: expect.objectContaining({ code: ErrorCode.POST_PROCESSING_FAILED }),
       });
     });
 
@@ -2248,6 +2248,36 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     const viewer = new ViewerCore(bundle.deps);
 
     viewer.updateOptions({ environment: { environmentIntensity: 1.7 } });
+
+    expect(bundle.pathTracingService!.reset).toHaveBeenCalledWith(true);
+  });
+
+  it('skips the forced re-ingest while an environment map owns the backdrop, re-arms after reset', () => {
+    const bundle = makeDeps({
+      withSceneSetup: true,
+      withPathTracing: true,
+      options: {
+        backgroundColor: '#000000',
+        environment: { url: 'https://example.com/env.hdr' },
+        pathTracing: { enabled: true },
+      },
+      pathTracingOverrides: { isEnabled: jest.fn(() => true) },
+    });
+    const viewer = new ViewerCore(bundle.deps);
+
+    viewer.updateOptions({ backgroundColor: '#abcdef' });
+
+    // The repaint no-ops under an env-map backdrop — a forced re-ingest would
+    // burn a full sample budget for zero visual change.
+    expect(bundle.pathTracingService!.reset).not.toHaveBeenCalledWith(true);
+
+    // resetEnvironment clears the url on the LIVE options object; the guard
+    // must see that and force again for the next real change.
+    const liveOptions = (viewer as unknown as {
+      options: { environment?: { url?: string } };
+    }).options;
+    liveOptions.environment!.url = undefined;
+    viewer.updateOptions({ backgroundColor: '#123456' });
 
     expect(bundle.pathTracingService!.reset).toHaveBeenCalledWith(true);
   });

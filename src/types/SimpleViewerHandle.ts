@@ -43,6 +43,11 @@ export interface SimpleViewerHandle {
   /**
    * Replace the environment map (reflections + background) at runtime with the
    * equirectangular HDRI/LDR image at `url`. Cached by URL, so re-applying is cheap.
+   *
+   * Like the capture APIs, the environment APIs throw (async ones reject) with
+   * INVALID_STATE when the viewer was disposed — including a dispose that lands
+   * while the map is still loading. Fire-and-forget callers should attach a
+   * `.catch` if unmount races are possible (e.g. React StrictMode in dev).
    */
   setEnvironmentMap: (url: string) => Promise<void>;
   /** Restore the built-in studio environment and clean gradient background. */
