@@ -45,11 +45,20 @@ export default {
       functions: 95,
       lines: 95,
     },
+    // Ratcheted 2026-07-12 (92/88/78/92 → below) after the environment/backdrop
+    // cluster moved to EnvironmentController and lifted the remainder.
     './src/core/ViewerCore.ts': {
-      statements: 92,
-      branches: 88,
-      functions: 78,
-      lines: 92,
+      statements: 94,
+      branches: 90,
+      functions: 85,
+      lines: 94,
+    },
+    // 2026-07-12: extracted from ViewerCore; fully covered by its unit tests.
+    './src/core/EnvironmentController.ts': {
+      statements: 100,
+      branches: 95,
+      functions: 100,
+      lines: 100,
     },
     './src/core/CaptureController.ts': {
       statements: 92,

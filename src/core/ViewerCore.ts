@@ -35,6 +35,7 @@ import { ModelManager } from './managers/ModelManager';
 import { ResourceManager } from './managers/ResourceManager';
 import { PathTracingCoordinator } from './PathTracingCoordinator';
 import { CaptureController } from './CaptureController';
+import { EnvironmentController } from './EnvironmentController';
 import { ViewerState } from './entities/ViewerState';
 
 export type { CaptureStillOptions };
@@ -87,6 +88,7 @@ export class ViewerCore {
   private readonly sceneConfigurator: SceneConfigurator;
   private readonly pathTracing: PathTracingCoordinator;
   private readonly capture: CaptureController;
+  private readonly environment: EnvironmentController;
   private controlsChangeUnsubscribe: (() => void) | null = null;
 
   // Dependencies
@@ -185,6 +187,20 @@ export class ViewerCore {
       reviveRenderLoop: () => this.reviveRenderLoop(),
       isAutoRotating: () => this.controls.autoRotate,
       isScreenshotActive: () => this.screenshotManager.isActive(),
+    });
+
+    this.environment = new EnvironmentController({
+      scene: this.scene,
+      renderLoopManager: this.renderLoopManager,
+      pathTracing: this.pathTracing,
+      environmentService: this.environmentService,
+      sceneSetupService: this.sceneSetupService,
+      getOptions: () => this.options,
+      mergeOptions: (partial) => {
+        this.options = deepMerge(this.options, partial);
+      },
+      isDisposed: () => this.disposed,
+      reviveRenderLoop: () => this.reviveRenderLoop(),
     });
   }
 
@@ -517,7 +533,7 @@ export class ViewerCore {
     const backgroundChanged =
       partial.backgroundColor !== undefined || partial.backgroundColorEdge !== undefined;
     if (backgroundChanged && this.options.backgroundColor !== undefined) {
-      this.applyBackgroundColor(this.options.backgroundColor);
+      this.environment.applyBackgroundColor(this.options.backgroundColor);
     }
     const exposure = partial.renderer?.toneMappingExposure;
     if (exposure !== undefined) {
@@ -622,62 +638,12 @@ export class ViewerCore {
     ]);
   }
 
-  // A flat fill, or a radial studio vignette when a `backgroundColorEdge` is set
-  // (base behind the subject → edge in the corners). Single source of truth so
-  // every backdrop repaint — preset switch, environment reset, solid override —
-  // agrees on flat-vs-radial.
-  private backgroundGradient(color: string | number, edge: string | number | undefined) {
-    return edge !== undefined
-      ? { topColor: String(color), bottomColor: String(edge), radial: true }
-      : { topColor: String(color), bottomColor: String(color) };
-  }
-
-  private applyBackgroundColor(color: string | number): void {
-    // An environment map owns the background when present; don't override it.
-    if (this.options.environment?.url || !this.sceneSetupService) {
-      return;
-    }
-    const gradient = this.backgroundGradient(color, this.options.backgroundColorEdge);
-    const result = this.sceneSetupService.createGradientBackground(this.scene, gradient);
-    if (!result.ok) {
-      console.warn('Failed to update background color:', result.error);
-      return;
-    }
-    this.renderLoopManager.requestRender();
-  }
-
   /**
    * Runtime: replace the environment map (reflections + background) with the HDRI
    * at `url`. Textures are cached by URL, so toggling the same map on/off is cheap.
    */
-  async setEnvironmentMap(url: string): Promise<Result<void>> {
-    if (this.disposed) {
-      return Result.ok(undefined);
-    }
-    if (!this.environmentService) {
-      return Result.err(
-        new ThreeViewerError('Environment service unavailable', ErrorCode.INVALID_STATE)
-      );
-    }
-    const loadResult = await this.environmentService.loadEnvironmentMap(url);
-    if (this.disposed) {
-      return Result.ok(undefined);
-    }
-    if (!loadResult.ok) {
-      return Result.err(loadResult.error);
-    }
-    const applyResult = this.environmentService.applyToScene(this.scene, loadResult.value, {
-      backgroundBlurriness: this.options.environment?.backgroundBlurriness,
-      backgroundIntensity: this.options.environment?.backgroundIntensity,
-      environmentIntensity: this.options.environment?.environmentIntensity,
-      setBackground: true,
-    });
-    if (!applyResult.ok) {
-      return applyResult;
-    }
-    this.options = deepMerge(this.options, { environment: { url } });
-    this.repaintAfterEnvironmentChange();
-    return Result.ok(undefined);
+  setEnvironmentMap(url: string): Promise<Result<void>> {
+    return this.environment.setEnvironmentMap(url);
   }
 
   /**
@@ -685,49 +651,15 @@ export class ViewerCore {
    * background, undoing a prior setEnvironmentMap / setBackgroundImage.
    */
   resetEnvironment(): Result<void> {
-    if (this.disposed) {
-      return Result.ok(undefined);
-    }
-    if (!this.environmentService) {
-      return Result.err(
-        new ThreeViewerError('Environment service unavailable', ErrorCode.INVALID_STATE)
-      );
-    }
-    const studioResult = this.environmentService.createStudioEnvironment();
-    if (!studioResult.ok) {
-      return Result.err(studioResult.error);
-    }
-    this.environmentService.applyToScene(this.scene, studioResult.value, { setBackground: false });
-    if (this.options.environment) {
-      this.options.environment.url = undefined;
-    }
-    this.restoreBackgroundColor();
-    this.repaintAfterEnvironmentChange();
-    return Result.ok(undefined);
+    return this.environment.resetEnvironment();
   }
 
   /**
    * Runtime: paint an uploaded image as the scene backdrop, leaving the studio/HDRI
    * lighting (scene.environment) untouched.
    */
-  async setBackgroundImage(source: string | File | HTMLImageElement): Promise<Result<void>> {
-    if (this.disposed) {
-      return Result.ok(undefined);
-    }
-    if (!this.environmentService) {
-      return Result.err(
-        new ThreeViewerError('Environment service unavailable', ErrorCode.INVALID_STATE)
-      );
-    }
-    const result = await this.environmentService.setBackgroundImage(this.scene, source);
-    if (this.disposed) {
-      return Result.ok(undefined);
-    }
-    if (!result.ok) {
-      return result;
-    }
-    this.repaintAfterEnvironmentChange();
-    return Result.ok(undefined);
+  setBackgroundImage(source: string | File | HTMLImageElement): Promise<Result<void>> {
+    return this.environment.setBackgroundImage(source);
   }
 
   /**
@@ -736,47 +668,7 @@ export class ViewerCore {
    * even when an environment URL is configured.
    */
   setBackgroundColor(color: string | number): Result<void> {
-    if (this.disposed) {
-      return Result.ok(undefined);
-    }
-    if (!this.sceneSetupService) {
-      return Result.err(
-        new ThreeViewerError('Scene setup service unavailable', ErrorCode.INVALID_STATE)
-      );
-    }
-    // An explicit solid override drops any radial vignette; clear the edge so the
-    // stored state matches the flat paint (and a later restore stays flat).
-    const result = this.sceneSetupService.createGradientBackground(
-      this.scene,
-      this.backgroundGradient(color, undefined)
-    );
-    if (!result.ok) {
-      return result;
-    }
-    this.options = deepMerge(this.options, { backgroundColor: color });
-    this.options.backgroundColorEdge = undefined;
-    this.repaintAfterEnvironmentChange();
-    return Result.ok(undefined);
-  }
-
-  private restoreBackgroundColor(): void {
-    const color = this.options.backgroundColor;
-    if (color === undefined || !this.sceneSetupService) {
-      return;
-    }
-    // Honour a preset's radial vignette (e.g. dark) so it survives a reset.
-    this.sceneSetupService.createGradientBackground(
-      this.scene,
-      this.backgroundGradient(color, this.options.backgroundColorEdge)
-    );
-  }
-
-  private repaintAfterEnvironmentChange(): void {
-    // A live path-traced session must re-ingest the new environment/background;
-    // the forced reset re-runs the tracer's scene setup on the next frame.
-    this.pathTracing.resetAccumulation(true);
-    this.reviveRenderLoop();
-    this.renderLoopManager.requestRender();
+    return this.environment.setBackgroundColor(color);
   }
 
   resize(width: number, height: number): void {
