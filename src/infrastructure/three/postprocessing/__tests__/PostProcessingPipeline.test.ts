@@ -29,15 +29,29 @@ class FakeComposer {
     this.disposed = true;
   }
 }
-class FakeRenderPass {}
-class FakeOutputPass {}
+class FakeRenderPass {
+  disposeCount = 0;
+  dispose(): void {
+    this.disposeCount++;
+  }
+}
+class FakeOutputPass {
+  disposeCount = 0;
+  dispose(): void {
+    this.disposeCount++;
+  }
+}
 class FakeBloomPass {
+  disposeCount = 0;
   constructor(
     public resolution: unknown,
     public strength: number,
     public radius: number,
     public threshold: number
   ) {}
+  dispose(): void {
+    this.disposeCount++;
+  }
 }
 interface ShaderLike {
   name?: string;
@@ -46,6 +60,10 @@ interface ShaderLike {
 }
 class FakeShaderPass {
   uniforms: Record<string, { value: unknown }>;
+  disposeCount = 0;
+  dispose(): void {
+    this.disposeCount++;
+  }
   constructor(public shader: ShaderLike) {
     // Mirror the real ShaderPass, which CLONES the shader's uniforms (so setting
     // a pass uniform never mutates the shared shader module); fall back to the
@@ -246,6 +264,41 @@ describe('PostProcessingPipeline', () => {
     pipeline.dispose();
     await flush();
     expect(pipeline.isReady()).toBe(false);
+  });
+
+  it('dispose() disposes every added pass exactly once (composer.dispose() does not free them)', async () => {
+    const pipeline = new PostProcessingPipeline(fakeRenderer(), {
+      bloom: true,
+      vignette: true,
+      filmGrain: true,
+      colorGrade: { contrast: 0.1, saturation: 0.15 },
+    });
+    await flush();
+    pipeline.render(scene, camera);
+    const composer = getComposer(pipeline);
+    const passes = composer.passes as Array<{ disposeCount: number }>;
+    // Render + bloom + output + 2 grade + vignette + grain = the full chain.
+    expect(passes).toHaveLength(7);
+
+    pipeline.dispose();
+
+    for (const pass of passes) {
+      expect(pass.disposeCount).toBe(1);
+    }
+  });
+
+  it('a second dispose() does not double-dispose passes', async () => {
+    const pipeline = new PostProcessingPipeline(fakeRenderer(), { ...allOff, bloom: true });
+    await flush();
+    pipeline.render(scene, camera);
+    const passes = getComposer(pipeline).passes as Array<{ disposeCount: number }>;
+
+    pipeline.dispose();
+    pipeline.dispose();
+
+    for (const pass of passes) {
+      expect(pass.disposeCount).toBe(1);
+    }
   });
 });
 
