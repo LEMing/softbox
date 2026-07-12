@@ -14,7 +14,7 @@ const source = resolve(root, 'dist', 'index.d.ts');
 const target = resolve(root, 'dist', 'index.d.cts');
 
 if (!existsSync(source)) {
-  throw new Error(`Expected ${source} to exist after the build — did vite-plugin-dts run?`);
+  throw new Error(`Expected ${source} to exist after the build — did unplugin-dts run?`);
 }
 
 copyFileSync(source, target);
