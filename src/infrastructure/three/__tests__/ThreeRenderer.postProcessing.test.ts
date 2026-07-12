@@ -1,6 +1,33 @@
 import { ThreeRendererAdapter } from '../ThreeRenderer';
 import { PostProcessingPipeline } from '../postprocessing/PostProcessingPipeline';
 
+// The pipeline lazy-imports the three/examples pass chunk; unmocked, those
+// ESM files fail to parse under jest and produce deterministic console.warn
+// noise (harmless — load() catches it — but noisy). Mock them like
+// PostProcessingPipeline.test.ts does.
+jest.mock('three/examples/jsm/postprocessing/EffectComposer.js', () => ({
+  EffectComposer: class {
+    renderTarget1 = { samples: 0 };
+    renderTarget2 = { samples: 0 };
+    addPass() {}
+    render() {}
+    setSize() {}
+    dispose() {}
+  },
+}));
+jest.mock('three/examples/jsm/postprocessing/RenderPass.js', () => ({ RenderPass: class {} }));
+jest.mock('three/examples/jsm/postprocessing/OutputPass.js', () => ({ OutputPass: class {} }));
+jest.mock('three/examples/jsm/postprocessing/UnrealBloomPass.js', () => ({ UnrealBloomPass: class {} }));
+jest.mock('three/examples/jsm/postprocessing/ShaderPass.js', () => ({
+  ShaderPass: class {
+    uniforms = { offset: { value: 0 }, darkness: { value: 0 }, contrast: { value: 0 }, saturation: { value: 0 } };
+  },
+}));
+jest.mock('three/examples/jsm/shaders/VignetteShader.js', () => ({ VignetteShader: {} }));
+jest.mock('three/examples/jsm/shaders/BrightnessContrastShader.js', () => ({ BrightnessContrastShader: {} }));
+jest.mock('three/examples/jsm/shaders/HueSaturationShader.js', () => ({ HueSaturationShader: {} }));
+
+
 /**
  * jsdom has no WebGL, so the adapter is tested around a stubbed internal
  * renderer: enough surface for setPostProcessing's pipeline swap + pixel-ratio

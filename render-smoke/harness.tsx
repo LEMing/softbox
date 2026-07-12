@@ -13,6 +13,7 @@ import {
  * mounts the real viewer on a procedural model so Playwright can observe
  * actual WebGL pixels in CI. Scenarios are selected via query params:
  *   ?preset=studio|product|neutral|dark|outdoor   (default: none = defaults)
+ *   ?model=pillar                                 (tall-thin 20cm pillar instead of the knot)
  *   ?hotspot=1                                    (anchor a hotspot at the origin)
  *   ?turntable=1                                  (auto-rotate the camera)
  *   ?animate=1                                    (play a clip on the model)
@@ -47,12 +48,24 @@ console.error = (...args: unknown[]) => {
 
 const params = new URLSearchParams(window.location.search);
 const preset = (params.get('preset') as ViewerPreset | null) ?? undefined;
+const modelKind = params.get('model');
 const withHotspot = params.get('hotspot') === '1';
 const turntable = params.get('turntable') === '1' || undefined;
 const animate = params.get('animate') === '1' || undefined;
 const withEffects = params.get('effects') === '1';
 
 const makeModel = () => {
+  if (modelKind === 'pillar') {
+    // A tall, thin, SMALL (20cm) model — the avocado/bottle class whose
+    // contact shadow historically broke (a fixed ~2cm shadow-bias offset
+    // erased its whole contact pool). Low-poly for the software rasterizer.
+    const pillar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.02, 0.2, 16),
+      new THREE.MeshStandardMaterial({ color: '#c2410c', roughness: 0.5, metalness: 0.1 })
+    );
+    pillar.name = 'smoke-pillar';
+    return pillar;
+  }
   // Coarse tessellation on purpose: every triangle costs real time on the
   // software rasterizer CI renders with.
   const mesh = new THREE.Mesh(

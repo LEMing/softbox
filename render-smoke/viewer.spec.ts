@@ -226,6 +226,52 @@ test('the baked contact shadow grounds the model: floor under the base is darker
   expect(errors).toEqual([]);
 });
 
+test('a tall thin 20cm model keeps a contact shadow touching its base (small-object regression)', async ({ page }) => {
+  // The avocado/bottle class: a fixed (non-scaled) shadow-bias offset once
+  // erased the entire contact pool of a model this small, leaving a detached
+  // blob. This pins the scale-invariant shadow rig on real GL.
+  const errors = await openScene(page, '?model=pillar&hotspot=1');
+
+  const canvasBox = await page.locator('canvas').boundingBox();
+  const hotspotBox = await page.getByTestId('viewer-hotspot').boundingBox();
+  expect(canvasBox).not.toBeNull();
+  expect(hotspotBox).not.toBeNull();
+
+  const png = await screenshotCanvas(page);
+  const scale = png.width / canvasBox!.width;
+  const baseX = Math.round((hotspotBox!.x + hotspotBox!.width / 2 - canvasBox!.x) * scale);
+  const baseY = Math.round((hotspotBox!.y + hotspotBox!.height / 2 - canvasBox!.y) * scale);
+
+  // Just below the base, CLOSER than the knot test's 9%: a 4cm-wide pillar
+  // occludes little, so its pool is faint further out — probe where it is
+  // darkest. 7% still clears the hotspot pin's CSS shadow (its tail ends
+  // ~17px below the pin centre; this patch starts ~22px below).
+  const shadowY = Math.min(baseY + Math.round(png.height * 0.07), png.height - 4);
+  const shadowLum = patchLuminance(png, baseX, shadowY);
+  // The pool of a tall-thin model is WIDE relative to its auto-fit framing
+  // (disc ≈ footprint·1.4 + height·0.45 ≈ 33% of the frame width from centre),
+  // so the open-floor reference sits farther out than the knot test's ±28%.
+  const sideOffset = Math.round(png.width * 0.42);
+  const openLum = Math.max(
+    patchLuminance(png, baseX - sideOffset, shadowY),
+    patchLuminance(png, baseX + sideOffset, shadowY)
+  );
+
+  // Both probes must be grey floor, never the saturated orange pillar.
+  expect(patchChroma(png, baseX, shadowY)).toBeLessThan(60);
+
+  // A bias-erased (or detached) contact pool leaves the base patch as bright
+  // as the open floor — the whole regression this test exists to catch. The
+  // delta is deliberately smaller than the knot test's 0.06: a thin pillar's
+  // pool is legitimately faint (measured gap ≈ 0.07–0.08 at the 9% probe and
+  // larger here), and the assertion must not flake on rasterizer variance.
+  expect(shadowLum).toBeLessThan(openLum - 0.04);
+  expect(shadowLum).toBeGreaterThan(0.02);
+  expect(openLum).toBeGreaterThan(0.3);
+
+  expect(errors).toEqual([]);
+});
+
 test('opt-in post-processing renders the model (no wash-out) and darkens the corners', async ({ page }) => {
   const errors = await openScene(page, '?effects=1');
   const png = await screenshotCanvas(page);

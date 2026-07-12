@@ -127,6 +127,15 @@ export default {
       functions: 95,
       lines: 95,
     },
+    // 2026-07-12 tech-debt audit pin: the renderer adapter (option mapping,
+    // render dispatch/fallbacks, lifecycle) sat at 25% under the global pool —
+    // deleting its new test file must fail CI, not slip through.
+    './src/infrastructure/three/ThreeRenderer.ts': {
+      statements: 90,
+      branches: 80,
+      functions: 90,
+      lines: 90,
+    },
     './src/infrastructure/three/grids/ShadowFloorGrid.ts': {
       statements: 100,
       branches: 90,
