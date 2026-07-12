@@ -66,7 +66,10 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
         controls: structuralPart(options.controls, ...RUNTIME_CONTROLS_FIELDS),
         environment: structuralPart(options.environment, ...RUNTIME_ENVIRONMENT_FIELDS),
         lighting: options.lighting,
-        helpers: options.helpers,
+        // helpers minus `gizmo`: the gizmo is React chrome over the canvas
+        // (read live by SimpleViewer, touched by nothing in core), so toggling
+        // it must not tear down the WebGL context and refetch the model.
+        helpers: structuralPart(options.helpers, 'gizmo'),
         rendering: options.rendering,
         replaceWithScreenshotOnComplete: options.replaceWithScreenshotOnComplete,
         // The loader is constructed with these — changing them needs a rebuild.
@@ -75,6 +78,9 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
         // needs a rebuild to re-wrap. Normalized so absent and explicit
         // 'meters' (the default) share a key.
         units: options.units ?? 'meters',
+        // Consumed once at ModelManager construction and applied at load
+        // time, exactly like `units`. Normalized: absent means enabled.
+        floorAlignment: options.floorAlignment ?? true,
         // Normalized so absent / {} / { bvh: true } (all "BVH on") share a key
         // and only a real opt-out change rebuilds the viewer.
         selectionBvh: options.selection?.bvh !== false,
@@ -92,6 +98,7 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
       options.replaceWithScreenshotOnComplete,
       options.loaders,
       options.units,
+      options.floorAlignment,
       options.selection,
     ]
   );

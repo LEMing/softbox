@@ -1,4 +1,21 @@
-import React from 'react';
+import React, { useSyncExternalStore } from 'react';
+
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
+const canQueryMotionPreference = () =>
+  typeof window !== 'undefined' && typeof window.matchMedia === 'function';
+
+const subscribeToMotionPreference = (onChange: () => void) => {
+  if (!canQueryMotionPreference()) {
+    return () => {};
+  }
+  const query = window.matchMedia(REDUCED_MOTION_QUERY);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+};
+
+const readsReducedMotion = () =>
+  canQueryMotionPreference() && window.matchMedia(REDUCED_MOTION_QUERY).matches;
 
 export interface LoadingOverlayProps {
   status: 'loading' | 'error';
@@ -14,11 +31,13 @@ export interface LoadingOverlayProps {
  */
 export function LoadingOverlay({ status, label, color, backdrop }: LoadingOverlayProps) {
   // Respect the user's reduced-motion preference: show a static spinner arc
-  // rather than the rotating SMIL animation.
-  const reduceMotion =
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // rather than the rotating SMIL animation. Subscribed, not snapshotted — a
+  // preference change mid-load stops the spin without waiting for a re-render.
+  const reduceMotion = useSyncExternalStore(
+    subscribeToMotionPreference,
+    readsReducedMotion,
+    () => false
+  );
 
   return (
     <div
