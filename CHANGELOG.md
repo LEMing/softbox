@@ -1,16 +1,30 @@
 Changelog
 =========
 
-Unreleased
+4.18.0
 ---
 
-### Node 22 minimum
+### Node 22 minimum, modernized toolchain, refreshed showcase
+
+No library behavior changes — the exported API and the rendered result are
+identical to 4.17.0. What changes is the envelope:
 
 * **`engines.node` rises from the stale `>=18` to `>=22.13.0`; CI runs on Node 22.**
   Node 20 reached end-of-life in April 2026. This gates installs, not runtime — the
-  shipped bundles are unchanged — but package managers that enforce `engines` by
+  shipped bundles behave identically — but package managers that enforce `engines` by
   default (Yarn classic) will refuse to install on older Node without
   `--ignore-engines`.
+* **The bundle is now built by Vite 8 (Rolldown).** Same chunk contract (lazy
+  path-tracer chunk, external `three`/`react`, bundled addons), and the eager
+  core got measurably lighter: **~102 kB gzip** (was ~117). The declaration
+  bundle is byte-identical to 4.17.0's.
+* **Toolchain majors**: ESLint 10, Jest 30 (+5 new guard-branch tests, 799
+  total), unplugin-dts (replacing the deprecated vite-plugin-dts wrapper).
+  three-gpu-pathtracer stays deliberately at 0.0.23 — 0.0.24 renders models
+  black under path tracing ([upstream #785](https://github.com/gkjohnson/three-gpu-pathtracer/issues/785)).
+* **Showcase refresh**: README size/test numbers now match the real build, the
+  demo's og tags describe the current default look, npm keywords widened, and
+  the demo header links to the npm package.
 
 4.17.0
 ---
