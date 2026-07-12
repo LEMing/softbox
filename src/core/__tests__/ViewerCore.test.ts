@@ -1098,6 +1098,74 @@ describe('ViewerCore', () => {
       expect(bundle.pathTracingService!.setEnabled).not.toHaveBeenCalledWith(true);
     });
 
+    it("a failed tracer initialization reaches the consumer's error event", async () => {
+      const bundle = makeDeps({
+        withPathTracing: true,
+        options: { pathTracing: { enabled: true } },
+        pathTracingOverrides: {
+          initialize: jest.fn(async () =>
+            Result.err(new ThreeViewerError('no WebGL2', ErrorCode.PATH_TRACING_INIT_FAILED))
+          ),
+        },
+      });
+      const viewer = new ViewerCore(bundle.deps);
+      const onError = jest.fn();
+      viewer.getEvents().on('error', onError);
+      const coordinator = (viewer as unknown as {
+        pathTracing: { enableRuntime(): Promise<boolean> };
+      }).pathTracing;
+
+      await coordinator.enableRuntime();
+
+      expect(onError).toHaveBeenCalledWith({
+        error: expect.objectContaining({ code: ErrorCode.PATH_TRACING_INIT_FAILED }),
+      });
+    });
+
+    it('a rejected runtime enable emits error instead of an unhandled rejection', async () => {
+      const bundle = makeDeps({
+        withPathTracing: true,
+        options: { pathTracing: { enabled: false } },
+        pathTracingOverrides: {
+          // A throw past the Result contract — the backstop catch must absorb it.
+          setEnabled: jest.fn(() => {
+            throw new Error('exploded past the Result contract');
+          }),
+        },
+      });
+      const viewer = new ViewerCore(bundle.deps);
+      const onError = jest.fn();
+      viewer.getEvents().on('error', onError);
+
+      viewer.updateOptions({ pathTracing: { enabled: true } });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(onError).toHaveBeenCalledWith({
+        error: expect.objectContaining({ code: ErrorCode.PATH_TRACING_INIT_FAILED }),
+      });
+    });
+
+    it("a post-processing chunk failure reaches the consumer's error event", async () => {
+      let registeredHandler: ((error: unknown) => void) | undefined;
+      const bundle = makeDeps({
+        rendererOverrides: {
+          setPostProcessingErrorHandler: jest.fn((handler: (error: unknown) => void) => {
+            registeredHandler = handler;
+          }),
+        },
+      });
+      const viewer = new ViewerCore(bundle.deps);
+      const onError = jest.fn();
+      viewer.getEvents().on('error', onError);
+      await viewer.initialize();
+
+      registeredHandler?.(new Error('chunk fetch failed'));
+
+      expect(onError).toHaveBeenCalledWith({
+        error: expect.objectContaining({ code: ErrorCode.OPERATION_FAILED }),
+      });
+    });
+
     it('silently ignores render failures during resize', () => {
       const canvas = makeCanvas(640, 480);
       const bundle = makeDeps({

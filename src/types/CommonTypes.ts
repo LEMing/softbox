@@ -11,18 +11,8 @@ export type ControlsInstance = {
   getThreeControls?(): unknown;
 };
 
-// Renderer extension
+// Renderer extension: the two unwrap surfaces ThreeRendererAdapter exposes.
 export type RendererWithInternalAccess = {
-  getInternalRenderer?: () => THREE.WebGLRenderer;
   renderer?: THREE.WebGLRenderer;
   getThreeRenderer?: () => THREE.WebGLRenderer;
-  getDomElement?: () => HTMLCanvasElement & {
-    getContext?: (type: string) => WebGLRenderingContext & {
-      canvas?: {
-        parentElement?: {
-          renderer?: THREE.WebGLRenderer;
-        };
-      };
-    };
-  };
 };

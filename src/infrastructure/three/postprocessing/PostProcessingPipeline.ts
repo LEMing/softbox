@@ -171,7 +171,11 @@ export class PostProcessingPipeline {
       this.loadFailed = true;
       // The render fallback keeps the viewer alive, but the consumer who asked
       // for the effects must be able to SEE the degradation programmatically.
-      this.onLoadError?.(error);
+      // Not after a mid-load dispose though: the effects were already swapped
+      // away, so a stale failure event would report on a pipeline nobody owns.
+      if (!this.disposed) {
+        this.onLoadError?.(error);
+      }
       console.warn('Failed to load post-processing effects; falling back to the plain renderer:', error);
     }
   }
