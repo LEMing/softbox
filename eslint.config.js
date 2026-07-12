@@ -48,7 +48,7 @@ export default tseslint.config(
         {
           // Anything that is not a plain string literal (template literal,
           // concatenation, identifier) is uninspectable by the bans above.
-          selector: 'ImportExpression > :not(Literal)',
+          selector: 'ImportExpression[source.type!="Literal"]',
           message: 'Dynamic imports in core must use a plain string literal so the layer/ecosystem bans can inspect the specifier.',
         },
       ],
@@ -110,7 +110,7 @@ export default tseslint.config(
           message: 'This module is in engine-agnostic core\'s transitive import closure — lazy-loading an adapter would smuggle Three.js in through one hop.',
         },
         {
-          selector: 'ImportExpression > :not(Literal)',
+          selector: 'ImportExpression[source.type!="Literal"]',
           message: 'Dynamic imports here must use a plain string literal so the closure bans can inspect the specifier.',
         },
       ],

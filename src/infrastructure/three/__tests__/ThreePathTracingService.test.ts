@@ -1275,6 +1275,16 @@ describe('ThreePathTracingService', () => {
       expect(layerOpacity(service, 6)).toBeLessThanOrEqual(0.3 + 1e-6);
     });
 
+    it('keeps finite opacity for pathological sample budgets (window floor)', () => {
+      const service = new ThreePathTracingService();
+      service.updateSettings({ samples: 1 });
+      // Without the floor, samples <= FADE_HOLD_SAMPLES collapsed the
+      // smoothstep edges (hold === release -> 0/0).
+      for (let count = 0; count <= 6; count++) {
+        expect(Number.isFinite(layerOpacity(service, count))).toBe(true);
+      }
+    });
+
     it('never decreases as accumulation progresses', () => {
       const service = new ThreePathTracingService();
       let previous = -1;
