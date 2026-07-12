@@ -918,6 +918,41 @@ describe('ViewerCore', () => {
       expect(bundle.renderer.render).toHaveBeenCalled();
     });
 
+    it('matches fractional CSS × DPR products the way three floors them (no dead guard at DPR 1.5)', () => {
+      // three's setSize assigns canvas.width = Math.floor(width × ratio) —
+      // 641 × 1.5 = 961.5 → 961. A Math.round guard (962) would NEVER match
+      // this geometry, silently reverting to run-the-full-path-every-call.
+      const canvas = makeCanvas(961, 720);
+      const bundle = makeDeps({ canvas });
+      bundle.renderer.getPixelRatio.mockReturnValue(1.5);
+      (bundle.camera as unknown as { aspect: number }).aspect = 641 / 480;
+      const viewer = new ViewerCore(bundle.deps);
+      bundle.renderer.render.mockClear();
+
+      viewer.resize(641, 480);
+
+      expect(bundle.renderer.setSize).not.toHaveBeenCalled();
+      expect(bundle.renderer.render).not.toHaveBeenCalled();
+    });
+
+    it('treats a DPR-scaled drawing buffer as an unchanged size (no-op on retina)', () => {
+      // The buffer holds CSS × pixelRatio device pixels; comparing it against
+      // raw CSS dimensions left this guard dead on every DPR ≠ 1 display.
+      const canvas = makeCanvas(1280, 960);
+      const bundle = makeDeps({ canvas });
+      bundle.renderer.getPixelRatio.mockReturnValue(2);
+      (bundle.camera as unknown as { aspect: number }).aspect = 640 / 480;
+      const viewer = new ViewerCore(bundle.deps);
+      (bundle.camera.updateProjectionMatrix as jest.Mock).mockClear();
+      bundle.renderer.render.mockClear();
+
+      viewer.resize(640, 480);
+
+      expect(bundle.renderer.setSize).not.toHaveBeenCalled();
+      expect(bundle.renderer.render).not.toHaveBeenCalled();
+      expect(bundle.camera.updateProjectionMatrix).not.toHaveBeenCalled();
+    });
+
     it('re-applies the camera aspect on a rebuild that reuses an already-sized canvas', () => {
       // A rebuild hands the fresh viewer a canvas already sized by the previous
       // one, but a fresh camera at a stale aspect. Size alone matches, so a

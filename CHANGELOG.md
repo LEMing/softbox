@@ -1,6 +1,23 @@
 Changelog
 =========
 
+4.17.0
+---
+
+### Paper cuts: an honest studio-env API, a retina-correct resize guard, and `normalBias`
+
+* **New `lighting.directionalLight.shadow.normalBias` option.** A world-space offset along
+  the receiver's normal against shadow acne. Unlike `bias` (normalized depth, whose
+  world-space effect scales with the fitted shadow-camera range), it is absolute — the
+  scale-correct escape hatch if acne ever shows on a model's own surfaces.
+* **`createStudioEnvironment` no longer advertises options it ignores.** The internal
+  `IStudioEnvironmentOptions` parameter was accepted and silently discarded; the studio
+  look is owned by the implementation. The dead interface is removed.
+* **The resize no-op guard now works on retina displays.** It compared the drawing
+  buffer's DEVICE pixels against incoming CSS pixels, so on any DPR ≠ 1 display every
+  resize call ran the full path (a redundant `setSize` + repaint). It now compares like
+  with like.
+
 4.16.1
 ---
 

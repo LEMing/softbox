@@ -20,9 +20,10 @@ export interface IEnvironmentService {
   applyToScene(scene: IScene, texture: ITexture, options?: IEnvironmentApplyOptions): Result<void>;
   
   /**
-   * Create studio environment
+   * Create the built-in procedural studio environment. Its look is owned by
+   * the implementation (see `applyStudioContrast`) — it takes no options.
    */
-  createStudioEnvironment(options?: IStudioEnvironmentOptions): Result<ITexture>;
+  createStudioEnvironment(): Result<ITexture>;
 
   /**
    * Set the scene background to a plain LDR image (URL, File, or HTMLImageElement)
@@ -39,12 +40,6 @@ export interface IEnvironmentService {
 export interface IEnvironmentOptions {
   renderer: IRenderer;
   autoDispose?: boolean;
-}
-
-export interface IStudioEnvironmentOptions {
-  intensity?: number;
-  groundColor?: string;
-  skyColor?: string;
 }
 
 export interface IEnvironmentApplyOptions {

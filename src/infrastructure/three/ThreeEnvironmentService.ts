@@ -6,7 +6,6 @@ import { applyStudioContrast } from './studioEnvironmentContrast';
 import { 
   IEnvironmentService, 
   IEnvironmentOptions,
-  IStudioEnvironmentOptions,
   IEnvironmentApplyOptions 
 } from '../../core/services/IEnvironmentService';
 import { IScene, ITexture } from '../../core/interfaces/IScene';
@@ -343,7 +342,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     });
   }
 
-  createStudioEnvironment(_options: IStudioEnvironmentOptions = {}): Result<ITexture> {
+  createStudioEnvironment(): Result<ITexture> {
     try {
       if (!this.pmremGenerator) {
         return Result.err(
