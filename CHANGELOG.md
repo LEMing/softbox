@@ -1,6 +1,25 @@
 Changelog
 =========
 
+4.16.1
+---
+
+### The contact-shadow bake no longer blocks the model load
+
+* **The model now appears as soon as it loads; the shadow bake happens after.** The soft
+  contact-shadow bake is a synchronous multi-pass render that can take a long beat on a
+  weak GPU, and it used to run *inside* the model load — holding the loading overlay up
+  (and the first paint back) for its whole duration. It is now deferred until after the
+  next two painted frames: the model appears immediately, grounded by the live realtime
+  shadow (which has been scale-correct since 4.15.4), and the higher-quality baked disc
+  swaps in silently a beat later. On a healthy GPU that beat is ~130ms; on a weak one the
+  model no longer waits seconds for its own shadow. The deferred bake is skipped when it
+  no longer applies by the time it fires — a newer model superseded it, the viewer was
+  disposed, or playback started (playing runs in live-shadow mode anyway).
+* Note: a still captured immediately after `model:loaded` may picture the live shadow
+  rather than the baked one — they are close since 4.15.4, and the baked disc lands within
+  a couple of frames on a healthy GPU.
+
 4.16.0
 ---
 

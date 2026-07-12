@@ -51,6 +51,7 @@ describe('ModelManager', () => {
       snapObjectToFloor: jest.fn().mockReturnValue(Result.ok(undefined)),
       fitShadowCameraToObject: jest.fn().mockReturnValue(Result.ok(undefined)),
       bakeContactShadow: jest.fn().mockReturnValue(Result.ok(undefined)),
+      resetContactShadow: jest.fn().mockReturnValue(Result.ok(undefined)),
       setContactShadowMode: jest.fn().mockReturnValue(Result.ok(undefined)),
       fitCameraToObject: jest.fn().mockReturnValue(Result.ok(undefined)),
       wrapInUnitsScaleGroup: jest.fn()
@@ -179,59 +180,26 @@ describe('ModelManager', () => {
         );
       });
 
-      it('should bake the contact shadow after fitting the shadow camera when a renderer is available', async () => {
-        const mockRenderer = { getInternalRenderer: jest.fn(() => null) } as unknown as import('../../interfaces').IRenderer;
-        modelManager = new ModelManager({
-          modelLoader: mockModelLoader,
-          scene: mockScene,
-          camera: mockCamera,
-          controls: mockControls,
-          sceneSetupService: mockSceneSetupService,
-          renderer: mockRenderer
-        });
-
+      it('fits the shadow camera during the load, but never bakes (the viewer defers the bake)', async () => {
         await modelManager.loadModel('test.glb', mockEvents);
 
-        expect(mockSceneSetupService.bakeContactShadow).toHaveBeenCalledWith(
+        // The fit is cheap and the live realtime shadow needs it immediately.
+        expect(mockSceneSetupService.fitShadowCameraToObject).toHaveBeenCalledWith(
           mockScene,
-          mockModel,
-          mockRenderer
+          mockModel
         );
-        const fitOrder = mockSceneSetupService.fitShadowCameraToObject.mock.invocationCallOrder[0];
-        const bakeOrder = mockSceneSetupService.bakeContactShadow.mock.invocationCallOrder[0];
-        expect(bakeOrder).toBeGreaterThan(fitOrder);
-      });
-
-      it('should skip contact-shadow baking without a renderer', async () => {
-        await modelManager.loadModel('test.glb', mockEvents);
-
+        // The bake is a synchronous multi-pass render that would hold the
+        // loading overlay (and the first paint) hostage on a weak GPU —
+        // ViewerCore schedules it past the first painted frame instead.
         expect(mockSceneSetupService.bakeContactShadow).not.toHaveBeenCalled();
       });
 
-      it('should warn but still succeed when contact-shadow baking fails', async () => {
-        const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
-        const mockRenderer = { getInternalRenderer: jest.fn(() => null) } as unknown as import('../../interfaces').IRenderer;
-        mockSceneSetupService.bakeContactShadow.mockReturnValue(
-          Result.err(new ThreeViewerError('Bake failed', ErrorCode.OPERATION_FAILED))
-        );
-        modelManager = new ModelManager({
-          modelLoader: mockModelLoader,
-          scene: mockScene,
-          camera: mockCamera,
-          controls: mockControls,
-          sceneSetupService: mockSceneSetupService,
-          renderer: mockRenderer
-        });
+      it('evicts the previous model\'s stale baked disc during the load', async () => {
+        await modelManager.loadModel('test.glb', mockEvents);
 
-        const result = await modelManager.loadModel('test.glb', mockEvents);
-
-        expect(result.ok).toBe(true);
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          'Failed to bake contact shadow:',
-          expect.any(ThreeViewerError)
-        );
-
-        consoleWarnSpy.mockRestore();
+        // The new model's bake is deferred; without this the OLD model's baked
+        // shadow (wrong shape/size/position) would show for the whole window.
+        expect(mockSceneSetupService.resetContactShadow).toHaveBeenCalledWith(mockScene);
       });
 
       it('should fit camera to object when autoFit is true', async () => {

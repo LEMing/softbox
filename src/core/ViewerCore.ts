@@ -26,6 +26,7 @@ import { SceneConfigurator } from './SceneConfigurator';
 import { IFloorAlignmentService } from './services/IFloorAlignmentService';
 import { RenderLoopManager } from './utils/RenderLoopManager';
 import { deepMerge } from '../utils/deepMerge';
+import { deferToNextFrame } from './utils/deferToNextFrame';
 import { SceneSerializer } from './utils/SceneSerializer';
 import { applyCameraAspect } from './utils/cameraAspect';
 import { StateManager } from './managers/StateManager';
@@ -54,6 +55,12 @@ export interface ViewerDependencies {
   selectionService?: ISelectionService;
   anchorProjectionService?: IAnchorProjectionService;
   animationService?: IAnimationService;
+  /**
+   * Defers work until after the next two painted frames (default:
+   * `deferToNextFrame`, rAF + macrotask twice). Injectable so tests can run
+   * the deferred work deterministically.
+   */
+  deferToNextFrame?: (callback: () => void) => void;
 }
 
 /**
@@ -94,6 +101,7 @@ export class ViewerCore {
   private readonly selectionService?: ISelectionService;
   private readonly anchorProjectionService?: IAnchorProjectionService;
   private readonly animationService?: IAnimationService;
+  private readonly deferToNextFrame: (callback: () => void) => void;
 
   constructor(dependencies: ViewerDependencies) {
     this.renderer = dependencies.renderer;
@@ -107,6 +115,7 @@ export class ViewerCore {
     this.selectionService = dependencies.selectionService;
     this.anchorProjectionService = dependencies.anchorProjectionService;
     this.animationService = dependencies.animationService;
+    this.deferToNextFrame = dependencies.deferToNextFrame ?? deferToNextFrame;
 
     this.stateManager = new StateManager();
 
@@ -126,7 +135,6 @@ export class ViewerCore {
       controls: this.controls,
       floorAlignmentService: dependencies.floorAlignmentService,
       sceneSetupService: this.sceneSetupService,
-      renderer: this.renderer,
       autoFitToObject: this.options.camera?.autoFitToObject,
       floorAlignment: this.options.floorAlignment,
       unitsScaleToMeters
@@ -326,6 +334,11 @@ export class ViewerCore {
         // stale ingest must not survive, or the tracer keeps sampling the
         // previous model's geometry.
         this.pathTracing.resetAccumulation(true);
+        // The soft contact-shadow bake is a synchronous multi-pass render that
+        // can take a long beat on a weak GPU. Deferred past the first painted
+        // frame so the model (grounded by the live realtime catcher) appears
+        // immediately; the baked disc swaps in silently a couple frames later.
+        this.scheduleContactShadowBake(result.value);
         return Result.ok(undefined);
       } else {
         this.stateManager.setError(result.error);
@@ -958,8 +971,33 @@ export class ViewerCore {
     }
     const bakeResult = this.sceneSetupService.bakeContactShadow(this.scene, model, this.renderer);
     if (!bakeResult.ok) {
-      console.warn('Failed to re-bake contact shadow after pausing animations:', bakeResult.error);
+      console.warn('Failed to bake contact shadow:', bakeResult.error);
     }
+  }
+
+  /**
+   * Bake the load-time contact shadow AFTER the next painted frame, so the
+   * synchronous multi-pass bake never holds the first paint (or the loading
+   * overlay) hostage on a weak GPU. Skipped when the world moved on by the
+   * time it fires: the viewer was disposed, a newer model superseded this one,
+   * or playback started (playing runs in live-shadow mode; the pause handler
+   * re-bakes for the resting pose itself).
+   */
+  private scheduleContactShadowBake(model: IObject3D): void {
+    this.deferToNextFrame(() => {
+      if (
+        this.disposed ||
+        this.modelManager.getCurrentModel() !== model ||
+        this.animationService?.isPlaying()
+      ) {
+        return;
+      }
+      this.rebakeContactShadowForCurrentPose();
+      // The bake swaps the live catcher for the baked disc — repaint so the
+      // swap shows even after idle detection wound the loop down.
+      this.reviveRenderLoop();
+      this.renderLoopManager.requestRender();
+    });
   }
 
   private attachAnimations(model: IObject3D): void {
