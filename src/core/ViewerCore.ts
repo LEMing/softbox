@@ -214,7 +214,7 @@ export class ViewerCore {
           this.events.emit('error', {
             error: new ThreeViewerError(
               'Post-processing effects failed to load; rendering without them',
-              ErrorCode.OPERATION_FAILED,
+              ErrorCode.POST_PROCESSING_FAILED,
               { originalError: error }
             ),
           });
@@ -561,7 +561,10 @@ export class ViewerCore {
       const backgroundValueChanged =
         this.options.backgroundColor !== previousBackgroundColor ||
         this.options.backgroundColorEdge !== previousBackgroundColorEdge;
-      if (backgroundValueChanged) {
+      // No re-ingest when an environment map owns the backdrop: the repaint
+      // above already no-oped, so restarting a converged accumulation would
+      // burn a full sample budget for a change with zero visual effect.
+      if (backgroundValueChanged && !this.options.environment?.url) {
         this.pathTracing.resetAccumulation(true);
       }
     }

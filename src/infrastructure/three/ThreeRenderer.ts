@@ -334,7 +334,7 @@ export class ThreeRendererAdapter implements IRenderer {
     return this.renderer;
   }
   
-  // Legacy method for backward compatibility
+  // The canonical unwrap surface (consumed by unwrap.ts via duck-typing).
   getThreeRenderer(): THREE.WebGLRenderer | null {
     return this.getInternalRenderer();
   }

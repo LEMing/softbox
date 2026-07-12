@@ -1216,7 +1216,7 @@ describe('ViewerCore', () => {
       registeredHandler?.(new Error('chunk fetch failed'));
 
       expect(onError).toHaveBeenCalledWith({
-        error: expect.objectContaining({ code: ErrorCode.OPERATION_FAILED }),
+        error: expect.objectContaining({ code: ErrorCode.POST_PROCESSING_FAILED }),
       });
     });
 
