@@ -107,6 +107,11 @@ export class PostProcessingPipeline {
   private modules: PostModules | null = null;
   private composer: Composer | null = null;
   private renderPass: RenderPass | null = null;
+  // Every pass handed to composer.addPass. EffectComposer.dispose() frees only
+  // its own ping-pong targets and internal copy pass — user-added passes are
+  // the caller's to dispose (three's contract), and UnrealBloomPass alone holds
+  // eleven render targets that would otherwise leak on every effects change.
+  private passes: Array<{ dispose?: () => void }> = [];
   private disposed = false;
   private loadFailed = false;
 
@@ -209,24 +214,25 @@ export class PostProcessingPipeline {
     }
     const renderPass = new modules.RenderPass(scene, camera);
     this.renderPass = renderPass;
-    composer.addPass(renderPass as object);
+    this.addPass(composer, renderPass);
 
     if (this.config.bloom && modules.UnrealBloomPass) {
       // Params: (resolution, strength, radius, threshold) — see the BLOOM_* consts.
-      composer.addPass(
+      this.addPass(
+        composer,
         new modules.UnrealBloomPass(
           new THREE.Vector2(bufferSize.x, bufferSize.y),
           BLOOM_STRENGTH,
           BLOOM_RADIUS,
           BLOOM_THRESHOLD
-        ) as object
+        )
       );
     }
 
     // Tone mapping + sRGB: reads the renderer's operator/exposure, so the
     // composited frame matches the plain-render look. Everything above runs in
     // linear HDR; everything below is a display-space touch.
-    composer.addPass(new modules.OutputPass() as object);
+    this.addPass(composer, new modules.OutputPass());
 
     // Colour grade in display space (after tone mapping): contrast then
     // saturation, via three's stock shaders — they keep the tone-mapping
@@ -236,21 +242,21 @@ export class PostProcessingPipeline {
     if (grade && modules.ShaderPass && modules.BrightnessContrastShader && modules.HueSaturationShader) {
       const contrastPass = new modules.ShaderPass(modules.BrightnessContrastShader);
       contrastPass.uniforms.contrast.value = grade.contrast;
-      composer.addPass(contrastPass as object);
+      this.addPass(composer, contrastPass);
       const saturationPass = new modules.ShaderPass(modules.HueSaturationShader);
       saturationPass.uniforms.saturation.value = grade.saturation;
-      composer.addPass(saturationPass as object);
+      this.addPass(composer, saturationPass);
     }
 
     if (this.config.vignette && modules.ShaderPass && modules.VignetteShader) {
       const vignette = new modules.ShaderPass(modules.VignetteShader);
       vignette.uniforms.offset.value = VIGNETTE_OFFSET;
       vignette.uniforms.darkness.value = VIGNETTE_DARKNESS;
-      composer.addPass(vignette as object);
+      this.addPass(composer, vignette);
     }
 
     if (this.config.filmGrain && modules.ShaderPass) {
-      composer.addPass(new modules.ShaderPass(STATIC_GRAIN_SHADER) as object);
+      this.addPass(composer, new modules.ShaderPass(STATIC_GRAIN_SHADER));
     }
 
     this.composer = composer;
@@ -265,8 +271,17 @@ export class PostProcessingPipeline {
     this.composer?.setPixelRatio?.(ratio);
   }
 
+  private addPass(composer: Composer, pass: unknown): void {
+    this.passes.push(pass as { dispose?: () => void });
+    composer.addPass(pass);
+  }
+
   dispose(): void {
     this.disposed = true;
+    for (const pass of this.passes) {
+      pass.dispose?.();
+    }
+    this.passes = [];
     this.composer?.dispose?.();
     this.composer = null;
     this.renderPass = null;
