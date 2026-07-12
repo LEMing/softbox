@@ -83,6 +83,10 @@ export function addLighting(scene: IScene, options: ILightingOptions): Result<vo
             directionalLight.shadow.bias = shadow.bias;
           }
 
+          if (shadow.normalBias !== undefined) {
+            directionalLight.shadow.normalBias = shadow.normalBias;
+          }
+
           if (shadow.radius !== undefined) {
             directionalLight.shadow.radius = shadow.radius;
           }

@@ -136,6 +136,7 @@ export interface ILightingOptions {
         bottom?: number;
       };
       bias?: number;
+      normalBias?: number;
       radius?: number;
     };
   };

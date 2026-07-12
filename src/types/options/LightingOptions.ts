@@ -53,6 +53,13 @@ export interface DirectionalLightOptions {
     };
     /** Depth offset against shadow acne (self-shadowing stripes). */
     bias?: number;
+    /**
+     * WORLD-SPACE offset along the receiver's normal against shadow acne.
+     * Unlike `bias` (normalized depth, whose world effect scales with the
+     * fitted camera range), this is absolute — the scale-correct escape hatch
+     * if acne ever shows on a model's own surfaces.
+     */
+    normalBias?: number;
     /** Shadow edge blur in shadow-map texels. */
     radius?: number;
   };

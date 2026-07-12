@@ -86,6 +86,20 @@ describe('addLighting', () => {
     expect(directionalsOf(scene)).toHaveLength(1);
   });
 
+  it('applies bias and the world-space normalBias to the key light shadow', () => {
+    const scene = new THREE.Scene();
+    light(scene, {
+      directional: {
+        intensity: 2,
+        castShadow: true,
+        shadow: { bias: -0.0001, normalBias: 0.002 },
+      },
+    });
+    const [key] = directionalsOf(scene);
+    expect(key.shadow.bias).toBe(-0.0001);
+    expect(key.shadow.normalBias).toBe(0.002);
+  });
+
   it('defaults a colour-less accent to white without a three "Unknown color" warning', () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     const scene = new THREE.Scene();

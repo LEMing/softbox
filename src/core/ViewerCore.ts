@@ -680,7 +680,16 @@ export class ViewerCore {
     }
     const targetAspect = width / height;
     const canvas = this.renderer.getDomElement();
-    const sizeMatches = canvas.width === width && canvas.height === height;
+    // The canvas drawing buffer is in DEVICE pixels (CSS size × pixel ratio),
+    // while the incoming dimensions are CSS pixels — compare like with like,
+    // or the no-op guard is dead on every DPR ≠ 1 display and each resize call
+    // runs the full path (redundant setSize + repaint). Math.floor matches
+    // exactly how three's setSize derives the buffer size, so fractional
+    // CSS × ratio products compare correctly too.
+    const pixelRatio = this.renderer.getPixelRatio();
+    const sizeMatches =
+      canvas.width === Math.floor(width * pixelRatio) &&
+      canvas.height === Math.floor(height * pixelRatio);
     // A structural rebuild reuses the already-sized canvas but with a FRESH
     // camera still at its construction-default aspect. A size-only guard would
     // then skip applyCameraAspect and the frame renders stretched (a round model
