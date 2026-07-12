@@ -9,11 +9,12 @@ export default defineConfig({
     dts({
       include: ['src/**/*.ts', 'src/**/*.tsx'],
       exclude: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/__mocks__/**/*'],
-      insertTypesEntry: true,
-      // Bundle all declarations into a single dist/index.d.ts. This removes the
-      // extensionless relative imports that break `moduleResolution: nodenext`
-      // (TS2834) and keeps only bare external imports (three, react).
-      rollupTypes: true,
+      // Bundle all declarations into a single dist/index.d.ts (implies a types
+      // entry). This removes the extensionless relative imports that break
+      // `moduleResolution: nodenext` (TS2834) and keeps only bare external
+      // imports (three, react). Requires @microsoft/api-extractor, a peer of
+      // the plugin since v5 (v4 called this option `rollupTypes`).
+      bundleTypes: true,
     }),
   ],
   server: {
