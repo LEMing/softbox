@@ -703,8 +703,6 @@ export class ViewerCore {
       return;
     }
 
-    const wasPathTracingActive = this.pathTracing.onResizeStart();
-
     applyCameraAspect(this.camera, targetAspect);
     if (!sizeMatches) {
       this.renderer.setSize(width, height);
@@ -717,7 +715,15 @@ export class ViewerCore {
       // The scene may not be ready yet; the render loop repaints shortly.
     }
 
-    this.pathTracing.onResizeEnd(wasPathTracingActive);
+    // A resize invalidates the whole accumulation, exactly like a camera
+    // move: the tracer's copied camera matrices keep the old aspect (synced
+    // only on reset), its internal setSize self-reset would silently diverge
+    // from the service's own sample counter (a noisy frame then "completes"
+    // early), and the dissolve's raster snapshot is sized to the old buffer.
+    // resetAccumulation also re-arms a converged-and-self-paused tracer, so a
+    // resized viewer re-converges instead of staying dormant until the next
+    // camera move.
+    this.pathTracing.resetAccumulation();
     this.renderLoopManager.requestRender();
   }
 

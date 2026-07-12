@@ -973,11 +973,12 @@ describe('ViewerCore', () => {
       expect(bundle.renderer.render).toHaveBeenCalled();
     });
 
-    it('re-enables path tracing after resize when it was active', () => {
+    it('resets the accumulation on a mid-accumulation resize (stale camera / counters / snapshot)', () => {
       const canvas = makeCanvas(640, 480);
       const bundle = makeDeps({
         canvas,
         withPathTracing: true,
+        options: { pathTracing: { enabled: true } },
         pathTracingOverrides: {
           isEnabled: jest.fn(() => true),
         },
@@ -986,14 +987,27 @@ describe('ViewerCore', () => {
 
       viewer.resize(1024, 768);
 
-      expect(bundle.pathTracingService!.setEnabled).toHaveBeenCalledWith(true);
+      // Resize behaves like a camera move: the accumulation restarts so the
+      // tracer re-syncs its camera and its counters, and the dissolve snapshot
+      // is recaptured at the new size. The service was already enabled, so no
+      // re-enable is needed.
+      expect(bundle.pathTracingService!.reset).toHaveBeenCalled();
+      expect(bundle.pathTracingService!.setEnabled).not.toHaveBeenCalledWith(true);
     });
 
-    it('resets path tracing accumulation on resize after a completed render', () => {
+    it('re-arms a converged, self-paused tracer on resize instead of leaving it dormant', () => {
       const canvas = makeCanvas(640, 480);
-      const bundle = makeDeps({ canvas, withPathTracing: true });
+      const bundle = makeDeps({
+        canvas,
+        withPathTracing: true,
+        options: { pathTracing: { enabled: true } },
+        pathTracingOverrides: {
+          // Converged: the service self-paused and holds a warm tracer.
+          isEnabled: jest.fn(() => false),
+          canResume: jest.fn(() => true),
+        },
+      });
       const viewer = new ViewerCore(bundle.deps);
-      // Simulate a completed path-traced render whose final frame is on the canvas.
       const coordinator = (viewer as unknown as {
         pathTracing: { completeHandled: boolean };
       }).pathTracing;
@@ -1003,6 +1017,25 @@ describe('ViewerCore', () => {
 
       expect(bundle.pathTracingService!.reset).toHaveBeenCalled();
       expect(coordinator.completeHandled).toBe(false);
+      expect(bundle.pathTracingService!.setEnabled).toHaveBeenCalledWith(true);
+    });
+
+    it('leaves a gave-up tracer paused on resize (nothing warm to resume)', () => {
+      const canvas = makeCanvas(640, 480);
+      const bundle = makeDeps({
+        canvas,
+        withPathTracing: true,
+        options: { pathTracing: { enabled: true } },
+        pathTracingOverrides: {
+          isEnabled: jest.fn(() => false),
+          canResume: jest.fn(() => false),
+        },
+      });
+      const viewer = new ViewerCore(bundle.deps);
+
+      viewer.resize(1024, 768);
+
+      expect(bundle.pathTracingService!.setEnabled).not.toHaveBeenCalledWith(true);
     });
 
     it('silently ignores render failures during resize', () => {
