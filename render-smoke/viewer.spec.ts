@@ -304,6 +304,41 @@ test('opt-in post-processing renders the model (no wash-out) and darkens the cor
   expect(errors).toEqual([]);
 });
 
+test('path tracing accumulates real samples and shows the model (not black)', async ({ page }) => {
+  // Starvation budget (renderScale 0.25, 12 samples, 1 bounce) — convergence
+  // is not the point. A WORKING tracer shows the orange knot within a few
+  // noisy samples; the 0.0.24 class of ingest regression (zeroed vertex
+  // colors, wrong environment) renders the model black at ANY budget, and a
+  // tracer that never starts sits at 0 samples. This is the real-GL guard the
+  // unit suite structurally cannot provide (it runs against mocks).
+  const errors = await openScene(page, '?pathtracing=1');
+
+  // Wait for COMPLETION (maxSamples=12), not merely early samples: until the
+  // sample cap, the startup dissolve composites the raster snapshot over the
+  // tracer at 99%+ opacity, so an early screenshot would measure the raster
+  // and a black tracer would pass. Completion clears the canvas and presents
+  // the pure accumulated frame — that is the thing to measure.
+  await page.waitForFunction(() => window.__ptSamples >= 12, undefined, {
+    timeout: 90_000,
+  });
+  const png = await screenshotCanvas(page);
+
+  let colored = 0;
+  const total = png.width * png.height;
+  for (let i = 0; i < total; i += 1) {
+    const offset = i << 2;
+    const r = png.data[offset];
+    const g = png.data[offset + 1];
+    const b = png.data[offset + 2];
+    if (Math.max(r, g, b) - Math.min(r, g, b) > 40) {
+      colored += 1;
+    }
+  }
+  expect(colored / total).toBeGreaterThan(0.02);
+
+  expect(errors).toEqual([]);
+});
+
 /** Fraction of pixels that clearly changed between two frames. */
 const changedFraction = (before: PNG, after: PNG): number => {
   let differing = 0;

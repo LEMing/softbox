@@ -27,10 +27,6 @@ export class WebGLPathTracer {
     // Mock implementation
   }
 
-  updateScene(_scene: THREE.Scene, _camera: THREE.Camera): void {
-    // Mock implementation
-  }
-
   dispose(): void {
     // Mock implementation
   }

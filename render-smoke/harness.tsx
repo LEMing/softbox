@@ -18,6 +18,7 @@ import {
  *   ?turntable=1                                  (auto-rotate the camera)
  *   ?animate=1                                    (play a clip on the model)
  *   ?effects=1                                    (opt-in bloom + vignette + grain)
+ *   ?pathtracing=1                                (starvation-budget path tracing probe)
  */
 declare global {
   interface Window {
@@ -26,11 +27,13 @@ declare global {
     __pageErrors: string[];
     __captureStill: () => Promise<string>;
     __captureVideo: (duration: number) => Promise<{ size: number; type: string }>;
+    __ptSamples: number;
   }
 }
 
 window.__renderedFrames = 0;
 window.__modelLoaded = false;
+window.__ptSamples = 0;
 // Surfaced to the tests so a broken page fails fast with the reason instead
 // of timing out silently waiting for a frame that will never come.
 window.__pageErrors = [];
@@ -53,6 +56,7 @@ const withHotspot = params.get('hotspot') === '1';
 const turntable = params.get('turntable') === '1' || undefined;
 const animate = params.get('animate') === '1' || undefined;
 const withEffects = params.get('effects') === '1';
+const withPathTracing = params.get('pathtracing') === '1';
 
 const makeModel = () => {
   if (modelKind === 'pillar') {
@@ -101,8 +105,12 @@ const Harness = () => {
       const blob = await viewerRef.current!.captureVideo({ duration });
       return { size: blob.size, type: blob.type };
     };
-    const offRender = handle.events.on('render:complete', () => {
+    // render:complete carries the live path-tracing sample counter — the
+    // probe watches it grow, so a tracer stuck at 0 fails fast instead of
+    // hiding behind a completion event that never fires.
+    const offRender = handle.events.on('render:complete', ({ samples }) => {
       window.__renderedFrames += 1;
+      window.__ptSamples = samples ?? 0;
     });
     const offLoaded = handle.events.on('model:loaded', () => {
       window.__modelLoaded = true;
@@ -123,7 +131,21 @@ const Harness = () => {
       options={
         withEffects
           ? { renderer: { bloom: true, vignette: true, filmGrain: true, colorGrade: true } }
-          : undefined
+          : withPathTracing
+            ? {
+                // Starvation budget for SwiftShader: convergence is not the
+                // point — a WORKING tracer shows the orange knot within a few
+                // noisy samples, a broken ingest (the 0.0.24 class) shows
+                // black regardless of budget.
+                pathTracing: {
+                  enabled: true,
+                  maxSamples: 12,
+                  bounces: 1,
+                  renderScale: 0.25,
+                  dynamicLowRes: false,
+                },
+              }
+            : undefined
       }
     >
       {withHotspot && <Hotspot position={[0, 0, 0]} />}
