@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { markViewerOwnedBackground, disposeViewerOwnedBackground } from '../backgroundOwnership';
 import { IGradientOptions } from '../../../core/services/ISceneSetupService';
 import { IScene } from '../../../core/interfaces/IScene';
 import { Result } from '../../../utils/Result';
@@ -50,15 +51,12 @@ export function createGradientBackground(scene: IScene, options: IGradientOption
     // Create texture from canvas
     const texture = new THREE.CanvasTexture(canvas);
     texture.needsUpdate = true;
+    markViewerOwnedBackground(texture);
 
-    // Apply as background, disposing any previous background texture so that
-    // repeated calls (e.g. runtime background-color changes) do not leak.
-    // Guard against disposing a texture that is still in use as the scene
-    // environment (studio mode shares one PMREM texture for both).
-    const previous = threeScene.background;
-    if (previous instanceof THREE.Texture && previous !== threeScene.environment) {
-      previous.dispose();
-    }
+    // Repeated repaints must not leak the previous canvas — but ONLY
+    // viewer-painted backgrounds are ours to dispose; an env-map backdrop is
+    // the cached original the texture cache and path tracer still hold.
+    disposeViewerOwnedBackground(threeScene);
     threeScene.background = texture;
 
     return Result.ok(undefined);

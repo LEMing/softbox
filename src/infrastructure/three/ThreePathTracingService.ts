@@ -13,13 +13,12 @@ import { ICamera } from '../../core/interfaces/ICamera';
 import { DEFAULT_PATH_TRACING_SAMPLES } from '../../core/constants';
 import { Result } from '../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../errors';
-import { hasInternalRenderer } from '../../core/interfaces/IRendererExtension';
 import {
   ExtendedWebGLPathTracer,
   PathTracingWebGLRenderer,
-  PathTracingScene,
-  hasGetInternalRenderer
+  PathTracingScene
 } from './types/PathTracerTypes';
+import { toThreeScene, toThreeCamera, toThreeRenderer } from './unwrap';
 import { TypedEventEmitter } from '../../events/EventEmitter';
 import { CONTACT_SHADOW_HELPER_FLAG, PATH_TRACING_FLOOR_FLAG } from './ContactShadowBaker';
 
@@ -115,6 +114,11 @@ export class ThreePathTracingService implements IPathTracingService {
 
 
     return dataTexture;
+  }
+
+  /** The underlying WebGLRenderer, or null while the adapter isn't ready. */
+  private getThreeRenderer(): PathTracingWebGLRenderer | null {
+    return toThreeRenderer(this.renderer);
   }
 
   private pathTracer: ExtendedWebGLPathTracer | null = null;
@@ -230,9 +234,7 @@ export class ThreePathTracingService implements IPathTracingService {
       // Get the Three.js renderer using the type-safe interface. The renderer
       // may not be ready on the very first render() call after initialize();
       // the caller (ensurePathTracerCreated) retries on subsequent frames.
-      const threeRenderer = hasGetInternalRenderer(this.renderer)
-        ? this.renderer.getInternalRenderer() as THREE.WebGLRenderer
-        : null;
+      const threeRenderer = this.getThreeRenderer();
       if (!threeRenderer) {
         return Result.err(
           new ThreeViewerError(
@@ -262,11 +264,7 @@ export class ThreePathTracingService implements IPathTracingService {
       // Env intensity and tone mapping are inherited from the scene/renderer,
       // NOT overridden here: three-gpu-pathtracer reads scene.environmentIntensity
       // on ingest and shares the renderer's tone-mapping operator + exposure, so
-      // the converged frame matches the raster preview. (Two dead overrides were
-      // removed: a `pathTracer.environmentIntensity = 2.0` assignment the tracer
-      // never reads — it exposes no such accessor, and its `!== undefined` guard
-      // was false anyway — and a paired exposure=1.5 block whose
-      // `toneMapping !== ACES` guard was always false.)
+      // the converged frame matches the raster preview.
 
       // autoClear stays ON: the accumulation blit manages its own clear state
       // per pass (accumulateOneSample), while every raster fallback frame —
@@ -303,7 +301,7 @@ export class ThreePathTracingService implements IPathTracingService {
       this.reset();
       this.sceneInitialized = false;
 
-      const threeRenderer = hasGetInternalRenderer(this.renderer) ? this.renderer.getInternalRenderer() as PathTracingWebGLRenderer : null;
+      const threeRenderer = this.getThreeRenderer();
       if (threeRenderer) {
         threeRenderer.autoClear = true; // Re-enable autoClear for standard rendering
       }
@@ -451,16 +449,8 @@ export class ThreePathTracingService implements IPathTracingService {
   private extractThreeObjects(
     scene: IScene, camera: ICamera
   ): { threeScene: THREE.Scene; threeCamera: THREE.Camera } | null {
-    let threeScene: THREE.Scene | null = null;
-    let threeCamera: THREE.Camera | null = null;
-
-    if (hasInternalRenderer<THREE.Scene>(scene)) {
-      threeScene = scene.getInternalRenderer() as THREE.Scene;
-    }
-    if (hasInternalRenderer<THREE.Camera>(camera)) {
-      threeCamera = camera.getInternalRenderer() as THREE.Camera;
-    }
-
+    const threeScene = toThreeScene(scene);
+    const threeCamera = toThreeCamera(camera);
     if (!threeScene || !threeCamera) {
       return null;
     }
@@ -690,9 +680,7 @@ export class ThreePathTracingService implements IPathTracingService {
    * fade shader applies the renderer's tone mapping + sRGB itself and the
    * snapshot matches the frame on screen instead of coming out dark. */
   private captureRasterFade(renderer: IRenderer, scene: IScene, camera: ICamera): void {
-    const threeRenderer = hasGetInternalRenderer(this.renderer)
-      ? (this.renderer.getInternalRenderer() as PathTracingWebGLRenderer)
-      : null;
+    const threeRenderer = this.getThreeRenderer();
     if (!threeRenderer) {
       return;
     }
@@ -712,9 +700,7 @@ export class ThreePathTracingService implements IPathTracingService {
   /** Composite the captured raster over the on-canvas path-traced frame at the
    * given opacity (1 = pure raster, 0 = fully revealed path tracing). */
   private renderRasterFade(opacity: number): void {
-    const threeRenderer = hasGetInternalRenderer(this.renderer)
-      ? (this.renderer.getInternalRenderer() as PathTracingWebGLRenderer)
-      : null;
+    const threeRenderer = this.getThreeRenderer();
     if (!threeRenderer || !this.rasterFadeTarget) {
       return;
     }
@@ -815,8 +801,9 @@ export class ThreePathTracingService implements IPathTracingService {
 
     const completed = this.sampleCount >= this.settings.samples && this.sampleCount > 0;
     if (completed) {
-      if (this.pathTracer && hasGetInternalRenderer(this.renderer)) {
-        const threeRenderer = this.renderer.getInternalRenderer() as PathTracingWebGLRenderer;
+      const presentRenderer = this.getThreeRenderer();
+      if (this.pathTracer && presentRenderer) {
+        const threeRenderer = presentRenderer;
         threeRenderer.setRenderTarget(null);
       }
       return Result.ok(undefined);
@@ -830,9 +817,7 @@ export class ThreePathTracingService implements IPathTracingService {
    * renderer's autoClear/render-target state so the standard view stays visible.
    */
   private accumulateOneSample(): void {
-    const threeRenderer = hasGetInternalRenderer(this.renderer)
-      ? this.renderer.getInternalRenderer() as PathTracingWebGLRenderer
-      : null;
+    const threeRenderer = this.getThreeRenderer();
     if (!threeRenderer) {
       throw new Error('Three.js renderer not available');
     }
@@ -856,9 +841,7 @@ export class ThreePathTracingService implements IPathTracingService {
    * stale frame frozen on screen.
    */
   private captureCompletedFrame(): Result<void> {
-    const threeRenderer = hasGetInternalRenderer(this.renderer)
-      ? this.renderer.getInternalRenderer() as PathTracingWebGLRenderer
-      : null;
+    const threeRenderer = this.getThreeRenderer();
     if (threeRenderer && this.pathTracer) {
       try {
         const originalAutoClear = threeRenderer.autoClear;

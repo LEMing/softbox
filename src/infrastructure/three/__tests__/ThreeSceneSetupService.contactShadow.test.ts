@@ -57,6 +57,29 @@ describe('ThreeSceneSetupService contact shadow', () => {
       expect(threeScene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeDefined();
     });
 
+    it('frees the bake target and disc when accumulation fails mid-bake', () => {
+      const { threeScene, model } = createSceneWithLight();
+      const service = new ThreeSceneSetupService();
+      const internal = createMockThreeRenderer();
+      (internal.render as jest.Mock).mockImplementation(() => {
+        throw new Error('device error mid-pass');
+      });
+      const targetDispose = jest.spyOn(THREE.WebGLRenderTarget.prototype, 'dispose');
+
+      const result = service.bakeContactShadow(
+        new ThreeSceneAdapter(threeScene),
+        new ThreeObject3DAdapter(model),
+        asRenderer(internal)
+      );
+
+      // Ownership never transferred: the failure path must free the
+      // accumulation target instead of stranding it.
+      expect(result.ok).toBe(false);
+      expect(targetDispose).toHaveBeenCalled();
+      expect(threeScene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeUndefined();
+      targetDispose.mockRestore();
+    });
+
     it('rejects a scene that is not a ThreeSceneAdapter', () => {
       const service = new ThreeSceneSetupService();
       const model = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));

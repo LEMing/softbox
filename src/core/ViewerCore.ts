@@ -4,6 +4,7 @@ import {
   IScene,
   IModelLoader,
   ICamera,
+  IPerspectiveCamera,
   IControls,
   IObject3D,
   IAnchorProjectionService,
@@ -730,10 +731,12 @@ export class ViewerCore {
     // then skip applyCameraAspect and the frame renders stretched (a round model
     // reads as an ellipse). So skip only when the camera aspect is ALSO already
     // correct, not on canvas size alone.
-    const isPerspective = this.camera.type === 'perspective' && 'aspect' in this.camera;
+    const perspectiveAspect =
+      this.camera.type === 'perspective' && 'aspect' in this.camera
+        ? (this.camera as IPerspectiveCamera).aspect
+        : null;
     const aspectMatches =
-      !isPerspective ||
-      Math.abs((this.camera as unknown as { aspect: number }).aspect - targetAspect) < 1e-6;
+      perspectiveAspect === null || Math.abs(perspectiveAspect - targetAspect) < 1e-6;
     if (sizeMatches && aspectMatches) {
       return;
     }

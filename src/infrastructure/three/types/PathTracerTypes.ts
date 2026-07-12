@@ -2,17 +2,13 @@ import * as THREE from 'three';
 import { WebGLPathTracer } from 'three-gpu-pathtracer';
 
 /**
- * Extended WebGLPathTracer interface with additional properties
- * that are used but not typed in the library
+ * WebGLPathTracer plus the two members the service actually reads that the
+ * library leaves untyped. (Historical extras — renderTarget, camera,
+ * environmentIntensity, pause — were dead weight the tracer never exposed.)
  */
-// We need to use intersection types instead of extending
 export type ExtendedWebGLPathTracer = WebGLPathTracer & {
-  renderTarget?: THREE.WebGLRenderTarget;
   tiles?: THREE.Vector2 & { set(x: number, y: number): void };
-  camera?: THREE.Camera;
   copyQuad?: unknown;
-  environmentIntensity?: number;
-  pause?: () => void;
 }
 
 /**
@@ -25,14 +21,4 @@ export type PathTracingWebGLRenderer = THREE.WebGLRenderer;
  */
 export interface PathTracingScene extends THREE.Scene {
   __originalEnvironmentTexture?: THREE.Texture;
-}
-
-/**
- * Type guard to check if renderer has getInternalRenderer method
- */
-export function hasGetInternalRenderer(renderer: unknown): renderer is { getInternalRenderer(): THREE.WebGLRenderer } {
-  return renderer !== null && 
-         typeof renderer === 'object' && 
-         'getInternalRenderer' in renderer &&
-         typeof (renderer as { getInternalRenderer?: unknown }).getInternalRenderer === 'function';
 }

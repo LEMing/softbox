@@ -9,15 +9,3 @@ export interface IRendererExtension<T = unknown> {
    */
   getInternalRenderer(): T | null;
 }
-
-/**
- * Type guard for checking if an object implements IRendererExtension
- */
-export function hasInternalRenderer<T>(obj: unknown): obj is IRendererExtension<T> {
-  return (
-    typeof obj === 'object' &&
-    obj !== null &&
-    'getInternalRenderer' in obj &&
-    typeof (obj as { getInternalRenderer?: unknown }).getInternalRenderer === 'function'
-  );
-}

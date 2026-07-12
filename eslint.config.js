@@ -31,6 +31,25 @@ export default tseslint.config(
     files: ['src/core/**/*.{ts,tsx}'],
     ignores: ['src/core/**/__tests__/**'],
     rules: {
+      // no-restricted-imports never inspects dynamic import() expressions —
+      // without these, `await import('three')` or a lazy adapter import walks
+      // straight through the bans. Template-literal specifiers are covered
+      // separately (they are not Literal nodes).
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "ImportExpression Literal[value=/^(three($|\\/)|three-gpu-pathtracer|three-mesh-bvh|threedgizmo)/]",
+          message: 'Clean architecture: src/core must stay engine-agnostic — dynamic imports of the Three.js ecosystem included.',
+        },
+        {
+          selector: "ImportExpression Literal[value=/(^|\\/)(infrastructure|presentation|site)\\//]",
+          message: 'Clean architecture: src/core must not lazy-load infrastructure, presentation or the site either — depend on an interface in src/core instead.',
+        },
+        {
+          selector: 'ImportExpression TemplateLiteral',
+          message: 'Dynamic imports in core must use a plain string literal so the layer/ecosystem bans can inspect the specifier.',
+        },
+      ],
       'no-restricted-imports': ['error', {
         patterns: [
           {
@@ -38,7 +57,7 @@ export default tseslint.config(
             message: 'Clean architecture: src/core must not depend on infrastructure, presentation or the site. Depend on an interface in src/core instead.',
           },
           {
-            group: ['three', 'three/*', 'three-gpu-pathtracer', 'three-mesh-bvh'],
+            group: ['three', 'three/*', 'three-gpu-pathtracer', 'three-mesh-bvh', 'threedgizmo'],
             message: 'Clean architecture: src/core must stay engine-agnostic. Wrap Three.js (and its ecosystem) behind an interface in src/infrastructure.',
           },
           {
@@ -56,7 +75,7 @@ export default tseslint.config(
             // specifier. Regex, not group: a glob like '**/types' matches the
             // directory's CHILDREN too; only the exact barrel specifier is
             // banned, leaf modules stay importable.
-            regex: '(^|/)(types|events|events/index)$',
+            regex: '(^|/)(types|types/index|events|events/index)$',
             message: 'Barrel imports re-export Three.js-typed public-surface modules into core; import the specific module instead.',
           },
         ],
@@ -81,8 +100,12 @@ export default tseslint.config(
       'no-restricted-imports': ['error', {
         patterns: [
           {
-            group: ['three', 'three/*', 'three-gpu-pathtracer', 'three-mesh-bvh'],
+            group: ['three', 'three/*', 'three-gpu-pathtracer', 'three-mesh-bvh', 'threedgizmo'],
             message: 'This module is in engine-agnostic core\'s transitive import closure; use primitives or a Vec3Like, not Three.js types.',
+          },
+          {
+            group: ['**/infrastructure/**', '**/presentation/**', '**/site/**'],
+            message: 'This module is in engine-agnostic core\'s transitive import closure; importing an adapter would smuggle Three.js into core through one hop.',
           },
           {
             // Same-dir specifiers ('./CommonTypes') dodge the '**/types/…'
