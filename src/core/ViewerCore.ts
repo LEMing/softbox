@@ -720,10 +720,12 @@ export class ViewerCore {
     // only on reset), its internal setSize self-reset would silently diverge
     // from the service's own sample counter (a noisy frame then "completes"
     // early), and the dissolve's raster snapshot is sized to the old buffer.
-    // resetAccumulation also re-arms a converged-and-self-paused tracer, so a
-    // resized viewer re-converges instead of staying dormant until the next
-    // camera move.
+    // resetAccumulation also re-arms a converged-and-self-paused tracer; the
+    // loop revive below is what actually restarts accumulation — convergence
+    // hard-stops the rAF chain ~100ms later, and demand flags alone cannot
+    // restart a dead loop.
     this.pathTracing.resetAccumulation();
+    this.reviveRenderLoop();
     this.renderLoopManager.requestRender();
   }
 

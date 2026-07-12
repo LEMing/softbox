@@ -1035,6 +1035,66 @@ describe('ViewerCore', () => {
 
       viewer.resize(1024, 768);
 
+      expect(bundle.pathTracingService!.reset).toHaveBeenCalled();
+      expect(bundle.pathTracingService!.setEnabled).not.toHaveBeenCalledWith(true);
+    });
+
+    it('revives a wound-down render loop on resize so the re-armed tracer actually accumulates', async () => {
+      const canvas = makeCanvas(640, 480);
+      const bundle = makeDeps({
+        canvas,
+        withPathTracing: true,
+        withSceneSetup: true,
+        options: { pathTracing: { enabled: true } },
+        pathTracingOverrides: {
+          isEnabled: jest.fn(() => false),
+          canResume: jest.fn(() => true),
+        },
+      });
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+      // Convergence hard-stops the rAF chain ~100ms after the demand drops;
+      // demand flags alone cannot restart a dead loop.
+      jest.spyOn(RenderLoopManager.prototype, 'isRunning').mockReturnValue(false);
+      const startsBefore = startSpy.mock.calls.length;
+
+      viewer.resize(1024, 768);
+
+      expect(startSpy.mock.calls.length).toBeGreaterThan(startsBefore);
+    });
+
+    it('coordinator runtime APIs are safe no-ops without a path-tracing service', async () => {
+      const bundle = makeDeps({ options: { pathTracing: { enabled: true } } });
+      const viewer = new ViewerCore(bundle.deps);
+      const coordinator = (viewer as unknown as {
+        pathTracing: {
+          enableRuntime(): Promise<boolean>;
+          disableRuntime(): void;
+          suspendWhileAnimating(): void;
+        };
+      }).pathTracing;
+
+      await expect(coordinator.enableRuntime()).resolves.toBe(false);
+      expect(() => coordinator.disableRuntime()).not.toThrow();
+      expect(() => coordinator.suspendWhileAnimating()).not.toThrow();
+    });
+
+    it('enableRuntime reports false when the tracer fails to initialize', async () => {
+      const bundle = makeDeps({
+        withPathTracing: true,
+        options: { pathTracing: { enabled: true } },
+        pathTracingOverrides: {
+          initialize: jest.fn(async () =>
+            Result.err(new ThreeViewerError('no WebGL2', ErrorCode.PATH_TRACING_INIT_FAILED))
+          ),
+        },
+      });
+      const viewer = new ViewerCore(bundle.deps);
+      const coordinator = (viewer as unknown as {
+        pathTracing: { enableRuntime(): Promise<boolean> };
+      }).pathTracing;
+
+      await expect(coordinator.enableRuntime()).resolves.toBe(false);
       expect(bundle.pathTracingService!.setEnabled).not.toHaveBeenCalledWith(true);
     });
 
