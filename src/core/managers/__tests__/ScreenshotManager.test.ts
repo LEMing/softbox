@@ -162,6 +162,30 @@ describe('ScreenshotManager', () => {
       expect(onResourcesDisposed).not.toHaveBeenCalled();
     });
 
+    it('keeps the live scene when the drawing buffer serializes empty', () => {
+      mockCanvas.toDataURL = jest.fn().mockReturnValue('data:,');
+      const onResourcesDisposed = jest.fn();
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+      screenshotManager.captureAndReplace(
+        mockCamera,
+        mockControls,
+        'test.glb',
+        onResourcesDisposed
+      );
+
+      expect(screenshotManager.isActive()).toBe(false);
+      expect(mockCanvas.style.display).not.toBe('none');
+      expect(onResourcesDisposed).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+
+    it('captures without an onResourcesDisposed callback', () => {
+      screenshotManager.captureAndReplace(mockCamera, mockControls, 'test.glb');
+
+      expect(screenshotManager.isActive()).toBe(true);
+    });
+
     it('should add event listeners for restoration', () => {
       screenshotManager.captureAndReplace(
         mockCamera,
@@ -222,10 +246,30 @@ describe('ScreenshotManager', () => {
 
     it('should remove resize handler', async () => {
       const removeEventListenerSpy = jest.spyOn(window, 'removeEventListener');
-      
+
       await screenshotManager.restore();
-      
+
       expect(removeEventListenerSpy).toHaveBeenCalledWith('resize', expect.any(Function));
+    });
+
+    it('does nothing when the screenshot element was detached externally', async () => {
+      const img = mockParent.querySelector('img') as HTMLImageElement;
+      mockParent.removeChild(img);
+
+      await screenshotManager.restore();
+
+      // With no parent to swap under, the manager keeps its showing state.
+      expect(screenshotManager.isActive()).toBe(true);
+      expect(onRestore).not.toHaveBeenCalled();
+    });
+
+    it('completes without an onRestore callback', async () => {
+      const manager = new ScreenshotManager({ renderer: mockRenderer });
+      manager.captureAndReplace(mockCamera, mockControls, 'test.glb');
+
+      await manager.restore();
+
+      expect(manager.isActive()).toBe(false);
     });
   });
 
@@ -303,9 +347,23 @@ describe('ScreenshotManager', () => {
       
       // Trigger resize event
       window.dispatchEvent(new Event('resize'));
-      
+
       // Should trigger restore
       expect(onRestore).toHaveBeenCalled();
+    });
+
+    it('ignores a stale resize handler invoked after restore', async () => {
+      const addEventListenerSpy = jest.spyOn(window, 'addEventListener');
+      screenshotManager.captureAndReplace(mockCamera, mockControls, 'test.glb', jest.fn());
+      const resizeCall = addEventListenerSpy.mock.calls.find(([type]) => type === 'resize');
+      const staleHandler = resizeCall?.[1] as () => void;
+
+      await screenshotManager.restore();
+      jest.clearAllMocks();
+
+      staleHandler();
+
+      expect(onRestore).not.toHaveBeenCalled();
     });
   });
 });
