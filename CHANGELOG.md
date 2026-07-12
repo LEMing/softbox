@@ -1,6 +1,17 @@
 Changelog
 =========
 
+Unreleased
+---
+
+### Node 22 minimum
+
+* **`engines.node` rises from the stale `>=18` to `>=22.13.0`; CI runs on Node 22.**
+  Node 20 reached end-of-life in April 2026. This gates installs, not runtime — the
+  shipped bundles are unchanged — but package managers that enforce `engines` by
+  default (Yarn classic) will refuse to install on older Node without
+  `--ignore-engines`.
+
 4.17.0
 ---
 
