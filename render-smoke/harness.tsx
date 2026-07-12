@@ -110,7 +110,7 @@ const Harness = () => {
     // hiding behind a completion event that never fires.
     const offRender = handle.events.on('render:complete', ({ samples }) => {
       window.__renderedFrames += 1;
-      window.__ptSamples = samples;
+      window.__ptSamples = samples ?? 0;
     });
     const offLoaded = handle.events.on('model:loaded', () => {
       window.__modelLoaded = true;

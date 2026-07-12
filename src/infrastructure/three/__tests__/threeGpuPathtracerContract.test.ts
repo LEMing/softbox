@@ -39,15 +39,19 @@ describe('three-gpu-pathtracer API contract (real package, mock bypassed)', () =
     // the prototype; `bounces`/`renderScale`/... are plain instance fields
     // assigned in the constructor, which the source string still names.
     const prototype = realModule.WebGLPathTracer.prototype;
-    for (const getter of ['samples', 'tiles']) {
+    // samples/tiles/bounces/transmissiveBounces are prototype accessors.
+    for (const getter of ['samples', 'tiles', 'bounces', 'transmissiveBounces']) {
       expect({ getter, has: Boolean(Object.getOwnPropertyDescriptor(prototype, getter)?.get) }).toEqual({
         getter,
         has: true,
       });
     }
+    // renderScale/lowResScale/dynamicLowRes are constructor-assigned instance
+    // fields; the unminified UMD source names them. Word-bounded so `bounces`
+    // can never satisfy `transmissiveBounces` or vice versa.
     const constructorSource = String(realModule.WebGLPathTracer);
-    for (const field of ['bounces', 'renderScale', 'lowResScale', 'dynamicLowRes', 'transmissiveBounces']) {
-      expect({ field, present: constructorSource.includes(`${field}`) }).toEqual({
+    for (const field of ['renderScale', 'lowResScale', 'dynamicLowRes']) {
+      expect({ field, present: new RegExp(`\\b${field}\\b`).test(constructorSource) }).toEqual({
         field,
         present: true,
       });

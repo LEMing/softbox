@@ -313,9 +313,12 @@ test('path tracing accumulates real samples and shows the model (not black)', as
   // unit suite structurally cannot provide (it runs against mocks).
   const errors = await openScene(page, '?pathtracing=1');
 
-  // Wait for genuine accumulation, not just raster frames: render:complete
-  // carries the tracer's sample counter.
-  await page.waitForFunction(() => window.__ptSamples >= 8, undefined, {
+  // Wait for COMPLETION (maxSamples=12), not merely early samples: until the
+  // sample cap, the startup dissolve composites the raster snapshot over the
+  // tracer at 99%+ opacity, so an early screenshot would measure the raster
+  // and a black tracer would pass. Completion clears the canvas and presents
+  // the pure accumulated frame — that is the thing to measure.
+  await page.waitForFunction(() => window.__ptSamples >= 12, undefined, {
     timeout: 90_000,
   });
   const png = await screenshotCanvas(page);
