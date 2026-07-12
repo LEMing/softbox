@@ -221,6 +221,12 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       if (threeTexture.mapping === THREE.CubeUVReflectionMapping) {
         if (original) {
           (threeScene as SceneWithOriginalTexture).__originalEnvironmentTexture = original;
+        } else {
+          // No readable source for this PMREM (the studio cube capture can
+          // fail soft): clear any stale original from a previously applied
+          // environment so the tracer's PMREM-without-original give-up path
+          // engages instead of ingesting the old environment's light.
+          delete (threeScene as SceneWithOriginalTexture).__originalEnvironmentTexture;
         }
       } else if (threeTexture.mapping === THREE.EquirectangularReflectionMapping) {
         // Already equirectangular — usable by the tracer directly.

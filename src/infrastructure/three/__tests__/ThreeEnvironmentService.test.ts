@@ -28,6 +28,26 @@ describe('ThreeEnvironmentService', () => {
   const rendererWith = (overrides: Partial<{ renderer: unknown }> = {}): IRenderer =>
     ({ renderer: {} as THREE.WebGLRenderer, ...overrides }) as unknown as IRenderer;
 
+  // CubeCamera.update needs a functional renderer surface.
+  const cubeCapableService = async (): Promise<ThreeEnvironmentService> => {
+    const cubeCapableRenderer = {
+      coordinateSystem: THREE.WebGLCoordinateSystem,
+      toneMapping: THREE.NoToneMapping,
+      xr: { enabled: false },
+      getRenderTarget: () => null,
+      getActiveCubeFace: () => 0,
+      getActiveMipmapLevel: () => 0,
+      setRenderTarget: jest.fn(),
+      render: jest.fn(),
+    } as unknown as THREE.WebGLRenderer;
+    const service = new ThreeEnvironmentService();
+    const init = await service.initialize({
+      renderer: { renderer: cubeCapableRenderer } as unknown as IRenderer,
+    });
+    expect(init.ok).toBe(true);
+    return service;
+  };
+
   const initialized = async (): Promise<ThreeEnvironmentService> => {
     const service = new ThreeEnvironmentService();
     const result = await service.initialize({ renderer: rendererWith() });
@@ -122,21 +142,7 @@ describe('ThreeEnvironmentService', () => {
 
   it('registers a cube capture of the studio room as the path-tracing original', async () => {
     // CubeCamera.update needs a functional renderer surface.
-    const cubeCapableRenderer = {
-      coordinateSystem: THREE.WebGLCoordinateSystem,
-      toneMapping: THREE.NoToneMapping,
-      xr: { enabled: false },
-      getRenderTarget: () => null,
-      getActiveCubeFace: () => 0,
-      getActiveMipmapLevel: () => 0,
-      setRenderTarget: jest.fn(),
-      render: jest.fn(),
-    } as unknown as THREE.WebGLRenderer;
-    const service = new ThreeEnvironmentService();
-    const init = await service.initialize({
-      renderer: { renderer: cubeCapableRenderer } as unknown as IRenderer,
-    });
-    expect(init.ok).toBe(true);
+    const service = await cubeCapableService();
 
     const studio = service.createStudioEnvironment();
     if (!studio.ok) throw studio.error;
@@ -173,21 +179,7 @@ describe('ThreeEnvironmentService', () => {
   });
 
   it('hands the path tracer the studio cube capture even after an HDRI was loaded', async () => {
-    const cubeCapableRenderer = {
-      coordinateSystem: THREE.WebGLCoordinateSystem,
-      toneMapping: THREE.NoToneMapping,
-      xr: { enabled: false },
-      getRenderTarget: () => null,
-      getActiveCubeFace: () => 0,
-      getActiveMipmapLevel: () => 0,
-      setRenderTarget: jest.fn(),
-      render: jest.fn(),
-    } as unknown as THREE.WebGLRenderer;
-    const service = new ThreeEnvironmentService();
-    const init = await service.initialize({
-      renderer: { renderer: cubeCapableRenderer } as unknown as IRenderer,
-    });
-    expect(init.ok).toBe(true);
+    const service = await cubeCapableService();
 
     // An HDRI in the cache used to shadow the studio branch entirely.
     const hdri = await service.loadEnvironmentMap('room.hdr');
@@ -206,21 +198,7 @@ describe('ThreeEnvironmentService', () => {
   });
 
   it('caches the studio bake: a second createStudioEnvironment reuses the same texture', async () => {
-    const cubeCapableRenderer = {
-      coordinateSystem: THREE.WebGLCoordinateSystem,
-      toneMapping: THREE.NoToneMapping,
-      xr: { enabled: false },
-      getRenderTarget: () => null,
-      getActiveCubeFace: () => 0,
-      getActiveMipmapLevel: () => 0,
-      setRenderTarget: jest.fn(),
-      render: jest.fn(),
-    } as unknown as THREE.WebGLRenderer;
-    const service = new ThreeEnvironmentService();
-    const init = await service.initialize({
-      renderer: { renderer: cubeCapableRenderer } as unknown as IRenderer,
-    });
-    expect(init.ok).toBe(true);
+    const service = await cubeCapableService();
 
     const firstStudio = service.createStudioEnvironment();
     const secondStudio = service.createStudioEnvironment();
