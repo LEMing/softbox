@@ -231,6 +231,7 @@ const makeEnvironmentService = (
     applyToScene: jest.fn(() => Result.ok(undefined)),
     createStudioEnvironment: jest.fn(() => Result.ok(makeTexture())),
     setBackgroundImage: jest.fn(async () => Result.ok(undefined)),
+    removeGroundProjection: jest.fn(),
     dispose: jest.fn(),
   };
   return { ...base, ...overrides } as unknown as jest.Mocked<IEnvironmentService>;
@@ -612,10 +613,16 @@ describe('ViewerCore', () => {
 
       expect(result.ok).toBe(true);
       expect(console.warn).toHaveBeenCalledWith(
-        'Failed to load environment map:',
+        'Failed to load environment map, falling back to the studio look:',
         expect.any(ThreeViewerError)
       );
-      expect(bundle.environmentService!.applyToScene).not.toHaveBeenCalled();
+      // The load failure engages the studio fallback (lighting only) —
+      // an unlit scene is worse than the wrong set.
+      expect(bundle.environmentService!.applyToScene).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ setBackground: false })
+      );
     });
 
     it('warns when the studio environment fails to create', async () => {

@@ -27,6 +27,7 @@ const makeEnvironment = (): jest.Mocked<IEnvironmentService> =>
     loadEnvironmentMap: jest.fn(async () => Result.ok(makeTexture())),
     applyToScene: jest.fn(() => ok()),
     createStudioEnvironment: jest.fn(() => Result.ok(makeTexture())),
+    removeGroundProjection: jest.fn(),
     dispose: jest.fn(),
   }) as unknown as jest.Mocked<IEnvironmentService>;
 
@@ -191,6 +192,131 @@ describe('SceneConfigurator', () => {
         expect.anything(),
         expect.anything(),
         expect.objectContaining({ setBackground: false })
+      );
+    });
+
+    it('normalizes groundProjection: true to the defaults', async () => {
+      const env = makeEnvironment();
+      await configurator.configureEnvironment(
+        makeScene(), env, makeSceneSetup(), makeRenderer(),
+        { environment: { url: 'env.hdr', groundProjection: true } }, notDisposed
+      );
+      expect(env.applyToScene).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ groundProjection: { height: 2, radius: 120 } })
+      );
+    });
+
+    it('fills partial groundProjection overrides and rejects non-positive ones', async () => {
+      const env = makeEnvironment();
+      await configurator.configureEnvironment(
+        makeScene(), env, makeSceneSetup(), makeRenderer(),
+        { environment: { url: 'env.hdr', groundProjection: { height: 5, radius: 0 } } },
+        notDisposed
+      );
+      // height honoured; a non-positive radius would make GroundedSkybox
+      // throw, so it falls back to the default instead of silently costing
+      // the projection.
+      expect(env.applyToScene).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ groundProjection: { height: 5, radius: 120 } })
+      );
+    });
+
+    it('floors a small projection radius so the built-in ground fits inside the world', async () => {
+      const env = makeEnvironment();
+      await configurator.configureEnvironment(
+        makeScene(), env, makeSceneSetup(), makeRenderer(),
+        { environment: { url: 'env.hdr', groundProjection: { radius: 30 } } },
+        notDisposed
+      );
+      // The concrete disc caps at 70m; a 30m world would put opaque ground
+      // through the projected walls.
+      expect(env.applyToScene).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ groundProjection: { height: 2, radius: 75 } })
+      );
+    });
+
+    it('does not request a projection when groundProjection is off', async () => {
+      const env = makeEnvironment();
+      await configurator.configureEnvironment(
+        makeScene(), env, makeSceneSetup(), makeRenderer(),
+        { environment: { url: 'env.hdr' } }, notDisposed
+      );
+      expect(env.applyToScene).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ groundProjection: undefined })
+      );
+    });
+
+    it('falls back to the studio look AND a backdrop when the env map fails to load', async () => {
+      const env = makeEnvironment();
+      const sceneSetup = makeSceneSetup();
+      (env.loadEnvironmentMap as jest.Mock).mockResolvedValue(
+        Result.err(new Error('offline') as never)
+      );
+      await configurator.configureEnvironment(
+        makeScene(), env, sceneSetup, makeRenderer(),
+        { environment: { url: 'env.hdr' }, backgroundColor: '#f0f0f7' },
+        notDisposed
+      );
+      expect(env.createStudioEnvironment).toHaveBeenCalled();
+      expect(env.applyToScene).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ setBackground: false })
+      );
+      // configureScene skipped the gradient because the env url owned the
+      // background — the fallback must restore it or the frame clears black.
+      expect(sceneSetup.createGradientBackground).toHaveBeenCalledWith(expect.anything(), {
+        topColor: '#f0f0f7',
+        bottomColor: '#f0f0f7',
+      });
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('falling back to the studio look'),
+        expect.anything()
+      );
+    });
+
+    it('respects an explicit studioEnvironment opt-out in the fallback (backdrop only)', async () => {
+      const env = makeEnvironment();
+      const sceneSetup = makeSceneSetup();
+      (env.loadEnvironmentMap as jest.Mock).mockResolvedValue(
+        Result.err(new Error('offline') as never)
+      );
+      await configurator.configureEnvironment(
+        makeScene(), env, sceneSetup, makeRenderer(),
+        {
+          environment: { url: 'env.hdr' },
+          helpers: { studioEnvironment: false },
+          backgroundColor: '#101010',
+        },
+        notDisposed
+      );
+      // `false` is an explicit consumer decision (deliberately no studio
+      // reflections) — the fallback must not override it...
+      expect(env.createStudioEnvironment).not.toHaveBeenCalled();
+      // ...but the backdrop is still restored so the frame is not a void.
+      expect(sceneSetup.createGradientBackground).toHaveBeenCalled();
+    });
+
+    it('warns when applying a loaded environment map fails', async () => {
+      const env = makeEnvironment();
+      (env.applyToScene as jest.Mock).mockReturnValue(
+        Result.err(new Error('projection failed') as never)
+      );
+      await configurator.configureEnvironment(
+        makeScene(), env, makeSceneSetup(), makeRenderer(),
+        { environment: { url: 'env.hdr' } }, notDisposed
+      );
+      expect(console.warn).toHaveBeenCalledWith(
+        'Failed to apply environment map:',
+        expect.anything()
       );
     });
 

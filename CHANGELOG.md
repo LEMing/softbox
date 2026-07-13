@@ -1,6 +1,32 @@
 Changelog
 =========
 
+4.22.0
+---
+
+### New scene: `outdoor_concrete` — open air, done properly
+
+* **`scene: 'outdoor_concrete'`** stands the model on a large matte concrete
+  ground under a bright daylight HDRI (CC0, Poly Haven; fetched from their
+  CDN — the scene's one network request; override/self-host via
+  `environment.url`).
+* **Photographic PBR concrete ground** (CC0 Poly Haven diffuse/normal/
+  roughness, ~600 KB, same CDN + override/self-host contract as the HDRI via
+  `helpers.grid.styleOptions`), rendered with **untiled sampling** (per-cell
+  hashed offsets, 4-tap blend) so no texture repetition is visible at any
+  viewing distance — including top-down. A seeded procedural concrete
+  (tileable noise → albedo+normal+roughness + never-repeating vertex-color
+  macro drift) is the offline fallback, and a flat matte material the last
+  resort where no 2D canvas exists.
+* **New `environment.groundProjection`** (structural) — projects an equirect
+  environment onto a virtual ground plane (three's GroundedSkybox) so the
+  model stands IN the world instead of floating in front of it; the concrete
+  rim fades out via vertex alpha into the projected terrain (no hard horizon
+  edge). Raster-only: the path tracer ingest hides the projection and lights
+  from the equirect directly.
+* New `helpers.grid.type: 'concrete_disc'` floor style; the playground Scene
+  picker gains the scene automatically.
+
 4.21.0
 ---
 

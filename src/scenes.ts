@@ -9,6 +9,37 @@ import { ViewerScene } from './types/options';
  * each scene only sets **structural** fields and switching one rebuilds the
  * viewer. Explicit user options always win.
  */
+/**
+ * The daylight HDRI `outdoor_concrete` lights with when no explicit
+ * `environment.url` is given: a bright partly-cloudy sky (CC0, Poly Haven;
+ * the projection shows its soft open terrain at the horizon), fetched on
+ * demand from their CDN — the one network request the outdoor scene makes.
+ * Pass your own `environment.url` to override or self-host, exactly like
+ * the DRACO/KTX2 decoder paths. (Urban candidates — potsdamer_platz,
+ * quarry_01 — were rejected visually: dusk-dark and olive-tinted grounds.)
+ */
+// 2k, not 1k: the HDRI is also the VISIBLE sky (background + ground
+// projection), and at 1k the clouds render blurry and banded. 2k (~5.4 MB)
+// is the sharpness/weight sweet spot; pass your own 4k via `environment.url`
+// for hero shots.
+export const DEFAULT_OUTDOOR_HDRI_URL =
+  'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/kloofendal_48d_partly_cloudy_puresky_2k.hdr';
+
+/**
+ * Photographic PBR maps for the outdoor concrete ground (CC0, Poly Haven;
+ * ~600 KB total, same CDN and override/self-host contract as the HDRI).
+ * Captured micro-structure is what reads as real concrete; the procedural
+ * generator stays as the offline fallback when these fail to fetch.
+ */
+export const DEFAULT_OUTDOOR_CONCRETE_TEXTURES = {
+  texture:
+    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_diff_1k.jpg',
+  normalMap:
+    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_nor_gl_1k.jpg',
+  roughnessMap:
+    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_rough_1k.jpg',
+} as const;
+
 export const VIEWER_SCENES: Record<ViewerScene, Partial<SimpleViewerOptions>> = {
   // The default set — mirrors the defaults, pinned by a test, so `scene:
   // 'studio_dome'` and no scene at all are the same viewer.
@@ -30,6 +61,43 @@ export const VIEWER_SCENES: Record<ViewerScene, Partial<SimpleViewerOptions>> = 
       directionalLight: { intensity: 1.4, shadow: { radius: 26 } },
       fillLight: { intensity: 1.2 },
       rimLight: { intensity: 0.7 },
+    },
+  },
+  // Open air: the HDRI lights the model AND paints the sky (an env-map URL
+  // owns the background, so the preset backdrop color is not used), the model
+  // stands on a large matte concrete ground disc. The studio rig steps back —
+  // daylight comes from the HDRI; a restrained key keeps a readable cast
+  // shadow on the ground, and the studio rim/fill would fight the sky.
+  outdoor_concrete: {
+    helpers: {
+      grid: { type: 'concrete_disc', styleOptions: { ...DEFAULT_OUTDOOR_CONCRETE_TEXTURES } },
+      // Kept TRUE even though the HDRI normally owns the lighting: the env
+      // url wins while it loads, and this is what lets the offline fallback
+      // light the scene with the studio environment instead of leaving
+      // glossy materials black (an explicit `false` is an opt-out the
+      // fallback respects).
+      studioEnvironment: true,
+    },
+    // Ground projection stands the model IN the HDRI world (no hard horizon
+    // edge); the disc's rim fade dissolves the near concrete into it.
+    environment: { url: DEFAULT_OUTDOOR_HDRI_URL, groundProjection: true },
+    lighting: {
+      // Fill kept low: open-air shadows must stay READABLE — a generous
+      // ambient/hemisphere wash floods the sun's cast shadow into mush.
+      ambientLight: { intensity: 0.22 },
+      hemisphereLight: { intensity: 0.38 },
+      // The "sun": bright enough to read as daylight over the HDRI's IBL and
+      // to cast the crisp ground shadow open air is expected to have. Placed
+      // LOW (~35° elevation, front-left) like a photographer's key — the
+      // default steep studio key threw a short puddle of shadow straight
+      // down; a low sun models the form and lays a long diagonal shadow
+      // behind the subject. Slightly warm, as afternoon daylight reads.
+      // Side-left, not front-left: a front-lit sun throws the cast shadow
+      // straight BEHIND the model where the default camera never sees it —
+      // from the side it lays visibly across the frame.
+      directionalLight: { intensity: 2.6, color: '#fff2e2', position: [-70, 52, 18] },
+      fillLight: { intensity: 0.25 },
+      rimLight: { intensity: 0.25 },
     },
   },
 };

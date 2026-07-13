@@ -1,10 +1,7 @@
 import * as THREE from 'three';
 import { IGridStyle, IGridOptions } from './IGridStyle';
-import {
-  CONTACT_SHADOW_HELPER_FLAG,
-  CONTACT_SHADOW_LIVE_NAME,
-  PATH_TRACING_FLOOR_FLAG,
-} from '../ContactShadowBaker';
+import { PATH_TRACING_FLOOR_FLAG } from '../ContactShadowBaker';
+import { createShadowCatcher } from './shadowCatcher';
 
 /**
  * A clean studio floor: no visible surface in the raster view, just an
@@ -38,22 +35,9 @@ export class ShadowFloorGrid implements IGridStyle {
     // height under the steep key light — always lands on the catcher; the
     // baked contact shadow clips itself to this disc, so oversizing is safe.
     const radius = Math.max(options.size || 1, 1) * 1.5;
-    group.add(this.createShadowCatcher(radius));
+    group.add(createShadowCatcher(radius));
     group.add(this.createPathTracingDome(radius));
     return group;
-  }
-
-  private createShadowCatcher(discRadius: number): THREE.Mesh {
-    const catcher = new THREE.Mesh(
-      new THREE.CircleGeometry(Math.max(discRadius, 1), 64),
-      new THREE.ShadowMaterial({ opacity: 0.28 })
-    );
-    catcher.name = CONTACT_SHADOW_LIVE_NAME;
-    catcher.userData[CONTACT_SHADOW_HELPER_FLAG] = true;
-    catcher.rotation.x = -Math.PI / 2;
-    catcher.position.y = 0.002;
-    catcher.receiveShadow = true;
-    return catcher;
   }
 
   /**

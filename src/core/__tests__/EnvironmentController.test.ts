@@ -31,6 +31,7 @@ const makeBundle = (config: {
           applyToScene: jest.fn(() => Result.ok(undefined)),
           createStudioEnvironment: jest.fn(() => Result.ok(texture)),
           setBackgroundImage: jest.fn(async () => Result.ok(undefined)),
+          removeGroundProjection: jest.fn(),
           ...config.environmentOverrides,
         };
   const sceneSetupService =
@@ -128,6 +129,19 @@ describe('EnvironmentController.setEnvironmentMap', () => {
     expect(b.mergeOptions).toHaveBeenCalledWith({ environment: { url: '/studio.hdr' } });
     expect((b.pathTracing as unknown as { resetAccumulation: jest.Mock }).resetAccumulation).toHaveBeenCalledWith(true);
     expect(b.reviveRenderLoop).toHaveBeenCalled();
+  });
+
+  it('keeps the configured ground projection across runtime env swaps', async () => {
+    const b = makeBundle({ options: { environment: { groundProjection: true } } });
+    const result = await b.controller.setEnvironmentMap('/other.hdr');
+    expect(result.ok).toBe(true);
+    // applyToScene clears the previous skybox; omitting the projection here
+    // silently stripped it until the next structural rebuild.
+    expect(b.environmentService!.applyToScene).toHaveBeenCalledWith(
+      b.scene,
+      b.texture,
+      expect.objectContaining({ groundProjection: { height: 2, radius: 120 } })
+    );
   });
 
   it('reports INVALID_STATE on a disposed viewer without touching the service', async () => {
@@ -272,11 +286,14 @@ describe('EnvironmentController.resetEnvironment', () => {
 });
 
 describe('EnvironmentController.setBackgroundImage', () => {
-  it('delegates to the environment service and repaints', async () => {
+  it('delegates to the environment service, clears the ground projection and repaints', async () => {
     const b = makeBundle();
     const result = await b.controller.setBackgroundImage('/photo.jpg');
     expect(result.ok).toBe(true);
     expect(b.environmentService!.setBackgroundImage).toHaveBeenCalledWith(b.scene, '/photo.jpg');
+    // The projection mesh occludes any other backdrop — a custom backdrop is
+    // an explicit opt-out of the projected world.
+    expect(b.environmentService!.removeGroundProjection).toHaveBeenCalledWith(b.scene);
     expect((b.pathTracing as unknown as { resetAccumulation: jest.Mock }).resetAccumulation).toHaveBeenCalledWith(true);
   });
 

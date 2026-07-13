@@ -1,5 +1,11 @@
 import * as THREE from 'three';
-import { disposeMaterial, disposeObject3D, disposeSceneContents } from '../disposal';
+import {
+  disposeMaterial,
+  disposeObject3D,
+  disposeSceneContents,
+  BACKGROUND_NODE_FLAG,
+  EXTERNALLY_OWNED_TEXTURES_FLAG,
+} from '../disposal';
 import { buildRaycastBvh } from '../bvh';
 
 describe('disposal', () => {
@@ -24,6 +30,51 @@ describe('disposal', () => {
       expect(mapSpy).toHaveBeenCalledTimes(1);
       expect(normalSpy).toHaveBeenCalledTimes(1);
       expect(roughSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves externally-owned textures alive (the grounded-skybox / cache case)', () => {
+      const material = new THREE.MeshBasicMaterial();
+      const sharedMap = new THREE.Texture();
+      material.map = sharedMap;
+      material.userData[EXTERNALLY_OWNED_TEXTURES_FLAG] = true;
+
+      const matSpy = jest.spyOn(material, 'dispose');
+      const mapSpy = jest.spyOn(sharedMap, 'dispose');
+
+      disposeMaterial(material);
+
+      // The material itself is freed, but its map belongs to the environment
+      // cache / scene background — disposing it here blacked out the sky
+      // after the screenshot flow's keepBackgrounds pass.
+      expect(matSpy).toHaveBeenCalledTimes(1);
+      expect(mapSpy).not.toHaveBeenCalled();
+    });
+
+    it('stamps disposed materials so late async callbacks can bail out', () => {
+      const material = new THREE.MeshStandardMaterial();
+      disposeMaterial(material);
+      expect(material.userData.softboxDisposed).toBe(true);
+    });
+  });
+
+  describe('disposeSceneContents keepBackgrounds', () => {
+    it('leaves backdrop nodes (the grounded skybox) alive alongside scene.background', () => {
+      const scene = new THREE.Scene();
+      const skybox = new THREE.Mesh(
+        new THREE.SphereGeometry(1, 4, 2),
+        new THREE.MeshBasicMaterial()
+      );
+      skybox.userData[BACKGROUND_NODE_FLAG] = true;
+      const model = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+      scene.add(skybox, model);
+
+      disposeSceneContents(scene, { keepBackgrounds: true });
+
+      // The screenshot flow frees the heavy contents but must keep the
+      // backdrop restorable — destroying the skybox here permanently lost
+      // the ground projection (nothing recreates it on restore).
+      expect(scene.children).toContain(skybox);
+      expect(scene.children).not.toContain(model);
     });
   });
 

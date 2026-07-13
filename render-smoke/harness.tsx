@@ -14,7 +14,11 @@ import {
  * mounts the real viewer on a procedural model so Playwright can observe
  * actual WebGL pixels in CI. Scenarios are selected via query params:
  *   ?preset=studio|product|neutral|dark|outdoor   (default: none = defaults)
- *   ?scene=studio_dome|studio_soft                (default: none = studio_dome)
+ *   ?scene=studio_dome|studio_soft|outdoor_concrete (default: none = studio_dome)
+ *   ?env=<url>                                    (explicit environment.url — lets outdoor
+ *                                                  scenes run offline via a local sky image)
+ *   ?topdown=1                                    (straight-down camera — the ground-repetition
+ *                                                  worst case)
  *   ?model=pillar                                 (tall-thin 20cm pillar instead of the knot)
  *   ?hotspot=1                                    (anchor a hotspot at the origin)
  *   ?turntable=1                                  (auto-rotate the camera)
@@ -55,6 +59,10 @@ console.error = (...args: unknown[]) => {
 const params = new URLSearchParams(window.location.search);
 const preset = (params.get('preset') as ViewerPreset | null) ?? undefined;
 const initialScene = (params.get('scene') as ViewerScene | null) ?? undefined;
+const envUrl = params.get('env') ?? undefined;
+// Straight-down camera: the view where ground-texture repetition is most
+// visible (hundreds of repeats on screen at once).
+const topdown = params.get('topdown') === '1';
 const modelKind = params.get('model');
 const withHotspot = params.get('hotspot') === '1';
 const turntable = params.get('turntable') === '1' || undefined;
@@ -146,7 +154,31 @@ const Harness = () => {
           },
         }
       : undefined;
-  const options = scene ? { ...scenarioOptions, scene } : scenarioOptions;
+  // Explicit options win over the scene's fragment, so a local `?env=` image
+  // replaces an outdoor scene's CDN HDRI — and the empty-string texture
+  // overrides knock out the CDN photo maps (deepMerge skips undefined, so ''
+  // is the explicit "off" that routes the disc to its procedural fallback).
+  // CI stays fully offline.
+  const withScene = scene ? { ...scenarioOptions, scene } : scenarioOptions;
+  const withEnv = envUrl
+    ? {
+        ...withScene,
+        environment: { url: envUrl },
+        helpers: {
+          grid: { styleOptions: { texture: '', normalMap: '', roughnessMap: '' } },
+        },
+      }
+    : withScene;
+  const options = topdown
+    ? {
+        ...withEnv,
+        camera: {
+          position: [0, 24, 0.01] as [number, number, number],
+          target: [0, 0, 0] as [number, number, number],
+          autoFitToObject: false,
+        },
+      }
+    : withEnv;
 
   return (
     <SimpleViewer

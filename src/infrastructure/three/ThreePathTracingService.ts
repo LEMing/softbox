@@ -12,6 +12,7 @@ import { IScene } from '../../core/interfaces/IScene';
 import { ICamera } from '../../core/interfaces/ICamera';
 import { DEFAULT_PATH_TRACING_SAMPLES } from '../../core/constants';
 import { Result } from '../../utils/Result';
+import { smoothstep01 } from '../../utils/smoothstep';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import {
   ExtendedWebGLPathTracer,
@@ -674,8 +675,7 @@ export class ThreePathTracingService implements IPathTracingService {
   }
 
   private static smoothstep(edge0: number, edge1: number, x: number): number {
-    const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
-    return t * t * (3 - 2 * t);
+    return smoothstep01(Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0))));
   }
 
   /** Render the current raster frame into a linear offscreen target to fade out

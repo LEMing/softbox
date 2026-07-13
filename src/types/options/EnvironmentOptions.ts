@@ -33,4 +33,18 @@ export interface EnvironmentOptions {
   environmentIntensity?: number;
   /** Grade of the built-in studio environment; ignored when `url` is set. */
   studioLook?: StudioLook;
+  /**
+   * Project the environment map onto a virtual ground plane so the model
+   * appears to STAND in the environment instead of floating in front of it —
+   * the outdoor scenes' horizon treatment (three's GroundedSkybox). `true`
+   * uses the defaults (height 2m — a typical eye-level HDRI shot — and a
+   * 120m world radius); pass numbers to match an HDRI shot from another
+   * height or a larger set. Only applies when `url` is set. Structural —
+   * changing it rebuilds the viewer.
+   *
+   * While active the projection mesh IS the visible backdrop, so
+   * `backgroundBlurriness` has no effect (`backgroundIntensity` is emulated
+   * by dimming the projection).
+   */
+  groundProjection?: boolean | { height?: number; radius?: number };
 }

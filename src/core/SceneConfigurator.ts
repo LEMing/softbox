@@ -4,6 +4,7 @@ import { IEnvironmentService } from './services/IEnvironmentService';
 import { IRenderer } from './interfaces/IRenderer';
 import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
 import { Vec3Like } from './interfaces/Vec3Like';
+import { environmentApplyOptions } from './environmentApplyOptions';
 
 const DARK_STUDIO_BACKGROUND = '#1a1a1f';
 
@@ -135,11 +136,7 @@ export class SceneConfigurator {
       console.warn('Failed to initialize environment service:', envInitResult.error);
     }
 
-    const applyOptions = {
-      backgroundBlurriness: options.environment?.backgroundBlurriness,
-      backgroundIntensity: options.environment?.backgroundIntensity,
-      environmentIntensity: options.environment?.environmentIntensity,
-    };
+    const applyOptions = environmentApplyOptions(options);
 
     const envUrl = options.environment?.url;
     if (envUrl) {
@@ -148,34 +145,84 @@ export class SceneConfigurator {
         return;
       }
       if (envResult.ok) {
-        environmentService.applyToScene(scene, envResult.value, applyOptions);
-      } else {
-        console.warn('Failed to load environment map:', envResult.error);
-      }
-    } else if (options.helpers?.studioEnvironment) {
-      const studioResult = environmentService.createStudioEnvironment(
-        options.environment?.studioLook
-      );
-      if (studioResult.ok) {
-        // Studio environment supplies lighting/reflections only; the background
-        // stays the clean color set in configureScene (its PMREM texture would
-        // otherwise render as a washed-out sphere).
-        environmentService.applyToScene(scene, studioResult.value, {
-          ...applyOptions,
-          setBackground: false,
-        });
-
-        if (options.helpers?.darkStudioMode && sceneSetupService) {
-          const backgroundResult = sceneSetupService.createGradientBackground(scene, {
-            topColor: DARK_STUDIO_BACKGROUND,
-            bottomColor: DARK_STUDIO_BACKGROUND,
-          });
-          if (!backgroundResult.ok) {
-            console.warn('Failed to set dark studio background:', backgroundResult.error);
-          }
+        const applied = environmentService.applyToScene(scene, envResult.value, applyOptions);
+        if (!applied.ok) {
+          console.warn('Failed to apply environment map:', applied.error);
         }
-      } else {
-        console.warn('Failed to create studio environment:', studioResult.error);
+        return;
+      }
+      // A failed HDRI fetch (offline network, CDN outage) must not leave the
+      // scene unlit or void-black. Fall back to the studio environment for
+      // lighting — unless the consumer EXPLICITLY opted out of it — and
+      // always restore a backdrop: configureScene skipped the gradient
+      // because the env url owned the background, so without this the frame
+      // clears to black.
+      console.warn(
+        'Failed to load environment map, falling back to the studio look:',
+        envResult.error
+      );
+      if (options.helpers?.studioEnvironment !== false) {
+        this.applyStudioEnvironment(scene, environmentService, sceneSetupService, options, applyOptions);
+      }
+      this.paintFallbackBackdrop(scene, sceneSetupService, options);
+      return;
+    }
+    if (options.helpers?.studioEnvironment) {
+      this.applyStudioEnvironment(scene, environmentService, sceneSetupService, options, applyOptions);
+    }
+  }
+
+  /** The backdrop configureScene deliberately skipped while an env url owned
+   * the background — restored here when that env never arrived. */
+  private paintFallbackBackdrop(
+    scene: IScene,
+    sceneSetupService: ISceneSetupService | undefined,
+    options: SimpleViewerOptions
+  ): void {
+    if (!sceneSetupService || options.backgroundColor === undefined) {
+      return;
+    }
+    const color = String(options.backgroundColor);
+    const edge = options.backgroundColorEdge;
+    const gradient =
+      edge !== undefined
+        ? { topColor: color, bottomColor: String(edge), radial: true }
+        : { topColor: color, bottomColor: color };
+    const backgroundResult = sceneSetupService.createGradientBackground(scene, gradient);
+    if (!backgroundResult.ok) {
+      console.warn('Failed to paint the fallback backdrop:', backgroundResult.error);
+    }
+  }
+
+  private applyStudioEnvironment(
+    scene: IScene,
+    environmentService: IEnvironmentService,
+    sceneSetupService: ISceneSetupService | undefined,
+    options: SimpleViewerOptions,
+    applyOptions: { backgroundBlurriness?: number; backgroundIntensity?: number; environmentIntensity?: number }
+  ): void {
+    const studioResult = environmentService.createStudioEnvironment(
+      options.environment?.studioLook
+    );
+    if (!studioResult.ok) {
+      console.warn('Failed to create studio environment:', studioResult.error);
+      return;
+    }
+    // Studio environment supplies lighting/reflections only; the background
+    // stays the clean color set in configureScene (its PMREM texture would
+    // otherwise render as a washed-out sphere).
+    environmentService.applyToScene(scene, studioResult.value, {
+      ...applyOptions,
+      setBackground: false,
+    });
+
+    if (options.helpers?.darkStudioMode && sceneSetupService) {
+      const backgroundResult = sceneSetupService.createGradientBackground(scene, {
+        topColor: DARK_STUDIO_BACKGROUND,
+        bottomColor: DARK_STUDIO_BACKGROUND,
+      });
+      if (!backgroundResult.ok) {
+        console.warn('Failed to set dark studio background:', backgroundResult.error);
       }
     }
   }
