@@ -77,13 +77,22 @@ export const VIEWER_SCENES: Record<ViewerScene, Partial<SimpleViewerOptions>> = 
     // edge); the disc's rim fade dissolves the near concrete into it.
     environment: { url: DEFAULT_OUTDOOR_HDRI_URL, groundProjection: true },
     lighting: {
-      ambientLight: { intensity: 0.25 },
-      hemisphereLight: { intensity: 0.45 },
+      // Fill kept low: open-air shadows must stay READABLE — a generous
+      // ambient/hemisphere wash floods the sun's cast shadow into mush.
+      ambientLight: { intensity: 0.22 },
+      hemisphereLight: { intensity: 0.38 },
       // The "sun": bright enough to read as daylight over the HDRI's IBL and
-      // to cast the crisp ground shadow open air is expected to have.
-      directionalLight: { intensity: 2.2 },
-      fillLight: { intensity: 0.3 },
-      rimLight: { intensity: 0.3 },
+      // to cast the crisp ground shadow open air is expected to have. Placed
+      // LOW (~35° elevation, front-left) like a photographer's key — the
+      // default steep studio key threw a short puddle of shadow straight
+      // down; a low sun models the form and lays a long diagonal shadow
+      // behind the subject. Slightly warm, as afternoon daylight reads.
+      // Side-left, not front-left: a front-lit sun throws the cast shadow
+      // straight BEHIND the model where the default camera never sees it —
+      // from the side it lays visibly across the frame.
+      directionalLight: { intensity: 2.6, color: '#fff2e2', position: [-70, 52, 18] },
+      fillLight: { intensity: 0.25 },
+      rimLight: { intensity: 0.25 },
     },
   },
 };
