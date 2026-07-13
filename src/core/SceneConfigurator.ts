@@ -4,28 +4,9 @@ import { IEnvironmentService } from './services/IEnvironmentService';
 import { IRenderer } from './interfaces/IRenderer';
 import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
 import { Vec3Like } from './interfaces/Vec3Like';
+import { resolveGroundProjection } from './groundProjection';
 
 const DARK_STUDIO_BACKGROUND = '#1a1a1f';
-
-// GroundedSkybox defaults: a typical eye-level HDRI shot height, projected
-// onto a set large enough that its "walls" sit far outside any orbit.
-const GROUND_PROJECTION_HEIGHT_METERS = 2;
-const GROUND_PROJECTION_RADIUS_METERS = 120;
-
-/** Normalize the public `boolean | {height?, radius?}` shape to the concrete
- * projection the environment service applies, or undefined when off. */
-const resolveGroundProjection = (
-  groundProjection: boolean | { height?: number; radius?: number } | undefined
-): { height: number; radius: number } | undefined => {
-  if (!groundProjection) {
-    return undefined;
-  }
-  const overrides = typeof groundProjection === 'object' ? groundProjection : {};
-  return {
-    height: overrides.height ?? GROUND_PROJECTION_HEIGHT_METERS,
-    radius: overrides.radius ?? GROUND_PROJECTION_RADIUS_METERS,
-  };
-};
 
 /**
  * Normalize a light position to the `[x, y, z]` tuple the engine layer expects.
@@ -168,37 +149,60 @@ export class SceneConfigurator {
         return;
       }
       if (envResult.ok) {
-        environmentService.applyToScene(scene, envResult.value, {
+        const applied = environmentService.applyToScene(scene, envResult.value, {
           ...applyOptions,
           groundProjection: resolveGroundProjection(options.environment?.groundProjection),
         });
-      } else {
-        console.warn('Failed to load environment map:', envResult.error);
-      }
-    } else if (options.helpers?.studioEnvironment) {
-      const studioResult = environmentService.createStudioEnvironment(
-        options.environment?.studioLook
-      );
-      if (studioResult.ok) {
-        // Studio environment supplies lighting/reflections only; the background
-        // stays the clean color set in configureScene (its PMREM texture would
-        // otherwise render as a washed-out sphere).
-        environmentService.applyToScene(scene, studioResult.value, {
-          ...applyOptions,
-          setBackground: false,
-        });
-
-        if (options.helpers?.darkStudioMode && sceneSetupService) {
-          const backgroundResult = sceneSetupService.createGradientBackground(scene, {
-            topColor: DARK_STUDIO_BACKGROUND,
-            bottomColor: DARK_STUDIO_BACKGROUND,
-          });
-          if (!backgroundResult.ok) {
-            console.warn('Failed to set dark studio background:', backgroundResult.error);
-          }
+        if (!applied.ok) {
+          console.warn('Failed to apply environment map:', applied.error);
         }
-      } else {
-        console.warn('Failed to create studio environment:', studioResult.error);
+        return;
+      }
+      // A failed HDRI fetch (offline network, CDN outage) must not leave the
+      // scene unlit — glossy materials would render black. Fall back to the
+      // built-in studio environment even when the scene opted out of it: the
+      // wrong light beats no light.
+      console.warn(
+        'Failed to load environment map, falling back to the studio environment:',
+        envResult.error
+      );
+      this.applyStudioEnvironment(scene, environmentService, sceneSetupService, options, applyOptions);
+      return;
+    }
+    if (options.helpers?.studioEnvironment) {
+      this.applyStudioEnvironment(scene, environmentService, sceneSetupService, options, applyOptions);
+    }
+  }
+
+  private applyStudioEnvironment(
+    scene: IScene,
+    environmentService: IEnvironmentService,
+    sceneSetupService: ISceneSetupService | undefined,
+    options: SimpleViewerOptions,
+    applyOptions: { backgroundBlurriness?: number; backgroundIntensity?: number; environmentIntensity?: number }
+  ): void {
+    const studioResult = environmentService.createStudioEnvironment(
+      options.environment?.studioLook
+    );
+    if (!studioResult.ok) {
+      console.warn('Failed to create studio environment:', studioResult.error);
+      return;
+    }
+    // Studio environment supplies lighting/reflections only; the background
+    // stays the clean color set in configureScene (its PMREM texture would
+    // otherwise render as a washed-out sphere).
+    environmentService.applyToScene(scene, studioResult.value, {
+      ...applyOptions,
+      setBackground: false,
+    });
+
+    if (options.helpers?.darkStudioMode && sceneSetupService) {
+      const backgroundResult = sceneSetupService.createGradientBackground(scene, {
+        topColor: DARK_STUDIO_BACKGROUND,
+        bottomColor: DARK_STUDIO_BACKGROUND,
+      });
+      if (!backgroundResult.ok) {
+        console.warn('Failed to set dark studio background:', backgroundResult.error);
       }
     }
   }

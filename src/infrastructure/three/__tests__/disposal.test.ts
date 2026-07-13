@@ -1,5 +1,10 @@
 import * as THREE from 'three';
-import { disposeMaterial, disposeObject3D, disposeSceneContents } from '../disposal';
+import {
+  disposeMaterial,
+  disposeObject3D,
+  disposeSceneContents,
+  EXTERNALLY_OWNED_TEXTURES_FLAG,
+} from '../disposal';
 import { buildRaycastBvh } from '../bvh';
 
 describe('disposal', () => {
@@ -24,6 +29,24 @@ describe('disposal', () => {
       expect(mapSpy).toHaveBeenCalledTimes(1);
       expect(normalSpy).toHaveBeenCalledTimes(1);
       expect(roughSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves externally-owned textures alive (the grounded-skybox / cache case)', () => {
+      const material = new THREE.MeshBasicMaterial();
+      const sharedMap = new THREE.Texture();
+      material.map = sharedMap;
+      material.userData[EXTERNALLY_OWNED_TEXTURES_FLAG] = true;
+
+      const matSpy = jest.spyOn(material, 'dispose');
+      const mapSpy = jest.spyOn(sharedMap, 'dispose');
+
+      disposeMaterial(material);
+
+      // The material itself is freed, but its map belongs to the environment
+      // cache / scene background — disposing it here blacked out the sky
+      // after the screenshot flow's keepBackgrounds pass.
+      expect(matSpy).toHaveBeenCalledTimes(1);
+      expect(mapSpy).not.toHaveBeenCalled();
     });
   });
 

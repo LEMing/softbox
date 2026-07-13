@@ -76,6 +76,14 @@ describe('ConcreteDiscGrid', () => {
     expect(catcherRadius).toBeGreaterThanOrEqual(10);
   });
 
+  it('caps the ground radius inside the projected world (large models)', () => {
+    const grid = new ConcreteDiscGrid().createGrid(options(20));
+    const discRadius = (discOf(grid).geometry as THREE.RingGeometry).parameters.outerRadius;
+    // 20m footprint × 8 would be 160m — through the 120m projection wall. The
+    // cap keeps the whole rim fade inside the projected world.
+    expect(discRadius).toBeLessThanOrEqual(70);
+  });
+
   it('fades the rim out via RGBA vertex colors — no hard horizon edge', () => {
     const grid = new ConcreteDiscGrid().createGrid(options(10));
     const geometry = discOf(grid).geometry as THREE.BufferGeometry;

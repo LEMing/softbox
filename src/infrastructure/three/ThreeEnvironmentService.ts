@@ -5,6 +5,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { GroundedSkybox } from 'three/examples/jsm/objects/GroundedSkybox';
 import { applyStudioContrast } from './studioEnvironmentContrast';
 import { CONTACT_SHADOW_HELPER_FLAG } from './ContactShadowBaker';
+import { EXTERNALLY_OWNED_TEXTURES_FLAG } from './disposal';
 import { 
   IEnvironmentService, 
   IEnvironmentOptions,
@@ -274,7 +275,12 @@ export class ThreeEnvironmentService implements IEnvironmentService {
             ? original
             : null;
       if (options?.groundProjection && equirect) {
-        this.addGroundedSkybox(threeScene, equirect, options.groundProjection);
+        this.addGroundedSkybox(
+          threeScene,
+          equirect,
+          options.groundProjection,
+          options.backgroundIntensity
+        );
       }
 
       return Result.ok(undefined);
@@ -301,11 +307,23 @@ export class ThreeEnvironmentService implements IEnvironmentService {
   private addGroundedSkybox(
     threeScene: THREE.Scene,
     equirect: THREE.Texture,
-    projection: { height: number; radius: number }
+    projection: { height: number; radius: number },
+    backgroundIntensity?: number
   ): void {
     const skybox = new GroundedSkybox(equirect, projection.height, projection.radius);
     skybox.name = GROUNDED_SKYBOX_NAME;
     skybox.userData[CONTACT_SHADOW_HELPER_FLAG] = true;
+    const materials = Array.isArray(skybox.material) ? skybox.material : [skybox.material];
+    for (const material of materials) {
+      // The map is the cache-owned equirect that scene.background and the
+      // path tracer still reference — canonical disposal must not free it.
+      material.userData[EXTERNALLY_OWNED_TEXTURES_FLAG] = true;
+      // The skybox occludes scene.background, so scene.backgroundIntensity
+      // can't reach it; emulate the dimming on the mesh itself.
+      if (backgroundIntensity !== undefined && 'color' in material) {
+        (material as THREE.MeshBasicMaterial).color.setScalar(backgroundIntensity);
+      }
+    }
     skybox.position.y = projection.height - 0.01;
     threeScene.add(skybox);
   }

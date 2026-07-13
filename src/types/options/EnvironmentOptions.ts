@@ -41,6 +41,10 @@ export interface EnvironmentOptions {
    * 120m world radius); pass numbers to match an HDRI shot from another
    * height or a larger set. Only applies when `url` is set. Structural —
    * changing it rebuilds the viewer.
+   *
+   * While active the projection mesh IS the visible backdrop, so
+   * `backgroundBlurriness` has no effect (`backgroundIntensity` is emulated
+   * by dimming the projection).
    */
   groundProjection?: boolean | { height?: number; radius?: number };
 }

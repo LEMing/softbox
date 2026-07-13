@@ -194,6 +194,88 @@ describe('SceneConfigurator', () => {
       );
     });
 
+    it('normalizes groundProjection: true to the defaults', async () => {
+      const env = makeEnvironment();
+      await configurator.configureEnvironment(
+        makeScene(), env, makeSceneSetup(), makeRenderer(),
+        { environment: { url: 'env.hdr', groundProjection: true } }, notDisposed
+      );
+      expect(env.applyToScene).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ groundProjection: { height: 2, radius: 120 } })
+      );
+    });
+
+    it('fills partial groundProjection overrides and rejects non-positive ones', async () => {
+      const env = makeEnvironment();
+      await configurator.configureEnvironment(
+        makeScene(), env, makeSceneSetup(), makeRenderer(),
+        { environment: { url: 'env.hdr', groundProjection: { height: 5, radius: 0 } } },
+        notDisposed
+      );
+      // height honoured; a non-positive radius would make GroundedSkybox
+      // throw, so it falls back to the default instead of silently costing
+      // the projection.
+      expect(env.applyToScene).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ groundProjection: { height: 5, radius: 120 } })
+      );
+    });
+
+    it('does not request a projection when groundProjection is off', async () => {
+      const env = makeEnvironment();
+      await configurator.configureEnvironment(
+        makeScene(), env, makeSceneSetup(), makeRenderer(),
+        { environment: { url: 'env.hdr' } }, notDisposed
+      );
+      expect(env.applyToScene).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ groundProjection: undefined })
+      );
+    });
+
+    it('falls back to the studio environment when the env map fails to load', async () => {
+      const env = makeEnvironment();
+      (env.loadEnvironmentMap as jest.Mock).mockResolvedValue(
+        Result.err(new Error('offline') as never)
+      );
+      await configurator.configureEnvironment(
+        makeScene(), env, makeSceneSetup(), makeRenderer(),
+        // The outdoor scenes opt OUT of the studio env — the fallback must
+        // engage anyway: an unlit scene is worse than the wrong set.
+        { environment: { url: 'env.hdr' }, helpers: { studioEnvironment: false } },
+        notDisposed
+      );
+      expect(env.createStudioEnvironment).toHaveBeenCalled();
+      expect(env.applyToScene).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ setBackground: false })
+      );
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('falling back to the studio environment'),
+        expect.anything()
+      );
+    });
+
+    it('warns when applying a loaded environment map fails', async () => {
+      const env = makeEnvironment();
+      (env.applyToScene as jest.Mock).mockReturnValue(
+        Result.err(new Error('projection failed') as never)
+      );
+      await configurator.configureEnvironment(
+        makeScene(), env, makeSceneSetup(), makeRenderer(),
+        { environment: { url: 'env.hdr' } }, notDisposed
+      );
+      expect(console.warn).toHaveBeenCalledWith(
+        'Failed to apply environment map:',
+        expect.anything()
+      );
+    });
+
     it('builds the studio grade the scene asks for (environment.studioLook)', async () => {
       const env = makeEnvironment();
       await configurator.configureEnvironment(

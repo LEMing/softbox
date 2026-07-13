@@ -12,27 +12,40 @@ import { disposeBoundsTree } from './bvh';
  */
 
 /**
+ * Marks a material whose textures are OWNED ELSEWHERE (an environment cache,
+ * the scene background) — e.g. the grounded skybox, whose map is the cached
+ * equirect HDRI that scene.background and the path tracer still reference.
+ * Disposal frees such a material but leaves its textures to their owner;
+ * without this, the screenshot flow's keepBackgrounds pass freed the very
+ * texture it was preserving (a black sky on restore).
+ */
+export const EXTERNALLY_OWNED_TEXTURES_FLAG = 'softboxExternallyOwnedTextures';
+
+/**
  * Dispose a material and every Texture it references (map, normalMap,
  * roughnessMap, metalnessMap, aoMap, emissiveMap, etc.).
  *
  * Three.js `Material.dispose()` does NOT free attached textures, so we walk the
- * material's own properties and dispose any Texture found.
+ * material's own properties and dispose any Texture found — unless the
+ * material carries {@link EXTERNALLY_OWNED_TEXTURES_FLAG}.
  */
 export function disposeMaterial(material: THREE.Material): void {
-  const properties = material as unknown as Record<string, unknown>;
-  for (const key of Object.keys(properties)) {
-    const value = properties[key];
-    if (value instanceof THREE.Texture) {
-      value.dispose();
+  if (!material.userData?.[EXTERNALLY_OWNED_TEXTURES_FLAG]) {
+    const properties = material as unknown as Record<string, unknown>;
+    for (const key of Object.keys(properties)) {
+      const value = properties[key];
+      if (value instanceof THREE.Texture) {
+        value.dispose();
+      }
     }
-  }
-  // Shader materials keep their textures inside uniforms.<name>.value, not as
-  // direct properties — walk those too.
-  const shader = material as THREE.ShaderMaterial;
-  if (shader.isShaderMaterial && shader.uniforms) {
-    for (const uniform of Object.values(shader.uniforms)) {
-      if (uniform?.value instanceof THREE.Texture) {
-        uniform.value.dispose();
+    // Shader materials keep their textures inside uniforms.<name>.value, not as
+    // direct properties — walk those too.
+    const shader = material as THREE.ShaderMaterial;
+    if (shader.isShaderMaterial && shader.uniforms) {
+      for (const uniform of Object.values(shader.uniforms)) {
+        if (uniform?.value instanceof THREE.Texture) {
+          uniform.value.dispose();
+        }
       }
     }
   }

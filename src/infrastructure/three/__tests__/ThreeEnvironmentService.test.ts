@@ -245,6 +245,39 @@ describe('ThreeEnvironmentService', () => {
     expect(threeScene.getObjectByName(GROUNDED_SKYBOX_NAME)).toBeUndefined();
   });
 
+  it('ground projection: skipped when no equirect source exists (studio cube path)', async () => {
+    // The minimal stub renderer fails the cube capture, so the studio PMREM
+    // has no readable original — the projection must be skipped, not crash.
+    const service = await initialized();
+    const studio = service.createStudioEnvironment();
+    if (!studio.ok) throw studio.error;
+    const scene = new ThreeSceneAdapter();
+
+    const applied = service.applyToScene(scene, studio.value, {
+      setBackground: false,
+      groundProjection: { height: 2, radius: 120 },
+    });
+    expect(applied.ok).toBe(true);
+    expect(scene.getThreeScene().getObjectByName(GROUNDED_SKYBOX_NAME)).toBeUndefined();
+  });
+
+  it('ground projection: emulates backgroundIntensity by dimming the skybox mesh', async () => {
+    const service = await initialized();
+    const loaded = await service.loadEnvironmentMap('env.hdr');
+    if (!loaded.ok) throw loaded.error;
+    const scene = new ThreeSceneAdapter();
+
+    service.applyToScene(scene, loaded.value, {
+      groundProjection: { height: 2, radius: 120 },
+      backgroundIntensity: 0.5,
+    });
+    const skybox = scene.getThreeScene().getObjectByName(GROUNDED_SKYBOX_NAME) as THREE.Mesh;
+    const material = skybox.material as THREE.MeshBasicMaterial;
+    expect(material.color.r).toBeCloseTo(0.5);
+    // The cache-owned map must survive canonical disposal of the mesh.
+    expect(material.userData.softboxExternallyOwnedTextures).toBe(true);
+  });
+
   it('bakes each studio grade once and caches them independently', async () => {
     const service = await cubeCapableService();
 

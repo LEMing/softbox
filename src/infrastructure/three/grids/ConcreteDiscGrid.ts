@@ -1,15 +1,18 @@
 import * as THREE from 'three';
 import { IGridStyle, IGridOptions } from './IGridStyle';
-import {
-  CONTACT_SHADOW_HELPER_FLAG,
-  CONTACT_SHADOW_LIVE_NAME,
-} from '../ContactShadowBaker';
+import { createShadowCatcher } from './shadowCatcher';
+import { smoothstep01 } from '../../../utils/smoothstep';
 
 /** Meters of ground one repeat of the procedural concrete covers. Large, so
  * the pattern never reads as a checker across the disc. */
 const TEXTURE_REPEAT_METERS = 6;
 /** How far the ground reads past the model (its largest footprint dimension). */
 const DISC_FOOTPRINT_SCALE = 8;
+/** Hard cap on the ground radius: the rim fade must complete INSIDE the
+ * ground-projected skybox (default world radius 120m — see
+ * core/groundProjection), or a big model's still-opaque concrete would slice
+ * through the projected world's walls. */
+const DISC_MAX_RADIUS_METERS = 70;
 /** Fraction of the disc radius where the rim fade-out begins. */
 const FADE_START = 0.55;
 const CONCRETE_COLOR = '#b6b3ac';
@@ -30,8 +33,6 @@ const mulberry32 = (seed: number) => {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 };
-
-const smoothstep = (t: number) => t * t * (3 - 2 * t);
 
 /**
  * Periodic (tileable) multi-octave value noise sampled on a wrapped lattice —
@@ -55,8 +56,8 @@ const makeTileableNoise = (random: () => number) => {
     const y = v * period;
     const x0 = Math.floor(x);
     const y0 = Math.floor(y);
-    const tx = smoothstep(x - x0);
-    const ty = smoothstep(y - y0);
+    const tx = smoothstep01(x - x0);
+    const ty = smoothstep01(y - y0);
     const a = at(x0, y0, period);
     const b = at(x0 + 1, y0, period);
     const c = at(x0, y0 + 1, period);
@@ -76,6 +77,76 @@ interface ConcretePbrMaps {
   normalMap: THREE.CanvasTexture;
   roughnessMap: THREE.CanvasTexture;
 }
+
+interface ConcretePixelBuffers {
+  albedo: Uint8ClampedArray;
+  normal: Uint8ClampedArray;
+  roughness: Uint8ClampedArray;
+}
+
+/** Session cache of the generated pixels — pure function of the fixed seed. */
+let cachedPixels: ConcretePixelBuffers | null = null;
+
+/** Compute the albedo/normal/roughness pixels from the seeded height field. */
+const generateConcretePixels = (): ConcretePixelBuffers => {
+  const random = mulberry32(CONCRETE_SEED);
+  const noise = makeTileableNoise(random);
+  const height = new Float32Array(MAP_SIZE * MAP_SIZE);
+  for (let y = 0; y < MAP_SIZE; y += 1) {
+    for (let x = 0; x < MAP_SIZE; x += 1) {
+      height[y * MAP_SIZE + x] = noise(x / MAP_SIZE, y / MAP_SIZE);
+    }
+  }
+  // Sparse speckle pits — tiny darker dents that read as aggregate.
+  const PITS = 900;
+  for (let i = 0; i < PITS; i += 1) {
+    const x = Math.floor(random() * MAP_SIZE);
+    const y = Math.floor(random() * MAP_SIZE);
+    const depth = 0.12 + random() * 0.2;
+    height[y * MAP_SIZE + x] = Math.max(0, height[y * MAP_SIZE + x] - depth);
+  }
+
+  const heightAt = (x: number, y: number) =>
+    height[((y + MAP_SIZE) % MAP_SIZE) * MAP_SIZE + ((x + MAP_SIZE) % MAP_SIZE)];
+
+  const base = new THREE.Color(CONCRETE_COLOR);
+  const albedo = new Uint8ClampedArray(MAP_SIZE * MAP_SIZE * 4);
+  const normal = new Uint8ClampedArray(MAP_SIZE * MAP_SIZE * 4);
+  const roughness = new Uint8ClampedArray(MAP_SIZE * MAP_SIZE * 4);
+  const NORMAL_STRENGTH = 2.4;
+  for (let y = 0; y < MAP_SIZE; y += 1) {
+    for (let x = 0; x < MAP_SIZE; x += 1) {
+      const i = (y * MAP_SIZE + x) * 4;
+      const h = heightAt(x, y);
+
+      // Albedo: base tone modulated ±9% by the field + fine grain.
+      const tone = 0.91 + h * 0.18 + (random() - 0.5) * 0.03;
+      albedo[i] = Math.min(255, base.r * 255 * tone);
+      albedo[i + 1] = Math.min(255, base.g * 255 * tone);
+      albedo[i + 2] = Math.min(255, base.b * 255 * tone);
+      albedo[i + 3] = 255;
+
+      // Tangent-space normal from central differences (wrapped — tileable).
+      const dx = (heightAt(x + 1, y) - heightAt(x - 1, y)) * NORMAL_STRENGTH;
+      const dy = (heightAt(x, y + 1) - heightAt(x, y - 1)) * NORMAL_STRENGTH;
+      const inverseLength = 1 / Math.hypot(dx, dy, 1);
+      normal[i] = (-dx * inverseLength * 0.5 + 0.5) * 255;
+      normal[i + 1] = (-dy * inverseLength * 0.5 + 0.5) * 255;
+      normal[i + 2] = (inverseLength * 0.5 + 0.5) * 255;
+      normal[i + 3] = 255;
+
+      // Roughness: matte everywhere, the low (darker, denser) areas a touch
+      // smoother — reads as subtly polished troughs. Green channel is what
+      // three samples.
+      const rough = (0.86 + h * 0.12) * 255;
+      roughness[i] = rough;
+      roughness[i + 1] = rough;
+      roughness[i + 2] = rough;
+      roughness[i + 3] = 255;
+    }
+  }
+  return { albedo, normal, roughness };
+};
 
 /**
  * A large matte concrete ground disc for outdoor scenes. Unlike the studio
@@ -103,10 +174,12 @@ export class ConcreteDiscGrid implements IGridStyle {
   createGrid(options: IGridOptions): THREE.Object3D {
     const group = new THREE.Group();
     const footprint = Math.max(options.size || 1, 1);
-    group.add(this.createDisc(footprint * DISC_FOOTPRINT_SCALE));
+    group.add(
+      this.createDisc(Math.min(footprint * DISC_FOOTPRINT_SCALE, DISC_MAX_RADIUS_METERS))
+    );
     // Catcher sized like the studio floor's: the baked shadow clips itself to
     // this disc, and the shadow never spreads anywhere near the ground's edge.
-    group.add(this.createShadowCatcher(footprint * 1.5));
+    group.add(createShadowCatcher(footprint * 1.5));
     return group;
   }
 
@@ -157,7 +230,7 @@ export class ConcreteDiscGrid implements IGridStyle {
       const y = positions.getY(i);
       const r = Math.hypot(x, y) / radius;
       const fade =
-        r <= FADE_START ? 1 : 1 - smoothstep(Math.min((r - FADE_START) / (1 - FADE_START), 1));
+        r <= FADE_START ? 1 : 1 - smoothstep01(Math.min((r - FADE_START) / (1 - FADE_START), 1));
       // One macro period spans the whole disc, so no repetition is possible.
       const drift = 0.94 + macro(x / (radius * 2) + 0.5, y / (radius * 2) + 0.5) * 0.12;
       rgba[i * 4] = drift;
@@ -169,31 +242,20 @@ export class ConcreteDiscGrid implements IGridStyle {
     return geometry;
   }
 
-  private createShadowCatcher(discRadius: number): THREE.Mesh {
-    const catcher = new THREE.Mesh(
-      new THREE.CircleGeometry(Math.max(discRadius, 1), 64),
-      new THREE.ShadowMaterial({ opacity: 0.28 })
-    );
-    catcher.name = CONTACT_SHADOW_LIVE_NAME;
-    catcher.userData[CONTACT_SHADOW_HELPER_FLAG] = true;
-    catcher.rotation.x = -Math.PI / 2;
-    // Placeholder; addDynamicGrid rescales this lift to the model height.
-    catcher.position.y = 0.002;
-    catcher.receiveShadow = true;
-    return catcher;
-  }
-
   /**
-   * All three PBR maps from one seeded height field. Each grid owns its
-   * textures (never cached on the factory singleton) so canonical scene
-   * disposal frees them.
+   * All three PBR maps from one seeded height field. The PIXELS are a pure
+   * function of the fixed seed, so they are computed once per session
+   * (`cachedPixels`) — regenerating ~786k pixel writes on every structural
+   * rebuild was measurable main-thread jank. The CANVASES AND TEXTURES are
+   * fresh per grid (never cached on the factory singleton) so canonical scene
+   * disposal frees them without ever handing a later grid a disposed texture.
    */
   private createConcretePbrMaps(): ConcretePbrMaps | null {
-    const canvases: HTMLCanvasElement[] = [];
-    const contexts: CanvasRenderingContext2D[] = [];
     if (typeof document === 'undefined') {
       return null;
     }
+    const canvases: HTMLCanvasElement[] = [];
+    const contexts: CanvasRenderingContext2D[] = [];
     for (let i = 0; i < 3; i += 1) {
       const canvas = document.createElement('canvas');
       canvas.width = MAP_SIZE;
@@ -205,67 +267,14 @@ export class ConcreteDiscGrid implements IGridStyle {
       canvases.push(canvas);
       contexts.push(context);
     }
-    const [albedoCtx, normalCtx, roughnessCtx] = contexts;
 
-    const random = mulberry32(CONCRETE_SEED);
-    const noise = makeTileableNoise(random);
-    const height = new Float32Array(MAP_SIZE * MAP_SIZE);
-    for (let y = 0; y < MAP_SIZE; y += 1) {
-      for (let x = 0; x < MAP_SIZE; x += 1) {
-        height[y * MAP_SIZE + x] = noise(x / MAP_SIZE, y / MAP_SIZE);
-      }
-    }
-    // Sparse speckle pits — tiny darker dents that read as aggregate.
-    const PITS = 900;
-    for (let i = 0; i < PITS; i += 1) {
-      const x = Math.floor(random() * MAP_SIZE);
-      const y = Math.floor(random() * MAP_SIZE);
-      const depth = 0.12 + random() * 0.2;
-      height[y * MAP_SIZE + x] = Math.max(0, height[y * MAP_SIZE + x] - depth);
-    }
-
-    const heightAt = (x: number, y: number) =>
-      height[((y + MAP_SIZE) % MAP_SIZE) * MAP_SIZE + ((x + MAP_SIZE) % MAP_SIZE)];
-
-    const base = new THREE.Color(CONCRETE_COLOR);
-    const albedo = albedoCtx.createImageData(MAP_SIZE, MAP_SIZE);
-    const normal = normalCtx.createImageData(MAP_SIZE, MAP_SIZE);
-    const roughness = roughnessCtx.createImageData(MAP_SIZE, MAP_SIZE);
-    const NORMAL_STRENGTH = 2.4;
-    for (let y = 0; y < MAP_SIZE; y += 1) {
-      for (let x = 0; x < MAP_SIZE; x += 1) {
-        const i = (y * MAP_SIZE + x) * 4;
-        const h = heightAt(x, y);
-
-        // Albedo: base tone modulated ±9% by the field + fine grain.
-        const tone = 0.91 + h * 0.18 + (random() - 0.5) * 0.03;
-        albedo.data[i] = Math.min(255, base.r * 255 * tone);
-        albedo.data[i + 1] = Math.min(255, base.g * 255 * tone);
-        albedo.data[i + 2] = Math.min(255, base.b * 255 * tone);
-        albedo.data[i + 3] = 255;
-
-        // Tangent-space normal from central differences (wrapped — tileable).
-        const dx = (heightAt(x + 1, y) - heightAt(x - 1, y)) * NORMAL_STRENGTH;
-        const dy = (heightAt(x, y + 1) - heightAt(x, y - 1)) * NORMAL_STRENGTH;
-        const inverseLength = 1 / Math.hypot(dx, dy, 1);
-        normal.data[i] = (-dx * inverseLength * 0.5 + 0.5) * 255;
-        normal.data[i + 1] = (-dy * inverseLength * 0.5 + 0.5) * 255;
-        normal.data[i + 2] = (inverseLength * 0.5 + 0.5) * 255;
-        normal.data[i + 3] = 255;
-
-        // Roughness: matte everywhere, the low (darker, denser) areas a touch
-        // smoother — reads as subtly polished troughs. Green channel is what
-        // three samples.
-        const rough = (0.86 + h * 0.12) * 255;
-        roughness.data[i] = rough;
-        roughness.data[i + 1] = rough;
-        roughness.data[i + 2] = rough;
-        roughness.data[i + 3] = 255;
-      }
-    }
-    albedoCtx.putImageData(albedo, 0, 0);
-    normalCtx.putImageData(normal, 0, 0);
-    roughnessCtx.putImageData(roughness, 0, 0);
+    cachedPixels ??= generateConcretePixels();
+    const buffers = [cachedPixels.albedo, cachedPixels.normal, cachedPixels.roughness];
+    contexts.forEach((context, index) => {
+      const imageData = context.createImageData(MAP_SIZE, MAP_SIZE);
+      imageData.data.set(buffers[index]);
+      context.putImageData(imageData, 0, 0);
+    });
 
     const [albedoMap, normalMap, roughnessMap] = canvases.map((canvas) => {
       const texture = new THREE.CanvasTexture(canvas);

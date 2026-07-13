@@ -130,6 +130,19 @@ describe('EnvironmentController.setEnvironmentMap', () => {
     expect(b.reviveRenderLoop).toHaveBeenCalled();
   });
 
+  it('keeps the configured ground projection across runtime env swaps', async () => {
+    const b = makeBundle({ options: { environment: { groundProjection: true } } });
+    const result = await b.controller.setEnvironmentMap('/other.hdr');
+    expect(result.ok).toBe(true);
+    // applyToScene clears the previous skybox; omitting the projection here
+    // silently stripped it until the next structural rebuild.
+    expect(b.environmentService!.applyToScene).toHaveBeenCalledWith(
+      b.scene,
+      b.texture,
+      expect.objectContaining({ groundProjection: { height: 2, radius: 120 } })
+    );
+  });
+
   it('reports INVALID_STATE on a disposed viewer without touching the service', async () => {
     const b = makeBundle({ disposed: () => true });
     const result = await b.controller.setEnvironmentMap('/studio.hdr');

@@ -6,6 +6,7 @@ import { Result } from '../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../errors';
 import { RenderLoopManager } from './utils/RenderLoopManager';
 import { PathTracingCoordinator } from './PathTracingCoordinator';
+import { resolveGroundProjection } from './groundProjection';
 
 export interface EnvironmentControllerDependencies {
   scene: IScene;
@@ -93,6 +94,10 @@ export class EnvironmentController {
       backgroundIntensity: options.environment?.backgroundIntensity,
       environmentIntensity: options.environment?.environmentIntensity,
       setBackground: true,
+      // Keep the configured ground projection across runtime env swaps —
+      // applyToScene clears the previous skybox, so omitting this here
+      // silently stripped the projection until the next structural rebuild.
+      groundProjection: resolveGroundProjection(options.environment?.groundProjection),
     });
     if (!applyResult.ok) {
       return applyResult;
