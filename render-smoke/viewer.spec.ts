@@ -172,14 +172,23 @@ test('switching the scene on a live viewer reloads the model (structural rebuild
   test.setTimeout(360_000);
   const errors = await openScene(page);
 
-  // Flip the scene on the LIVE viewer. The rebuild's isInitialized false→true
-  // once collapsed into a single React batch (net unchanged → render
-  // bail-out), so the fresh viewer never received the model: a silently blank
-  // canvas with no error anywhere. Real-browser timing is what reproduced it.
+  // Flip the scene on the LIVE viewer — the fast-rebuild render bail-out this
+  // pins only reproduces with real-browser timing (see useViewerCore's
+  // viewer-state comment). Two-phase wait: first the NEW viewer reports its
+  // model load, only then reset the frame counter — otherwise a frame the
+  // outgoing viewer presents before disposal could satisfy the gate and the
+  // screenshot would grade its stale pixels.
   await page.evaluate(() => {
     window.__modelLoaded = false;
-    window.__renderedFrames = 0;
     window.__setScene('studio_soft');
+  });
+  await page.waitForFunction(
+    () => window.__modelLoaded || window.__pageErrors.length > 0,
+    undefined,
+    { timeout: 180_000 }
+  );
+  await page.evaluate(() => {
+    window.__renderedFrames = 0;
   });
   await waitForBoot(page);
 

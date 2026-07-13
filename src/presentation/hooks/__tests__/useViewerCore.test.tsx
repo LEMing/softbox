@@ -2,7 +2,6 @@ import React, { useRef } from 'react';
 import { act, render, renderHook, waitFor } from '@testing-library/react';
 import { useViewerCore } from '../useViewerCore';
 import { useModelLoader } from '../useModelLoader';
-import { ViewerCore } from '../../../core/ViewerCore';
 import { ViewerFactory } from '../../../infrastructure/factories/ViewerFactory';
 import { Result } from '../../../utils/Result';
 import { SimpleViewerOptions } from '../../../types/SimpleViewerOptions';
@@ -330,16 +329,14 @@ describe('useViewerCore', () => {
   });
 
   it('reloads the model into the rebuilt viewer after a structural change', async () => {
-    // The composition SimpleViewer uses: the loader watches the viewer the
-    // hook hands out. A fast rebuild collapses isInitialized false→true into
-    // one React batch (net unchanged → render bail-out), so without a
-    // dedicated re-render signal the loader keeps holding the DISPOSED viewer
-    // and the fresh one never receives the model — a blank canvas with no
-    // error anywhere (found live via the playground Scene picker).
+    // Contract pin for the fast-rebuild render bail-out (see the viewer-state
+    // comment in useViewerCore). jsdom timing cannot reproduce the React
+    // batch collapse itself — the real-browser pin is the live scene-switch
+    // render-smoke test.
     const Harness = ({ options }: { options: SimpleViewerOptions }) => {
       const canvasRef = useRef<HTMLCanvasElement>(document.createElement('canvas'));
       const { viewer, isInitialized } = useViewerCore(canvasRef, options);
-      useModelLoader(viewer as unknown as ViewerCore, isInitialized, '/model.glb');
+      useModelLoader(viewer, isInitialized, '/model.glb');
       return null;
     };
 

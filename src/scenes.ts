@@ -16,11 +16,21 @@ export const VIEWER_SCENES: Record<ViewerScene, Partial<SimpleViewerOptions>> = 
     helpers: { grid: { type: 'shadow_floor' }, studioEnvironment: true },
     environment: { studioLook: 'crisp' },
   },
-  // The same set lit softly: the studio room is baked without the contrast
-  // push, giving an even wraparound light instead of crisp panel highlights.
+  // The same set lit softly — an overcast softbox studio instead of the hero
+  // rig: the studio room is baked without the contrast push (even wraparound
+  // light, no crisp panel highlights) AND the three-point rig is rebalanced —
+  // the key steps back with a wider penumbra, the rim edge nearly goes, and
+  // the fill/ambient open the shadow side. Matte, low-drama product read.
   studio_soft: {
     helpers: { grid: { type: 'shadow_floor' }, studioEnvironment: true },
     environment: { studioLook: 'soft' },
+    lighting: {
+      ambientLight: { intensity: 0.55 },
+      hemisphereLight: { intensity: 0.6 },
+      directionalLight: { intensity: 1.4, shadow: { radius: 26 } },
+      fillLight: { intensity: 1.2 },
+      rimLight: { intensity: 0.7 },
+    },
   },
 };
 

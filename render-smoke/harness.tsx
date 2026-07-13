@@ -95,8 +95,8 @@ const makeModel = () => {
 const Harness = () => {
   const viewerRef = useRef<SimpleViewerHandle>(null);
   const model = useRef(makeModel());
-  // Stateful so tests can switch the scene on a LIVE viewer (a structural
-  // rebuild) — the path where a React batch collapse once dropped the model.
+  // Stateful so tests can switch the scene on a LIVE viewer — pins the
+  // fast-rebuild bail-out (see useViewerCore's viewer-state comment).
   const [scene, setScene] = useState(initialScene);
 
   useEffect(() => {

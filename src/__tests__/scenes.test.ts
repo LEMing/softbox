@@ -47,11 +47,34 @@ describe('viewer scenes', () => {
     expect(deepMerge(defaultOptions, VIEWER_SCENES.studio_dome)).toEqual(defaultOptions);
   });
 
-  it('studio_soft only swaps the studio grade to soft', () => {
-    const merged = deepMerge(defaultOptions, VIEWER_SCENES.studio_soft);
-    expect(merged.environment?.studioLook).toBe('soft');
-    const withDefaultGrade = deepMerge(merged, { environment: { studioLook: 'crisp' as const } });
-    expect(withDefaultGrade).toEqual(defaultOptions);
+  it('studio_soft swaps the studio grade AND steps the hero rig down to a soft read', () => {
+    const soft = VIEWER_SCENES.studio_soft;
+    const defaults = defaultOptions.lighting!;
+    expect(soft.environment?.studioLook).toBe('soft');
+    // Hero cues step back...
+    expect(soft.lighting?.directionalLight?.intensity).toBeLessThan(
+      defaults.directionalLight!.intensity!
+    );
+    expect(soft.lighting?.rimLight?.intensity).toBeLessThan(defaults.rimLight!.intensity!);
+    // ...and the shadow side opens up.
+    expect(soft.lighting?.fillLight?.intensity).toBeGreaterThan(defaults.fillLight!.intensity!);
+    expect(soft.lighting?.ambientLight?.intensity).toBeGreaterThan(
+      defaults.ambientLight!.intensity!
+    );
+    expect(soft.lighting?.hemisphereLight?.intensity).toBeGreaterThan(
+      defaults.hemisphereLight!.intensity!
+    );
+    // The key still casts the grounding shadow, with a wider penumbra.
+    const merged = mergeWithPreset(defaultOptions, { scene: 'studio_soft' });
+    expect(merged.lighting?.directionalLight?.castShadow).toBe(true);
+    expect(merged.lighting?.directionalLight?.shadow?.radius).toBeGreaterThan(
+      defaults.directionalLight!.shadow!.radius!
+    );
+    // Deep-merge keeps what the scene doesn't set (colours, shadow map size).
+    expect(merged.lighting?.directionalLight?.color).toBe(defaults.directionalLight!.color);
+    expect(merged.lighting?.directionalLight?.shadow?.mapSize).toEqual(
+      defaults.directionalLight!.shadow!.mapSize
+    );
   });
 });
 
