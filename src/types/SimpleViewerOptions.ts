@@ -38,9 +38,11 @@ export interface SimpleViewerOptions {
   /**
    * KHR_materials_variants variant to show (e.g. a product colorway baked
    * into the GLB). Applies LIVE — switching never rebuilds the viewer or
-   * reloads the model. `null`/absent shows the authored default materials;
-   * an unknown name warns and keeps the defaults. Enumerate the model's
-   * variants via `handle.getVariantNames()`.
+   * reloads the model. `null` shows the authored default materials; leaving
+   * the option out is "uncontrolled" (an imperative `handle.setVariant()`
+   * pick survives other option changes); an unknown name warns and keeps
+   * the defaults. Enumerate the model's variants via
+   * `handle.getVariantNames()`.
    */
   variant?: string | null;
 

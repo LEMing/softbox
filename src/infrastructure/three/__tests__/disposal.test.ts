@@ -5,6 +5,7 @@ import {
   disposeSceneContents,
   BACKGROUND_NODE_FLAG,
   EXTERNALLY_OWNED_TEXTURES_FLAG,
+  STASHED_MATERIALS_KEY,
 } from '../disposal';
 import { buildRaycastBvh } from '../bvh';
 
@@ -54,6 +55,18 @@ describe('disposal', () => {
       const material = new THREE.MeshStandardMaterial();
       disposeMaterial(material);
       expect(material.userData.softboxDisposed).toBe(true);
+    });
+
+    it('is idempotent — a material reachable through several owners is freed once', () => {
+      const material = new THREE.MeshStandardMaterial();
+      const map = new THREE.Texture();
+      material.map = map;
+      const mapSpy = jest.spyOn(map, 'dispose');
+
+      disposeMaterial(material);
+      disposeMaterial(material);
+
+      expect(mapSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -135,6 +148,28 @@ describe('disposal', () => {
 
       expect(geomSpy).toHaveBeenCalledTimes(1);
       expect(matSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('disposes stashed materials (unassigned KHR variants) with the mesh', () => {
+      const assigned = new THREE.MeshStandardMaterial();
+      const beach = new THREE.MeshStandardMaterial();
+      const beachMap = new THREE.Texture();
+      beach.map = beachMap;
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(), assigned);
+      // The variant resolver stashes every owned material, including the
+      // assigned one — the walk must free the unassigned colorways too, and
+      // exactly once for the overlap.
+      mesh.userData[STASHED_MATERIALS_KEY] = [assigned, beach];
+
+      const assignedSpy = jest.spyOn(assigned, 'dispose');
+      const beachSpy = jest.spyOn(beach, 'dispose');
+      const beachMapSpy = jest.spyOn(beachMap, 'dispose');
+
+      disposeObject3D(mesh);
+
+      expect(assignedSpy).toHaveBeenCalledTimes(1);
+      expect(beachSpy).toHaveBeenCalledTimes(1);
+      expect(beachMapSpy).toHaveBeenCalledTimes(1);
     });
   });
 

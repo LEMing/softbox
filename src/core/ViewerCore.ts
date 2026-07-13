@@ -358,10 +358,7 @@ export class ViewerCore {
         // A variant chosen before the model landed (or carried by the merged
         // options) applies now; a stale/unknown name only warns.
         if (this.options.variant) {
-          const variantResult = this.setMaterialVariant(this.options.variant);
-          if (!variantResult.ok) {
-            console.warn('Failed to apply material variant:', variantResult.error);
-          }
+          this.applyVariantOrWarn(this.options.variant);
         }
         // The loop may have wound down entirely (converged path tracing) —
         // requestRender alone cannot restart a dead rAF chain, and without
@@ -667,17 +664,14 @@ export class ViewerCore {
       this.setPathTracingEnabled(pathTracingEnabled);
       needsRender = true;
     }
-    // `null` is the declarative "back to authored materials" (deepMerge
-    // ignores undefined, so pickRuntimeOptions sends null for an absent
-    // variant). Guarded against re-sends of an unchanged value.
+    // `null` is the declarative "back to authored materials"; an absent key
+    // leaves an imperative handle.setVariant() choice alone. Guarded against
+    // re-sends of an unchanged value; setMaterialVariant kicks the render
+    // loop itself, and only when a material actually changed.
     if ('variant' in partial) {
       const variant = partial.variant ?? null;
       if (variant !== (previousVariant ?? null)) {
-        const result = this.setMaterialVariant(variant);
-        if (!result.ok) {
-          console.warn('Failed to apply material variant:', result.error);
-        }
-        needsRender = true;
+        this.applyVariantOrWarn(variant);
       }
     }
     if (needsRender) {
@@ -905,12 +899,12 @@ export class ViewerCore {
    * is only stored; the load path applies it.
    */
   setMaterialVariant(variant: string | null): Result<void> {
-    this.options.variant = variant ?? undefined;
     const model = this.modelManager.getCurrentModel();
-    if (!model || !this.sceneSetupService) {
-      return Result.ok(undefined);
-    }
-    if (variant !== null && !this.modelManager.getVariantNames().includes(variant)) {
+    // Validate BEFORE storing: a rejected typo must not poison the option,
+    // resurface on the next load, or shadow the same name arriving
+    // declaratively later. Before a model lands there is no name list to
+    // validate against — the choice is stored and the load path applies it.
+    if (model && variant !== null && !this.modelManager.getVariantNames().includes(variant)) {
       return Result.err(
         new ThreeViewerError(
           `Unknown material variant '${variant}'`,
@@ -918,18 +912,35 @@ export class ViewerCore {
         )
       );
     }
-    const applied = this.sceneSetupService.applyMaterialVariant(model, variant);
-    if (!applied.ok) {
-      return applied;
+    this.options.variant = variant ?? undefined;
+    if (!model || !this.sceneSetupService) {
+      return Result.ok(undefined);
     }
-    if (applied.value) {
+    // Async only because variant materials materialize in the background
+    // after load; once they are ready the swap is a same-tick microtask.
+    void this.sceneSetupService.applyMaterialVariant(model, variant).then((applied) => {
+      if (!applied.ok) {
+        console.warn('Failed to apply material variant:', applied.error);
+        return;
+      }
+      const stale = this.disposed || this.modelManager.getCurrentModel() !== model;
+      if (!applied.value || stale) {
+        return;
+      }
       // New materials invalidate a converged traced frame the same way an
       // environment change does.
       this.pathTracing.resetAccumulation(true);
       this.reviveRenderLoop();
       this.renderLoopManager.requestRender();
-    }
+    });
     return Result.ok(undefined);
+  }
+
+  private applyVariantOrWarn(variant: string | null): void {
+    const result = this.setMaterialVariant(variant);
+    if (!result.ok) {
+      console.warn('Failed to apply material variant:', result.error);
+    }
   }
 
   /**

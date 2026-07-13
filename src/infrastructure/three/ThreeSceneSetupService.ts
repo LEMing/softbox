@@ -13,7 +13,7 @@ import { IRenderer } from '../../core/interfaces/IRenderer';
 import { Result } from '../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import { ContactShadowBaker } from './ContactShadowBaker';
-import { applyMaterialVariant } from './gltf/materialVariants';
+import { applyMaterialVariant, whenMaterialVariantsResolved } from './gltf/materialVariants';
 import { toThreeObject } from './unwrap';
 import {
   addDynamicGrid,
@@ -70,7 +70,7 @@ export class ThreeSceneSetupService implements ISceneSetupService {
     return wrapInUnitsScaleGroup(object, scaleToMeters);
   }
 
-  applyMaterialVariant(model: IObject3D, variant: string | null): Result<boolean> {
+  async applyMaterialVariant(model: IObject3D, variant: string | null): Promise<Result<boolean>> {
     const native = toThreeObject(model);
     if (!native) {
       return Result.err(
@@ -80,6 +80,9 @@ export class ThreeSceneSetupService implements ISceneSetupService {
         )
       );
     }
+    // Variant materials materialize in the background after load; an early
+    // pick waits for them (immediate for variant-less models).
+    await whenMaterialVariantsResolved(native);
     return Result.ok(applyMaterialVariant(native, variant));
   }
 

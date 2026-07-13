@@ -218,6 +218,7 @@ const makeSceneSetupService = (
     bakeContactShadow: jest.fn(() => Result.ok(undefined)),
     resetContactShadow: jest.fn(() => Result.ok(undefined)),
     setContactShadowMode: jest.fn(() => Result.ok(undefined)),
+    applyMaterialVariant: jest.fn(async () => Result.ok(true)),
   };
   return { ...base, ...overrides } as unknown as jest.Mocked<ISceneSetupService>;
 };
@@ -929,6 +930,135 @@ describe('ViewerCore', () => {
       // current before this call returned — it must be torn down here,
       // since dispose() already ran and will never call this again.
       expect(loadedModel.dispose).toHaveBeenCalled();
+    });
+  });
+
+  describe('material variants', () => {
+    const VARIANT_NAMES_KEY = 'softboxVariants';
+
+    const makeVariantBundle = (names: string[] = ['beach', 'midnight']) => {
+      const bundle = makeDeps({
+        withSceneSetup: true,
+        withPathTracing: true,
+        // Enabled so resetAccumulation reaches the service and the traced-
+        // frame invalidation is observable.
+        options: { pathTracing: { enabled: true } },
+      });
+      bundle.modelLoader.load.mockResolvedValue(
+        Result.ok({
+          scene: makeObject3D(),
+          animations: [],
+          userData: { [VARIANT_NAMES_KEY]: names },
+        })
+      );
+      return bundle;
+    };
+
+    it('forwards the loaded model variant names', async () => {
+      const bundle = makeVariantBundle();
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+      await viewer.loadModel('model.glb');
+
+      expect(viewer.getVariantNames()).toEqual(['beach', 'midnight']);
+    });
+
+    it('applies a valid variant through the setup service and restarts accumulation', async () => {
+      const bundle = makeVariantBundle();
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+      await viewer.loadModel('model.glb');
+      bundle.pathTracingService!.reset.mockClear();
+
+      const result = viewer.setMaterialVariant('beach');
+      await tick();
+
+      expect(result.ok).toBe(true);
+      expect(bundle.sceneSetupService!.applyMaterialVariant).toHaveBeenCalledWith(
+        expect.anything(),
+        'beach'
+      );
+      // New materials invalidate a converged traced frame.
+      expect(bundle.pathTracingService!.reset).toHaveBeenCalled();
+    });
+
+    it('errs on an unknown name WITHOUT poisoning the stored option', async () => {
+      const bundle = makeVariantBundle();
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+      await viewer.loadModel('model.glb');
+
+      const result = viewer.setMaterialVariant('typo');
+      await tick();
+
+      expect(result.ok).toBe(false);
+      expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_PARAMETER);
+      expect(bundle.sceneSetupService!.applyMaterialVariant).not.toHaveBeenCalled();
+
+      // Had the rejected name been stored, this same declarative value would
+      // read as "unchanged" and silently skip — it must warn instead.
+      viewer.updateOptions({ variant: 'typo' });
+      expect(console.warn).toHaveBeenCalledWith(
+        'Failed to apply material variant:',
+        expect.objectContaining({ code: ErrorCode.INVALID_PARAMETER })
+      );
+    });
+
+    it('stores a variant chosen before the model lands and applies it on load', async () => {
+      const bundle = makeVariantBundle(['beach']);
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+
+      // No model yet: nothing to validate against, the choice is stored.
+      expect(viewer.setMaterialVariant('beach').ok).toBe(true);
+      expect(bundle.sceneSetupService!.applyMaterialVariant).not.toHaveBeenCalled();
+
+      await viewer.loadModel('model.glb');
+      await tick();
+
+      expect(bundle.sceneSetupService!.applyMaterialVariant).toHaveBeenCalledWith(
+        expect.anything(),
+        'beach'
+      );
+    });
+
+    it('updateOptions applies a variant once, ignores a re-send, and resets on null', async () => {
+      const bundle = makeVariantBundle();
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+      await viewer.loadModel('model.glb');
+      const apply = bundle.sceneSetupService!.applyMaterialVariant;
+
+      viewer.updateOptions({ variant: 'beach' });
+      await tick();
+      expect(apply).toHaveBeenCalledTimes(1);
+
+      viewer.updateOptions({ variant: 'beach' });
+      await tick();
+      expect(apply).toHaveBeenCalledTimes(1);
+
+      viewer.updateOptions({ variant: null });
+      await tick();
+      expect(apply).toHaveBeenCalledTimes(2);
+      expect(apply).toHaveBeenLastCalledWith(expect.anything(), null);
+    });
+
+    it('leaves the variant untouched when the runtime payload omits the key', async () => {
+      const bundle = makeVariantBundle();
+      const viewer = new ViewerCore(bundle.deps);
+      await viewer.initialize();
+      await viewer.loadModel('model.glb');
+      viewer.setMaterialVariant('midnight');
+      await tick();
+      const apply = bundle.sceneSetupService!.applyMaterialVariant;
+      apply.mockClear();
+
+      // An unrelated runtime change (no `variant` key) must not revert an
+      // imperative pick to the defaults.
+      viewer.updateOptions({ backgroundColor: '#abcdef' });
+      await tick();
+
+      expect(apply).not.toHaveBeenCalled();
     });
   });
 

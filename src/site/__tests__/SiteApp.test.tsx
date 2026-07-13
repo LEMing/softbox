@@ -226,6 +226,11 @@ describe('SiteApp motion toggles', () => {
     expect(screen.getByText(/SimpleViewer/, { selector: 'pre' })).toHaveTextContent(
       "variant: 'beach'"
     );
+
+    // The `default` chip is the way back to the authored materials.
+    fireEvent.click(screen.getByRole('button', { name: 'default' }));
+    expect(screen.getByTestId('viewer')).toHaveAttribute('data-variant', '');
+    expect(screen.getByText(/SimpleViewer/, { selector: 'pre' })).not.toHaveTextContent('variant:');
   });
 
   it('switches the scene through the Scene picker and reflects it in the snippet', () => {

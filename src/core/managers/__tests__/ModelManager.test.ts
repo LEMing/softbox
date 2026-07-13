@@ -1,5 +1,13 @@
 import { ModelManager } from '../ModelManager';
-import { IModelLoader, IObject3D, IScene, ICamera, IControls, Result } from '../../interfaces';
+import {
+  IModelLoader,
+  IObject3D,
+  IScene,
+  ICamera,
+  IControls,
+  Result,
+  MODEL_VARIANT_NAMES_KEY,
+} from '../../interfaces';
 import { IFloorAlignmentService } from '../../services/IFloorAlignmentService';
 import { ISceneSetupService } from '../../services/ISceneSetupService';
 import { ThreeViewerError, ErrorCode } from '../../../errors';
@@ -110,6 +118,49 @@ describe('ModelManager', () => {
         expect(mockScene.add).toHaveBeenCalledWith(mockModel);
         expect(modelManager.getCurrentModel()).toBe(mockModel);
         expect(modelManager.getLastModelUrl()).toBe(url);
+      });
+
+      it('surfaces variant names from the namespaced userData key, as a defensive copy', async () => {
+        mockModelLoader.load.mockResolvedValue(Result.ok({
+          scene: mockModel,
+          animations: [],
+          userData: { [MODEL_VARIANT_NAMES_KEY]: ['beach', 'midnight'] },
+        }));
+
+        await modelManager.loadModel('test.glb', mockEvents);
+
+        const names = modelManager.getVariantNames();
+        expect(names).toEqual(['beach', 'midnight']);
+        // Mutating the returned array must not defeat name validation.
+        names.push('forged');
+        expect(modelManager.getVariantNames()).toEqual(['beach', 'midnight']);
+      });
+
+      it('ignores an authored `variants` root extra (no KHR extension)', async () => {
+        // GLTFLoader copies root extras verbatim into gltf.userData — app
+        // metadata must not masquerade as colorways and grow a dead picker.
+        mockModelLoader.load.mockResolvedValue(Result.ok({
+          scene: mockModel,
+          animations: [],
+          userData: { variants: ['summer', 'winter'] },
+        }));
+
+        await modelManager.loadModel('test.glb', mockEvents);
+
+        expect(modelManager.getVariantNames()).toEqual([]);
+      });
+
+      it('clears the previous model variants when an object source loads', async () => {
+        mockModelLoader.load.mockResolvedValue(Result.ok({
+          scene: mockModel,
+          animations: [],
+          userData: { [MODEL_VARIANT_NAMES_KEY]: ['beach'] },
+        }));
+        await modelManager.loadModel('test.glb', mockEvents);
+        expect(modelManager.getVariantNames()).toEqual(['beach']);
+
+        await modelManager.loadModel(mockModel, mockEvents);
+        expect(modelManager.getVariantNames()).toEqual([]);
       });
 
       it('emits model:progress as the loader reports download progress', async () => {

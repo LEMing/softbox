@@ -16,10 +16,6 @@ describe('pickRuntimeOptions', () => {
 
     expect(pickRuntimeOptions(options)).toEqual({
       backgroundColor: '#fff',
-      backgroundColorEdge: undefined,
-      // Always emitted resolved-to-null so removing the variant restores the
-      // authored materials live.
-      variant: null,
       // The effect toggles are always emitted resolved (`?? false`) so removing
       // one from the options turns it off live; antialias stays structural.
       renderer: {
@@ -82,10 +78,23 @@ describe('pickRuntimeOptions', () => {
     const options: SimpleViewerOptions = {};
     expect(pickRuntimeOptions(options)).toEqual({
       backgroundColor: undefined,
-      backgroundColorEdge: undefined,
-      variant: null,
       renderer: { bloom: false, vignette: false, filmGrain: false, colorGrade: false },
     });
+  });
+
+  it('picks an expressed variant through, resolving undefined to null', () => {
+    expect(pickRuntimeOptions({ variant: 'beach' }).variant).toBe('beach');
+    // Explicit null (and an expressed-but-undefined key) is the declarative
+    // reset — deepMerge ignores undefined, so it must leave here as null.
+    expect(pickRuntimeOptions({ variant: null }).variant).toBeNull();
+    expect(pickRuntimeOptions({ variant: undefined }).variant).toBeNull();
+  });
+
+  it('omits variant entirely when the consumer never expressed it', () => {
+    // An absent key is "uncontrolled": emitting a resolved null here would
+    // make any unrelated runtime prop change revert a variant picked
+    // imperatively via handle.setVariant().
+    expect('variant' in pickRuntimeOptions({})).toBe(false);
   });
 
   it('picks the effect toggles through so switching one applies live', () => {

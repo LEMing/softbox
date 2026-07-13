@@ -224,9 +224,9 @@ export function SiteApp() {
         {variantNames.length > 0 && (
           <Picker
             label="Variant"
-            items={variantNames}
-            value={variant ?? ''}
-            onChange={setVariant}
+            items={['default', ...variantNames]}
+            value={variant ?? 'default'}
+            onChange={(name) => setVariant(name === 'default' ? null : name)}
           />
         )}
         <Toggles

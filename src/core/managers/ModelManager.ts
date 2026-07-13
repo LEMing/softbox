@@ -1,4 +1,12 @@
-import { IModelLoader, IObject3D, IScene, ICamera, IControls, Result } from '../interfaces';
+import {
+  IModelLoader,
+  IObject3D,
+  IScene,
+  ICamera,
+  IControls,
+  Result,
+  MODEL_VARIANT_NAMES_KEY,
+} from '../interfaces';
 import { IFloorAlignmentService } from '../services/IFloorAlignmentService';
 import { ISceneSetupService } from '../services/ISceneSetupService';
 import { ThreeViewerError, ErrorCode } from '../../errors';
@@ -65,9 +73,11 @@ export class ModelManager {
 
   /**
    * KHR_materials_variants names of the current model ([] when it has none).
+   * Returns a copy: mutating the result must not defeat the name validation
+   * that guards variant switching.
    */
   getVariantNames(): string[] {
-    return this.currentVariants;
+    return [...this.currentVariants];
   }
 
   /**
@@ -95,7 +105,7 @@ export class ModelManager {
         }
         model = loadResult.value.scene;
         this.currentVariants =
-          ((loadResult.value.userData as { variants?: string[] } | undefined)?.variants) ?? [];
+          ((loadResult.value.userData?.[MODEL_VARIANT_NAMES_KEY]) as string[] | undefined) ?? [];
       } else {
         // Use provided object
         model = source;

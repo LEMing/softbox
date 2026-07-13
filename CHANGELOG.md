@@ -8,17 +8,21 @@ Changelog
 
 * **New `options.variant`** — show a specific variant (product colorway)
   baked into the GLB. Applies LIVE: switching never rebuilds the viewer or
-  reloads the model; `null`/absent shows the authored materials; an unknown
-  name warns and keeps the defaults.
+  reloads the model; `null` is the declarative reset to the authored
+  materials, an absent option is "uncontrolled" (an imperative pick
+  survives unrelated option changes); an unknown name warns and keeps the
+  defaults.
 * **Handle API**: `getVariantNames()` enumerates the loaded model's variants,
   `setVariant(name | null)` switches imperatively (throws on unknown names).
-* three's GLTFLoader does not implement the extension — softbox resolves it
-  at load time (variant materials are materialized while the parser is
-  alive, through the loader's own final-material path), so switching is a
-  synchronous material swap and invalidates a converged path-traced frame
-  like any material change.
+* three's GLTFLoader does not implement the extension — softbox materializes
+  the variant materials right after load, in the background (first paint
+  never waits for colorways nobody opened) and through the loader's own
+  final-material path, so switching is a plain material swap; it invalidates
+  a converged path-traced frame like any material change. Variant materials
+  are owned by the model and disposed with it.
 * Playground: a Variant row appears automatically for variant-bearing
-  models; the Khronos MaterialsVariantsShoe joined the samples.
+  models (with a `default` chip back to the authored look); the Khronos
+  MaterialsVariantsShoe joined the samples.
 
 4.22.0
 ---

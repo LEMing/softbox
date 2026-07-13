@@ -133,6 +133,12 @@ viewerRef.current.setVariant('street');
 viewerRef.current.setVariant(null);    // back to the authored materials
 ```
 
+Semantics worth knowing: `variant: null` is the declarative reset, while
+*leaving the option out* is "uncontrolled" — an imperative `setVariant()`
+pick survives unrelated option changes. Variant materials materialize in
+the background right after load (first paint never waits for colorways
+nobody opened); an early pick is applied the moment they're ready.
+
 ## Turntable
 
 One word puts the model on a slowly rotating showcase turntable. It pauses while the user drags and resumes on release; toggling is live, like presets.
