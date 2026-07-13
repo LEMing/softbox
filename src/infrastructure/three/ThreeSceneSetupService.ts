@@ -11,7 +11,10 @@ import { ICamera } from '../../core/interfaces/ICamera';
 import { IControls } from '../../core/interfaces/IControls';
 import { IRenderer } from '../../core/interfaces/IRenderer';
 import { Result } from '../../utils/Result';
+import { ThreeViewerError, ErrorCode } from '../../errors';
 import { ContactShadowBaker } from './ContactShadowBaker';
+import { applyMaterialVariant, whenMaterialVariantsResolved } from './gltf/materialVariants';
+import { toThreeObject } from './unwrap';
 import {
   addDynamicGrid,
   addHelpers,
@@ -65,6 +68,22 @@ export class ThreeSceneSetupService implements ISceneSetupService {
 
   wrapInUnitsScaleGroup(object: IObject3D, scaleToMeters: number): Result<IObject3D> {
     return wrapInUnitsScaleGroup(object, scaleToMeters);
+  }
+
+  async applyMaterialVariant(model: IObject3D, variant: string | null): Promise<Result<boolean>> {
+    const native = toThreeObject(model);
+    if (!native) {
+      return Result.err(
+        new ThreeViewerError(
+          'Model must expose a Three.js Object3D',
+          ErrorCode.INVALID_PARAMETER
+        )
+      );
+    }
+    // Variant materials materialize in the background after load; an early
+    // pick waits for them (immediate for variant-less models).
+    await whenMaterialVariantsResolved(native);
+    return Result.ok(applyMaterialVariant(native, variant));
   }
 
   addLighting(scene: IScene, options: ILightingOptions): Result<void> {

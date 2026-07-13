@@ -33,6 +33,14 @@ export interface SimpleViewerHandle {
   captureVideo: (options?: CaptureVideoOptions) => Promise<Blob>;
   /** Clip names of the loaded model, in file order (empty when none). */
   getAnimationNames: () => string[];
+  /** KHR_materials_variants names of the loaded model (empty when none). */
+  getVariantNames: () => string[];
+  /**
+   * Switch the loaded model to a material variant; `null` restores the
+   * authored materials. Applies live (no reload). Throws `INVALID_PARAMETER`
+   * on a variant name the model does not carry.
+   */
+  setVariant: (variant: string | null) => void;
   /**
    * Plays one clip by name, or ALL clips when no name is given (looped).
    * Throws `INVALID_PARAMETER` on a clip name the model does not carry.

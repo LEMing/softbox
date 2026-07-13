@@ -35,6 +35,15 @@ export function pickRuntimeOptions(options: SimpleViewerOptions): Partial<Simple
     backgroundColor: options.backgroundColor,
     backgroundColorEdge: options.backgroundColorEdge,
   };
+  // Emitted only when the consumer expresses the option: an absent prop is
+  // "uncontrolled" and must not clobber a variant picked imperatively via
+  // handle.setVariant() when an unrelated runtime prop changes. The
+  // declarative reset is an explicit `variant: null` (resolved from
+  // undefined here because deepMerge ignores undefined — the
+  // backgroundColorEdge lesson).
+  if ('variant' in options) {
+    runtime.variant = options.variant ?? null;
+  }
   // The effect toggles are always emitted resolved-to-boolean (`?? false`), so
   // REMOVING an effect from the options turns it off on the live viewer —
   // deepMerge ignores `undefined`, which would otherwise leave it stuck on

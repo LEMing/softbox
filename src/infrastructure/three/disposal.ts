@@ -31,6 +31,14 @@ export const EXTERNALLY_OWNED_TEXTURES_FLAG = 'softboxExternallyOwnedTextures';
 export const BACKGROUND_NODE_FLAG = 'softboxBackgroundNode';
 
 /**
+ * `Object3D.userData` key listing materials the object OWNS beyond the one
+ * currently assigned (e.g. resolved KHR_materials_variants colorways).
+ * {@link disposeObject3D} frees them together with the object — without this,
+ * every variant the user never opened would survive the disposal walk.
+ */
+export const STASHED_MATERIALS_KEY = 'softboxStashedMaterials';
+
+/**
  * Dispose a material and every Texture it references (map, normalMap,
  * roughnessMap, metalnessMap, aoMap, emissiveMap, etc.).
  *
@@ -39,6 +47,11 @@ export const BACKGROUND_NODE_FLAG = 'softboxBackgroundNode';
  * material carries {@link EXTERNALLY_OWNED_TEXTURES_FLAG}.
  */
 export function disposeMaterial(material: THREE.Material): void {
+  // Idempotent: a material can be reachable through several owners (assigned
+  // to a mesh AND stashed as a variant) — free its textures exactly once.
+  if (material.userData.softboxDisposed) {
+    return;
+  }
   if (!material.userData?.[EXTERNALLY_OWNED_TEXTURES_FLAG]) {
     const properties = material as unknown as Record<string, unknown>;
     for (const key of Object.keys(properties)) {
@@ -88,6 +101,9 @@ export function disposeObject3D(object: THREE.Object3D): void {
     } else if (material) {
       disposeMaterial(material);
     }
+
+    const stashed = child.userData?.[STASHED_MATERIALS_KEY] as THREE.Material[] | undefined;
+    stashed?.forEach(disposeMaterial);
 
     const light = child as THREE.Light & { shadow?: { dispose?: () => void } };
     if (light.isLight && light.shadow?.dispose) {

@@ -82,6 +82,21 @@ describe('pickRuntimeOptions', () => {
     });
   });
 
+  it('picks an expressed variant through, resolving undefined to null', () => {
+    expect(pickRuntimeOptions({ variant: 'beach' }).variant).toBe('beach');
+    // Explicit null (and an expressed-but-undefined key) is the declarative
+    // reset — deepMerge ignores undefined, so it must leave here as null.
+    expect(pickRuntimeOptions({ variant: null }).variant).toBeNull();
+    expect(pickRuntimeOptions({ variant: undefined }).variant).toBeNull();
+  });
+
+  it('omits variant entirely when the consumer never expressed it', () => {
+    // An absent key is "uncontrolled": emitting a resolved null here would
+    // make any unrelated runtime prop change revert a variant picked
+    // imperatively via handle.setVariant().
+    expect('variant' in pickRuntimeOptions({})).toBe(false);
+  });
+
   it('picks the effect toggles through so switching one applies live', () => {
     const options: SimpleViewerOptions = {
       renderer: { bloom: true, colorGrade: { contrast: 0.2 } },

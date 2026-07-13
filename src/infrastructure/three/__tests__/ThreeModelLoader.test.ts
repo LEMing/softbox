@@ -1,7 +1,12 @@
 import * as THREE from 'three';
 import { ThreeGLTFLoaderAdapter, ModelLoaderFactory } from '../ThreeModelLoader';
 import { ErrorCode } from '../../../errors';
-import { gltfInstances, resetGltfMock } from '../../../__mocks__/GLTFLoaderMock';
+import { gltfInstances, resetGltfMock, setNextGltf } from '../../../__mocks__/GLTFLoaderMock';
+import {
+  VARIANT_MATERIALS_KEY,
+  whenMaterialVariantsResolved,
+} from '../gltf/materialVariants';
+import { MODEL_VARIANT_NAMES_KEY } from '../../../core/interfaces/IModelLoader';
 import { dracoInstances, resetDracoMock } from '../../../__mocks__/DRACOLoaderMock';
 import { ktx2Instances, resetKtx2Mock } from '../../../__mocks__/KTX2LoaderMock';
 import { MeshoptDecoder } from '../../../__mocks__/MeshoptDecoderMock';
@@ -127,6 +132,64 @@ describe('ThreeGLTFLoaderAdapter', () => {
       if (result.ok) {
         expect(result.value.scene).toBeDefined();
       }
+    });
+
+    it('resolves Result.err when the load callback body throws (never hangs)', async () => {
+      // A crash while adapting the parsed scene (BVH build, conversion) must
+      // surface as MODEL_LOAD_FAILED through GLTFLoader's throw→onError
+      // routing — an async callback would swallow it and hang the load.
+      setNextGltf({
+        scene: {
+          traverse: () => {
+            throw new Error('corrupt scene');
+          },
+        },
+        animations: [],
+      });
+
+      const adapter = new ThreeGLTFLoaderAdapter();
+      const result = await adapter.load('model.glb');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe(ErrorCode.MODEL_LOAD_FAILED);
+      }
+    });
+
+    it('publishes variant names at once but does not hold the load for materialization', async () => {
+      const scene = new THREE.Group();
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+      mesh.userData.gltfExtensions = {
+        KHR_materials_variants: { mappings: [{ material: 0, variants: [0] }] },
+      };
+      scene.add(mesh);
+      let releaseMaterial!: (material: THREE.Material) => void;
+      const gatedMaterial = new Promise<THREE.Material>((res) => {
+        releaseMaterial = res;
+      });
+      setNextGltf({
+        scene,
+        animations: [],
+        parser: { getDependency: () => gatedMaterial, assignFinalMaterial: () => undefined },
+        userData: {
+          gltfExtensions: { KHR_materials_variants: { variants: [{ name: 'beach' }] } },
+        },
+      });
+
+      const adapter = new ThreeGLTFLoaderAdapter();
+      // Resolves while the variant material is still gated — first paint
+      // must not wait for colorway textures the user may never open.
+      const result = await adapter.load('model.glb');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.userData?.[MODEL_VARIANT_NAMES_KEY]).toEqual(['beach']);
+      }
+      expect(mesh.userData[VARIANT_MATERIALS_KEY]).toBeUndefined();
+
+      releaseMaterial(new THREE.MeshStandardMaterial());
+      await whenMaterialVariantsResolved(scene);
+      expect(mesh.userData[VARIANT_MATERIALS_KEY]).toBeDefined();
     });
   });
 });

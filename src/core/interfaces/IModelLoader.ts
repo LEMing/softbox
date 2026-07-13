@@ -30,6 +30,14 @@ export interface IModel {
   userData?: Record<string, unknown>;
 }
 
+/**
+ * `IModel.userData` key carrying the model's KHR_materials_variants names.
+ * Namespaced: loaders copy the glTF root `extras` into userData verbatim, so a
+ * plain `variants` key could be shadowed by authored metadata that has nothing
+ * to do with colorways.
+ */
+export const MODEL_VARIANT_NAMES_KEY = 'softboxVariants';
+
 export interface IAnimation {
   name: string;
   duration: number;
