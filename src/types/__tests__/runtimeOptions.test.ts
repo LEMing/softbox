@@ -16,6 +16,10 @@ describe('pickRuntimeOptions', () => {
 
     expect(pickRuntimeOptions(options)).toEqual({
       backgroundColor: '#fff',
+      backgroundColorEdge: undefined,
+      // Always emitted resolved-to-null so removing the variant restores the
+      // authored materials live.
+      variant: null,
       // The effect toggles are always emitted resolved (`?? false`) so removing
       // one from the options turns it off live; antialias stays structural.
       renderer: {
@@ -78,6 +82,8 @@ describe('pickRuntimeOptions', () => {
     const options: SimpleViewerOptions = {};
     expect(pickRuntimeOptions(options)).toEqual({
       backgroundColor: undefined,
+      backgroundColorEdge: undefined,
+      variant: null,
       renderer: { bloom: false, vignette: false, filmGrain: false, colorGrade: false },
     });
   });

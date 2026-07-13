@@ -9,6 +9,7 @@ import {
 import { LoaderOptions } from '../../types/options';
 import { Result } from '../../utils/Result';
 import { buildRaycastBvh } from './bvh';
+import { resolveMaterialVariants } from './gltf/materialVariants';
 import { ThreeObject3DAdapter } from './ThreeObject3D';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import * as THREE from 'three';
@@ -124,10 +125,19 @@ export class ThreeGLTFLoaderAdapter implements IModelLoader {
       return new Promise((resolve) => {
         this.loader.load(
           url,
-          (gltf) => {
+          async (gltf) => {
             // Accelerate click-picking/occlusion raycasts on large models.
             if (this.config.bvh ?? true) {
               buildRaycastBvh(gltf.scene);
+            }
+            // Materialize KHR_materials_variants NOW, while the parser is
+            // still alive — the parser is not retained past this callback,
+            // and afterwards variant switching is a synchronous swap. A
+            // failure only costs the variants feature, never the model.
+            try {
+              await resolveMaterialVariants(gltf);
+            } catch (error) {
+              console.warn('Failed to resolve material variants:', error);
             }
             // GLTFLoader keeps clips off the scene; the animation service
             // reads them from the model root (the standard three convention).

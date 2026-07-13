@@ -1,6 +1,25 @@
 Changelog
 =========
 
+4.23.0
+---
+
+### Material variants (KHR_materials_variants)
+
+* **New `options.variant`** — show a specific variant (product colorway)
+  baked into the GLB. Applies LIVE: switching never rebuilds the viewer or
+  reloads the model; `null`/absent shows the authored materials; an unknown
+  name warns and keeps the defaults.
+* **Handle API**: `getVariantNames()` enumerates the loaded model's variants,
+  `setVariant(name | null)` switches imperatively (throws on unknown names).
+* three's GLTFLoader does not implement the extension — softbox resolves it
+  at load time (variant materials are materialized while the parser is
+  alive, through the loader's own final-material path), so switching is a
+  synchronous material swap and invalidates a converged path-traced frame
+  like any material change.
+* Playground: a Variant row appears automatically for variant-bearing
+  models; the Khronos MaterialsVariantsShoe joined the samples.
+
 4.22.0
 ---
 

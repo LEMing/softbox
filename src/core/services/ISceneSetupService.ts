@@ -95,6 +95,14 @@ export interface ISceneSetupService {
    * and models with a corrective root scale keep it.
    */
   wrapInUnitsScaleGroup(object: IObject3D, scaleToMeters: number): Result<IObject3D>;
+
+  /**
+   * Switch a loaded model to a KHR_materials_variants variant (or back to
+   * its authored materials with `null`). Synchronous — the loader resolved
+   * every variant's material at load time. Returns whether anything changed;
+   * an unknown name on a variant-bearing model resolves to the defaults.
+   */
+  applyMaterialVariant(model: IObject3D, variant: string | null): Result<boolean>;
 }
 
 import { GridHelperOptions, AxesHelperOptions } from '../../types/options/HelperOptions';

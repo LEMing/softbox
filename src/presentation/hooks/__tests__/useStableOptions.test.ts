@@ -36,6 +36,7 @@ type KeyCase =
 const OPTION_KEY_CONTRACT: Record<keyof Required<SimpleViewerOptions>, KeyCase> = {
   preset: { kind: 'runtime', a: 'studio', b: 'dark' },
   scene: { kind: 'structural', a: 'studio_dome', b: 'studio_soft' },
+  variant: { kind: 'runtime', a: 'beach', b: 'midnight' },
   units: { kind: 'structural', a: 'meters', b: 'centimeters' },
   floorAlignment: { kind: 'structural', a: true, b: false },
   backgroundColor: { kind: 'runtime', a: '#ffffff', b: '#000000' },

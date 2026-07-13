@@ -10,6 +10,7 @@ jest.mock('../../SimpleViewerWrapper', () => {
   const { TypedEventEmitter: Emitter } = jest.requireActual('../../events/EventEmitter');
   const events = new Emitter();
   const captureStill = jest.fn();
+  const mockState = { variants: [] as string[] };
   const MockViewer = ReactActual.forwardRef(
     (
       {
@@ -22,12 +23,16 @@ jest.mock('../../SimpleViewerWrapper', () => {
         object?: string;
         turntable?: boolean;
         animations?: boolean;
-        options?: { scene?: string };
+        options?: { scene?: string; variant?: string | null };
         children?: React.ReactNode;
       },
       ref: React.Ref<unknown>
     ) => {
-      ReactActual.useImperativeHandle(ref, () => ({ events, captureStill }));
+      ReactActual.useImperativeHandle(ref, () => ({
+        events,
+        captureStill,
+        getVariantNames: () => mockState.variants,
+      }));
       return ReactActual.createElement(
         'div',
         {
@@ -36,13 +41,25 @@ jest.mock('../../SimpleViewerWrapper', () => {
           'data-turntable': String(turntable ?? false),
           'data-animations': String(animations ?? false),
           'data-scene': String(options?.scene),
+          'data-variant': String(options?.variant ?? ''),
         },
         children
       );
     }
   );
   MockViewer.displayName = 'MockSimpleViewer';
-  return { __esModule: true, default: MockViewer, __events: events, __captureStill: captureStill };
+  return {
+    __esModule: true,
+    default: MockViewer,
+    __events: events,
+    __captureStill: captureStill,
+    get __variants() {
+      return mockState.variants;
+    },
+    set __variants(value: string[]) {
+      mockState.variants = value;
+    },
+  };
 });
 
 jest.mock('../../presentation/components/Hotspot', () => {
@@ -188,6 +205,27 @@ describe('SiteApp motion toggles', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'animations' }));
     expect(screen.getByTestId('viewer')).toHaveAttribute('data-animations', 'true');
+  });
+
+  it('offers the Variant picker only for variant-bearing models and reflects the pick', () => {
+    (viewerMock as unknown as { __variants: string[] }).__variants = [];
+    render(<SiteApp />);
+    // No variants reported → no Variant row.
+    act(() => {
+      viewerMock.__events.emit('model:loaded', { model: {} as never, loadTime: 1 });
+    });
+    expect(screen.queryByRole('group', { name: 'Variant' })).not.toBeInTheDocument();
+
+    // A variants-bearing model loads → the row appears; picking wires the option.
+    (viewerMock as unknown as { __variants: string[] }).__variants = ['midnight', 'beach'];
+    act(() => {
+      viewerMock.__events.emit('model:loaded', { model: {} as never, loadTime: 1 });
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'beach' }));
+    expect(screen.getByTestId('viewer')).toHaveAttribute('data-variant', 'beach');
+    expect(screen.getByText(/SimpleViewer/, { selector: 'pre' })).toHaveTextContent(
+      "variant: 'beach'"
+    );
   });
 
   it('switches the scene through the Scene picker and reflects it in the snippet', () => {

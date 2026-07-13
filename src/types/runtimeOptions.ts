@@ -34,6 +34,10 @@ export function pickRuntimeOptions(options: SimpleViewerOptions): Partial<Simple
   const runtime: Partial<SimpleViewerOptions> = {
     backgroundColor: options.backgroundColor,
     backgroundColorEdge: options.backgroundColorEdge,
+    // Always emitted resolved-to-null: REMOVING the variant option must
+    // restore the authored materials on the live viewer, and deepMerge
+    // ignores `undefined` (the backgroundColorEdge lesson).
+    variant: options.variant ?? null,
   };
   // The effect toggles are always emitted resolved-to-boolean (`?? false`), so
   // REMOVING an effect from the options turns it off on the live viewer —

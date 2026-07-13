@@ -355,6 +355,14 @@ export class ViewerCore {
       if (result.ok) {
         this.stateManager.setLoaded(result.value);
         this.attachAnimations(result.value);
+        // A variant chosen before the model landed (or carried by the merged
+        // options) applies now; a stale/unknown name only warns.
+        if (this.options.variant) {
+          const variantResult = this.setMaterialVariant(this.options.variant);
+          if (!variantResult.ok) {
+            console.warn('Failed to apply material variant:', variantResult.error);
+          }
+        }
         // The loop may have wound down entirely (converged path tracing) —
         // requestRender alone cannot restart a dead rAF chain, and without
         // this the new model never paints until the user touches the controls.
@@ -527,6 +535,7 @@ export class ViewerCore {
     const previousBackgroundColor = this.options.backgroundColor;
     const previousBackgroundColorEdge = this.options.backgroundColorEdge;
     const previousEnvironmentIntensity = this.options.environment?.environmentIntensity;
+    const previousVariant = this.options.variant;
     this.options = deepMerge(this.options, partial);
     // deepMerge intentionally ignores `undefined` overrides so they never wipe a
     // base value — but switching away from the dark preset sends
@@ -657,6 +666,19 @@ export class ViewerCore {
     if (pathTracingEnabled !== undefined && pathTracingEnabled !== previousPathTracingEnabled) {
       this.setPathTracingEnabled(pathTracingEnabled);
       needsRender = true;
+    }
+    // `null` is the declarative "back to authored materials" (deepMerge
+    // ignores undefined, so pickRuntimeOptions sends null for an absent
+    // variant). Guarded against re-sends of an unchanged value.
+    if ('variant' in partial) {
+      const variant = partial.variant ?? null;
+      if (variant !== (previousVariant ?? null)) {
+        const result = this.setMaterialVariant(variant);
+        if (!result.ok) {
+          console.warn('Failed to apply material variant:', result.error);
+        }
+        needsRender = true;
+      }
     }
     if (needsRender) {
       // An option change must repaint even after idle detection stopped the
@@ -869,6 +891,45 @@ export class ViewerCore {
   /** Clip names of the loaded model, in file order (empty when none). */
   getAnimationNames(): string[] {
     return this.animationService?.getClipNames() ?? [];
+  }
+
+  /** KHR_materials_variants names of the loaded model (empty when none). */
+  getVariantNames(): string[] {
+    return this.modelManager.getVariantNames();
+  }
+
+  /**
+   * Switch the loaded model to a material variant (`null` restores the
+   * authored materials). Errs on a name the model does not carry — a typo
+   * must not silently show the default look. Before a model lands the choice
+   * is only stored; the load path applies it.
+   */
+  setMaterialVariant(variant: string | null): Result<void> {
+    this.options.variant = variant ?? undefined;
+    const model = this.modelManager.getCurrentModel();
+    if (!model || !this.sceneSetupService) {
+      return Result.ok(undefined);
+    }
+    if (variant !== null && !this.modelManager.getVariantNames().includes(variant)) {
+      return Result.err(
+        new ThreeViewerError(
+          `Unknown material variant '${variant}'`,
+          ErrorCode.INVALID_PARAMETER
+        )
+      );
+    }
+    const applied = this.sceneSetupService.applyMaterialVariant(model, variant);
+    if (!applied.ok) {
+      return applied;
+    }
+    if (applied.value) {
+      // New materials invalidate a converged traced frame the same way an
+      // environment change does.
+      this.pathTracing.resetAccumulation(true);
+      this.reviveRenderLoop();
+      this.renderLoopManager.requestRender();
+    }
+    return Result.ok(undefined);
   }
 
   /**

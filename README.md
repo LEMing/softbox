@@ -35,6 +35,7 @@ Balanced studio lighting, a baked soft contact shadow that grounds the model, au
 - **[Scenes](#scenes)** — `studio_dome · studio_soft · outdoor_concrete`, one word picks the set the model stands in
 - **[Turntable](#turntable)** — one-word showcase auto-rotate that pauses while the user drags
 - **[Animations](#animations)** — GLTF clips autoplay with one word; play/pause/clip-picker API
+- **[Material variants](#material-variants)** — KHR_materials_variants colorways, switched live with one option
 - **[Photoreal mode](#photoreal-mode--stills)** — progressive path tracing + `captureStill()` PNG export
 - **[Video capture](#video-capture)** — `captureVideo()` records the canvas to WebM/MP4, zero dependencies
 - **[Hotspots & click selection](#hotspot-annotations--click-selection)** — DOM pins on world-space points, BVH-accelerated picking
@@ -113,6 +114,24 @@ switching one rebuilds the viewer.
 
 Scenes compose with presets — `scene` picks the set, `preset` grades it, and
 any explicit option you pass overrides both.
+
+## Material variants
+
+Models that carry [KHR_materials_variants](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_variants)
+(product colorways baked into one GLB) switch **live** — no rebuild, no
+reload:
+
+```tsx
+<SimpleViewer object={url} options={{ variant: 'beach' }} />
+```
+
+Enumerate and switch imperatively via the handle:
+
+```tsx
+viewerRef.current.getVariantNames();   // e.g. ['midnight', 'beach', 'street']
+viewerRef.current.setVariant('street');
+viewerRef.current.setVariant(null);    // back to the authored materials
+```
 
 ## Turntable
 

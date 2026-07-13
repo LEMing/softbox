@@ -122,6 +122,16 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
           return result.value;
         },
         getAnimationNames: () => viewer?.getAnimationNames() ?? [],
+        getVariantNames: () => viewer?.getVariantNames() ?? [],
+        setVariant: (variant: string | null) => {
+          if (!viewer) {
+            throw notReadyError();
+          }
+          const result = viewer.setMaterialVariant(variant);
+          if (!result.ok) {
+            throw result.error;
+          }
+        },
         playAnimations: (clipName?: string) => {
           if (!viewer) {
             throw notReadyError();

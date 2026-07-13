@@ -27,6 +27,8 @@ const SAMPLE_MODELS: Record<string, string> = {
   Helmet: 'helmet.glb',
   WaterBottle: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/WaterBottle/glTF-Binary/WaterBottle.glb',
   Avocado: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb',
+  // Carries KHR_materials_variants (colorways) — the Variant picker's showcase.
+  Shoe: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/MaterialsVariantsShoe/glTF-Binary/MaterialsVariantsShoe.glb',
   // Animated (Survey/Walk/Run clips) — the `animations` toggle's showcase.
   Fox: 'fox.glb',
 };
@@ -88,6 +90,8 @@ export function SiteApp() {
   const [filmGrain, setFilmGrain] = useState(false);
   const [colorGrade, setColorGrade] = useState(false);
   const [pins, setPins] = useState<Pin[]>([]);
+  const [variantNames, setVariantNames] = useState<string[]>([]);
+  const [variant, setVariant] = useState<string | null>(null);
   const [stillState, setStillState] = useState<'idle' | 'capturing' | 'failed'>('idle');
   const pinIdRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -115,12 +119,28 @@ export function SiteApp() {
     });
   }, []);
 
+  // Offer the Variant picker only for models that carry material variants.
+  useEffect(() => {
+    const handle = viewerRef.current;
+    if (!handle) {
+      return;
+    }
+    return handle.events.on('model:loaded', () => {
+      // Read the ref at call time: the handle is recreated as the viewer
+      // initializes/rebuilds, and only the latest one sees the loaded model.
+      setVariantNames(viewerRef.current?.getVariantNames() ?? []);
+    });
+  }, []);
+
   const pickerItems = dropped ? [...Object.keys(SAMPLE_MODELS), DROPPED_KEY] : Object.keys(SAMPLE_MODELS);
   const modelUrl = selected === DROPPED_KEY && dropped ? dropped.url : SAMPLE_MODELS[selected];
 
   // Pins are anchored to the current model's surface — clear them with it.
+  // Variants belong to the model too: reset both until the next load reports.
   useEffect(() => {
     setPins([]);
+    setVariant(null);
+    setVariantNames([]);
   }, [modelUrl]);
 
   const handleFileChosen = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -201,6 +221,14 @@ export function SiteApp() {
           value={scene}
           onChange={(value) => setScene(value as ViewerScene)}
         />
+        {variantNames.length > 0 && (
+          <Picker
+            label="Variant"
+            items={variantNames}
+            value={variant ?? ''}
+            onChange={setVariant}
+          />
+        )}
         <Toggles
           label="Motion"
           items={[
@@ -273,6 +301,7 @@ export function SiteApp() {
               `  options={{ ${[
                 'ui: { presets: true }',
                 ...(scene !== DEFAULT_SCENE ? [`scene: '${scene}'`] : []),
+                ...(variant ? [`variant: '${variant}'`] : []),
                 ...(pathTraced ? ['pathTracing: { enabled: true }'] : []),
               ].join(', ')} }}`,
               '/>',
@@ -313,6 +342,7 @@ export function SiteApp() {
         options={{
           ui: { presets: true },
           scene,
+          variant,
           // The Motorhome gets a declarative hero-shot camera so the framing
           // survives any structural rebuild. autoFitToObject is off so the
           // hand-tuned 30° framing sticks instead of being re-fit.

@@ -36,6 +36,15 @@ export interface SimpleViewerOptions {
   scene?: ViewerScene;
 
   /**
+   * KHR_materials_variants variant to show (e.g. a product colorway baked
+   * into the GLB). Applies LIVE — switching never rebuilds the viewer or
+   * reloads the model. `null`/absent shows the authored default materials;
+   * an unknown name warns and keeps the defaults. Enumerate the model's
+   * variants via `handle.getVariantNames()`.
+   */
+  variant?: string | null;
+
+  /**
    * Length unit the model geometry is authored in (default `'meters'`).
    * Non-meter models are rescaled on load — without touching the model's own
    * transform — to the viewer's 1-unit-=-1-meter convention that the

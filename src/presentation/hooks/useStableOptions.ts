@@ -115,7 +115,7 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
     const merged = mergeWithPreset(defaultOptions, options);
     return JSON.stringify(pickRuntimeOptions(merged));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the runtime set is fully determined by these inputs; depending on `options` would recompute on every unrelated change.
-  }, [options.preset, options.backgroundColor, options.backgroundColorEdge, options.renderer, options.environment, options.controls, options.animations, options.pathTracing]);
+  }, [options.preset, options.backgroundColor, options.backgroundColorEdge, options.variant, options.renderer, options.environment, options.controls, options.animations, options.pathTracing]);
 
   // Recomputed only when a structural or runtime key changes, so the returned
   // reference stays stable across unrelated parent re-renders.
