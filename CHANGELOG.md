@@ -1,6 +1,29 @@
 Changelog
 =========
 
+4.20.0
+---
+
+### Scenes: a structural axis next to presets
+
+* **New `options.scene`** — a one-word scene (`studio_dome` | `studio_soft`)
+  selects the physical set the model stands in: the floor, the backdrop and
+  how the built-in studio environment is built. The structural counterpart of
+  the tonal `preset` axis (presets grade the picture live; switching a scene
+  rebuilds the viewer). `studio_dome` is the default set and is pixel-for-pixel
+  the previous default look; explicit options override the scene, exactly like
+  presets.
+* **`studio_soft`** bakes the procedural studio room as-built — no contrast
+  push — for an even, low-contrast wraparound light that flatters matte
+  materials and softens speculars.
+* **New `environment.studioLook`** (`'crisp'` | `'soft'`, structural) exposes
+  the grade scenes drive; `VIEWER_SCENES` / `resolveScene` and the
+  `ViewerScene` union are exported for inspection/composition, mirroring
+  `VIEWER_PRESETS`.
+* `resetEnvironment()` now restores the studio grade the viewer was built
+  with, and the studio bake is cached per grade (both grades coexist in one
+  session without rebaking).
+
 4.19.0
 ---
 

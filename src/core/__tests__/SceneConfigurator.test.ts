@@ -194,6 +194,15 @@ describe('SceneConfigurator', () => {
       );
     });
 
+    it('builds the studio grade the scene asks for (environment.studioLook)', async () => {
+      const env = makeEnvironment();
+      await configurator.configureEnvironment(
+        makeScene(), env, makeSceneSetup(), makeRenderer(),
+        { helpers: { studioEnvironment: true }, environment: { studioLook: 'soft' } }, notDisposed
+      );
+      expect(env.createStudioEnvironment).toHaveBeenCalledWith('soft');
+    });
+
     it('applies the studio environment and a dark background in dark studio mode', async () => {
       const env = makeEnvironment();
       const sceneSetup = makeSceneSetup();

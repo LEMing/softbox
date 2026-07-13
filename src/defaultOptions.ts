@@ -1,5 +1,6 @@
 import { SimpleViewerOptions } from './types/SimpleViewerOptions';
 import { ControlType } from './types/options/ControlsOptions';
+import { DEFAULT_STUDIO_LOOK } from './types/options/EnvironmentOptions';
 
 /**
  * Default options using the new format structure
@@ -52,6 +53,9 @@ const defaultOptions: SimpleViewerOptions = {
     // read glossy/plasticky. Brightness instead comes from the diffuse
     // ambient/hemisphere fill below, keeping a bright-but-matte studio look.
     environmentIntensity: 0.5,
+    // The contrast-pushed studio grade (crisp panel highlights); scenes
+    // (`options.scene`) swap this — `studio_soft` bakes the room as-built.
+    studioLook: DEFAULT_STUDIO_LOOK,
   },
 
   // Lighting: a proper studio three-point rig. A near-neutral directional KEY

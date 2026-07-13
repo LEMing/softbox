@@ -236,6 +236,13 @@ describe('EnvironmentController.resetEnvironment', () => {
     });
   });
 
+  it('restores the studio grade the viewer was built with, not the default', () => {
+    const b = makeBundle({ options: { environment: { studioLook: 'soft' } } });
+    const result = b.controller.resetEnvironment();
+    expect(result.ok).toBe(true);
+    expect(b.environmentService!.createStudioEnvironment).toHaveBeenCalledWith('soft');
+  });
+
   it('skips the backdrop repaint when no background colour is stored', () => {
     const b = makeBundle({ options: {} });
     const result = b.controller.resetEnvironment();

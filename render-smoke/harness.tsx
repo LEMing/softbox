@@ -6,6 +6,7 @@ import {
   Hotspot,
   type SimpleViewerHandle,
   type ViewerPreset,
+  type ViewerScene,
 } from '../src';
 
 /**
@@ -13,6 +14,7 @@ import {
  * mounts the real viewer on a procedural model so Playwright can observe
  * actual WebGL pixels in CI. Scenarios are selected via query params:
  *   ?preset=studio|product|neutral|dark|outdoor   (default: none = defaults)
+ *   ?scene=studio_dome|studio_soft                (default: none = studio_dome)
  *   ?model=pillar                                 (tall-thin 20cm pillar instead of the knot)
  *   ?hotspot=1                                    (anchor a hotspot at the origin)
  *   ?turntable=1                                  (auto-rotate the camera)
@@ -51,6 +53,7 @@ console.error = (...args: unknown[]) => {
 
 const params = new URLSearchParams(window.location.search);
 const preset = (params.get('preset') as ViewerPreset | null) ?? undefined;
+const scene = (params.get('scene') as ViewerScene | null) ?? undefined;
 const modelKind = params.get('model');
 const withHotspot = params.get('hotspot') === '1';
 const turntable = params.get('turntable') === '1' || undefined;
@@ -121,6 +124,25 @@ const Harness = () => {
     };
   }, []);
 
+  const scenarioOptions = withEffects
+    ? { renderer: { bloom: true, vignette: true, filmGrain: true, colorGrade: true } }
+    : withPathTracing
+      ? {
+          // Starvation budget for SwiftShader: convergence is not the
+          // point — a WORKING tracer shows the orange knot within a few
+          // noisy samples, a broken ingest (the 0.0.24 class) shows
+          // black regardless of budget.
+          pathTracing: {
+            enabled: true,
+            maxSamples: 12,
+            bounces: 1,
+            renderScale: 0.25,
+            dynamicLowRes: false,
+          },
+        }
+      : undefined;
+  const options = scene ? { ...scenarioOptions, scene } : scenarioOptions;
+
   return (
     <SimpleViewer
       ref={viewerRef}
@@ -128,25 +150,7 @@ const Harness = () => {
       preset={preset}
       turntable={turntable}
       animations={animate}
-      options={
-        withEffects
-          ? { renderer: { bloom: true, vignette: true, filmGrain: true, colorGrade: true } }
-          : withPathTracing
-            ? {
-                // Starvation budget for SwiftShader: convergence is not the
-                // point — a WORKING tracer shows the orange knot within a few
-                // noisy samples, a broken ingest (the 0.0.24 class) shows
-                // black regardless of budget.
-                pathTracing: {
-                  enabled: true,
-                  maxSamples: 12,
-                  bounces: 1,
-                  renderScale: 0.25,
-                  dynamicLowRes: false,
-                },
-              }
-            : undefined
-      }
+      options={options}
     >
       {withHotspot && <Hotspot position={[0, 0, 0]} />}
     </SimpleViewer>

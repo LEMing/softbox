@@ -119,7 +119,11 @@ export class EnvironmentController {
         new ThreeViewerError('Environment service unavailable', ErrorCode.INVALID_STATE)
       );
     }
-    const studioResult = this.deps.environmentService.createStudioEnvironment();
+    // Restore the SAME studio grade the viewer was built with (scenes drive
+    // `environment.studioLook`), not whatever grade happens to be the default.
+    const studioResult = this.deps.environmentService.createStudioEnvironment(
+      this.deps.getOptions().environment?.studioLook
+    );
     if (!studioResult.ok) {
       return Result.err(studioResult.error);
     }

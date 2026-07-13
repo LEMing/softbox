@@ -35,6 +35,7 @@ type KeyCase =
 
 const OPTION_KEY_CONTRACT: Record<keyof Required<SimpleViewerOptions>, KeyCase> = {
   preset: { kind: 'runtime', a: 'studio', b: 'dark' },
+  scene: { kind: 'structural', a: 'studio_dome', b: 'studio_soft' },
   units: { kind: 'structural', a: 'meters', b: 'centimeters' },
   floorAlignment: { kind: 'structural', a: true, b: false },
   backgroundColor: { kind: 'runtime', a: '#ffffff', b: '#000000' },
@@ -204,5 +205,17 @@ describe('useStableOptions option-partition contract', () => {
     const absent = keysFor({});
     const explicit = keysFor({ floorAlignment: true });
     expect(explicit.structural).toBe(absent.structural);
+  });
+
+  it('scene is normalized: absent and the explicit default share a structural key', () => {
+    const absent = keysFor({});
+    const explicit = keysFor({ scene: 'studio_dome' });
+    expect(explicit.structural).toBe(absent.structural);
+  });
+
+  it('switching the scene leaves the runtime key alone — scenes carry no live look fields', () => {
+    const dome = keysFor({ scene: 'studio_dome' });
+    const soft = keysFor({ scene: 'studio_soft' });
+    expect(soft.runtime).toBe(dome.runtime);
   });
 });
