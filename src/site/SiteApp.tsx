@@ -343,6 +343,9 @@ export function SiteApp() {
           ui: { presets: true },
           scene,
           variant,
+          // Phones get the native-AR chip; desktop (and dropped blob: files)
+          // hide it on their own.
+          ar: true,
           // The Motorhome gets a declarative hero-shot camera so the framing
           // survives any structural rebuild. autoFitToObject is off so the
           // hand-tuned 30° framing sticks instead of being re-fit.

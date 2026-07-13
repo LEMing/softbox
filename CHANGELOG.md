@@ -1,6 +1,24 @@
 Changelog
 =========
 
+4.24.0
+---
+
+### AR handoff (Quick Look / Scene Viewer)
+
+* **New `options.ar`** — an AR button over the canvas that opens the model
+  in the platform's native AR viewer: AR Quick Look on iOS (via
+  `ar.iosSrc`, a USDZ counterpart — Quick Look cannot read GLB), Scene
+  Viewer on Android (reuses the loaded model's own URL; `ar: true` is
+  enough). Optional `ar.title` labels Scene Viewer's info card.
+* The button renders only where a handoff can actually happen — never on
+  desktop, not on iOS without a USDZ, not for models without a fetchable
+  network URL (dropped `blob:` files, consumer-provided Object3D) — so
+  setting `ar` unconditionally is safe.
+* UI-only, like `ui` and `loadingIndicator`: toggling it never rebuilds the
+  viewer or reloads the model, and it adds no WebXR code or bundle weight.
+* Playground: AR enabled for the sample models (visible on phones).
+
 4.23.0
 ---
 

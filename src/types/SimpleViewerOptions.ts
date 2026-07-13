@@ -11,6 +11,7 @@ import {
   LoaderOptions,
   SelectionOptions,
   UIOptions,
+  AROptions,
   ViewerPreset,
   ViewerScene,
   AnimationOptions,
@@ -146,6 +147,15 @@ export interface SimpleViewerOptions {
    * live preset picker). All opt-in; UI-only — never rebuilds the viewer.
    */
   ui?: UIOptions;
+
+  /**
+   * AR handoff button: opens the model in the platform's native AR viewer —
+   * AR Quick Look on iOS (needs `iosSrc`, a USDZ counterpart), Scene Viewer
+   * on Android (reuses the model's own URL). `true` enables with defaults.
+   * The button renders only on devices that can actually hand off, so it is
+   * safe to set unconditionally. UI-only — never rebuilds the viewer.
+   */
+  ar?: boolean | AROptions;
 
   /**
    * Click-picking / hotspot-occlusion raycast tuning (e.g. `selection: { bvh:

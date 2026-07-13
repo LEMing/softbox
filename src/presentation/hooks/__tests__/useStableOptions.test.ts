@@ -86,6 +86,9 @@ const OPTION_KEY_CONTRACT: Record<keyof Required<SimpleViewerOptions>, KeyCase> 
   loadingIndicator: { kind: 'inert', a: true, b: { label: 'Loading…' } },
   loaders: { kind: 'structural', a: {}, b: { dracoDecoderPath: '/draco/' } },
   ui: { kind: 'inert', a: { presets: false }, b: { presets: true } },
+  // React chrome over the canvas (the AR handoff button), read live off the
+  // raw options like `ui` — toggling it must never rebuild the viewer.
+  ar: { kind: 'inert', a: true, b: { iosSrc: '/model.usdz' } },
   selection: { kind: 'structural', a: { bvh: true }, b: { bvh: false } },
 };
 

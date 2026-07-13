@@ -15,6 +15,7 @@ import { ViewerGizmo } from './ViewerGizmo';
 import { ViewerErrorBoundary } from './ViewerErrorBoundary';
 import { LoadingOverlay } from './LoadingOverlay';
 import { PresetPicker } from './PresetPicker';
+import { ArButton } from './ArButton';
 import { resolveLoadingIndicator } from './loadingIndicatorConfig';
 import { ThreeObject3DAdapter } from '../../infrastructure/three/ThreeObject3D';
 import {
@@ -72,6 +73,9 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
 
     const isGizmoEnabled = options.helpers?.gizmo !== undefined && options.helpers.gizmo !== false;
     const gizmoOptions = typeof options.helpers?.gizmo === 'object' ? options.helpers.gizmo : {};
+
+    // AR handoff is UI-only chrome, read live off the raw options like `ui`.
+    const arOptions = options.ar === true ? {} : options.ar || null;
 
     // Built-in loading overlay configuration (UI-only).
     const loadingIndicator = useMemo(
@@ -221,6 +225,7 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
                  so with no preset set the studio chip is the honest active one. */
               <PresetPicker active={activePreset ?? 'studio'} onSelect={selectPreset} />
             )}
+            {arOptions && <ArButton source={object} options={arOptions} />}
             {children}
           </div>
         </ViewerProvider>
