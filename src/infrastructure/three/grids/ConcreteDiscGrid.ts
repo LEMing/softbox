@@ -101,23 +101,79 @@ interface ConcretePbrMaps {
  * `textureGrad` keeps mip selection continuous across the offset jumps.
  */
 const NO_TILE_GLSL = /* glsl */ `
-vec2 softboxHash2(vec2 p) {
-  return fract(sin(vec2(
+vec3 softboxHash3(vec2 p) {
+  return fract(sin(vec3(
     1.0 + dot(p, vec2(37.0, 17.0)),
-    2.0 + dot(p, vec2(11.0, 47.0))
+    2.0 + dot(p, vec2(11.0, 47.0)),
+    3.0 + dot(p, vec2(41.0, 29.0))
   )) * 103.0);
 }
+mat2 softboxRot(float angle) {
+  float s = sin(angle);
+  float c = cos(angle);
+  return mat2(c, -s, s, c);
+}
+// Full stochastic tiling: every virtual cell samples the SAME texture at a
+// hashed OFFSET and a hashed ROTATION (rotation is what kills directional
+// streaks — offsets alone leave the texture's grain orientation correlated
+// across cells), blended variance-preservingly (Heitz/Deliot): plain
+// averaging flattens contrast in every blend zone and that mush itself reads
+// as a cell-period quilt. Blend DEVIATIONS from the texture mean (top mip)
+// and renormalize by the blend energy — contrast stays constant everywhere.
+// textureGrad keeps mip selection continuous across the per-cell jumps.
+vec4 softboxCellSample(sampler2D samp, vec2 uv, vec2 cell, vec2 ddxv, vec2 ddyv) {
+  vec3 h = softboxHash3(cell);
+  mat2 rotation = softboxRot(h.z * 6.2831853);
+  return textureGrad(samp, rotation * uv + h.xy, rotation * ddxv, rotation * ddyv);
+}
+void softboxCellWeights(vec2 uv, out vec2 iuv, out vec4 weights) {
+  vec2 t = smoothstep(0.25, 0.75, fract(uv));
+  iuv = floor(uv);
+  weights = vec4(
+    (1.0 - t.x) * (1.0 - t.y),
+    t.x * (1.0 - t.y),
+    (1.0 - t.x) * t.y,
+    t.x * t.y
+  );
+}
 vec4 softboxTextureNoTile(sampler2D samp, vec2 uv) {
-  vec2 iuv = floor(uv);
-  vec2 fuv = fract(uv);
+  vec2 iuv;
+  vec4 w;
+  softboxCellWeights(uv, iuv, w);
   vec2 ddxv = dFdx(uv);
   vec2 ddyv = dFdy(uv);
-  vec2 blendWeight = smoothstep(0.25, 0.75, fuv);
-  vec4 a = textureGrad(samp, uv + softboxHash2(iuv), ddxv, ddyv);
-  vec4 b = textureGrad(samp, uv + softboxHash2(iuv + vec2(1.0, 0.0)), ddxv, ddyv);
-  vec4 c = textureGrad(samp, uv + softboxHash2(iuv + vec2(0.0, 1.0)), ddxv, ddyv);
-  vec4 d = textureGrad(samp, uv + softboxHash2(iuv + vec2(1.0, 1.0)), ddxv, ddyv);
-  return mix(mix(a, b, blendWeight.x), mix(c, d, blendWeight.x), blendWeight.y);
+  vec4 mean = textureLod(samp, uv, 10.0);
+  vec4 a = softboxCellSample(samp, uv, iuv, ddxv, ddyv) - mean;
+  vec4 b = softboxCellSample(samp, uv, iuv + vec2(1.0, 0.0), ddxv, ddyv) - mean;
+  vec4 c = softboxCellSample(samp, uv, iuv + vec2(0.0, 1.0), ddxv, ddyv) - mean;
+  vec4 d = softboxCellSample(samp, uv, iuv + vec2(1.0, 1.0), ddxv, ddyv) - mean;
+  vec4 blended = mean + (w.x * a + w.y * b + w.z * c + w.w * d) * inversesqrt(dot(w, w));
+  return clamp(blended, 0.0, 1.0);
+}
+// Tangent-space normals need the inverse per-cell rotation applied to each
+// sampled vector BEFORE blending, or the relief would point the wrong way.
+vec3 softboxNormalCellSample(sampler2D samp, vec2 uv, vec2 cell, vec2 ddxv, vec2 ddyv) {
+  vec3 h = softboxHash3(cell);
+  float angle = h.z * 6.2831853;
+  mat2 rotation = softboxRot(angle);
+  vec3 mapN = textureGrad(samp, rotation * uv + h.xy, rotation * ddxv, rotation * ddyv).xyz * 2.0 - 1.0;
+  mapN.xy = softboxRot(-angle) * mapN.xy;
+  return mapN;
+}
+vec3 softboxNormalNoTile(sampler2D samp, vec2 uv) {
+  vec2 iuv;
+  vec4 w;
+  softboxCellWeights(uv, iuv, w);
+  vec2 ddxv = dFdx(uv);
+  vec2 ddyv = dFdy(uv);
+  vec3 flat3 = vec3(0.0, 0.0, 1.0);
+  vec3 a = softboxNormalCellSample(samp, uv, iuv, ddxv, ddyv) - flat3;
+  vec3 b = softboxNormalCellSample(samp, uv, iuv + vec2(1.0, 0.0), ddxv, ddyv) - flat3;
+  vec3 c = softboxNormalCellSample(samp, uv, iuv + vec2(0.0, 1.0), ddxv, ddyv) - flat3;
+  vec3 d = softboxNormalCellSample(samp, uv, iuv + vec2(1.0, 1.0), ddxv, ddyv) - flat3;
+  return normalize(
+    flat3 + (w.x * a + w.y * b + w.z * c + w.w * d) * inversesqrt(dot(w, w))
+  );
 }
 `;
 
@@ -132,7 +188,7 @@ const NO_TILE_MAP_FRAGMENT = /* glsl */ `
 `;
 const NO_TILE_NORMAL_FRAGMENT = /* glsl */ `
 #ifdef USE_NORMALMAP_TANGENTSPACE
-  vec3 mapN = softboxTextureNoTile( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;
+  vec3 mapN = softboxNormalNoTile( normalMap, vNormalMapUv );
   mapN.xy *= normalScale;
   normal = normalize( tbn * mapN );
 #endif
