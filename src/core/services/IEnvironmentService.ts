@@ -55,4 +55,10 @@ export interface IEnvironmentApplyOptions {
    * not put its raw PMREM texture on screen).
    */
   setBackground?: boolean;
+  /**
+   * Project the environment onto a virtual ground plane (GroundedSkybox) so
+   * the model stands IN the world. Only takes effect when an equirect source
+   * exists for the applied environment.
+   */
+  groundProjection?: { height: number; radius: number };
 }

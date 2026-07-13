@@ -3,7 +3,13 @@ export interface GridHelperOptions {
   divisions?: number;
   colorCenterLine?: string | number;
   colorGrid?: string | number;
-  type?: 'shadow_floor' | 'square_wire' | 'hexagonal_wire' | 'hexagonal_glass' | 'stone_tiles';
+  type?:
+    | 'shadow_floor'
+    | 'concrete_disc'
+    | 'square_wire'
+    | 'hexagonal_wire'
+    | 'hexagonal_glass'
+    | 'stone_tiles';
   opacity?: number;
   styleOptions?: {
     // For hexagonal grids

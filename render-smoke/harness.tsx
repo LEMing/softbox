@@ -14,7 +14,9 @@ import {
  * mounts the real viewer on a procedural model so Playwright can observe
  * actual WebGL pixels in CI. Scenarios are selected via query params:
  *   ?preset=studio|product|neutral|dark|outdoor   (default: none = defaults)
- *   ?scene=studio_dome|studio_soft                (default: none = studio_dome)
+ *   ?scene=studio_dome|studio_soft|outdoor_concrete (default: none = studio_dome)
+ *   ?env=<url>                                    (explicit environment.url — lets outdoor
+ *                                                  scenes run offline via a local sky image)
  *   ?model=pillar                                 (tall-thin 20cm pillar instead of the knot)
  *   ?hotspot=1                                    (anchor a hotspot at the origin)
  *   ?turntable=1                                  (auto-rotate the camera)
@@ -55,6 +57,7 @@ console.error = (...args: unknown[]) => {
 const params = new URLSearchParams(window.location.search);
 const preset = (params.get('preset') as ViewerPreset | null) ?? undefined;
 const initialScene = (params.get('scene') as ViewerScene | null) ?? undefined;
+const envUrl = params.get('env') ?? undefined;
 const modelKind = params.get('model');
 const withHotspot = params.get('hotspot') === '1';
 const turntable = params.get('turntable') === '1' || undefined;
@@ -146,7 +149,10 @@ const Harness = () => {
           },
         }
       : undefined;
-  const options = scene ? { ...scenarioOptions, scene } : scenarioOptions;
+  // Explicit options win over the scene's fragment, so a local `?env=` image
+  // replaces an outdoor scene's CDN HDRI — CI stays offline.
+  const withScene = scene ? { ...scenarioOptions, scene } : scenarioOptions;
+  const options = envUrl ? { ...withScene, environment: { url: envUrl } } : withScene;
 
   return (
     <SimpleViewer

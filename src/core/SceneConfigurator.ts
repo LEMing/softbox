@@ -7,6 +7,26 @@ import { Vec3Like } from './interfaces/Vec3Like';
 
 const DARK_STUDIO_BACKGROUND = '#1a1a1f';
 
+// GroundedSkybox defaults: a typical eye-level HDRI shot height, projected
+// onto a set large enough that its "walls" sit far outside any orbit.
+const GROUND_PROJECTION_HEIGHT_METERS = 2;
+const GROUND_PROJECTION_RADIUS_METERS = 120;
+
+/** Normalize the public `boolean | {height?, radius?}` shape to the concrete
+ * projection the environment service applies, or undefined when off. */
+const resolveGroundProjection = (
+  groundProjection: boolean | { height?: number; radius?: number } | undefined
+): { height: number; radius: number } | undefined => {
+  if (!groundProjection) {
+    return undefined;
+  }
+  const overrides = typeof groundProjection === 'object' ? groundProjection : {};
+  return {
+    height: overrides.height ?? GROUND_PROJECTION_HEIGHT_METERS,
+    radius: overrides.radius ?? GROUND_PROJECTION_RADIUS_METERS,
+  };
+};
+
 /**
  * Normalize a light position to the `[x, y, z]` tuple the engine layer expects.
  * The public option types accept a `{x, y, z}` `Vec3Like` too, so honour it
@@ -148,7 +168,10 @@ export class SceneConfigurator {
         return;
       }
       if (envResult.ok) {
-        environmentService.applyToScene(scene, envResult.value, applyOptions);
+        environmentService.applyToScene(scene, envResult.value, {
+          ...applyOptions,
+          groundProjection: resolveGroundProjection(options.environment?.groundProjection),
+        });
       } else {
         console.warn('Failed to load environment map:', envResult.error);
       }

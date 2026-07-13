@@ -4,7 +4,8 @@ import defaultOptions from '../defaultOptions';
 import { deepMerge } from '../utils/deepMerge';
 import { ViewerScene } from '../types/options';
 
-const ALL_SCENES: ViewerScene[] = ['studio_dome', 'studio_soft'];
+const ALL_SCENES: ViewerScene[] = ['studio_dome', 'studio_soft', 'outdoor_concrete'];
+const STUDIO_SCENES: ViewerScene[] = ['studio_dome', 'studio_soft'];
 
 describe('viewer scenes', () => {
   it('defines every scene in the ViewerScene union', () => {
@@ -27,12 +28,11 @@ describe('viewer scenes', () => {
   it('every scene sets only structural set fields — never the live look fields presets own', () => {
     for (const name of ALL_SCENES) {
       const scene = VIEWER_SCENES[name];
-      // The set: floor + how the studio environment is built.
+      // The set: every scene picks a floor...
       expect(scene.helpers?.grid).toBeDefined();
-      expect(scene.helpers?.studioEnvironment).toBe(true);
-      expect(scene.environment?.studioLook).toBeDefined();
-      // No runtime look fields — those belong to the preset (tonal) axis, and
-      // a scene carrying one would smuggle a rebuild into a "live" change.
+      // ...and no runtime look fields — those belong to the preset (tonal)
+      // axis, and a scene carrying one would smuggle a rebuild into a "live"
+      // change.
       expect(scene.backgroundColor).toBeUndefined();
       expect(scene.backgroundColorEdge).toBeUndefined();
       expect(scene.renderer).toBeUndefined();
@@ -41,6 +41,19 @@ describe('viewer scenes', () => {
       expect(scene.pathTracing).toBeUndefined();
       expect(scene.animations).toBeUndefined();
     }
+  });
+
+  it('studio scenes build the procedural environment; outdoor scenes light with an HDRI url', () => {
+    for (const name of STUDIO_SCENES) {
+      const scene = VIEWER_SCENES[name];
+      expect(scene.helpers?.studioEnvironment).toBe(true);
+      expect(scene.environment?.studioLook).toBeDefined();
+      expect(scene.environment?.url).toBeUndefined();
+    }
+    const outdoor = VIEWER_SCENES.outdoor_concrete;
+    expect(outdoor.helpers?.studioEnvironment).toBe(false);
+    expect(outdoor.environment?.url).toEqual(expect.stringMatching(/^https:\/\/.+\.hdr$/));
+    expect(outdoor.helpers?.grid).toEqual({ type: 'concrete_disc' });
   });
 
   it('studio_dome mirrors the defaults — scene: "studio_dome" and no scene are the same viewer', () => {

@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment';
+import { GroundedSkybox } from 'three/examples/jsm/objects/GroundedSkybox';
 import { applyStudioContrast } from './studioEnvironmentContrast';
+import { CONTACT_SHADOW_HELPER_FLAG } from './ContactShadowBaker';
 import { 
   IEnvironmentService, 
   IEnvironmentOptions,
@@ -27,6 +29,9 @@ const STUDIO_CUBE_FAR_METERS = 100;
 type SceneWithOriginalTexture = THREE.Scene & {
   __originalEnvironmentTexture?: THREE.Texture;
 };
+
+/** Scene-graph name of the ground-projected skybox mesh, for lookup/removal. */
+export const GROUNDED_SKYBOX_NAME = 'softbox-grounded-skybox';
 
 /** One session bake of the studio room: the PMREM the raster pipeline lights
  * with plus the cube capture the path tracer reads. The capture is
@@ -258,6 +263,20 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         }
       }
 
+      // Ground projection: every environment application clears the previous
+      // skybox (a stale one would keep painting the OLD environment's world);
+      // one is (re)built only when requested and an equirect source exists.
+      this.removeGroundedSkybox(threeScene);
+      const equirect =
+        threeTexture.mapping === THREE.EquirectangularReflectionMapping
+          ? threeTexture
+          : original?.mapping === THREE.EquirectangularReflectionMapping
+            ? original
+            : null;
+      if (options?.groundProjection && equirect) {
+        this.addGroundedSkybox(threeScene, equirect, options.groundProjection);
+      }
+
       return Result.ok(undefined);
     } catch (error) {
       return Result.err(
@@ -268,6 +287,39 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         )
       );
     }
+  }
+
+  /**
+   * A GroundedSkybox projects the equirect environment onto a virtual ground
+   * plane so the model appears to STAND in the world instead of floating in
+   * front of a backdrop. It is a raster-only presentation trick: the mesh is
+   * flagged like the other shadow helpers so the path tracer's ingest hides
+   * it and lights from the equirect environment directly (an enclosing
+   * projected sphere would occlude that env exactly like the studio dome
+   * would).
+   */
+  private addGroundedSkybox(
+    threeScene: THREE.Scene,
+    equirect: THREE.Texture,
+    projection: { height: number; radius: number }
+  ): void {
+    const skybox = new GroundedSkybox(equirect, projection.height, projection.radius);
+    skybox.name = GROUNDED_SKYBOX_NAME;
+    skybox.userData[CONTACT_SHADOW_HELPER_FLAG] = true;
+    skybox.position.y = projection.height - 0.01;
+    threeScene.add(skybox);
+  }
+
+  /** Remove and free a previous ground projection (its map is cache-owned). */
+  private removeGroundedSkybox(threeScene: THREE.Scene): void {
+    const existing = threeScene.getObjectByName(GROUNDED_SKYBOX_NAME) as THREE.Mesh | undefined;
+    if (!existing) {
+      return;
+    }
+    existing.removeFromParent();
+    existing.geometry.dispose();
+    const materials = Array.isArray(existing.material) ? existing.material : [existing.material];
+    materials.forEach((material) => material.dispose());
   }
 
   /**

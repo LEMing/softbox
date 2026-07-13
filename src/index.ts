@@ -17,7 +17,7 @@ export * from './types/options'
 export { VIEWER_PRESETS, resolvePreset } from './presets'
 
 // Scenes (the data behind `options.scene`), for inspection/composition
-export { VIEWER_SCENES, resolveScene, DEFAULT_SCENE } from './scenes'
+export { VIEWER_SCENES, resolveScene, DEFAULT_SCENE, DEFAULT_OUTDOOR_HDRI_URL } from './scenes'
 
 // Typed event system
 export { TypedEventEmitter } from './events'

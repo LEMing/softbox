@@ -201,6 +201,43 @@ test('switching the scene on a live viewer reloads the model (structural rebuild
   expect(errors).toEqual([]);
 });
 
+test('outdoor_concrete scene: the env image replaces the studio backdrop', async ({ page }) => {
+  test.setTimeout(360_000);
+  const errors = await openScene(page);
+  const studioSky = pixelAt(await screenshotCanvas(page), 2, 2);
+
+  // A local LDR sky stands in for the CDN HDRI (explicit environment.url wins
+  // over the scene fragment) so CI never fetches over the network.
+  await page.goto(`${HARNESS}?scene=outdoor_concrete&env=/render-smoke/sky.png`);
+  await waitForBoot(page);
+  const png = await screenshotCanvas(page);
+
+  // The env image owns the background: the frame no longer opens on the
+  // studio's light-grey gradient. (Absolute sky colors are heavily compressed
+  // by tone mapping, so assert the studio↔outdoor gap, not a hue.)
+  const outdoorSky = pixelAt(png, 2, 2);
+  expect(colorDistance(outdoorSky, studioSky)).toBeGreaterThan(40);
+
+  // The outdoor set is heterogeneous (projected sky + concrete ground), so a
+  // single-reference coverage metric is meaningless here — detect the model
+  // directly instead: the orange knot's red clearly dominates its other
+  // channels; sky and concrete are both near-neutral.
+  let orange = 0;
+  const total = png.width * png.height;
+  for (let i = 0; i < total; i += 1) {
+    const offset = i << 2;
+    if (
+      png.data[offset] > png.data[offset + 1] + 40 &&
+      png.data[offset] > png.data[offset + 2] + 40
+    ) {
+      orange += 1;
+    }
+  }
+  expect(orange / total).toBeGreaterThan(0.005);
+
+  expect(errors).toEqual([]);
+});
+
 test('hotspot projects the origin anchor onto the model base', async ({ page }) => {
   const errors = await openScene(page, '?hotspot=1');
 

@@ -32,7 +32,7 @@ Balanced studio lighting, a baked soft contact shadow that grounds the model, au
 ## What you get
 
 - **[Visual presets](#visual-presets)** — `studio · product · neutral · dark · outdoor`, one word, switched live
-- **[Scenes](#scenes)** — `studio_dome · studio_soft`, one word picks the set the model stands in
+- **[Scenes](#scenes)** — `studio_dome · studio_soft · outdoor_concrete`, one word picks the set the model stands in
 - **[Turntable](#turntable)** — one-word showcase auto-rotate that pauses while the user drags
 - **[Animations](#animations)** — GLTF clips autoplay with one word; play/pause/clip-picker API
 - **[Photoreal mode](#photoreal-mode--stills)** — progressive path tracing + `captureStill()` PNG export
@@ -93,14 +93,19 @@ built-in studio environment is built. Unlike presets, a scene is structural:
 switching one rebuilds the viewer.
 
 ```tsx
-<SimpleViewer object={url} options={{ scene: 'studio_soft' }} />
-// studio_dome (default) | studio_soft
+<SimpleViewer object={url} options={{ scene: 'outdoor_concrete' }} />
+// studio_dome (default) | studio_soft | outdoor_concrete
 ```
 
 - `studio_dome` — the default set: shadow-catcher floor, baked soft contact
   shadow and a crisp, contrast-pushed studio light with distinct highlights.
 - `studio_soft` — the same set lit softly: an even, low-contrast wraparound
   light that flatters matte materials and softens speculars.
+- `outdoor_concrete` — open air: a daylight HDRI lights the model and paints
+  the sky, standing on a large matte concrete ground disc. The HDRI (CC0,
+  [Poly Haven](https://polyhaven.com/)) is fetched from their CDN by default —
+  the one network request this scene makes; pass your own `environment.url`
+  to override or self-host it, like the [decoder paths](#loaders).
 
 Scenes compose with presets — `scene` picks the set, `preset` grades it, and
 any explicit option you pass overrides both.

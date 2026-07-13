@@ -22,7 +22,8 @@ jest.mock('../studioEnvironmentContrast', () => ({
 
 import * as THREE from 'three';
 import { applyStudioContrast } from '../studioEnvironmentContrast';
-import { ThreeEnvironmentService } from '../ThreeEnvironmentService';
+import { ThreeEnvironmentService, GROUNDED_SKYBOX_NAME } from '../ThreeEnvironmentService';
+import { CONTACT_SHADOW_HELPER_FLAG } from '../ContactShadowBaker';
 import { ThreeSceneAdapter } from '../ThreeScene';
 import { IRenderer } from '../../../core/interfaces/IRenderer';
 import { IScene, ITexture } from '../../../core/interfaces/IScene';
@@ -216,6 +217,32 @@ describe('ThreeEnvironmentService', () => {
       pmremGenerator: { fromScene: jest.Mock };
     }).pmremGenerator;
     expect(generator.fromScene).toHaveBeenCalledTimes(1);
+  });
+
+  it('ground projection: builds a tracer-hidden skybox for an equirect env, clears it on re-apply', async () => {
+    const service = await initialized();
+    const loaded = await service.loadEnvironmentMap('env.hdr');
+    if (!loaded.ok) throw loaded.error;
+    const scene = new ThreeSceneAdapter();
+
+    const applied = service.applyToScene(scene, loaded.value, {
+      groundProjection: { height: 2, radius: 120 },
+    });
+    expect(applied.ok).toBe(true);
+    const threeScene = scene.getThreeScene();
+    const skybox = threeScene.getObjectByName(GROUNDED_SKYBOX_NAME) as THREE.Mesh;
+    expect(skybox).toBeDefined();
+    // Raster-only presentation: the tracer's ingest must hide it, or the
+    // projected sphere would occlude the HDRI environment (the dome problem).
+    expect(skybox.userData[CONTACT_SHADOW_HELPER_FLAG]).toBe(true);
+    expect(skybox.userData.__groundedSkyboxParams).toEqual({ height: 2, radius: 120 });
+    expect(skybox.position.y).toBeCloseTo(1.99);
+
+    // Re-applying WITHOUT projection removes the stale skybox (it would keep
+    // painting the previous environment's world).
+    const reapplied = service.applyToScene(scene, loaded.value, {});
+    expect(reapplied.ok).toBe(true);
+    expect(threeScene.getObjectByName(GROUNDED_SKYBOX_NAME)).toBeUndefined();
   });
 
   it('bakes each studio grade once and caches them independently', async () => {

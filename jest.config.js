@@ -15,6 +15,7 @@ export default {
     '^three/examples/jsm/loaders/EXRLoader$': '<rootDir>/src/__mocks__/EXRLoaderMock.ts',
     '^three/examples/jsm/loaders/RGBELoader$': '<rootDir>/src/__mocks__/RGBELoaderMock.ts',
     '^three/examples/jsm/environments/RoomEnvironment$': '<rootDir>/src/__mocks__/RoomEnvironmentMock.ts',
+    '^three/examples/jsm/objects/GroundedSkybox$': '<rootDir>/src/__mocks__/GroundedSkyboxMock.ts',
     '^three/examples/jsm/postprocessing/Pass\\.js$': '<rootDir>/src/__mocks__/PassMock.ts',
     '^three-gpu-pathtracer$': '<rootDir>/src/__mocks__/three-gpu-pathtracer.ts',
     '^three$': '<rootDir>/node_modules/three',
