@@ -89,6 +89,9 @@ const OPTION_KEY_CONTRACT: Record<keyof Required<SimpleViewerOptions>, KeyCase> 
   // React chrome over the canvas (the AR handoff button), read live off the
   // raw options like `ui` — toggling it must never rebuild the viewer.
   ar: { kind: 'inert', a: true, b: { iosSrc: '/model.usdz' } },
+  // React chrome too (the first-paint poster image) — swapping the image
+  // must never tear down a booting viewer.
+  poster: { kind: 'inert', a: '/poster-a.jpg', b: '/poster-b.jpg' },
   selection: { kind: 'structural', a: { bvh: true }, b: { bvh: false } },
 };
 

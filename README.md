@@ -37,6 +37,7 @@ Balanced studio lighting, a baked soft contact shadow that grounds the model, au
 - **[Animations](#animations)** — GLTF clips autoplay with one word; play/pause/clip-picker API
 - **[Material variants](#material-variants)** — KHR_materials_variants colorways, switched live with one option
 - **[AR](#ar)** — one option hands the model to AR Quick Look (iOS) / Scene Viewer (Android)
+- **[Poster](#poster)** — an image is the instant first paint; the live model dissolves in when ready
 - **[Photoreal mode](#photoreal-mode--stills)** — progressive path tracing + `captureStill()` PNG export
 - **[Video capture](#video-capture)** — `captureVideo()` records the canvas to WebM/MP4, zero dependencies
 - **[Hotspots & click selection](#hotspot-annotations--click-selection)** — DOM pins on world-space points, BVH-accelerated picking
@@ -166,6 +167,21 @@ platform's native AR viewer — no WebXR session, no extra bundle:
 `placement` picks the corner (`bottom-left` by default; it lifts above the
 built-in preset picker on its own). UI-only: toggling `ar` never rebuilds
 the viewer or reloads the model.
+
+## Poster
+
+A poster image is the viewer's **instant first paint** — shown until the
+model's first painted frame, then dissolved into the live scene:
+
+```tsx
+<SimpleViewer object={url} options={{ poster: '/hero.webp', loading: 'lazy' }} />
+```
+
+With `loading: 'lazy'` the combination is LCP-friendly: the page paints the
+poster immediately with zero WebGL work, and the real viewer boots only
+when scrolled into view. Generate posters with `handle.captureStill()` —
+same studio look, pixel-identical to what the live viewer will show. If the
+load fails, the poster stays up as the backdrop under the error overlay.
 
 ## Turntable
 

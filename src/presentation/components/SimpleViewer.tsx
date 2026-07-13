@@ -24,6 +24,7 @@ import { ViewerErrorBoundary } from './ViewerErrorBoundary';
 import { LoadingOverlay } from './LoadingOverlay';
 import { PresetPicker } from './PresetPicker';
 import { ArButton } from './ArButton';
+import { PosterOverlay } from './PosterOverlay';
 import { resolveLoadingIndicator } from './loadingIndicatorConfig';
 import { ThreeObject3DAdapter } from '../../infrastructure/three/ThreeObject3D';
 import {
@@ -101,6 +102,32 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
       return () => events.off('model:loaded', updateLoadedUrl);
     }, [viewer, events]);
     const arSource = loadedModelUrl ?? object;
+
+    // The poster dismisses on the first frame PAINTED after the model
+    // landed — model:loaded alone races the actual draw, and dropping the
+    // poster a frame early flashes the empty stage.
+    const posterSrc = options.poster || null;
+    const [posterDismissed, setPosterDismissed] = useState(false);
+    useEffect(() => {
+      if (!posterSrc || posterDismissed) {
+        return;
+      }
+      let modelPainted = false;
+      const onLoaded = () => {
+        modelPainted = true;
+      };
+      const onRendered = () => {
+        if (modelPainted) {
+          setPosterDismissed(true);
+        }
+      };
+      events.on('model:loaded', onLoaded);
+      events.on('render:complete', onRendered);
+      return () => {
+        events.off('model:loaded', onLoaded);
+        events.off('render:complete', onRendered);
+      };
+    }, [posterSrc, posterDismissed, events]);
 
     // Built-in loading overlay configuration (UI-only).
     const loadingIndicator = useMemo(
@@ -253,6 +280,7 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
             {arOptions && (
               <ArButton source={arSource} options={arOptions} clearPresetRow={pickerEnabled} />
             )}
+            {posterSrc && <PosterOverlay src={posterSrc} visible={!posterDismissed} />}
             {children}
           </div>
         </ViewerProvider>

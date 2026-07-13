@@ -149,6 +149,16 @@ export interface SimpleViewerOptions {
   ui?: UIOptions;
 
   /**
+   * Poster image (URL) shown over the canvas until the model's first painted
+   * frame. Composes with `loading: 'lazy'`: the poster is the instant,
+   * WebGL-free first paint while the real viewer boots and the GLB
+   * downloads. Generate one with `handle.captureStill()`. Stays up as the
+   * backdrop if the load errs (the error overlay renders above it).
+   * UI-only — changing it never rebuilds the viewer.
+   */
+  poster?: string;
+
+  /**
    * AR handoff button: opens the model in the platform's native AR viewer —
    * AR Quick Look on iOS (needs `iosSrc`, a USDZ counterpart), Scene Viewer
    * on Android (reuses the model's own URL). `true` enables with defaults.
