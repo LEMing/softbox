@@ -1,6 +1,25 @@
 Changelog
 =========
 
+4.20.1
+---
+
+### Fix: a fast structural rebuild could leave the canvas silently blank
+
+* **The rebuilt viewer always receives the model now.** Changing any
+  structural option on a live viewer (a scene switch, `units`, `camera`, …)
+  tears the viewer down and builds a fresh one. When the new viewer
+  initialized quickly, React collapsed the `isInitialized` false→true flip
+  into one batch (net unchanged → render bail-out), so every consumer of the
+  render-time viewer reference — the model loader, the event bridge, the
+  imperative handle — kept holding the disposed viewer and the model never
+  loaded: a blank canvas with no error anywhere. A monotonic init-generation
+  signal now forces the re-render that hands out the fresh viewer. Pinned by
+  a real-browser render-smoke test that flips the scene on a live viewer.
+* **Playground: Scene picker.** The site's control panel grew a Scene row
+  (`studio_dome` | `studio_soft`) wired to `options.scene`, and the usage
+  snippet reflects the picked scene.
+
 4.20.0
 ---
 

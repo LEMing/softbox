@@ -23,6 +23,14 @@ export function useViewerCore(
   // the wrong aspect and never refreshes it).
   const lastResizeRef = useRef({ width: 0, height: 0 });
   const [isInitialized, setIsInitialized] = useState(false);
+  // Monotonic re-render signal for "a viewer finished initializing". A fast
+  // rebuild flips isInitialized false→true within one React batch — net
+  // unchanged, so React bails out of re-rendering and every consumer of the
+  // render-time `viewer` value (model loader, events, the imperative handle)
+  // keeps holding the DISPOSED viewer: the fresh one never gets the model and
+  // the canvas silently stays blank. A counter never nets out, so bumping it
+  // guarantees the re-render that hands out the fresh viewer.
+  const [, setInitGeneration] = useState(0);
   const [initError, setInitError] = useState<Error | null>(null);
 
   // Split options into structural (rebuild) and runtime (apply live) sets
@@ -76,6 +84,7 @@ export function useViewerCore(
       }
       if (result.ok) {
         setIsInitialized(true);
+        setInitGeneration((generation) => generation + 1);
       } else {
         console.error('Failed to initialize viewer:', result.error);
         setInitError(result.error);

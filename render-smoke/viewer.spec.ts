@@ -168,6 +168,30 @@ test('studio_soft scene relights the model without touching the backdrop', async
   expect(errors).toEqual([]);
 });
 
+test('switching the scene on a live viewer reloads the model (structural rebuild)', async ({ page }) => {
+  test.setTimeout(360_000);
+  const errors = await openScene(page);
+
+  // Flip the scene on the LIVE viewer. The rebuild's isInitialized false→true
+  // once collapsed into a single React batch (net unchanged → render
+  // bail-out), so the fresh viewer never received the model: a silently blank
+  // canvas with no error anywhere. Real-browser timing is what reproduced it.
+  await page.evaluate(() => {
+    window.__modelLoaded = false;
+    window.__renderedFrames = 0;
+    window.__setScene('studio_soft');
+  });
+  await waitForBoot(page);
+
+  const png = await screenshotCanvas(page);
+  const background = pixelAt(png, 2, 2);
+  const modelCoverage = coverage(png, background);
+  expect(modelCoverage).toBeGreaterThan(0.02);
+  expect(modelCoverage).toBeLessThan(0.9);
+
+  expect(errors).toEqual([]);
+});
+
 test('hotspot projects the origin anchor onto the model base', async ({ page }) => {
   const errors = await openScene(page, '?hotspot=1');
 

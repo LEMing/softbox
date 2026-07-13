@@ -8,6 +8,8 @@ import { CodeSnippet } from './CodeSnippet';
 import { useDropModel } from './useDropModel';
 import { useMediaQuery } from './useMediaQuery';
 import { FONT, glassPanel } from './siteTheme';
+import { DEFAULT_SCENE, VIEWER_SCENES } from '../scenes';
+import type { ViewerScene } from '../types/options';
 
 // The Khronos sample set mixes wildly different authored scales (some in
 // real-world meters, some arbitrary). WaterBottle and Avocado are already
@@ -77,6 +79,7 @@ const downloadDataUrl = (dataUrl: string, filename: string) => {
 export function SiteApp() {
   const { dropped, isDragging, rejectedName, loadFile } = useDropModel();
   const [selected, setSelected] = useState<string>('Motorhome');
+  const [scene, setScene] = useState<ViewerScene>(DEFAULT_SCENE);
   const [turntable, setTurntable] = useState(false);
   const [animations, setAnimations] = useState(false);
   const [pathTraced, setPathTraced] = useState(false);
@@ -192,6 +195,12 @@ export function SiteApp() {
           </a>
         </div>
         <Picker label="Model" items={pickerItems} value={selected} onChange={setSelected} />
+        <Picker
+          label="Scene"
+          items={Object.keys(VIEWER_SCENES)}
+          value={scene}
+          onChange={(value) => setScene(value as ViewerScene)}
+        />
         <Toggles
           label="Motion"
           items={[
@@ -261,9 +270,11 @@ export function SiteApp() {
               '  object="/model.glb"',
               ...(turntable ? ['  turntable'] : []),
               ...(animations ? ['  animations'] : []),
-              pathTraced
-                ? '  options={{ ui: { presets: true }, pathTracing: { enabled: true } }}'
-                : '  options={{ ui: { presets: true } }}',
+              `  options={{ ${[
+                'ui: { presets: true }',
+                ...(scene !== DEFAULT_SCENE ? [`scene: '${scene}'`] : []),
+                ...(pathTraced ? ['pathTracing: { enabled: true }'] : []),
+              ].join(', ')} }}`,
               '/>',
             ].join('\n')}
           />
@@ -301,6 +312,7 @@ export function SiteApp() {
         animations={animations}
         options={{
           ui: { presets: true },
+          scene,
           // The Motorhome gets a declarative hero-shot camera so the framing
           // survives any structural rebuild. autoFitToObject is off so the
           // hand-tuned 30° framing sticks instead of being re-fit.
