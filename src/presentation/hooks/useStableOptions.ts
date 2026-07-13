@@ -65,6 +65,10 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
         // fields — flipping auto-rotate must not reload the model.
         controls: structuralPart(options.controls, ...RUNTIME_CONTROLS_FIELDS),
         environment: structuralPart(options.environment, ...RUNTIME_ENVIRONMENT_FIELDS),
+        // The scene selects the physical set (floor, backdrop, environment
+        // build) — structural by definition. Normalized so absent and the
+        // explicit default share a key.
+        scene: options.scene ?? 'studio_dome',
         lighting: options.lighting,
         // helpers minus `gizmo`: the gizmo is React chrome over the canvas
         // (read live by SimpleViewer, touched by nothing in core), so toggling
@@ -92,6 +96,7 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
       options.camera,
       options.controls,
       options.environment,
+      options.scene,
       options.lighting,
       options.helpers,
       options.rendering,

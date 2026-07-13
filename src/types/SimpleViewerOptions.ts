@@ -12,6 +12,7 @@ import {
   SelectionOptions,
   UIOptions,
   ViewerPreset,
+  ViewerScene,
   AnimationOptions,
 } from './options';
 
@@ -25,6 +26,14 @@ export interface SimpleViewerOptions {
    * pass overrides the preset's values.
    */
   preset?: ViewerPreset;
+
+  /**
+   * A one-word scene (`studio_dome`, `studio_soft`) that selects the physical
+   * set — floor, backdrop and how the studio environment is built. The
+   * structural counterpart of `preset`: switching a scene rebuilds the viewer.
+   * Any other option you pass overrides the scene's values.
+   */
+  scene?: ViewerScene;
 
   /**
    * Length unit the model geometry is authored in (default `'meters'`).

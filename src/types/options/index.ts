@@ -9,6 +9,7 @@ export * from './RenderingOptions';
 export * from './LoadingIndicatorOptions';
 export * from './LoaderOptions';
 export * from './PresetOptions';
+export * from './SceneOptions';
 export * from './UIOptions';
 export * from './SelectionOptions';
 export * from './AnimationOptions';

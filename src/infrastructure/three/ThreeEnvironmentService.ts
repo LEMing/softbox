@@ -14,6 +14,7 @@ import { ThreeViewerError, ErrorCode } from '../../errors';
 import { toThreeScene, toThreeTexture } from './unwrap';
 import { markViewerOwnedBackground, disposeViewerOwnedBackground } from './backgroundOwnership';
 import { RendererWithInternalAccess } from '../../types/CommonTypes';
+import { StudioLook } from '../../types/options';
 
 /** Cube face size for the studio-room capture the path tracer ingests:
  * enough for soft studio lighting (the tracer blurs it into an equirect
@@ -27,6 +28,13 @@ type SceneWithOriginalTexture = THREE.Scene & {
   __originalEnvironmentTexture?: THREE.Texture;
 };
 
+/** One session bake of the studio room: the PMREM the raster pipeline lights
+ * with plus the cube capture the path tracer reads. */
+interface StudioBake {
+  pmremTexture: THREE.Texture;
+  cubeTarget: THREE.WebGLCubeRenderTarget;
+}
+
 export class ThreeEnvironmentService implements IEnvironmentService {
   private pmremGenerator: THREE.PMREMGenerator | null = null;
   private threeRenderer: THREE.WebGLRenderer | null = null;
@@ -34,11 +42,11 @@ export class ThreeEnvironmentService implements IEnvironmentService {
   // PMREM outputs live in render targets; disposing only their .texture leaks
   // one FBO per build, so the targets themselves are retained and freed.
   private renderTargets: THREE.WebGLRenderTarget[] = [];
-  // Cube capture of the procedural studio room, keyed by its PMREM texture:
-  // the path tracer cannot read PMREM's packed CubeUV layout, but it converts
-  // a plain cube texture to the equirectangular map it needs by itself.
-  private studioPmremTexture: THREE.Texture | null = null;
-  private studioCubeTarget: THREE.WebGLCubeRenderTarget | null = null;
+  // Session bakes of the procedural studio room, one per grade (`crisp` /
+  // `soft`): each holds the PMREM plus the cube capture the path tracer needs
+  // (it cannot read PMREM's packed CubeUV layout, but converts a plain cube
+  // texture to the equirectangular map it wants by itself).
+  private readonly studioBakes = new Map<StudioLook, StudioBake>();
   // Each PMREM texture mapped to the source the path tracer can actually read
   // (the loaded equirect, or the studio cube capture). applyToScene receives
   // only the PMREM, and scanning the cache for "any _original" instead binds
@@ -331,7 +339,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     });
   }
 
-  createStudioEnvironment(): Result<ITexture> {
+  createStudioEnvironment(look: StudioLook = 'crisp'): Result<ITexture> {
     try {
       if (!this.pmremGenerator) {
         return Result.err(
@@ -342,24 +350,29 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         );
       }
 
-      // The studio room is deterministic, so one bake serves the whole session:
-      // without this cache every setEnvironmentMap↔resetEnvironment round trip
-      // pushed another PMREM render target (only freed at dispose) and re-ran
-      // the full room bake + cube capture.
-      if (this.studioPmremTexture && this.studioCubeTarget) {
-        return Result.ok(new ThreeTextureAdapter(this.studioPmremTexture));
+      // The studio room is deterministic, so one bake per grade serves the
+      // whole session: without this cache every setEnvironmentMap↔
+      // resetEnvironment round trip pushed another PMREM render target (only
+      // freed at dispose) and re-ran the full room bake + cube capture.
+      const cached = this.studioBakes.get(look);
+      if (cached) {
+        return Result.ok(new ThreeTextureAdapter(cached.pmremTexture));
       }
 
-      // Create RoomEnvironment scene, pushed to a higher-contrast studio look
-      // (darker surround, punchier soft-boxes) before it is baked — so both the
-      // PMREM env map and the path tracer's cube capture below share it.
+      // Create the RoomEnvironment scene; the `crisp` grade pushes it to a
+      // higher-contrast studio look (darker surround, punchier soft-boxes)
+      // before it is baked, the `soft` grade bakes the room as-built — either
+      // way both the PMREM env map and the path tracer's cube capture below
+      // share the same graded room.
       const roomEnvironment = new RoomEnvironment();
-      applyStudioContrast(roomEnvironment);
+      if (look === 'crisp') {
+        applyStudioContrast(roomEnvironment);
+      }
       const renderTarget = this.pmremGenerator.fromScene(roomEnvironment);
       this.renderTargets.push(renderTarget);
       const roomTexture = renderTarget.texture;
 
-      this.captureStudioCubeOriginal(roomEnvironment, roomTexture);
+      this.captureStudioCubeOriginal(look, roomEnvironment, roomTexture);
 
       // Clean up
       roomEnvironment.dispose();
@@ -384,7 +397,11 @@ export class ThreeEnvironmentService implements IEnvironmentService {
    * Failure is non-fatal — the raster look is untouched, path tracing
    * just has no environment to ingest (and pauses itself as before).
    */
-  private captureStudioCubeOriginal(room: RoomEnvironment, pmremTexture: THREE.Texture): void {
+  private captureStudioCubeOriginal(
+    look: StudioLook,
+    room: RoomEnvironment,
+    pmremTexture: THREE.Texture
+  ): void {
     if (!this.threeRenderer) {
       return;
     }
@@ -407,9 +424,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       } finally {
         this.threeRenderer.toneMapping = originalToneMapping;
       }
-      this.studioCubeTarget?.dispose();
-      this.studioCubeTarget = cubeTarget;
-      this.studioPmremTexture = pmremTexture;
+      this.studioBakes.set(look, { pmremTexture, cubeTarget });
       this.originalByPmrem.set(pmremTexture, cubeTarget.texture);
     } catch (error) {
       console.warn('Failed to capture the studio environment for path tracing:', error);
@@ -426,9 +441,8 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     this.renderTargets.forEach(target => target.dispose());
     this.renderTargets = [];
 
-    this.studioCubeTarget?.dispose();
-    this.studioCubeTarget = null;
-    this.studioPmremTexture = null;
+    this.studioBakes.forEach(bake => bake.cubeTarget.dispose());
+    this.studioBakes.clear();
 
     if (this.pmremGenerator) {
       this.pmremGenerator.dispose();

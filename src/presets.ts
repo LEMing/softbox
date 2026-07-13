@@ -1,6 +1,7 @@
 import { SimpleViewerOptions } from './types/SimpleViewerOptions';
 import { ViewerPreset } from './types/options';
 import { deepMerge } from './utils/deepMerge';
+import { resolveScene } from './scenes';
 
 /**
  * Visual presets: cohesive deltas layered over the defaults (deep-merged) so a
@@ -50,14 +51,18 @@ export function resolvePreset(preset?: ViewerPreset): Partial<SimpleViewerOption
 }
 
 /**
- * Layer the resolved look in three stages: `defaults`, then the chosen preset
- * (deep-merged so it only tweaks the fields that define its look), then the
- * caller's explicit `options` on top (they always win). Single source of truth
- * for both viewer construction and the runtime look-update path.
+ * Layer the resolved look in four stages: `defaults`, then the chosen scene
+ * (the structural set), then the chosen preset (deep-merged so it only tweaks
+ * the fields that define its look), then the caller's explicit `options` on
+ * top (they always win). Scene and preset never overlap — scenes set only
+ * structural fields, presets only runtime ones, each pinned by a test.
+ * Single source of truth for both viewer construction and the runtime
+ * look-update path.
  */
 export function mergeWithPreset(
   defaults: SimpleViewerOptions,
   options: SimpleViewerOptions
 ): SimpleViewerOptions {
-  return deepMerge(deepMerge(defaults, resolvePreset(options.preset)), options);
+  const withScene = deepMerge(defaults, resolveScene(options.scene));
+  return deepMerge(deepMerge(withScene, resolvePreset(options.preset)), options);
 }

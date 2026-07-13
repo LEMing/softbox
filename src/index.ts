@@ -16,6 +16,9 @@ export * from './types/options'
 // Visual presets (the data behind the `preset` prop), for inspection/composition
 export { VIEWER_PRESETS, resolvePreset } from './presets'
 
+// Scenes (the data behind `options.scene`), for inspection/composition
+export { VIEWER_SCENES, resolveScene } from './scenes'
+
 // Typed event system
 export { TypedEventEmitter } from './events'
 export type { ViewerEventMap } from './events'

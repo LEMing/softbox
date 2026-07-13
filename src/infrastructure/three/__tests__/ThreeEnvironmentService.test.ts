@@ -14,7 +14,14 @@ jest.mock('three', () => {
   return { ...actual, PMREMGenerator: MockPMREMGenerator };
 });
 
+jest.mock('../studioEnvironmentContrast', () => ({
+  applyStudioContrast: jest.fn(
+    jest.requireActual('../studioEnvironmentContrast').applyStudioContrast
+  ),
+}));
+
 import * as THREE from 'three';
+import { applyStudioContrast } from '../studioEnvironmentContrast';
 import { ThreeEnvironmentService } from '../ThreeEnvironmentService';
 import { ThreeSceneAdapter } from '../ThreeScene';
 import { IRenderer } from '../../../core/interfaces/IRenderer';
@@ -209,6 +216,39 @@ describe('ThreeEnvironmentService', () => {
       pmremGenerator: { fromScene: jest.Mock };
     }).pmremGenerator;
     expect(generator.fromScene).toHaveBeenCalledTimes(1);
+  });
+
+  it('bakes each studio grade once and caches them independently', async () => {
+    const service = await cubeCapableService();
+
+    const crisp = service.createStudioEnvironment();
+    const soft = service.createStudioEnvironment('soft');
+    const crispAgain = service.createStudioEnvironment('crisp');
+    const softAgain = service.createStudioEnvironment('soft');
+    if (!crisp.ok || !soft.ok || !crispAgain.ok || !softAgain.ok) {
+      throw new Error('studio builds failed');
+    }
+
+    expect(rawTexture(soft.value)).not.toBe(rawTexture(crisp.value));
+    expect(rawTexture(crispAgain.value)).toBe(rawTexture(crisp.value));
+    expect(rawTexture(softAgain.value)).toBe(rawTexture(soft.value));
+    const generator = (service as unknown as {
+      pmremGenerator: { fromScene: jest.Mock };
+    }).pmremGenerator;
+    expect(generator.fromScene).toHaveBeenCalledTimes(2);
+  });
+
+  it('soft grade bakes the room as-built — no contrast push', async () => {
+    const service = await cubeCapableService();
+    (applyStudioContrast as jest.Mock).mockClear();
+
+    const soft = service.createStudioEnvironment('soft');
+    if (!soft.ok) throw soft.error;
+    expect(applyStudioContrast).not.toHaveBeenCalled();
+
+    const crisp = service.createStudioEnvironment();
+    if (!crisp.ok) throw crisp.error;
+    expect(applyStudioContrast).toHaveBeenCalledTimes(1);
   });
 
   it('leaves the studio environment usable when the cube capture fails', async () => {

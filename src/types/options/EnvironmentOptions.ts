@@ -1,4 +1,14 @@
 /**
+ * How the built-in procedural studio environment is graded when it is built.
+ * `crisp` (the default) darkens the surround and boosts the soft-box panels so
+ * glossy materials show distinct highlights; `soft` uses the studio room
+ * as-built for an even, low-contrast wraparound light. Structural — the
+ * environment is baked once at construction, so changing it rebuilds the
+ * viewer. Scenes (`SimpleViewerOptions.scene`) drive this.
+ */
+export type StudioLook = 'crisp' | 'soft';
+
+/**
  * Image-based lighting and background. Without a `url` the viewer lights the
  * scene with its built-in procedural studio environment — zero network
  * requests.
@@ -18,4 +28,6 @@ export interface EnvironmentOptions {
    * Runtime-tunable via `updateOptions` — presets drive this live.
    */
   environmentIntensity?: number;
+  /** Grade of the built-in studio environment; ignored when `url` is set. */
+  studioLook?: StudioLook;
 }

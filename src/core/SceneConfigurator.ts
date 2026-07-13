@@ -153,7 +153,9 @@ export class SceneConfigurator {
         console.warn('Failed to load environment map:', envResult.error);
       }
     } else if (options.helpers?.studioEnvironment) {
-      const studioResult = environmentService.createStudioEnvironment();
+      const studioResult = environmentService.createStudioEnvironment(
+        options.environment?.studioLook
+      );
       if (studioResult.ok) {
         // Studio environment supplies lighting/reflections only; the background
         // stays the clean color set in configureScene (its PMREM texture would
