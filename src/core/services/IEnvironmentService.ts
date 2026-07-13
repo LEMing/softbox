@@ -34,6 +34,14 @@ export interface IEnvironmentService {
   setBackgroundImage(scene: IScene, source: string | File | HTMLImageElement): Promise<Result<void>>;
 
   /**
+   * Remove an active ground projection (the GroundedSkybox mesh). The
+   * projection mesh occludes any other backdrop, so the runtime backdrop
+   * APIs (setBackgroundImage / setBackgroundColor) clear it first — a custom
+   * backdrop is an explicit opt-out of the projected world.
+   */
+  removeGroundProjection(scene: IScene): void;
+
+  /**
    * Dispose of resources
    */
   dispose(): void;

@@ -254,6 +254,18 @@ describe('ConcreteDiscGrid', () => {
       expect(material.roughness).toBeLessThan(1);
     });
 
+    it('failover bails out when the grid was already disposed (late onError)', () => {
+      const grid = new ConcreteDiscGrid().createGrid(photoOptions());
+      const photoMap = (discOf(grid).material as THREE.MeshStandardMaterial).map;
+      for (const mesh of groundMeshesOf(grid)) {
+        (mesh.material as THREE.Material).userData.softboxDisposed = true;
+      }
+      errorCallbacks[0]({});
+      // No procedural regeneration onto dead materials (that leaked maps
+      // with no owner) — the guard leaves them untouched.
+      expect((discOf(grid).material as THREE.MeshStandardMaterial).map).toBe(photoMap);
+    });
+
     it('an empty-string texture opts out of the photo path (offline harness)', () => {
       const grid = new ConcreteDiscGrid().createGrid({
         size: 10,

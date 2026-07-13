@@ -105,11 +105,11 @@ switching one rebuilds the viewer.
   the sky (ground-projected, so the model stands *in* the world), on a large
   photographic PBR concrete ground rendered with untiled sampling — no
   visible texture repetition at any distance. The HDRI and concrete maps
-  (CC0, [Poly Haven](https://polyhaven.com/), ~2 MB total) come from their
-  CDN by default; override or self-host via `environment.url` and
-  `helpers.grid.styleOptions`, like the [decoder paths](#loaders). Offline,
-  the ground falls back to a built-in procedural concrete and the lighting
-  to the studio environment.
+  (CC0, [Poly Haven](https://polyhaven.com/), ~6 MB total on first view)
+  come from their CDN by default; override or self-host via
+  `environment.url` and `helpers.grid.styleOptions`, like the
+  [decoder paths](#loaders). Offline, the ground falls back to a built-in
+  procedural concrete and the lighting to the studio environment.
 
 Scenes compose with presets — `scene` picks the set, `preset` grades it, and
 any explicit option you pass overrides both.

@@ -5,7 +5,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { GroundedSkybox } from 'three/examples/jsm/objects/GroundedSkybox';
 import { applyStudioContrast } from './studioEnvironmentContrast';
 import { CONTACT_SHADOW_HELPER_FLAG } from './ContactShadowBaker';
-import { EXTERNALLY_OWNED_TEXTURES_FLAG } from './disposal';
+import { BACKGROUND_NODE_FLAG, EXTERNALLY_OWNED_TEXTURES_FLAG } from './disposal';
 import { 
   IEnvironmentService, 
   IEnvironmentOptions,
@@ -313,6 +313,9 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     const skybox = new GroundedSkybox(equirect, projection.height, projection.radius);
     skybox.name = GROUNDED_SKYBOX_NAME;
     skybox.userData[CONTACT_SHADOW_HELPER_FLAG] = true;
+    // The skybox IS the backdrop: the screenshot flow's keepBackgrounds pass
+    // must leave it alive, exactly like scene.background.
+    skybox.userData[BACKGROUND_NODE_FLAG] = true;
     const materials = Array.isArray(skybox.material) ? skybox.material : [skybox.material];
     for (const material of materials) {
       // The map is the cache-owned equirect that scene.background and the
@@ -326,6 +329,13 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     }
     skybox.position.y = projection.height - 0.01;
     threeScene.add(skybox);
+  }
+
+  removeGroundProjection(scene: IScene): void {
+    const threeScene = toThreeScene(scene);
+    if (threeScene) {
+      this.removeGroundedSkybox(threeScene);
+    }
   }
 
   /** Remove and free a previous ground projection (its map is cache-owned). */

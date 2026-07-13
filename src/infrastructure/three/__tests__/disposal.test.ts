@@ -3,6 +3,7 @@ import {
   disposeMaterial,
   disposeObject3D,
   disposeSceneContents,
+  BACKGROUND_NODE_FLAG,
   EXTERNALLY_OWNED_TEXTURES_FLAG,
 } from '../disposal';
 import { buildRaycastBvh } from '../bvh';
@@ -47,6 +48,33 @@ describe('disposal', () => {
       // after the screenshot flow's keepBackgrounds pass.
       expect(matSpy).toHaveBeenCalledTimes(1);
       expect(mapSpy).not.toHaveBeenCalled();
+    });
+
+    it('stamps disposed materials so late async callbacks can bail out', () => {
+      const material = new THREE.MeshStandardMaterial();
+      disposeMaterial(material);
+      expect(material.userData.softboxDisposed).toBe(true);
+    });
+  });
+
+  describe('disposeSceneContents keepBackgrounds', () => {
+    it('leaves backdrop nodes (the grounded skybox) alive alongside scene.background', () => {
+      const scene = new THREE.Scene();
+      const skybox = new THREE.Mesh(
+        new THREE.SphereGeometry(1, 4, 2),
+        new THREE.MeshBasicMaterial()
+      );
+      skybox.userData[BACKGROUND_NODE_FLAG] = true;
+      const model = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+      scene.add(skybox, model);
+
+      disposeSceneContents(scene, { keepBackgrounds: true });
+
+      // The screenshot flow frees the heavy contents but must keep the
+      // backdrop restorable — destroying the skybox here permanently lost
+      // the ground projection (nothing recreates it on restore).
+      expect(scene.children).toContain(skybox);
+      expect(scene.children).not.toContain(model);
     });
   });
 

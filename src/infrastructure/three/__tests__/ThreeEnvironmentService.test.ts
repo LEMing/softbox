@@ -235,6 +235,8 @@ describe('ThreeEnvironmentService', () => {
     // Raster-only presentation: the tracer's ingest must hide it, or the
     // projected sphere would occlude the HDRI environment (the dome problem).
     expect(skybox.userData[CONTACT_SHADOW_HELPER_FLAG]).toBe(true);
+    // ...and survives the screenshot flow's keepBackgrounds disposal pass.
+    expect(skybox.userData.softboxBackgroundNode).toBe(true);
     expect(skybox.userData.__groundedSkyboxParams).toEqual({ height: 2, radius: 120 });
     expect(skybox.position.y).toBeCloseTo(1.99);
 

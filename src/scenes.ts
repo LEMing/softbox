@@ -71,7 +71,12 @@ export const VIEWER_SCENES: Record<ViewerScene, Partial<SimpleViewerOptions>> = 
   outdoor_concrete: {
     helpers: {
       grid: { type: 'concrete_disc', styleOptions: { ...DEFAULT_OUTDOOR_CONCRETE_TEXTURES } },
-      studioEnvironment: false,
+      // Kept TRUE even though the HDRI normally owns the lighting: the env
+      // url wins while it loads, and this is what lets the offline fallback
+      // light the scene with the studio environment instead of leaving
+      // glossy materials black (an explicit `false` is an opt-out the
+      // fallback respects).
+      studioEnvironment: true,
     },
     // Ground projection stands the model IN the HDRI world (no hard horizon
     // edge); the disc's rim fade dissolves the near concrete into it.

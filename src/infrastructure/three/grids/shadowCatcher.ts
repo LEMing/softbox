@@ -11,10 +11,10 @@ import {
  * tracer's helper-hiding treat it identically regardless of the floor it
  * rides above; `addDynamicGrid` rescales its default lift to the model.
  */
-export function createShadowCatcher(discRadius: number): THREE.Mesh {
+export function createShadowCatcher(discRadius: number, opacity = 0.28): THREE.Mesh {
   const catcher = new THREE.Mesh(
     new THREE.CircleGeometry(Math.max(discRadius, 1), 64),
-    new THREE.ShadowMaterial({ opacity: 0.28 })
+    new THREE.ShadowMaterial({ opacity })
   );
   catcher.name = CONTACT_SHADOW_LIVE_NAME;
   catcher.userData[CONTACT_SHADOW_HELPER_FLAG] = true;

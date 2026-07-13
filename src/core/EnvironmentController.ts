@@ -6,7 +6,7 @@ import { Result } from '../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../errors';
 import { RenderLoopManager } from './utils/RenderLoopManager';
 import { PathTracingCoordinator } from './PathTracingCoordinator';
-import { resolveGroundProjection } from './groundProjection';
+import { environmentApplyOptions } from './environmentApplyOptions';
 
 export interface EnvironmentControllerDependencies {
   scene: IScene;
@@ -89,15 +89,12 @@ export class EnvironmentController {
       return Result.err(loadResult.error);
     }
     const options = this.deps.getOptions();
+    // environmentApplyOptions keeps the configured ground projection across
+    // runtime env swaps — applyToScene clears the previous skybox, and a
+    // hand-copied option block here once silently stripped the projection.
     const applyResult = this.deps.environmentService.applyToScene(this.deps.scene, loadResult.value, {
-      backgroundBlurriness: options.environment?.backgroundBlurriness,
-      backgroundIntensity: options.environment?.backgroundIntensity,
-      environmentIntensity: options.environment?.environmentIntensity,
+      ...environmentApplyOptions(options),
       setBackground: true,
-      // Keep the configured ground projection across runtime env swaps —
-      // applyToScene clears the previous skybox, so omitting this here
-      // silently stripped the projection until the next structural rebuild.
-      groundProjection: resolveGroundProjection(options.environment?.groundProjection),
     });
     if (!applyResult.ok) {
       return applyResult;
@@ -177,6 +174,9 @@ export class EnvironmentController {
     if (!result.ok) {
       return result;
     }
+    // A custom backdrop is an explicit opt-out of the projected world — the
+    // skybox mesh would otherwise occlude it completely (silent no-op).
+    this.deps.environmentService.removeGroundProjection(this.deps.scene);
     this.repaintAfterEnvironmentChange();
     return Result.ok(undefined);
   }
@@ -208,6 +208,9 @@ export class EnvironmentController {
     if (!result.ok) {
       return result;
     }
+    // Same as setBackgroundImage: the projection mesh would occlude the
+    // requested solid backdrop.
+    this.deps.environmentService?.removeGroundProjection(this.deps.scene);
     this.deps.mergeOptions({ backgroundColor: color });
     this.deps.getOptions().backgroundColorEdge = undefined;
     this.repaintAfterEnvironmentChange();

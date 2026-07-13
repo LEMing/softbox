@@ -31,6 +31,7 @@ const makeBundle = (config: {
           applyToScene: jest.fn(() => Result.ok(undefined)),
           createStudioEnvironment: jest.fn(() => Result.ok(texture)),
           setBackgroundImage: jest.fn(async () => Result.ok(undefined)),
+          removeGroundProjection: jest.fn(),
           ...config.environmentOverrides,
         };
   const sceneSetupService =
@@ -285,11 +286,14 @@ describe('EnvironmentController.resetEnvironment', () => {
 });
 
 describe('EnvironmentController.setBackgroundImage', () => {
-  it('delegates to the environment service and repaints', async () => {
+  it('delegates to the environment service, clears the ground projection and repaints', async () => {
     const b = makeBundle();
     const result = await b.controller.setBackgroundImage('/photo.jpg');
     expect(result.ok).toBe(true);
     expect(b.environmentService!.setBackgroundImage).toHaveBeenCalledWith(b.scene, '/photo.jpg');
+    // The projection mesh occludes any other backdrop — a custom backdrop is
+    // an explicit opt-out of the projected world.
+    expect(b.environmentService!.removeGroundProjection).toHaveBeenCalledWith(b.scene);
     expect((b.pathTracing as unknown as { resetAccumulation: jest.Mock }).resetAccumulation).toHaveBeenCalledWith(true);
   });
 

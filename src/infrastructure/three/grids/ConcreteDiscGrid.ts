@@ -392,6 +392,12 @@ export class ConcreteDiscGrid implements IGridStyle {
         return;
       }
       failedOver = true;
+      // A late onError can fire after the grid was already torn down (model
+      // load replaces the construction-time grid); regenerating procedural
+      // maps onto dead materials would leak them with no owner.
+      if (materials.every((material) => material.userData.softboxDisposed)) {
+        return;
+      }
       for (const material of materials) {
         material.map?.dispose();
         material.normalMap?.dispose();

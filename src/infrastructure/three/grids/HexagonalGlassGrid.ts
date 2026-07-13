@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { IGridStyle, IGridOptions } from './IGridStyle';
 import HexTile from '../HexTile';
 import { HexTileConfig } from '../HexTileConfig';
-import { CONTACT_SHADOW_HELPER_FLAG, CONTACT_SHADOW_LIVE_NAME } from '../ContactShadowBaker';
+import { createShadowCatcher } from './shadowCatcher';
 
 /**
  * Merge translated copies of one geometry into a single BufferGeometry —
@@ -113,22 +113,9 @@ export class HexagonalGlassGrid implements IGridStyle {
     // catcher reaching past the last tile shows shadow hovering in mid-air
     // next to the floor's edge. The baked contact shadow also clips itself
     // to this disc's radius for the same reason.
-    group.add(this.createShadowCatcher(width * (radius + 0.5)));
+    group.add(createShadowCatcher(width * (radius + 0.5), 0.35));
 
     return group;
-  }
-
-  private createShadowCatcher(discRadius: number): THREE.Mesh {
-    const catcher = new THREE.Mesh(
-      new THREE.CircleGeometry(Math.max(discRadius, 1), 64),
-      new THREE.ShadowMaterial({ opacity: 0.35 })
-    );
-    catcher.name = CONTACT_SHADOW_LIVE_NAME;
-    catcher.userData[CONTACT_SHADOW_HELPER_FLAG] = true;
-    catcher.rotation.x = -Math.PI / 2;
-    catcher.position.y = 0.002;
-    catcher.receiveShadow = true;
-    return catcher;
   }
 
   dispose(): void {

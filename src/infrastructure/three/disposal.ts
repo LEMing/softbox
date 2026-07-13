@@ -22,6 +22,15 @@ import { disposeBoundsTree } from './bvh';
 export const EXTERNALLY_OWNED_TEXTURES_FLAG = 'softboxExternallyOwnedTextures';
 
 /**
+ * Marks a scene child that IS part of the backdrop (the grounded skybox):
+ * `disposeSceneContents({ keepBackgrounds: true })` — the screenshot flow's
+ * "free the heavy stuff but keep the backdrop restorable" pass — must leave
+ * it in place, exactly like scene.background itself. Without this the pass
+ * destroyed the projection and nothing ever recreated it.
+ */
+export const BACKGROUND_NODE_FLAG = 'softboxBackgroundNode';
+
+/**
  * Dispose a material and every Texture it references (map, normalMap,
  * roughnessMap, metalnessMap, aoMap, emissiveMap, etc.).
  *
@@ -50,6 +59,9 @@ export function disposeMaterial(material: THREE.Material): void {
     }
   }
   material.dispose();
+  // Late async callbacks (e.g. a texture loader's onError firing after the
+  // grid was torn down) consult this to avoid resurrecting dead materials.
+  material.userData.softboxDisposed = true;
 }
 
 /**
@@ -118,6 +130,9 @@ export function disposeSceneContents(scene: THREE.Scene, options?: DisposeSceneO
   }
 
   for (const child of [...scene.children]) {
+    if (options?.keepBackgrounds && child.userData?.[BACKGROUND_NODE_FLAG]) {
+      continue;
+    }
     disposeObject3D(child);
     scene.remove(child);
   }

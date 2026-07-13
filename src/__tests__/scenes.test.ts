@@ -51,7 +51,9 @@ describe('viewer scenes', () => {
       expect(scene.environment?.url).toBeUndefined();
     }
     const outdoor = VIEWER_SCENES.outdoor_concrete;
-    expect(outdoor.helpers?.studioEnvironment).toBe(false);
+    // TRUE on purpose: the env url wins while it loads; this is what lets
+    // the offline fallback light the scene instead of going black.
+    expect(outdoor.helpers?.studioEnvironment).toBe(true);
     expect(outdoor.environment?.url).toEqual(expect.stringMatching(/^https:\/\/.+\.hdr$/));
     expect(outdoor.helpers?.grid).toEqual({
       type: 'concrete_disc',
