@@ -22,6 +22,7 @@ const mockedUseViewerCore = useViewerCore as jest.Mock;
 const makeViewer = (coreBus: TypedEventEmitter<ViewerEventMap>) => ({
   getEvents: () => coreBus,
   getScene: () => null,
+  getModelUrl: () => null,
   getCamera: () => null,
   getControls: () => null,
   getRenderer: () => null,

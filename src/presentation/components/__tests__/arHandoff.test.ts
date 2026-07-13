@@ -1,4 +1,9 @@
+/**
+ * @jest-environment jsdom
+ * @jest-environment-options {"url": "https://shop.example.com/product?id=1"}
+ */
 import {
+  AR_FAILURE_HASH,
   detectArMode,
   launchQuickLook,
   launchSceneViewer,
@@ -42,8 +47,10 @@ describe('detectArMode', () => {
 });
 
 describe('sceneViewerModelUrl', () => {
-  it('resolves a relative model URL against the page', () => {
-    expect(sceneViewerModelUrl('/models/shoe.glb')).toBe('http://localhost/models/shoe.glb');
+  it('resolves a relative model URL against the (https) page', () => {
+    expect(sceneViewerModelUrl('/models/shoe.glb')).toBe(
+      'https://shop.example.com/models/shoe.glb'
+    );
   });
 
   it('passes an absolute https URL through', () => {
@@ -53,9 +60,10 @@ describe('sceneViewerModelUrl', () => {
   });
 
   it.each([
-    ['a dropped blob: file', 'blob:http://localhost/1234'],
+    ['a plain-http URL — Scene Viewer fetches over HTTPS only', 'http://cdn.example.com/shoe.glb'],
+    ['a dropped blob: file', 'blob:https://shop.example.com/1234'],
     ['a data: URL', 'data:model/gltf-binary;base64,xxxx'],
-  ])('rejects %s — native apps cannot fetch it', (_label, source) => {
+  ])('rejects %s', (_label, source) => {
     expect(sceneViewerModelUrl(source)).toBeNull();
   });
 
@@ -69,19 +77,28 @@ describe('sceneViewerModelUrl', () => {
 });
 
 describe('sceneViewerIntentUrl', () => {
-  it('builds the Scene Viewer intent with the file, AR mode and a fallback', () => {
+  it('builds the Scene Viewer intent with the file, AR mode and a hash-marked fallback', () => {
     const url = sceneViewerIntentUrl('https://cdn.example.com/shoe.glb');
 
     expect(url).toContain('intent://arvr.google.com/scene-viewer/1.0?');
     expect(url).toContain(`file=${encodeURIComponent('https://cdn.example.com/shoe.glb')}`);
     expect(url).toContain('mode=ar_preferred');
     expect(url).toContain('package=com.google.ar.core');
-    expect(url).toContain(`S.browser_fallback_url=${encodeURIComponent('http://localhost/')}`);
+    // The fallback is the page itself plus the failure hash: a same-document
+    // navigation (no reload) that doubles as the "this device has no AR"
+    // beacon the button listens for.
+    expect(url).toContain(
+      `S.browser_fallback_url=${encodeURIComponent(
+        `https://shop.example.com/product?id=1${AR_FAILURE_HASH}`
+      )}`
+    );
     expect(url.endsWith(';end;')).toBe(true);
   });
 
-  it('carries an optional title for the info card', () => {
-    expect(sceneViewerIntentUrl('https://x.test/m.glb', 'Runner')).toContain('title=Runner');
+  it('percent-encodes the title — URLSearchParams "+" would stay literal in the intent', () => {
+    expect(sceneViewerIntentUrl('https://x.test/m.glb', 'Cozy Chair')).toContain(
+      'title=Cozy%20Chair'
+    );
   });
 });
 

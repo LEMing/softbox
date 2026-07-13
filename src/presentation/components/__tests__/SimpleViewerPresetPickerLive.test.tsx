@@ -18,6 +18,7 @@ interface FakeViewer {
   getControls: jest.Mock;
   getRenderer: jest.Mock;
   getScene: jest.Mock;
+  getModelUrl: () => null;
   requestRender: jest.Mock;
 }
 
@@ -35,6 +36,7 @@ describe('SimpleViewer preset picker (real hooks, live-apply seam)', () => {
       getControls: jest.fn(() => null),
       getRenderer: jest.fn(() => null),
       getScene: jest.fn(() => null),
+    getModelUrl: () => null,
       requestRender: jest.fn(),
     };
     createdViewers.push(viewer);

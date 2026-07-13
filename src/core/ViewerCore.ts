@@ -893,6 +893,15 @@ export class ViewerCore {
   }
 
   /**
+   * URL the current model was loaded from (`null` before any load and for
+   * object sources). Tracks imperative `loadModel` swaps, unlike the
+   * component's `object` prop.
+   */
+  getModelUrl(): string | null {
+    return this.modelManager.getCurrentModelUrl();
+  }
+
+  /**
    * Switch the loaded model to a material variant (`null` restores the
    * authored materials). Errs on a name the model does not carry — a typo
    * must not silently show the default look. Before a model lands the choice

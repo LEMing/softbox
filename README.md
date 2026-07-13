@@ -153,13 +153,19 @@ platform's native AR viewer — no WebXR session, no extra bundle:
 ```
 
 - **Android** → Scene Viewer, straight from the model's own URL (`ar: true`
-  is enough). The model must be loaded from a network URL — a dropped
-  `blob:` file has no address a native app could fetch.
+  is enough). The model must be loaded from an **https** URL — a dropped
+  `blob:` file has no address a native app could fetch, and Scene Viewer
+  refuses plain http. Imperative `loadModel()` swaps are tracked — the
+  button always hands off the model that is on stage.
 - **iOS** → AR Quick Look, from `iosSrc` (USDZ).
 - **Desktop / unsupported** → the button simply never renders, so setting
-  `ar` unconditionally is safe.
+  `ar` unconditionally is safe. On an Android-UA device that turns out to
+  have no AR component (Quest, TV boxes), the failed handoff bounces back
+  reload-free and the button retires itself.
 
-UI-only: toggling `ar` never rebuilds the viewer or reloads the model.
+`placement` picks the corner (`bottom-left` by default; it lifts above the
+built-in preset picker on its own). UI-only: toggling `ar` never rebuilds
+the viewer or reloads the model.
 
 ## Turntable
 

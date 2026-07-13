@@ -12,9 +12,15 @@ Changelog
   Viewer on Android (reuses the loaded model's own URL; `ar: true` is
   enough). Optional `ar.title` labels Scene Viewer's info card.
 * The button renders only where a handoff can actually happen — never on
-  desktop, not on iOS without a USDZ, not for models without a fetchable
-  network URL (dropped `blob:` files, consumer-provided Object3D) — so
-  setting `ar` unconditionally is safe.
+  desktop, not on iOS without a USDZ, not for models without an **https**
+  URL (dropped `blob:` files, plain-http staging, consumer-provided
+  Object3D) — so setting `ar` unconditionally is safe. It tracks imperative
+  `loadModel()` swaps (always hands off the model on stage), and on
+  Android-UA devices with no AR component the failed intent bounces back
+  reload-free and retires the button.
+* `ar.placement` picks the corner (default `bottom-left`; bottom placements
+  lift above the built-in preset picker automatically). SSR-safe: detection
+  runs post-mount, so server and hydration markup agree.
 * UI-only, like `ui` and `loadingIndicator`: toggling it never rebuilds the
   viewer or reloads the model, and it adds no WebXR code or bundle weight.
 * Playground: AR enabled for the sample models (visible on phones).

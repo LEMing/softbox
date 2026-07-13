@@ -26,6 +26,7 @@ describe('SimpleViewer event forwarding', () => {
       viewer: {
         getEvents: () => coreBus,
         getScene: () => null,
+    getModelUrl: () => null,
         getCamera: () => null,
         getControls: () => null,
         getRenderer: () => null,
@@ -57,6 +58,7 @@ describe('SimpleViewer event forwarding', () => {
       viewer: {
         getEvents: () => coreBus,
         getScene: () => null,
+    getModelUrl: () => null,
         getCamera: () => null,
         getControls: () => null,
         getRenderer: () => null,

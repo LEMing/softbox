@@ -17,4 +17,12 @@ export interface AROptions {
 
   /** Title shown on Android Scene Viewer's info card. */
   title?: string;
+
+  /**
+   * Corner the button floats in (default `bottom-left`). When the built-in
+   * preset picker is enabled, a bottom-placed button lifts above the chip
+   * row on its own — pick a top corner if it must clear other chrome (e.g.
+   * a `bottom-left` gizmo).
+   */
+  placement?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 }

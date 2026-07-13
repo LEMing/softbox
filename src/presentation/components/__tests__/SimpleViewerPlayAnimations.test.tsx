@@ -19,6 +19,7 @@ const mockedUseViewerCore = useViewerCore as jest.Mock;
 
 const makeViewer = (playAnimations: jest.Mock) => ({
   getScene: jest.fn(() => null),
+  getModelUrl: () => null,
   getCamera: jest.fn(() => null),
   getRenderer: jest.fn(() => null),
   getControls: jest.fn(() => null),

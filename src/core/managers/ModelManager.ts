@@ -33,6 +33,7 @@ export interface ModelManagerDependencies {
 export class ModelManager {
   private currentModel: IObject3D | null = null;
   private lastModelUrl?: string;
+  private currentModelUrl: string | null = null;
   private currentVariants: string[] = [];
   
   private readonly modelLoader: IModelLoader;
@@ -72,6 +73,16 @@ export class ModelManager {
   }
 
   /**
+   * URL the CURRENT model was loaded from — unlike `getLastModelUrl` (a
+   * restoration bookmark that survives object loads), this is `null` for a
+   * consumer-provided object, so it never points at a model that is no
+   * longer on stage.
+   */
+  getCurrentModelUrl(): string | null {
+    return this.currentModelUrl;
+  }
+
+  /**
    * KHR_materials_variants names of the current model ([] when it has none).
    * Returns a copy: mutating the result must not defeat the name validation
    * that guards variant switching.
@@ -104,11 +115,13 @@ export class ModelManager {
           throw loadResult.error;
         }
         model = loadResult.value.scene;
+        this.currentModelUrl = source;
         this.currentVariants =
           ((loadResult.value.userData?.[MODEL_VARIANT_NAMES_KEY]) as string[] | undefined) ?? [];
       } else {
         // Use provided object
         model = source;
+        this.currentModelUrl = null;
         this.currentVariants = [];
       }
 

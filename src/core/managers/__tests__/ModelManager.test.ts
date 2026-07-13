@@ -150,6 +150,17 @@ describe('ModelManager', () => {
         expect(modelManager.getVariantNames()).toEqual([]);
       });
 
+      it('tracks the CURRENT model URL, clearing it for object sources', async () => {
+        await modelManager.loadModel('https://cdn.x/a.glb', mockEvents);
+        expect(modelManager.getCurrentModelUrl()).toBe('https://cdn.x/a.glb');
+
+        // The AR handoff keys off this: an object swap must null it even
+        // though getLastModelUrl (the restoration bookmark) keeps the URL.
+        await modelManager.loadModel(mockModel, mockEvents);
+        expect(modelManager.getCurrentModelUrl()).toBeNull();
+        expect(modelManager.getLastModelUrl()).toBe('https://cdn.x/a.glb');
+      });
+
       it('clears the previous model variants when an object source loads', async () => {
         mockModelLoader.load.mockResolvedValue(Result.ok({
           scene: mockModel,
