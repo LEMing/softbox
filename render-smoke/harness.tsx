@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as THREE from 'three';
 import {
@@ -30,6 +30,7 @@ declare global {
     __captureStill: () => Promise<string>;
     __captureVideo: (duration: number) => Promise<{ size: number; type: string }>;
     __ptSamples: number;
+    __setScene: (scene: ViewerScene) => void;
   }
 }
 
@@ -53,7 +54,7 @@ console.error = (...args: unknown[]) => {
 
 const params = new URLSearchParams(window.location.search);
 const preset = (params.get('preset') as ViewerPreset | null) ?? undefined;
-const scene = (params.get('scene') as ViewerScene | null) ?? undefined;
+const initialScene = (params.get('scene') as ViewerScene | null) ?? undefined;
 const modelKind = params.get('model');
 const withHotspot = params.get('hotspot') === '1';
 const turntable = params.get('turntable') === '1' || undefined;
@@ -94,8 +95,12 @@ const makeModel = () => {
 const Harness = () => {
   const viewerRef = useRef<SimpleViewerHandle>(null);
   const model = useRef(makeModel());
+  // Stateful so tests can switch the scene on a LIVE viewer — pins the
+  // fast-rebuild bail-out (see useViewerCore's viewer-state comment).
+  const [scene, setScene] = useState(initialScene);
 
   useEffect(() => {
+    window.__setScene = setScene;
     const handle = viewerRef.current;
     if (!handle) {
       return;

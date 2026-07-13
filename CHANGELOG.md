@@ -1,6 +1,36 @@
 Changelog
 =========
 
+4.21.0
+---
+
+### Fix: a fast structural rebuild could leave the canvas silently blank
+
+* Changing any structural option on a live viewer (a scene switch, `units`,
+  `camera`, …) tears the viewer down and builds a fresh one. When the new
+  viewer initialized quickly, React collapsed the initialized flag's
+  false→true flip into one batch (net unchanged → render bail-out), so every
+  consumer of the render-time viewer reference — the model loader, the event
+  bridge, the imperative handle — kept holding the disposed viewer and the
+  model never loaded: a blank canvas with no error anywhere. The initialized
+  viewer now lives in React state, so its per-rebuild identity change
+  guarantees the re-render (and re-runs every effect keyed on it). Pinned by
+  a real-browser render-smoke test that flips the scene on a live viewer.
+
+### Changed: `studio_soft` is now a genuinely soft set
+
+* 4.20.0's `studio_soft` only regraded the environment bake, which barely
+  read on matte models. The scene now also rebalances the three-point rig —
+  the key steps back with a wider shadow penumbra, the rim edge nearly goes,
+  and the fill/ambient/hemisphere open the shadow side — an overcast softbox
+  studio instead of the hero look.
+
+### Playground
+
+* **Scene picker.** The site's control panel grew a Scene row
+  (`studio_dome` | `studio_soft`) wired to `options.scene`, and the usage
+  snippet reflects the picked scene.
+
 4.20.0
 ---
 

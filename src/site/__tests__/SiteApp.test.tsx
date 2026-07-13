@@ -16,11 +16,13 @@ jest.mock('../../SimpleViewerWrapper', () => {
         object,
         turntable,
         animations,
+        options,
         children,
       }: {
         object?: string;
         turntable?: boolean;
         animations?: boolean;
+        options?: { scene?: string };
         children?: React.ReactNode;
       },
       ref: React.Ref<unknown>
@@ -33,6 +35,7 @@ jest.mock('../../SimpleViewerWrapper', () => {
           'data-object': String(object),
           'data-turntable': String(turntable ?? false),
           'data-animations': String(animations ?? false),
+          'data-scene': String(options?.scene),
         },
         children
       );
@@ -185,6 +188,22 @@ describe('SiteApp motion toggles', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'animations' }));
     expect(screen.getByTestId('viewer')).toHaveAttribute('data-animations', 'true');
+  });
+
+  it('switches the scene through the Scene picker and reflects it in the snippet', () => {
+    render(<SiteApp />);
+    // The default scene reaches the viewer and stays out of the snippet.
+    expect(screen.getByTestId('viewer')).toHaveAttribute('data-scene', 'studio_dome');
+    expect(screen.queryByText(/scene:/, { selector: 'pre' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'studio_soft' }));
+    expect(screen.getByTestId('viewer')).toHaveAttribute('data-scene', 'studio_soft');
+    expect(screen.getByText(/SimpleViewer/, { selector: 'pre' })).toHaveTextContent(
+      "scene: 'studio_soft'"
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'studio_dome' }));
+    expect(screen.getByTestId('viewer')).toHaveAttribute('data-scene', 'studio_dome');
   });
 
   it('keeps the usage snippet in sync with the enabled toggles', () => {

@@ -1,6 +1,7 @@
-import React from 'react';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import React, { useRef } from 'react';
+import { act, render, renderHook, waitFor } from '@testing-library/react';
 import { useViewerCore } from '../useViewerCore';
+import { useModelLoader } from '../useModelLoader';
 import { ViewerFactory } from '../../../infrastructure/factories/ViewerFactory';
 import { Result } from '../../../utils/Result';
 import { SimpleViewerOptions } from '../../../types/SimpleViewerOptions';
@@ -14,18 +15,25 @@ interface FakeViewer {
   updateOptions: jest.Mock;
   resize: jest.Mock;
   dispose: jest.Mock;
+  loadModel: jest.Mock;
+  isDisposed: jest.Mock;
 }
 
 describe('useViewerCore', () => {
   let createdViewers: FakeViewer[];
 
   const makeViewer = (): FakeViewer => {
+    let disposed = false;
     const viewer: FakeViewer = {
       onStateChange: jest.fn(() => jest.fn()),
       initialize: jest.fn().mockResolvedValue(Result.ok(undefined)),
       updateOptions: jest.fn(),
       resize: jest.fn(),
-      dispose: jest.fn(),
+      dispose: jest.fn(() => {
+        disposed = true;
+      }),
+      loadModel: jest.fn().mockResolvedValue(Result.ok(undefined)),
+      isDisposed: jest.fn(() => disposed),
     };
     createdViewers.push(viewer);
     return viewer;
@@ -318,6 +326,32 @@ describe('useViewerCore', () => {
 
     await waitFor(() => expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(createdViewers[1].resize).toHaveBeenCalledWith(800, 400));
+  });
+
+  it('reloads the model into the rebuilt viewer after a structural change', async () => {
+    // Contract pin for the fast-rebuild render bail-out (see the viewer-state
+    // comment in useViewerCore). jsdom timing cannot reproduce the React
+    // batch collapse itself — the real-browser pin is the live scene-switch
+    // render-smoke test.
+    const Harness = ({ options }: { options: SimpleViewerOptions }) => {
+      const canvasRef = useRef<HTMLCanvasElement>(document.createElement('canvas'));
+      const { viewer, isInitialized } = useViewerCore(canvasRef, options);
+      useModelLoader(viewer, isInitialized, '/model.glb');
+      return null;
+    };
+
+    const { rerender } = render(<Harness options={testDefaultOptions} />);
+    await waitFor(() => expect(createdViewers[0].loadModel).toHaveBeenCalledWith('/model.glb'));
+
+    rerender(
+      <Harness
+        options={{ ...testDefaultOptions, camera: { ...testDefaultOptions.camera, fov: 33 } }}
+      />
+    );
+
+    await waitFor(() => expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(createdViewers[1].loadModel).toHaveBeenCalledWith('/model.glb'));
+    expect(createdViewers[0].dispose).toHaveBeenCalled();
   });
 
   it('deep-merges a preset over the defaults before building the viewer', async () => {

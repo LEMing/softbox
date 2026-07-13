@@ -168,6 +168,39 @@ test('studio_soft scene relights the model without touching the backdrop', async
   expect(errors).toEqual([]);
 });
 
+test('switching the scene on a live viewer reloads the model (structural rebuild)', async ({ page }) => {
+  test.setTimeout(360_000);
+  const errors = await openScene(page);
+
+  // Flip the scene on the LIVE viewer — the fast-rebuild render bail-out this
+  // pins only reproduces with real-browser timing (see useViewerCore's
+  // viewer-state comment). Two-phase wait: first the NEW viewer reports its
+  // model load, only then reset the frame counter — otherwise a frame the
+  // outgoing viewer presents before disposal could satisfy the gate and the
+  // screenshot would grade its stale pixels.
+  await page.evaluate(() => {
+    window.__modelLoaded = false;
+    window.__setScene('studio_soft');
+  });
+  await page.waitForFunction(
+    () => window.__modelLoaded || window.__pageErrors.length > 0,
+    undefined,
+    { timeout: 180_000 }
+  );
+  await page.evaluate(() => {
+    window.__renderedFrames = 0;
+  });
+  await waitForBoot(page);
+
+  const png = await screenshotCanvas(page);
+  const background = pixelAt(png, 2, 2);
+  const modelCoverage = coverage(png, background);
+  expect(modelCoverage).toBeGreaterThan(0.02);
+  expect(modelCoverage).toBeLessThan(0.9);
+
+  expect(errors).toEqual([]);
+});
+
 test('hotspot projects the origin anchor onto the model base', async ({ page }) => {
   const errors = await openScene(page, '?hotspot=1');
 

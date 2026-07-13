@@ -22,7 +22,16 @@ export function useViewerCore(
   // initial call no-op, leaving that camera square (the path tracer then bakes
   // the wrong aspect and never refreshes it).
   const lastResizeRef = useRef({ width: 0, height: 0 });
-  const [isInitialized, setIsInitialized] = useState(false);
+  // The initialized viewer lives in STATE — its identity is the one signal
+  // every consumer keys on. A boolean "isInitialized" alone cannot carry it:
+  // a fast rebuild flips it false→true within one React batch (net unchanged
+  // → render bail-out), so consumers of a render-time ref read kept holding
+  // the DISPOSED viewer — the fresh one never received the model and the
+  // canvas silently stayed blank. Viewer identity never nets out across a
+  // rebuild, so the re-render (and every dep keyed on `viewer`) is
+  // guaranteed. Pinned by the live scene-switch render-smoke test.
+  const [viewer, setViewer] = useState<ViewerCore | null>(null);
+  const isInitialized = viewer !== null;
   const [initError, setInitError] = useState<Error | null>(null);
 
   // Split options into structural (rebuild) and runtime (apply live) sets
@@ -51,15 +60,15 @@ export function useViewerCore(
     // invalid options from an untyped consumer) must not escape the effect:
     // it would bypass the library's own error boundary (a child of this
     // component) and unmount the host application's tree.
-    let viewer: ReturnType<typeof ViewerFactory.createViewer>;
+    let built: ReturnType<typeof ViewerFactory.createViewer>;
     try {
-      viewer = ViewerFactory.createViewer(canvasRef.current, mergedOptions);
+      built = ViewerFactory.createViewer(canvasRef.current, mergedOptions);
     } catch (error) {
       console.error('Failed to create viewer:', error);
       setInitError(error instanceof Error ? error : new Error(String(error)));
       return;
     }
-    viewerRef.current = viewer;
+    viewerRef.current = built;
     // The new viewer's camera is at aspect 1 until the resize effect sizes it;
     // clear the last-size memo so that effect's initial call actually applies
     // instead of no-opping on the previous viewer's (unchanged) dimensions.
@@ -70,12 +79,12 @@ export function useViewerCore(
     let cancelled = false;
 
     // Initialize viewer
-    viewer.initialize().then((result) => {
+    built.initialize().then((result) => {
       if (cancelled) {
         return;
       }
       if (result.ok) {
-        setIsInitialized(true);
+        setViewer(built);
       } else {
         console.error('Failed to initialize viewer:', result.error);
         setInitError(result.error);
@@ -85,9 +94,9 @@ export function useViewerCore(
     // Cleanup
     return () => {
       cancelled = true;
-      viewer.dispose();
+      built.dispose();
       viewerRef.current = null;
-      setIsInitialized(false);
+      setViewer(null);
     };
     // Depends on structuralKey only: a runtime-only change updates stableOptions'
     // identity but must NOT rebuild the viewer (handled by the effect below).
@@ -96,15 +105,17 @@ export function useViewerCore(
 
   // Apply the runtime-tunable look (background, exposure, environment intensity)
   // to the live viewer without tearing it down and re-fetching the model. This
-  // is how switching a preset takes effect. Keyed on runtimeKey.
+  // is how switching a preset takes effect. Keyed on runtimeKey; keyed on the
+  // viewer identity too so a rebuilt viewer gets the current runtime look
+  // (idempotent — construction already merges it in).
   useEffect(() => {
-    if (!viewerRef.current || !isInitialized) {
+    if (!viewer) {
       return;
     }
     const merged = mergeWithPreset(defaultOptions, stableOptions);
-    viewerRef.current.updateOptions(pickRuntimeOptions(merged));
+    viewer.updateOptions(pickRuntimeOptions(merged));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runtimeKey is a content hash of the runtime look; reading the resolved values inside is intentional.
-  }, [runtimeKey, isInitialized]);
+  }, [runtimeKey, viewer]);
 
   // Handle resize
   useEffect(() => {
@@ -168,14 +179,13 @@ export function useViewerCore(
         cancelAnimationFrame(resizeFrameId);
       }
     };
-    // structuralKey is the reliable "a new viewer was built" signal: a fast
-    // rebuild can flip isInitialized false→true within one React batch (net
-    // unchanged), so keying on isInitialized alone would skip re-sizing the fresh
-    // viewer and its camera would keep its default aspect (a stretched frame).
-  }, [isInitialized, canvasRef, structuralKey]);
+    // Keyed on the viewer identity: it changes on every rebuild (see the state
+    // comment above), so the fresh viewer is always re-sized and its camera
+    // never stays at the default aspect.
+  }, [viewer, canvasRef]);
 
   return {
-    viewer: viewerRef.current,
+    viewer,
     isInitialized,
     /** Set when viewer construction or initialization failed (e.g. WebGL unavailable). */
     initError,
