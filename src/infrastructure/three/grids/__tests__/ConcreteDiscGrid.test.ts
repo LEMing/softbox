@@ -10,9 +10,21 @@ import {
 
 const options = (size = 10): IGridOptions => ({ size, divisions: 3 });
 
-const discOf = (grid: THREE.Object3D): THREE.Mesh =>
-  grid.children.find(
+const groundMeshesOf = (grid: THREE.Object3D): THREE.Mesh[] =>
+  grid.children.filter(
     (child) => (child as THREE.Mesh).isMesh && child.name !== CONTACT_SHADOW_LIVE_NAME
+  ) as THREE.Mesh[];
+
+/** The OPAQUE inner ground under the model. */
+const discOf = (grid: THREE.Object3D): THREE.Mesh =>
+  groundMeshesOf(grid).find(
+    (mesh) => !(mesh.material as THREE.Material).transparent
+  ) as THREE.Mesh;
+
+/** The transparent rim-fade ring. */
+const ringOf = (grid: THREE.Object3D): THREE.Mesh =>
+  groundMeshesOf(grid).find(
+    (mesh) => (mesh.material as THREE.Material).transparent
   ) as THREE.Mesh;
 
 const catcherOf = (grid: THREE.Object3D): THREE.Mesh =>
@@ -34,7 +46,7 @@ const stubCanvasContext = () => {
 };
 
 describe('ConcreteDiscGrid', () => {
-  it('builds a visible matte ground disc plus a shadow catcher', () => {
+  it('builds a visible matte ground (opaque core + fade ring) plus a shadow catcher', () => {
     const grid = new ConcreteDiscGrid().createGrid(options());
 
     const disc = discOf(grid);
@@ -46,6 +58,14 @@ describe('ConcreteDiscGrid', () => {
     const material = disc.material as THREE.MeshStandardMaterial;
     expect(material.roughness).toBeGreaterThanOrEqual(0.9);
     expect(material.metalness).toBe(0);
+    // The core must stay OUT of the transparent queue: a transparent ground
+    // sorted after a model's glass overwrote the glass shading (the
+    // vanished-windshield bug). Only the rim-fade ring is transparent, and
+    // it draws first among transparents.
+    expect(material.transparent).toBe(false);
+    const ring = ringOf(grid);
+    expect(ring).toBeDefined();
+    expect(ring.renderOrder).toBe(-1);
 
     const catcher = catcherOf(grid);
     expect(catcher).toBeDefined();
@@ -68,51 +88,58 @@ describe('ConcreteDiscGrid', () => {
 
   it('sizes the ground well past the model and the catcher near it', () => {
     const grid = new ConcreteDiscGrid().createGrid(options(10));
-    const discRadius = (discOf(grid).geometry as THREE.RingGeometry).parameters.outerRadius;
+    const groundRadius = (ringOf(grid).geometry as THREE.RingGeometry).parameters.outerRadius;
     const catcherRadius = (catcherOf(grid).geometry as THREE.CircleGeometry).parameters.radius;
     // Ground reads as open terrain; the baked shadow clips to the catcher.
-    expect(discRadius).toBeGreaterThanOrEqual(10 * 4);
-    expect(catcherRadius).toBeLessThan(discRadius);
+    expect(groundRadius).toBeGreaterThanOrEqual(10 * 4);
+    expect(catcherRadius).toBeLessThan(groundRadius);
     expect(catcherRadius).toBeGreaterThanOrEqual(10);
+    // The core and ring meet exactly (no gap, no overlap).
+    const coreOuter = (discOf(grid).geometry as THREE.RingGeometry).parameters.outerRadius;
+    const ringInner = (ringOf(grid).geometry as THREE.RingGeometry).parameters.innerRadius;
+    expect(coreOuter).toBeCloseTo(ringInner);
   });
 
-  it('vertex colors are always finite — one NaN paints the whole disc black', () => {
+  it('vertex colors are always finite — one NaN paints the whole ground black', () => {
     // Regression: macro-noise periods that do not divide the lattice indexed
     // the array at a fraction (undefined → NaN vertex colors → black ground).
     const grid = new ConcreteDiscGrid().createGrid(options(10));
-    const color = (discOf(grid).geometry as THREE.BufferGeometry).getAttribute('color');
-    const values = color.array as Float32Array;
-    const firstBad = values.findIndex((value) => !Number.isFinite(value));
-    expect(firstBad).toBe(-1);
+    for (const mesh of groundMeshesOf(grid)) {
+      const values = mesh.geometry.getAttribute('color').array as Float32Array;
+      const firstBad = values.findIndex((value) => !Number.isFinite(value));
+      expect(firstBad).toBe(-1);
+    }
   });
 
   it('caps the ground radius inside the projected world (large models)', () => {
     const grid = new ConcreteDiscGrid().createGrid(options(20));
-    const discRadius = (discOf(grid).geometry as THREE.RingGeometry).parameters.outerRadius;
+    const groundRadius = (ringOf(grid).geometry as THREE.RingGeometry).parameters.outerRadius;
     // 20m footprint × 8 would be 160m — through the 120m projection wall. The
     // cap keeps the whole rim fade inside the projected world.
-    expect(discRadius).toBeLessThanOrEqual(70);
+    expect(groundRadius).toBeLessThanOrEqual(70);
   });
 
   it('fades the rim out via RGBA vertex colors — no hard horizon edge', () => {
     const grid = new ConcreteDiscGrid().createGrid(options(10));
-    const geometry = discOf(grid).geometry as THREE.BufferGeometry;
+    const ring = ringOf(grid);
+    const geometry = ring.geometry as THREE.BufferGeometry;
     const color = geometry.getAttribute('color');
     const position = geometry.getAttribute('position');
     expect(color.itemSize).toBe(4);
     const outerRadius = (geometry as THREE.RingGeometry).parameters.outerRadius;
-    let centerAlpha = -1;
     let rimAlpha = -1;
     for (let i = 0; i < position.count; i += 1) {
       const r = Math.hypot(position.getX(i), position.getY(i)) / outerRadius;
-      if (r < 0.05) centerAlpha = color.getW(i);
       if (r > 0.99) rimAlpha = color.getW(i);
     }
-    expect(centerAlpha).toBe(1);
     expect(rimAlpha).toBeLessThan(0.02);
-    const material = discOf(grid).material as THREE.MeshStandardMaterial;
-    expect(material.transparent).toBe(true);
-    expect(material.vertexColors).toBe(true);
+    expect((ring.material as THREE.MeshStandardMaterial).vertexColors).toBe(true);
+
+    // The opaque core is fully opaque everywhere (alpha carries no fade).
+    const coreColors = discOf(grid).geometry.getAttribute('color');
+    for (let i = 0; i < coreColors.count; i += 1) {
+      expect(coreColors.getW(i)).toBe(1);
+    }
   });
 
   it('falls back to a flat matte color when no 2D canvas context exists (jsdom)', () => {

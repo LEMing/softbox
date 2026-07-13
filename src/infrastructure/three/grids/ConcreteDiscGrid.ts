@@ -9,6 +9,11 @@ const TEXTURE_REPEAT_METERS = 4;
  * stains stay sparse — the non-repeating vertex macro layer breaks up what
  * remains. */
 const PHOTO_TEXTURE_REPEAT_METERS = 7;
+/** Diffuse multiplier for the photo maps: the captured concrete reads a
+ * stop too dark and warm under the daylight HDRIs — lift it toward the
+ * clean light-gray of a fresh pour (three does not clamp Color above 1).
+ * Slightly blue-weighted to neutralize the photo's brown cast. */
+const PHOTO_BRIGHTNESS = new THREE.Color(1.55, 1.62, 1.72);
 /** How far the ground reads past the model (its largest footprint dimension). */
 const DISC_FOOTPRINT_SCALE = 8;
 /** Hard cap on the ground radius: the rim fade must complete INSIDE the
@@ -307,36 +312,54 @@ export class ConcreteDiscGrid implements IGridStyle {
   createGrid(options: IGridOptions): THREE.Object3D {
     const group = new THREE.Group();
     const footprint = Math.max(options.size || 1, 1);
-    group.add(
-      this.createDisc(
-        Math.min(footprint * DISC_FOOTPRINT_SCALE, DISC_MAX_RADIUS_METERS),
-        options.styleOptions
-      )
+    const radius = Math.min(footprint * DISC_FOOTPRINT_SCALE, DISC_MAX_RADIUS_METERS);
+    // The ground is TWO meshes: an OPAQUE inner disc under the model and a
+    // transparent outer ring carrying the rim fade. A single transparent
+    // disc landed in three's transparent queue next to the model's own glass
+    // and, with the arbitrary same-distance sort order, could draw AFTER it —
+    // the ground seen through a windshield then overwrote the glass shading
+    // (tint and reflections vanished). The opaque core writes depth in the
+    // opaque pass, so glass composites over it correctly; the far ring draws
+    // first among transparents (renderOrder -1) for the same reason.
+    const makeMaterial = (transparent: boolean) => {
+      const material = new THREE.MeshStandardMaterial({
+        color: CONCRETE_COLOR,
+        roughness: 0.95,
+        metalness: 0,
+        transparent,
+        vertexColors: true,
+      });
+      installUntiledSampling(material);
+      return material;
+    };
+    const materials = [makeMaterial(false), makeMaterial(true)];
+    // One texture set shared by both meshes (a per-material set would fetch
+    // every map twice); disposal double-visits them, which is idempotent.
+    if (options.styleOptions?.texture) {
+      this.applyPhotoMaps(materials, radius, options.styleOptions);
+    } else {
+      this.applyProceduralMaps(materials, radius);
+    }
+    const fadeStart = radius * FADE_START;
+
+    const core = new THREE.Mesh(this.createGroundGeometry(radius, 0, fadeStart), materials[0]);
+    core.rotation.x = -Math.PI / 2;
+    core.receiveShadow = true;
+    group.add(core);
+
+    const ring = new THREE.Mesh(
+      this.createGroundGeometry(radius, fadeStart, radius),
+      materials[1]
     );
+    ring.rotation.x = -Math.PI / 2;
+    ring.receiveShadow = true;
+    ring.renderOrder = -1;
+    group.add(ring);
+
     // Catcher sized like the studio floor's: the baked shadow clips itself to
     // this disc, and the shadow never spreads anywhere near the ground's edge.
     group.add(createShadowCatcher(footprint * 1.5));
     return group;
-  }
-
-  private createDisc(radius: number, styleOptions?: IGridOptions['styleOptions']): THREE.Mesh {
-    const material = new THREE.MeshStandardMaterial({
-      color: CONCRETE_COLOR,
-      roughness: 0.95,
-      metalness: 0,
-      transparent: true,
-      vertexColors: true,
-    });
-    if (styleOptions?.texture) {
-      this.applyPhotoMaps(material, radius, styleOptions);
-    } else {
-      this.applyProceduralMaps(material, radius);
-    }
-    installUntiledSampling(material);
-    const disc = new THREE.Mesh(this.createFadingDiscGeometry(radius), material);
-    disc.rotation.x = -Math.PI / 2;
-    disc.receiveShadow = true;
-    return disc;
   }
 
   /**
@@ -347,7 +370,7 @@ export class ConcreteDiscGrid implements IGridStyle {
    * so offline viewers degrade to the seeded concrete instead of a black disc.
    */
   private applyPhotoMaps(
-    material: THREE.MeshStandardMaterial,
+    materials: THREE.MeshStandardMaterial[],
     radius: number,
     styleOptions: NonNullable<IGridOptions['styleOptions']>
   ): void {
@@ -359,19 +382,21 @@ export class ConcreteDiscGrid implements IGridStyle {
         return;
       }
       failedOver = true;
-      material.map?.dispose();
-      material.normalMap?.dispose();
-      material.roughnessMap?.dispose();
-      material.map = null;
-      material.normalMap = null;
-      material.roughnessMap = null;
-      // Restore the scalar look first: if the procedural maps are ALSO
-      // unavailable (no 2D canvas), the flat matte tone must carry the disc
-      // instead of the photo path's white multiplier.
-      material.color = new THREE.Color(CONCRETE_COLOR);
-      material.roughness = 0.95;
-      this.applyProceduralMaps(material, radius);
-      material.needsUpdate = true;
+      for (const material of materials) {
+        material.map?.dispose();
+        material.normalMap?.dispose();
+        material.roughnessMap?.dispose();
+        material.map = null;
+        material.normalMap = null;
+        material.roughnessMap = null;
+        // Restore the scalar look first: if the procedural maps are ALSO
+        // unavailable (no 2D canvas), the flat matte tone must carry the
+        // ground instead of the photo path's white multiplier.
+        material.color = new THREE.Color(CONCRETE_COLOR);
+        material.roughness = 0.95;
+        material.needsUpdate = true;
+      }
+      this.applyProceduralMaps(materials, radius);
     };
     const load = (url: string, isColor: boolean): THREE.Texture => {
       const texture = loader.load(url, undefined, undefined, failover);
@@ -384,20 +409,26 @@ export class ConcreteDiscGrid implements IGridStyle {
       }
       return texture;
     };
-    material.map = load(styleOptions.texture as string, true);
-    if (styleOptions.normalMap) {
-      material.normalMap = load(styleOptions.normalMap, false);
-      material.normalScale = new THREE.Vector2(0.9, 0.9);
+    const map = load(styleOptions.texture as string, true);
+    const normalMap = styleOptions.normalMap ? load(styleOptions.normalMap, false) : null;
+    const roughnessMap = styleOptions.roughnessMap ? load(styleOptions.roughnessMap, false) : null;
+    for (const material of materials) {
+      material.map = map;
+      if (normalMap) {
+        material.normalMap = normalMap;
+        material.normalScale = new THREE.Vector2(0.9, 0.9);
+      }
+      if (roughnessMap) {
+        material.roughnessMap = roughnessMap;
+      }
+      // The maps carry tone and roughness (the color lift is deliberate —
+      // see PHOTO_BRIGHTNESS); roughness must not double-apply.
+      material.color = PHOTO_BRIGHTNESS.clone();
+      material.roughness = 1;
     }
-    if (styleOptions.roughnessMap) {
-      material.roughnessMap = load(styleOptions.roughnessMap, false);
-    }
-    // The maps carry tone and roughness; the scalars must not double-apply.
-    material.color = new THREE.Color('#ffffff');
-    material.roughness = 1;
   }
 
-  private applyProceduralMaps(material: THREE.MeshStandardMaterial, radius: number): void {
+  private applyProceduralMaps(materials: THREE.MeshStandardMaterial[], radius: number): void {
     const maps = this.createConcretePbrMaps();
     if (!maps) {
       return;
@@ -406,43 +437,52 @@ export class ConcreteDiscGrid implements IGridStyle {
     for (const texture of [maps.map, maps.normalMap, maps.roughnessMap]) {
       texture.repeat.set(repeats, repeats);
     }
-    material.map = maps.map;
-    material.normalMap = maps.normalMap;
-    material.normalScale = new THREE.Vector2(0.6, 0.6);
-    material.roughnessMap = maps.roughnessMap;
-    // The maps carry tone and roughness; the scalars must not double-apply.
-    material.color = new THREE.Color('#ffffff');
-    material.roughness = 1;
+    for (const material of materials) {
+      material.map = maps.map;
+      material.normalMap = maps.normalMap;
+      material.normalScale = new THREE.Vector2(0.6, 0.6);
+      material.roughnessMap = maps.roughnessMap;
+      // The maps carry tone and roughness; the scalars must not double-apply.
+      material.color = new THREE.Color('#ffffff');
+      material.roughness = 1;
+    }
   }
 
   /**
-   * A disc with radial segments carrying RGBA vertex colors doing two jobs:
+   * A ground annulus (`innerRadius`..`outerRadius` of the full ground) with
+   * radial segments carrying RGBA vertex colors doing two jobs:
    * - alpha: fully opaque around the model, easing to transparent at the rim,
    *   so the concrete dissolves into the environment instead of showing a
-   *   hard horizon edge;
-   * - rgb: a low-frequency tonal drift across the WHOLE disc. The texture
+   *   hard horizon edge (only the outer ring ever has alpha < 1);
+   * - rgb: a low-frequency tonal drift across the WHOLE ground. The texture
    *   necessarily repeats every few meters — this macro layer never repeats,
    *   which is what stops the eye from locking onto the tile period.
+   * `fullRadius` keeps the drift/fade fields continuous across the
+   * core/ring seam — both meshes sample the same world-space functions.
    */
-  private createFadingDiscGeometry(radius: number): THREE.BufferGeometry {
+  private createGroundGeometry(
+    fullRadius: number,
+    innerRadius: number,
+    outerRadius: number
+  ): THREE.BufferGeometry {
     // Dense segments: the macro drift below is per-vertex, so vertex spacing
     // is its effective resolution (~1m at the capped radius).
-    const geometry = new THREE.RingGeometry(0, radius, 128, 48);
+    const geometry = new THREE.RingGeometry(innerRadius, outerRadius, 128, 32);
     const macro = makeTileableNoise(mulberry32(CONCRETE_SEED ^ 0x9e3779b9));
     const positions = geometry.getAttribute('position');
     const rgba = new Float32Array(positions.count * 4);
     for (let i = 0; i < positions.count; i += 1) {
       const x = positions.getX(i);
       const y = positions.getY(i);
-      const r = Math.hypot(x, y) / radius;
+      const r = Math.hypot(x, y) / fullRadius;
       const fade =
         r <= FADE_START ? 1 : 1 - smoothstep01(Math.min((r - FADE_START) / (1 - FADE_START), 1));
-      // ALL visible patchiness lives here, in two scales spanning the disc
+      // ALL visible patchiness lives here, in two scales spanning the ground
       // (a broad wash + meter-scale mottling) — the macro period covers the
       // whole ground exactly once, so unlike the tiled texture this layer
       // cannot repeat, and there is no motif left for the eye to track.
-      const u = x / (radius * 2) + 0.5;
-      const v = y / (radius * 2) + 0.5;
+      const u = x / (fullRadius * 2) + 0.5;
+      const v = y / (fullRadius * 2) + 0.5;
       const drift = 0.9 + (0.6 * macro(u, v, 4) + 0.4 * macro(u, v, 32)) * 0.2;
       rgba[i * 4] = drift;
       rgba[i * 4 + 1] = drift;
