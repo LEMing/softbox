@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, act, fireEvent } from '@testing-library/react';
+import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import * as THREE from 'three';
 import { SimpleViewer } from '../SimpleViewer';
@@ -8,6 +8,7 @@ import { TypedEventEmitter } from '../../../events/EventEmitter';
 import { ViewerEventMap } from '../../../core/events/CoreViewerEvents';
 import { ThreeObject3DAdapter } from '../../../infrastructure/three/ThreeObject3D';
 import { Result } from '../../../utils/Result';
+import { ThreeViewerError, ErrorCode } from '../../../errors';
 
 jest.mock('../../hooks', () => ({
   ...jest.requireActual('../../hooks'),
@@ -19,7 +20,9 @@ const mockedUseViewerCore = useViewerCore as jest.Mock;
 
 let coreEvents: TypedEventEmitter<ViewerEventMap>;
 
-const makeViewer = () =>
+// The default fake load never settles, so loadState sits in 'loading' and
+// dismissal is driven purely by the emitted events — like a real slow GLB.
+const makeViewer = (loadModel: jest.Mock = jest.fn(() => new Promise(() => {}))) =>
   ({
     getScene: () => null,
     getModelUrl: () => null,
@@ -28,7 +31,7 @@ const makeViewer = () =>
     getRenderer: () => null,
     getEvents: () => coreEvents,
     requestRender: jest.fn(),
-    loadModel: jest.fn(async () => Result.ok(undefined)),
+    loadModel,
     isDisposed: jest.fn(() => false),
     dispose: jest.fn(),
   }) as unknown as ReturnType<typeof useViewerCore>['viewer'];
@@ -95,7 +98,40 @@ describe('SimpleViewer poster', () => {
     expect(poster()).not.toBeInTheDocument();
   });
 
-  it('leaves the poster up as the backdrop when the load errs', () => {
+  it('blocks input while opaque and releases it during the fade', () => {
+    render(
+      <SimpleViewer
+        object="model.glb"
+        options={{ poster: '/hero.webp', loadingIndicator: false }}
+      />
+    );
+    // Opaque poster: the chrome underneath is invisible — taps must not
+    // reach it.
+    expect(poster()).toHaveStyle({ pointerEvents: 'auto' });
+
+    emitLoaded();
+    emitRendered();
+    expect(poster()).toHaveStyle({ pointerEvents: 'none' });
+  });
+
+  it('stays up as the backdrop under the built-in error overlay when the load errs', async () => {
+    const failingLoad = jest.fn(async () =>
+      Result.err(new ThreeViewerError('404', ErrorCode.MODEL_LOAD_FAILED))
+    );
+    mockedUseViewerCore.mockReturnValue({ viewer: makeViewer(failingLoad), isInitialized: true });
+
+    render(<SimpleViewer object="model.glb" options={{ poster: '/hero.webp' }} />);
+    await waitFor(() => expect(screen.getByTestId('viewer-loading-overlay')).toBeInTheDocument());
+
+    expect(poster()).toHaveStyle({ opacity: '1' });
+  });
+
+  it('steps aside on error when the built-in overlay is disabled (no frozen-hero mirage)', async () => {
+    const failingLoad = jest.fn(async () =>
+      Result.err(new ThreeViewerError('404', ErrorCode.MODEL_LOAD_FAILED))
+    );
+    mockedUseViewerCore.mockReturnValue({ viewer: makeViewer(failingLoad), isInitialized: true });
+
     render(
       <SimpleViewer
         object="model.glb"
@@ -103,12 +139,38 @@ describe('SimpleViewer poster', () => {
       />
     );
 
-    act(() => {
-      coreEvents.emit('model:error', { error: new Error('404') as never, url: 'model.glb' });
-    });
-    emitRendered();
+    await waitFor(() => expect(poster()).toHaveStyle({ opacity: '0' }));
+  });
 
-    expect(poster()).toHaveStyle({ opacity: '1' });
+  it('dismisses a poster that arrives after the model already painted', async () => {
+    jest.useFakeTimers();
+    const instantLoad = jest.fn(async () => Result.ok(undefined));
+    mockedUseViewerCore.mockReturnValue({ viewer: makeViewer(instantLoad), isInitialized: true });
+
+    const { rerender } = render(
+      <SimpleViewer object="model.glb" options={{ loadingIndicator: false }} />
+    );
+    // The load settles; there will be no future model:loaded to wait for.
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    rerender(
+      <SimpleViewer
+        object="model.glb"
+        options={{ poster: '/late.webp', loadingIndicator: false }}
+      />
+    );
+
+    // Already-painted model: the poster must not cover it...
+    expect(poster()).toHaveStyle({ opacity: '0' });
+    // ...and the hidden overlay must self-remove even though no CSS
+    // transition ever ran (the transitionend-less mount path).
+    act(() => {
+      jest.advanceTimersByTime(600);
+    });
+    expect(poster()).not.toBeInTheDocument();
+    jest.useRealTimers();
   });
 
   it('never fades back in: a poster dismissed once stays dismissed on later loads', () => {

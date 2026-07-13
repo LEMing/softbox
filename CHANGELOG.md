@@ -14,8 +14,12 @@ Changelog
   the GLB downloads.
 * Generate posters with the existing `handle.captureStill()` — same studio
   look, pixel-identical to what the live viewer will show.
-* If the load errs, the poster stays up as the backdrop; the error overlay
-  renders above it. UI-only — changing it never rebuilds the viewer.
+* While opaque the poster catches input (no taps reach invisible chrome
+  underneath); a poster that arrives after the model already painted
+  dismisses immediately. If the load errs, the poster stays up as the
+  backdrop under the built-in error overlay — or steps aside when the
+  overlay is disabled, so a dead load never masquerades as a frozen hero
+  image. UI-only — changing it never rebuilds the viewer.
 
 4.24.0
 ---

@@ -180,8 +180,11 @@ model's first painted frame, then dissolved into the live scene:
 With `loading: 'lazy'` the combination is LCP-friendly: the page paints the
 poster immediately with zero WebGL work, and the real viewer boots only
 when scrolled into view. Generate posters with `handle.captureStill()` —
-same studio look, pixel-identical to what the live viewer will show. If the
-load fails, the poster stays up as the backdrop under the error overlay.
+same studio look, pixel-identical to what the live viewer will show. While
+opaque, the poster catches input (nothing invisible underneath can be
+tapped). If the load fails, the poster stays up as the backdrop under the
+built-in error overlay — with `loadingIndicator: false` it steps aside
+instead, so a dead load never masquerades as a frozen hero image.
 
 ## Turntable
 
