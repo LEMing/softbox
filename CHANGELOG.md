@@ -51,8 +51,7 @@ board: every audit dimension now sits at A+ or A++.
   and `powerPreference` (they always worked; the type never admitted them).
 
 **Showcase:** the README/og hero shot is refreshed — the playground on the
-Dark preset with every post-processing effect on (bloom, vignette, grain,
-grade).
+Dark preset with the vignette, grain and grade effects on.
 
 **Guardrails (dev-facing):** coverage pins on the path-tracing modules, an
 API-drift canary against the real three-gpu-pathtracer, a real-WebGL
