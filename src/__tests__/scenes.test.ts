@@ -20,6 +20,10 @@ describe('viewer scenes', () => {
     expect(resolveScene('studio_soft')).toBe(VIEWER_SCENES.studio_soft);
   });
 
+  it('resolveScene falls back to an empty delta for an unknown name (untyped consumers)', () => {
+    expect(resolveScene('studio-soft' as ViewerScene)).toEqual({});
+  });
+
   it('every scene sets only structural set fields — never the live look fields presets own', () => {
     for (const name of ALL_SCENES) {
       const scene = VIEWER_SCENES[name];

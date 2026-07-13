@@ -49,6 +49,13 @@ const coverage = (png: PNG, background: Rgb): number => {
 /** Fraction of pixel-aligned positions whose color clearly differs between two
  * same-size screenshots. */
 const diffFraction = (a: PNG, b: PNG, threshold: number): number => {
+  if (a.width !== b.width || a.height !== b.height) {
+    // Out-of-range reads would silently compare as "no diff" (NaN distances);
+    // fail with the reason instead.
+    throw new Error(
+      `screenshot sizes differ: ${a.width}x${a.height} vs ${b.width}x${b.height}`
+    );
+  }
   let differing = 0;
   const total = a.width * a.height;
   for (let i = 0; i < total; i += 1) {
@@ -73,11 +80,10 @@ const collectPageErrors = (page: Page): string[] => {
   return errors;
 };
 
-const openScene = async (page: Page, query = '') => {
-  const errors = collectPageErrors(page);
-  await page.goto(`${HARNESS}${query}`);
-  // Also stop waiting the moment the page reports an error, so a broken
-  // WebGL context fails with the reason instead of a mute timeout.
+// Also stop waiting the moment the page reports an error, so a broken
+// WebGL context fails with the reason instead of a mute timeout. Used for
+// every harness load, including in-test second navigations.
+const waitForBoot = async (page: Page) => {
   await page.waitForFunction(
     () =>
       (window.__modelLoaded && window.__renderedFrames > 0) ||
@@ -89,6 +95,12 @@ const openScene = async (page: Page, query = '') => {
   if (pageErrors.length > 0) {
     throw new Error(`harness page reported errors:\n${pageErrors.join('\n')}`);
   }
+};
+
+const openScene = async (page: Page, query = '') => {
+  const errors = collectPageErrors(page);
+  await page.goto(`${HARNESS}${query}`);
+  await waitForBoot(page);
   return errors;
 };
 
@@ -120,11 +132,7 @@ test('dark preset paints a clearly darker background than the default look', asy
   const defaultBackground = luminance(pixelAt(await screenshotCanvas(page), 2, 2));
 
   await page.goto(`${HARNESS}?preset=dark`);
-  await page.waitForFunction(
-    () => window.__modelLoaded && window.__renderedFrames > 0,
-    undefined,
-    { timeout: 180_000 }
-  );
+  await waitForBoot(page);
   const darkPng = await screenshotCanvas(page);
   const darkBackground = luminance(pixelAt(darkPng, 2, 2));
 
@@ -144,11 +152,7 @@ test('studio_soft scene relights the model without touching the backdrop', async
   const domePng = await screenshotCanvas(page);
 
   await page.goto(`${HARNESS}?scene=studio_soft`);
-  await page.waitForFunction(
-    () => window.__modelLoaded && window.__renderedFrames > 0,
-    undefined,
-    { timeout: 180_000 }
-  );
+  await waitForBoot(page);
   const softPng = await screenshotCanvas(page);
 
   // Same set dressing: the backdrop is preset-owned (scene must not move it).
@@ -157,7 +161,9 @@ test('studio_soft scene relights the model without touching the backdrop', async
   // ...but the soft grade must actually reach the pixels: the model's IBL
   // shading shifts, so a visible share of the frame changes between grades.
   // A scene option that silently no-ops (the bug class this pins) diffs ~0.
-  expect(diffFraction(domePng, softPng, 12)).toBeGreaterThan(0.01);
+  // Measured 0.11 at threshold 12 on a real GPU; 8/0.01 leaves ample margin
+  // for SwiftShader's flatter shading without letting a no-op pass.
+  expect(diffFraction(domePng, softPng, 8)).toBeGreaterThan(0.01);
 
   expect(errors).toEqual([]);
 });

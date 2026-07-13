@@ -9,6 +9,7 @@ import {
 } from '../../types/runtimeOptions';
 import defaultOptions from '../../defaultOptions';
 import { mergeWithPreset } from '../../presets';
+import { DEFAULT_SCENE } from '../../scenes';
 
 export interface StableOptions {
   /** Stable options reference; identity only changes when a key below changes. */
@@ -68,7 +69,7 @@ export function useStableOptions(options: SimpleViewerOptions): StableOptions {
         // The scene selects the physical set (floor, backdrop, environment
         // build) — structural by definition. Normalized so absent and the
         // explicit default share a key.
-        scene: options.scene ?? 'studio_dome',
+        scene: options.scene ?? DEFAULT_SCENE,
         lighting: options.lighting,
         // helpers minus `gizmo`: the gizmo is React chrome over the canvas
         // (read live by SimpleViewer, touched by nothing in core), so toggling

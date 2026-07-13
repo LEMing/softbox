@@ -262,6 +262,16 @@ describe('ThreeEnvironmentService', () => {
     const applied = service.applyToScene(scene, studio.value, { setBackground: false });
     expect(applied.ok).toBe(true);
     expect(scene.getThreeScene().environment).not.toBeNull();
+
+    // A failed capture must still cache the PMREM: a miss here re-baked the
+    // room on every reset and leaked one render target per call.
+    const again = service.createStudioEnvironment();
+    if (!again.ok) throw again.error;
+    expect(rawTexture(again.value)).toBe(rawTexture(studio.value));
+    const generator = (service as unknown as {
+      pmremGenerator: { fromScene: jest.Mock };
+    }).pmremGenerator;
+    expect(generator.fromScene).toHaveBeenCalledTimes(1);
   });
 
   it('dispose frees every cached texture (pmrem AND original) and clears the cache', async () => {

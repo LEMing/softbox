@@ -24,7 +24,15 @@ export const VIEWER_SCENES: Record<ViewerScene, Partial<SimpleViewerOptions>> = 
   },
 };
 
+/** The scene every viewer stands in when none is set. */
+export const DEFAULT_SCENE: ViewerScene = 'studio_dome';
+
 /** The partial options for a scene, or an empty object when none is set. */
 export function resolveScene(scene?: ViewerScene): Partial<SimpleViewerOptions> {
-  return scene ? VIEWER_SCENES[scene] : {};
+  if (!scene) {
+    return {};
+  }
+  // Untyped JS consumers can pass any string; an unknown name must fall back
+  // to the default set instead of leaking `undefined` into the merge chain.
+  return VIEWER_SCENES[scene] ?? {};
 }

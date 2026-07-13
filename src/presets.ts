@@ -47,7 +47,12 @@ export const VIEWER_PRESETS: Record<ViewerPreset, Partial<SimpleViewerOptions>> 
 
 /** The partial options for a preset, or an empty object when none is set. */
 export function resolvePreset(preset?: ViewerPreset): Partial<SimpleViewerOptions> {
-  return preset ? VIEWER_PRESETS[preset] : {};
+  if (!preset) {
+    return {};
+  }
+  // Same guard as resolveScene: an unknown name from an untyped consumer
+  // falls back to the default look instead of leaking `undefined`.
+  return VIEWER_PRESETS[preset] ?? {};
 }
 
 /**

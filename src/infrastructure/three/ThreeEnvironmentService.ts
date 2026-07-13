@@ -14,7 +14,7 @@ import { ThreeViewerError, ErrorCode } from '../../errors';
 import { toThreeScene, toThreeTexture } from './unwrap';
 import { markViewerOwnedBackground, disposeViewerOwnedBackground } from './backgroundOwnership';
 import { RendererWithInternalAccess } from '../../types/CommonTypes';
-import { StudioLook } from '../../types/options';
+import { DEFAULT_STUDIO_LOOK, StudioLook } from '../../types/options';
 
 /** Cube face size for the studio-room capture the path tracer ingests:
  * enough for soft studio lighting (the tracer blurs it into an equirect
@@ -29,10 +29,12 @@ type SceneWithOriginalTexture = THREE.Scene & {
 };
 
 /** One session bake of the studio room: the PMREM the raster pipeline lights
- * with plus the cube capture the path tracer reads. */
+ * with plus the cube capture the path tracer reads. The capture is
+ * best-effort — `null` when it failed (the raster look is unaffected, path
+ * tracing just gets no studio environment). */
 interface StudioBake {
   pmremTexture: THREE.Texture;
-  cubeTarget: THREE.WebGLCubeRenderTarget;
+  cubeTarget: THREE.WebGLCubeRenderTarget | null;
 }
 
 export class ThreeEnvironmentService implements IEnvironmentService {
@@ -339,7 +341,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     });
   }
 
-  createStudioEnvironment(look: StudioLook = 'crisp'): Result<ITexture> {
+  createStudioEnvironment(look: StudioLook = DEFAULT_STUDIO_LOOK): Result<ITexture> {
     try {
       if (!this.pmremGenerator) {
         return Result.err(
@@ -365,7 +367,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       // way both the PMREM env map and the path tracer's cube capture below
       // share the same graded room.
       const roomEnvironment = new RoomEnvironment();
-      if (look === 'crisp') {
+      if (look !== 'soft') {
         applyStudioContrast(roomEnvironment);
       }
       const renderTarget = this.pmremGenerator.fromScene(roomEnvironment);
@@ -373,6 +375,12 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       const roomTexture = renderTarget.texture;
 
       this.captureStudioCubeOriginal(look, roomEnvironment, roomTexture);
+      // The PMREM must be cached even when the capture failed: a miss here
+      // meant every setEnvironmentMap↔resetEnvironment round trip re-baked
+      // the room and leaked one more PMREM render target until dispose.
+      if (!this.studioBakes.has(look)) {
+        this.studioBakes.set(look, { pmremTexture: roomTexture, cubeTarget: null });
+      }
 
       // Clean up
       roomEnvironment.dispose();
@@ -441,7 +449,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     this.renderTargets.forEach(target => target.dispose());
     this.renderTargets = [];
 
-    this.studioBakes.forEach(bake => bake.cubeTarget.dispose());
+    this.studioBakes.forEach(bake => bake.cubeTarget?.dispose());
     this.studioBakes.clear();
 
     if (this.pmremGenerator) {

@@ -19,6 +19,10 @@ describe('viewer presets', () => {
     expect(resolvePreset('product')).toBe(VIEWER_PRESETS.product);
   });
 
+  it('resolvePreset falls back to an empty delta for an unknown name (untyped consumers)', () => {
+    expect(resolvePreset('Product' as ViewerPreset)).toEqual({});
+  });
+
   it('every preset sets only the live look fields (background, exposure, env intensity)', () => {
     for (const name of ALL_PRESETS) {
       const preset = VIEWER_PRESETS[name];

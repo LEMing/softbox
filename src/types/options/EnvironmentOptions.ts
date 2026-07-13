@@ -8,6 +8,9 @@
  */
 export type StudioLook = 'crisp' | 'soft';
 
+/** The grade the studio environment is built with when none is set. */
+export const DEFAULT_STUDIO_LOOK: StudioLook = 'crisp';
+
 /**
  * Image-based lighting and background. Without a `url` the viewer lights the
  * scene with its built-in procedural studio environment — zero network
