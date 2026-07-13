@@ -215,6 +215,19 @@ describe('ConcreteDiscGrid', () => {
       },
     });
 
+    it('keeps texel density on centimeter-scale models (repeat tracks the ground size)', () => {
+      // A fixed 7m world repeat left an avocado-sized set with a few dozen
+      // texels across the whole frame — giant blurry pixels.
+      const grid = new ConcreteDiscGrid().createGrid({
+        size: 0.06,
+        divisions: 3,
+        styleOptions: { texture: 'https://cdn/diff.jpg' },
+      });
+      const material = discOf(grid).material as THREE.MeshStandardMaterial;
+      // Ground radius 0.48m → repeat clamps to 0.35m → ~2.7 repeats across.
+      expect(material.map!.repeat.x).toBeGreaterThan(2);
+    });
+
     it('loads the three photo maps with world-scale repeats (diffuse sRGB only)', () => {
       const material = discOf(
         new ConcreteDiscGrid().createGrid(photoOptions())

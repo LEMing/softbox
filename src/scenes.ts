@@ -18,8 +18,12 @@ import { ViewerScene } from './types/options';
  * the DRACO/KTX2 decoder paths. (Urban candidates — potsdamer_platz,
  * quarry_01 — were rejected visually: dusk-dark and olive-tinted grounds.)
  */
+// 2k, not 1k: the HDRI is also the VISIBLE sky (background + ground
+// projection), and at 1k the clouds render blurry and banded. 2k (~5.4 MB)
+// is the sharpness/weight sweet spot; pass your own 4k via `environment.url`
+// for hero shots.
 export const DEFAULT_OUTDOOR_HDRI_URL =
-  'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/kloofendal_48d_partly_cloudy_puresky_1k.hdr';
+  'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/kloofendal_48d_partly_cloudy_puresky_2k.hdr';
 
 /**
  * Photographic PBR maps for the outdoor concrete ground (CC0, Poly Haven;

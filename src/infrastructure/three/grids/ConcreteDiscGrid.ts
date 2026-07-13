@@ -3,12 +3,22 @@ import { IGridStyle, IGridOptions } from './IGridStyle';
 import { createShadowCatcher } from './shadowCatcher';
 import { smoothstep01 } from '../../../utils/smoothstep';
 
-/** Meters of ground one repeat of the procedural concrete covers. */
+/** Ceiling on meters of ground one repeat of the procedural concrete covers. */
 const TEXTURE_REPEAT_METERS = 4;
-/** Meters per repeat for photographic maps: large, so the photo's distinct
- * stains stay sparse — the non-repeating vertex macro layer breaks up what
- * remains. */
+/** Ceiling on meters per repeat for photographic maps: large, so the photo's
+ * distinct stains stay sparse — the non-repeating vertex macro layer breaks
+ * up what remains. */
 const PHOTO_TEXTURE_REPEAT_METERS = 7;
+
+/**
+ * Meters one texture repeat covers, scaled to the GROUND size: a fixed
+ * world-scale repeat gave a centimeter-scale model (its whole ground is
+ * ~0.5m) only a few dozen texels across the frame — giant blurry "pixels".
+ * Texel density now tracks the scene: small sets get proportionally finer
+ * grain, big sets keep the sparse-repeat ceiling.
+ */
+const repeatMetersFor = (groundRadius: number, ceiling: number): number =>
+  Math.min(Math.max(groundRadius / 10, 0.35), ceiling);
 /** Diffuse multiplier for the photo maps: the captured concrete reads a
  * stop too dark and warm under the daylight HDRIs — lift it toward the
  * clean light-gray of a fresh pour (three does not clamp Color above 1).
@@ -375,7 +385,7 @@ export class ConcreteDiscGrid implements IGridStyle {
     styleOptions: NonNullable<IGridOptions['styleOptions']>
   ): void {
     const loader = new THREE.TextureLoader();
-    const repeats = (radius * 2) / PHOTO_TEXTURE_REPEAT_METERS;
+    const repeats = (radius * 2) / repeatMetersFor(radius, PHOTO_TEXTURE_REPEAT_METERS);
     let failedOver = false;
     const failover = () => {
       if (failedOver) {
@@ -433,7 +443,7 @@ export class ConcreteDiscGrid implements IGridStyle {
     if (!maps) {
       return;
     }
-    const repeats = (radius * 2) / TEXTURE_REPEAT_METERS;
+    const repeats = (radius * 2) / repeatMetersFor(radius, TEXTURE_REPEAT_METERS);
     for (const texture of [maps.map, maps.normalMap, maps.roughnessMap]) {
       texture.repeat.set(repeats, repeats);
     }
