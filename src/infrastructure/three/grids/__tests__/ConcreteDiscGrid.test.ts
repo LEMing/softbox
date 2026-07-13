@@ -76,6 +76,16 @@ describe('ConcreteDiscGrid', () => {
     expect(catcherRadius).toBeGreaterThanOrEqual(10);
   });
 
+  it('vertex colors are always finite — one NaN paints the whole disc black', () => {
+    // Regression: macro-noise periods that do not divide the lattice indexed
+    // the array at a fraction (undefined → NaN vertex colors → black ground).
+    const grid = new ConcreteDiscGrid().createGrid(options(10));
+    const color = (discOf(grid).geometry as THREE.BufferGeometry).getAttribute('color');
+    const values = color.array as Float32Array;
+    const firstBad = values.findIndex((value) => !Number.isFinite(value));
+    expect(firstBad).toBe(-1);
+  });
+
   it('caps the ground radius inside the projected world (large models)', () => {
     const grid = new ConcreteDiscGrid().createGrid(options(20));
     const discRadius = (discOf(grid).geometry as THREE.RingGeometry).parameters.outerRadius;

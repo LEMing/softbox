@@ -3,9 +3,8 @@ import { IGridStyle, IGridOptions } from './IGridStyle';
 import { createShadowCatcher } from './shadowCatcher';
 import { smoothstep01 } from '../../../utils/smoothstep';
 
-/** Meters of ground one repeat of the procedural concrete covers. Large, so
- * the pattern never reads as a checker across the disc. */
-const TEXTURE_REPEAT_METERS = 6;
+/** Meters of ground one repeat of the procedural concrete covers. */
+const TEXTURE_REPEAT_METERS = 4;
 /** How far the ground reads past the model (its largest footprint dimension). */
 const DISC_FOOTPRINT_SCALE = 8;
 /** Hard cap on the ground radius: the rim fade must complete INSIDE the
@@ -49,7 +48,12 @@ const makeTileableNoise = (random: () => number) => {
     const step = LATTICE / period;
     const gx = ((x % period) + period) % period;
     const gy = ((y % period) + period) % period;
-    return lattice[((gy * step) % LATTICE) * LATTICE + ((gx * step) % LATTICE)];
+    // Floor the lattice indices: a period that doesn't divide LATTICE would
+    // otherwise index the array at a fraction — undefined → NaN → a black
+    // disc (vertex colors poison the whole draw).
+    const ix = Math.floor(gx * step) % LATTICE;
+    const iy = Math.floor(gy * step) % LATTICE;
+    return lattice[iy * LATTICE + ix];
   };
   const sample = (u: number, v: number, period: number) => {
     const x = u * period;
@@ -64,13 +68,19 @@ const makeTileableNoise = (random: () => number) => {
     const d = at(x0 + 1, y0 + 1, period);
     return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
   };
-  // Octaves: broad tonal patches → mid mottling → fine grain.
-  return (u: number, v: number) =>
-    0.5 * sample(u, v, 4) +
-    0.25 * sample(u, v, 16) +
-    0.15 * sample(u, v, 64) +
-    0.1 * sample(u, v, 128);
+  return sample;
 };
+
+/**
+ * The TILED texture field carries only HIGH-frequency content (features
+ * ≤ ~12cm of ground): the eye cannot match fine grain between repeats, so
+ * the tiling is undetectable. Anything larger would form a recognizable
+ * motif that visibly repeats across the disc — that job belongs to the
+ * per-vertex macro layer, which never repeats at all.
+ */
+const textureField =
+  (sample: (u: number, v: number, period: number) => number) => (u: number, v: number) =>
+    0.45 * sample(u, v, 32) + 0.3 * sample(u, v, 64) + 0.25 * sample(u, v, 128);
 
 interface ConcretePbrMaps {
   map: THREE.CanvasTexture;
@@ -90,7 +100,7 @@ let cachedPixels: ConcretePixelBuffers | null = null;
 /** Compute the albedo/normal/roughness pixels from the seeded height field. */
 const generateConcretePixels = (): ConcretePixelBuffers => {
   const random = mulberry32(CONCRETE_SEED);
-  const noise = makeTileableNoise(random);
+  const noise = textureField(makeTileableNoise(random));
   const height = new Float32Array(MAP_SIZE * MAP_SIZE);
   for (let y = 0; y < MAP_SIZE; y += 1) {
     for (let x = 0; x < MAP_SIZE; x += 1) {
@@ -221,7 +231,9 @@ export class ConcreteDiscGrid implements IGridStyle {
    *   which is what stops the eye from locking onto the tile period.
    */
   private createFadingDiscGeometry(radius: number): THREE.BufferGeometry {
-    const geometry = new THREE.RingGeometry(0, radius, 96, 12);
+    // Dense segments: the macro drift below is per-vertex, so vertex spacing
+    // is its effective resolution (~1m at the capped radius).
+    const geometry = new THREE.RingGeometry(0, radius, 128, 48);
     const macro = makeTileableNoise(mulberry32(CONCRETE_SEED ^ 0x9e3779b9));
     const positions = geometry.getAttribute('position');
     const rgba = new Float32Array(positions.count * 4);
@@ -231,8 +243,13 @@ export class ConcreteDiscGrid implements IGridStyle {
       const r = Math.hypot(x, y) / radius;
       const fade =
         r <= FADE_START ? 1 : 1 - smoothstep01(Math.min((r - FADE_START) / (1 - FADE_START), 1));
-      // One macro period spans the whole disc, so no repetition is possible.
-      const drift = 0.94 + macro(x / (radius * 2) + 0.5, y / (radius * 2) + 0.5) * 0.12;
+      // ALL visible patchiness lives here, in two scales spanning the disc
+      // (a broad wash + meter-scale mottling) — the macro period covers the
+      // whole ground exactly once, so unlike the tiled texture this layer
+      // cannot repeat, and there is no motif left for the eye to track.
+      const u = x / (radius * 2) + 0.5;
+      const v = y / (radius * 2) + 0.5;
+      const drift = 0.9 + (0.6 * macro(u, v, 4) + 0.4 * macro(u, v, 32)) * 0.2;
       rgba[i * 4] = drift;
       rgba[i * 4 + 1] = drift;
       rgba[i * 4 + 2] = drift;
