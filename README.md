@@ -102,10 +102,14 @@ switching one rebuilds the viewer.
 - `studio_soft` — the same set lit softly: an even, low-contrast wraparound
   light that flatters matte materials and softens speculars.
 - `outdoor_concrete` — open air: a daylight HDRI lights the model and paints
-  the sky, standing on a large matte concrete ground disc. The HDRI (CC0,
-  [Poly Haven](https://polyhaven.com/)) is fetched from their CDN by default —
-  the one network request this scene makes; pass your own `environment.url`
-  to override or self-host it, like the [decoder paths](#loaders).
+  the sky (ground-projected, so the model stands *in* the world), on a large
+  photographic PBR concrete ground rendered with untiled sampling — no
+  visible texture repetition at any distance. The HDRI and concrete maps
+  (CC0, [Poly Haven](https://polyhaven.com/), ~2 MB total) come from their
+  CDN by default; override or self-host via `environment.url` and
+  `helpers.grid.styleOptions`, like the [decoder paths](#loaders). Offline,
+  the ground falls back to a built-in procedural concrete and the lighting
+  to the studio environment.
 
 Scenes compose with presets — `scene` picks the set, `preset` grades it, and
 any explicit option you pass overrides both.

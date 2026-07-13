@@ -53,7 +53,16 @@ describe('viewer scenes', () => {
     const outdoor = VIEWER_SCENES.outdoor_concrete;
     expect(outdoor.helpers?.studioEnvironment).toBe(false);
     expect(outdoor.environment?.url).toEqual(expect.stringMatching(/^https:\/\/.+\.hdr$/));
-    expect(outdoor.helpers?.grid).toEqual({ type: 'concrete_disc' });
+    expect(outdoor.helpers?.grid).toEqual({
+      type: 'concrete_disc',
+      // Photographic PBR ground by default (CC0 CDN, override/self-host like
+      // the HDRI); the procedural generator is the offline fallback.
+      styleOptions: {
+        texture: expect.stringMatching(/^https:\/\/.+\.jpg$/),
+        normalMap: expect.stringMatching(/^https:\/\/.+\.jpg$/),
+        roughnessMap: expect.stringMatching(/^https:\/\/.+\.jpg$/),
+      },
+    });
   });
 
   it('studio_dome mirrors the defaults — scene: "studio_dome" and no scene are the same viewer', () => {

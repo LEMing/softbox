@@ -162,6 +162,86 @@ describe('ConcreteDiscGrid', () => {
     }
   });
 
+  describe('photographic maps (styleOptions URLs)', () => {
+    let loadSpy: jest.SpyInstance;
+    let errorCallbacks: Array<(event: unknown) => void>;
+
+    beforeEach(() => {
+      errorCallbacks = [];
+      loadSpy = jest
+        .spyOn(THREE.TextureLoader.prototype, 'load')
+        .mockImplementation((_url, _onLoad, _onProgress, onError) => {
+          if (onError) errorCallbacks.push(onError);
+          return new THREE.Texture();
+        });
+    });
+
+    afterEach(() => loadSpy.mockRestore());
+
+    const photoOptions = (): IGridOptions => ({
+      size: 10,
+      divisions: 3,
+      styleOptions: {
+        texture: 'https://cdn/diff.jpg',
+        normalMap: 'https://cdn/nor.jpg',
+        roughnessMap: 'https://cdn/rough.jpg',
+      },
+    });
+
+    it('loads the three photo maps with world-scale repeats (diffuse sRGB only)', () => {
+      const material = discOf(
+        new ConcreteDiscGrid().createGrid(photoOptions())
+      ).material as THREE.MeshStandardMaterial;
+      expect(loadSpy).toHaveBeenCalledTimes(3);
+      expect(material.map).not.toBeNull();
+      expect(material.normalMap).not.toBeNull();
+      expect(material.roughnessMap).not.toBeNull();
+      expect(material.map!.colorSpace).toBe(THREE.SRGBColorSpace);
+      expect(material.normalMap!.colorSpace).not.toBe(THREE.SRGBColorSpace);
+      expect(material.map!.repeat.x).toBeGreaterThan(1);
+      expect(material.color.getHexString()).toBe('ffffff');
+    });
+
+    it('falls back to the procedural/matte look when a photo map fails to fetch (offline)', () => {
+      const material = discOf(
+        new ConcreteDiscGrid().createGrid(photoOptions())
+      ).material as THREE.MeshStandardMaterial;
+      errorCallbacks[0]({});
+      // jsdom has no 2D canvas either, so the flat matte tone carries the disc —
+      // never the photo path's white multiplier over nothing.
+      expect(material.map).toBeNull();
+      expect(material.color.getHexString()).not.toBe('ffffff');
+      expect(material.roughness).toBeLessThan(1);
+    });
+
+    it('an empty-string texture opts out of the photo path (offline harness)', () => {
+      const grid = new ConcreteDiscGrid().createGrid({
+        size: 10,
+        divisions: 3,
+        styleOptions: { texture: '', normalMap: '', roughnessMap: '' },
+      });
+      expect(loadSpy).not.toHaveBeenCalled();
+      const material = discOf(grid).material as THREE.MeshStandardMaterial;
+      expect(material.color.getHexString()).not.toBe('ffffff');
+    });
+
+    it('installs the untiled sampler on the material (kills repeats at every distance)', () => {
+      const material = discOf(
+        new ConcreteDiscGrid().createGrid(photoOptions())
+      ).material as THREE.MeshStandardMaterial;
+      expect(material.onBeforeCompile).toBeDefined();
+      const shader = {
+        fragmentShader:
+          '#include <common>\n#include <map_fragment>\n#include <normal_fragment_maps>\n#include <roughnessmap_fragment>',
+        vertexShader: '',
+        uniforms: {},
+      };
+      material.onBeforeCompile(shader as never, {} as never);
+      expect(shader.fragmentShader).toContain('softboxTextureNoTile');
+      expect(shader.fragmentShader).not.toContain('#include <map_fragment>');
+    });
+  });
+
   it('is registered with the factory under concrete_disc', () => {
     const grid = GridFactory.createGrid(GridType.CONCRETE_DISC, options());
     expect(grid.name).toBe('Grid_concrete_disc');

@@ -21,6 +21,21 @@ import { ViewerScene } from './types/options';
 export const DEFAULT_OUTDOOR_HDRI_URL =
   'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/kloofendal_48d_partly_cloudy_puresky_1k.hdr';
 
+/**
+ * Photographic PBR maps for the outdoor concrete ground (CC0, Poly Haven;
+ * ~600 KB total, same CDN and override/self-host contract as the HDRI).
+ * Captured micro-structure is what reads as real concrete; the procedural
+ * generator stays as the offline fallback when these fail to fetch.
+ */
+export const DEFAULT_OUTDOOR_CONCRETE_TEXTURES = {
+  texture:
+    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_diff_1k.jpg',
+  normalMap:
+    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_nor_gl_1k.jpg',
+  roughnessMap:
+    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_rough_1k.jpg',
+} as const;
+
 export const VIEWER_SCENES: Record<ViewerScene, Partial<SimpleViewerOptions>> = {
   // The default set — mirrors the defaults, pinned by a test, so `scene:
   // 'studio_dome'` and no scene at all are the same viewer.
@@ -50,7 +65,10 @@ export const VIEWER_SCENES: Record<ViewerScene, Partial<SimpleViewerOptions>> = 
   // daylight comes from the HDRI; a restrained key keeps a readable cast
   // shadow on the ground, and the studio rim/fill would fight the sky.
   outdoor_concrete: {
-    helpers: { grid: { type: 'concrete_disc' }, studioEnvironment: false },
+    helpers: {
+      grid: { type: 'concrete_disc', styleOptions: { ...DEFAULT_OUTDOOR_CONCRETE_TEXTURES } },
+      studioEnvironment: false,
+    },
     // Ground projection stands the model IN the HDRI world (no hard horizon
     // edge); the disc's rim fade dissolves the near concrete into it.
     environment: { url: DEFAULT_OUTDOOR_HDRI_URL, groundProjection: true },

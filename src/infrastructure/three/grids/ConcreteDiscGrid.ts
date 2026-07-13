@@ -5,6 +5,10 @@ import { smoothstep01 } from '../../../utils/smoothstep';
 
 /** Meters of ground one repeat of the procedural concrete covers. */
 const TEXTURE_REPEAT_METERS = 4;
+/** Meters per repeat for photographic maps: large, so the photo's distinct
+ * stains stay sparse — the non-repeating vertex macro layer breaks up what
+ * remains. */
+const PHOTO_TEXTURE_REPEAT_METERS = 7;
 /** How far the ground reads past the model (its largest footprint dimension). */
 const DISC_FOOTPRINT_SCALE = 8;
 /** Hard cap on the ground radius: the rim fade must complete INSIDE the
@@ -87,6 +91,69 @@ interface ConcretePbrMaps {
   normalMap: THREE.CanvasTexture;
   roughnessMap: THREE.CanvasTexture;
 }
+
+/**
+ * Untiled sampling (Iñigo Quilez's texture-repetition technique, offset-only
+ * variant so tangent-space normals stay valid): every virtual grid cell
+ * samples the SAME texture at a hashed offset, smoothly blended near cell
+ * borders. Repetition disappears at every viewing distance — the top-down
+ * orbit is where plain tiling always resurfaced, photographic maps included.
+ * `textureGrad` keeps mip selection continuous across the offset jumps.
+ */
+const NO_TILE_GLSL = /* glsl */ `
+vec2 softboxHash2(vec2 p) {
+  return fract(sin(vec2(
+    1.0 + dot(p, vec2(37.0, 17.0)),
+    2.0 + dot(p, vec2(11.0, 47.0))
+  )) * 103.0);
+}
+vec4 softboxTextureNoTile(sampler2D samp, vec2 uv) {
+  vec2 iuv = floor(uv);
+  vec2 fuv = fract(uv);
+  vec2 ddxv = dFdx(uv);
+  vec2 ddyv = dFdy(uv);
+  vec2 blendWeight = smoothstep(0.25, 0.75, fuv);
+  vec4 a = textureGrad(samp, uv + softboxHash2(iuv), ddxv, ddyv);
+  vec4 b = textureGrad(samp, uv + softboxHash2(iuv + vec2(1.0, 0.0)), ddxv, ddyv);
+  vec4 c = textureGrad(samp, uv + softboxHash2(iuv + vec2(0.0, 1.0)), ddxv, ddyv);
+  vec4 d = textureGrad(samp, uv + softboxHash2(iuv + vec2(1.0, 1.0)), ddxv, ddyv);
+  return mix(mix(a, b, blendWeight.x), mix(c, d, blendWeight.x), blendWeight.y);
+}
+`;
+
+/** three r18x chunk bodies with only the texture2D sample calls swapped for
+ * the untiled sampler. Guarded by the same defines as the originals, so the
+ * map-less fallback material compiles unchanged. */
+const NO_TILE_MAP_FRAGMENT = /* glsl */ `
+#ifdef USE_MAP
+  vec4 sampledDiffuseColor = softboxTextureNoTile( map, vMapUv );
+  diffuseColor *= sampledDiffuseColor;
+#endif
+`;
+const NO_TILE_NORMAL_FRAGMENT = /* glsl */ `
+#ifdef USE_NORMALMAP_TANGENTSPACE
+  vec3 mapN = softboxTextureNoTile( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;
+  mapN.xy *= normalScale;
+  normal = normalize( tbn * mapN );
+#endif
+`;
+const NO_TILE_ROUGHNESS_FRAGMENT = /* glsl */ `
+float roughnessFactor = roughness;
+#ifdef USE_ROUGHNESSMAP
+  vec4 texelRoughness = softboxTextureNoTile( roughnessMap, vRoughnessMapUv );
+  roughnessFactor *= texelRoughness.g;
+#endif
+`;
+
+const installUntiledSampling = (material: THREE.MeshStandardMaterial): void => {
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>\n${NO_TILE_GLSL}`)
+      .replace('#include <map_fragment>', NO_TILE_MAP_FRAGMENT)
+      .replace('#include <normal_fragment_maps>', NO_TILE_NORMAL_FRAGMENT)
+      .replace('#include <roughnessmap_fragment>', NO_TILE_ROUGHNESS_FRAGMENT);
+  };
+};
 
 interface ConcretePixelBuffers {
   albedo: Uint8ClampedArray;
@@ -185,7 +252,10 @@ export class ConcreteDiscGrid implements IGridStyle {
     const group = new THREE.Group();
     const footprint = Math.max(options.size || 1, 1);
     group.add(
-      this.createDisc(Math.min(footprint * DISC_FOOTPRINT_SCALE, DISC_MAX_RADIUS_METERS))
+      this.createDisc(
+        Math.min(footprint * DISC_FOOTPRINT_SCALE, DISC_MAX_RADIUS_METERS),
+        options.styleOptions
+      )
     );
     // Catcher sized like the studio floor's: the baked shadow clips itself to
     // this disc, and the shadow never spreads anywhere near the ground's edge.
@@ -193,7 +263,7 @@ export class ConcreteDiscGrid implements IGridStyle {
     return group;
   }
 
-  private createDisc(radius: number): THREE.Mesh {
+  private createDisc(radius: number, styleOptions?: IGridOptions['styleOptions']): THREE.Mesh {
     const material = new THREE.MeshStandardMaterial({
       color: CONCRETE_COLOR,
       roughness: 0.95,
@@ -201,24 +271,92 @@ export class ConcreteDiscGrid implements IGridStyle {
       transparent: true,
       vertexColors: true,
     });
-    const maps = this.createConcretePbrMaps();
-    if (maps) {
-      const repeats = (radius * 2) / TEXTURE_REPEAT_METERS;
-      for (const texture of [maps.map, maps.normalMap, maps.roughnessMap]) {
-        texture.repeat.set(repeats, repeats);
-      }
-      material.map = maps.map;
-      material.normalMap = maps.normalMap;
-      material.normalScale = new THREE.Vector2(0.6, 0.6);
-      material.roughnessMap = maps.roughnessMap;
-      // The maps carry tone and roughness; the scalars must not double-apply.
-      material.color = new THREE.Color('#ffffff');
-      material.roughness = 1;
+    if (styleOptions?.texture) {
+      this.applyPhotoMaps(material, radius, styleOptions);
+    } else {
+      this.applyProceduralMaps(material, radius);
     }
+    installUntiledSampling(material);
     const disc = new THREE.Mesh(this.createFadingDiscGeometry(radius), material);
     disc.rotation.x = -Math.PI / 2;
     disc.receiveShadow = true;
     return disc;
+  }
+
+  /**
+   * Photographic PBR maps (URLs via `styleOptions.texture/normalMap/
+   * roughnessMap`) — real captured micro-structure is what finally reads as
+   * concrete rather than procedural grain. Each grid owns its loader and
+   * textures. A failed fetch falls back to the procedural maps per-material,
+   * so offline viewers degrade to the seeded concrete instead of a black disc.
+   */
+  private applyPhotoMaps(
+    material: THREE.MeshStandardMaterial,
+    radius: number,
+    styleOptions: NonNullable<IGridOptions['styleOptions']>
+  ): void {
+    const loader = new THREE.TextureLoader();
+    const repeats = (radius * 2) / PHOTO_TEXTURE_REPEAT_METERS;
+    let failedOver = false;
+    const failover = () => {
+      if (failedOver) {
+        return;
+      }
+      failedOver = true;
+      material.map?.dispose();
+      material.normalMap?.dispose();
+      material.roughnessMap?.dispose();
+      material.map = null;
+      material.normalMap = null;
+      material.roughnessMap = null;
+      // Restore the scalar look first: if the procedural maps are ALSO
+      // unavailable (no 2D canvas), the flat matte tone must carry the disc
+      // instead of the photo path's white multiplier.
+      material.color = new THREE.Color(CONCRETE_COLOR);
+      material.roughness = 0.95;
+      this.applyProceduralMaps(material, radius);
+      material.needsUpdate = true;
+    };
+    const load = (url: string, isColor: boolean): THREE.Texture => {
+      const texture = loader.load(url, undefined, undefined, failover);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(repeats, repeats);
+      texture.anisotropy = 4;
+      if (isColor) {
+        texture.colorSpace = THREE.SRGBColorSpace;
+      }
+      return texture;
+    };
+    material.map = load(styleOptions.texture as string, true);
+    if (styleOptions.normalMap) {
+      material.normalMap = load(styleOptions.normalMap, false);
+      material.normalScale = new THREE.Vector2(0.9, 0.9);
+    }
+    if (styleOptions.roughnessMap) {
+      material.roughnessMap = load(styleOptions.roughnessMap, false);
+    }
+    // The maps carry tone and roughness; the scalars must not double-apply.
+    material.color = new THREE.Color('#ffffff');
+    material.roughness = 1;
+  }
+
+  private applyProceduralMaps(material: THREE.MeshStandardMaterial, radius: number): void {
+    const maps = this.createConcretePbrMaps();
+    if (!maps) {
+      return;
+    }
+    const repeats = (radius * 2) / TEXTURE_REPEAT_METERS;
+    for (const texture of [maps.map, maps.normalMap, maps.roughnessMap]) {
+      texture.repeat.set(repeats, repeats);
+    }
+    material.map = maps.map;
+    material.normalMap = maps.normalMap;
+    material.normalScale = new THREE.Vector2(0.6, 0.6);
+    material.roughnessMap = maps.roughnessMap;
+    // The maps carry tone and roughness; the scalars must not double-apply.
+    material.color = new THREE.Color('#ffffff');
+    material.roughness = 1;
   }
 
   /**

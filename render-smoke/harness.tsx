@@ -150,9 +150,20 @@ const Harness = () => {
         }
       : undefined;
   // Explicit options win over the scene's fragment, so a local `?env=` image
-  // replaces an outdoor scene's CDN HDRI — CI stays offline.
+  // replaces an outdoor scene's CDN HDRI — and the empty-string texture
+  // overrides knock out the CDN photo maps (deepMerge skips undefined, so ''
+  // is the explicit "off" that routes the disc to its procedural fallback).
+  // CI stays fully offline.
   const withScene = scene ? { ...scenarioOptions, scene } : scenarioOptions;
-  const options = envUrl ? { ...withScene, environment: { url: envUrl } } : withScene;
+  const options = envUrl
+    ? {
+        ...withScene,
+        environment: { url: envUrl },
+        helpers: {
+          grid: { styleOptions: { texture: '', normalMap: '', roughnessMap: '' } },
+        },
+      }
+    : withScene;
 
   return (
     <SimpleViewer

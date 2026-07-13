@@ -10,11 +10,14 @@ Changelog
   ground under a bright daylight HDRI (CC0, Poly Haven; fetched from their
   CDN — the scene's one network request; override/self-host via
   `environment.url`).
-* **Procedural PBR concrete** — albedo, normal and roughness maps generated
-  from one seeded, tileable multi-octave noise field (zero network, seamless,
-  identical every session), plus a never-repeating low-frequency tonal drift
-  carried by disc vertex colors, so no tiling pattern is visible at any
-  distance. Falls back to a flat matte material where no 2D canvas exists.
+* **Photographic PBR concrete ground** (CC0 Poly Haven diffuse/normal/
+  roughness, ~600 KB, same CDN + override/self-host contract as the HDRI via
+  `helpers.grid.styleOptions`), rendered with **untiled sampling** (per-cell
+  hashed offsets, 4-tap blend) so no texture repetition is visible at any
+  viewing distance — including top-down. A seeded procedural concrete
+  (tileable noise → albedo+normal+roughness + never-repeating vertex-color
+  macro drift) is the offline fallback, and a flat matte material the last
+  resort where no 2D canvas exists.
 * **New `environment.groundProjection`** (structural) — projects an equirect
   environment onto a virtual ground plane (three's GroundedSkybox) so the
   model stands IN the world instead of floating in front of it; the concrete
