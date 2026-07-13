@@ -1,6 +1,65 @@
 Changelog
 =========
 
+4.19.0
+---
+
+### The A+ audit release: every confirmed finding of the 2026-07 architecture audit, fixed
+
+An adversarially verified audit (docs/AUDIT_2026-07-12.md) found four
+high-severity cross-feature bugs and a long tail of smaller ones; this release
+closes all of them (PRs #120–#129, each adversarially reviewed). The re-graded
+board: every audit dimension now sits at A+ or A++.
+
+**Correctness fixes:**
+
+* **Runtime effects no longer leak GPU memory.** Toggling any post-processing
+  effect disposed the composer but never its passes — with bloom active each
+  toggle stranded ~61 MB of render targets (a dozen toggles → context loss on
+  mobile). Every pass the pipeline adds is now tracked and freed.
+* **A second HDRI no longer aliases to the first.** `setEnvironmentMap(B)`
+  after `(A)` used to show A as the backdrop, light the path tracer with A,
+  and block `resetEnvironment` from handing the tracer the studio capture.
+  Each environment now binds to its own source.
+* **Resizing during path-tracing accumulation behaves like a camera move.**
+  Previously it desynced three state machines: aspect-distorted traced frames,
+  a premature noisy "final" frame (which `captureStill` then returned), and a
+  stretched dissolve snapshot. A converged-then-resized viewer also re-arms
+  and re-converges instead of staying dormant.
+* **`floorAlignment` now takes effect on a live viewer** (it was silently
+  dropped, then applied as a surprise rebuild on the next unrelated structural
+  change). A compile-time option-partition contract makes this whole bug class
+  unrepresentable going forward.
+* **Runtime look changes reach a live tracer**: `backgroundColor` /
+  `environmentIntensity` changes re-ingest the traced scene (guarded to actual
+  value changes); `staticScene: false` viewers no longer permanently lose
+  continuous rendering after a path-tracing pause; resize and post-capture
+  frames render through the composer (no more effect-free flashes); the
+  startup dissolve completes by the sample budget instead of popping.
+
+**Error-model changes (consumer-visible):**
+
+* Failures that used to die as console warnings now reach the `'error'` event:
+  a path-tracing chunk/initialization failure (`PATH_TRACING_INIT_FAILED`) and
+  a post-processing chunk failure (new code: `POST_PROCESSING_FAILED`).
+* **The environment APIs (`setEnvironmentMap`, `resetEnvironment`,
+  `setBackgroundImage`, `setBackgroundColor`) now reject/throw with
+  `INVALID_STATE` on a disposed viewer** instead of resolving successfully —
+  the same contract the capture APIs always had. Fire-and-forget callers
+  racing an unmount (React StrictMode in dev) should attach a `.catch`.
+* `RendererOptions` now declares `premultipliedAlpha`, `preserveDrawingBuffer`
+  and `powerPreference` (they always worked; the type never admitted them).
+
+**Showcase:** the README/og hero shot is refreshed — the playground on the
+Dark preset with every post-processing effect on (bloom, vignette, grain,
+grade).
+
+**Guardrails (dev-facing):** coverage pins on the path-tracing modules, an
+API-drift canary against the real three-gpu-pathtracer, a real-WebGL
+path-tracing probe in CI (the regression class that let 0.0.24 render black
+models past 799 green tests is now caught twice over), and lint bans covering
+dynamic imports and every layer hole.
+
 4.18.0
 ---
 
