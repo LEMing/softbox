@@ -1,6 +1,26 @@
 Changelog
 =========
 
+4.25.0
+---
+
+### Poster (instant first paint)
+
+* **New `options.poster`** — an image shown over the canvas until the
+  model's first *painted* frame (not just `model:loaded` — dropping the
+  poster a frame early flashes the empty stage), then a 400 ms dissolve to
+  the live model. Composes with `loading: 'lazy'`: the poster is the
+  instant, WebGL-free first paint (LCP-friendly) while the viewer boots and
+  the GLB downloads.
+* Generate posters with the existing `handle.captureStill()` — same studio
+  look, pixel-identical to what the live viewer will show.
+* While opaque the poster catches input (no taps reach invisible chrome
+  underneath); a poster that arrives after the model already painted
+  dismisses immediately. If the load errs, the poster stays up as the
+  backdrop under the built-in error overlay — or steps aside when the
+  overlay is disabled, so a dead load never masquerades as a frozen hero
+  image. UI-only — changing it never rebuilds the viewer.
+
 4.24.0
 ---
 

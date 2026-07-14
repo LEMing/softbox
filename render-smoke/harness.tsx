@@ -69,6 +69,12 @@ const turntable = params.get('turntable') === '1' || undefined;
 const animate = params.get('animate') === '1' || undefined;
 const withEffects = params.get('effects') === '1';
 const withPathTracing = params.get('pathtracing') === '1';
+// A solid-magenta poster: trivially distinguishable from every scene, so a
+// stuck poster fails pixel checks loudly.
+const POSTER_MAGENTA =
+  'data:image/svg+xml,' +
+  encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#ff00ff"/></svg>');
+const withPoster = params.get('poster') === '1';
 
 const makeModel = () => {
   if (modelKind === 'pillar') {
@@ -169,16 +175,17 @@ const Harness = () => {
         },
       }
     : withScene;
+  const withPosterOption = withPoster ? { ...withEnv, poster: POSTER_MAGENTA } : withEnv;
   const options = topdown
     ? {
-        ...withEnv,
+        ...withPosterOption,
         camera: {
           position: [0, 24, 0.01] as [number, number, number],
           target: [0, 0, 0] as [number, number, number],
           autoFitToObject: false,
         },
       }
-    : withEnv;
+    : withPosterOption;
 
   return (
     <SimpleViewer

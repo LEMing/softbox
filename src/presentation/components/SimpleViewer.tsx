@@ -24,6 +24,7 @@ import { ViewerErrorBoundary } from './ViewerErrorBoundary';
 import { LoadingOverlay } from './LoadingOverlay';
 import { PresetPicker } from './PresetPicker';
 import { ArButton } from './ArButton';
+import { PosterOverlay } from './PosterOverlay';
 import { resolveLoadingIndicator } from './loadingIndicatorConfig';
 import { ThreeObject3DAdapter } from '../../infrastructure/three/ThreeObject3D';
 import {
@@ -102,6 +103,43 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
     }, [viewer, events]);
     const arSource = loadedModelUrl ?? object;
 
+    // The poster dismisses on the first frame PAINTED after the model
+    // landed — model:loaded alone races the actual draw, and dropping the
+    // poster a frame early flashes the empty stage.
+    const posterSrc = options.poster || null;
+    const [posterDismissed, setPosterDismissed] = useState(false);
+    useEffect(() => {
+      if (!posterSrc || posterDismissed) {
+        return;
+      }
+      // A poster that arrives AFTER the model already loaded (async CMS URL,
+      // a toggled option) has no future model:loaded to wait for — and the
+      // render loop may have idled, so there is no future frame either. The
+      // model demonstrably painted already: dismiss now. Status is read at
+      // subscribe time only; the loading→loaded transition of a watched load
+      // is delivered by the model:loaded event below, ahead of the deciding
+      // paint.
+      if (loadState.status === 'loaded') {
+        setPosterDismissed(true);
+        return;
+      }
+      let modelPainted = false;
+      const onLoaded = () => {
+        modelPainted = true;
+      };
+      const onRendered = () => {
+        if (modelPainted) {
+          setPosterDismissed(true);
+        }
+      };
+      events.on('model:loaded', onLoaded);
+      events.on('render:complete', onRendered);
+      return () => {
+        events.off('model:loaded', onLoaded);
+        events.off('render:complete', onRendered);
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- loadState.status is deliberately not a dep: re-running on loading→loaded would dismiss at load, before the first painted frame.
+    }, [posterSrc, posterDismissed, events]);
     // Built-in loading overlay configuration (UI-only).
     const loadingIndicator = useMemo(
       () => resolveLoadingIndicator(options.loadingIndicator),
@@ -110,6 +148,10 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
     const hasError = loadState.status === 'error' || Boolean(initError);
     const showOverlay =
       loadingIndicator.enabled && (loadState.status === 'loading' || hasError);
+    // A failed load keeps the poster up as the backdrop UNDER the error
+    // overlay — but with the built-in overlay disabled that would read as a
+    // frozen viewer, so the poster steps aside for the consumer's own chrome.
+    const posterVisible = !posterDismissed && !(hasError && !loadingIndicator.enabled);
 
     useImperativeHandle(ref, () => {
       return {
@@ -253,6 +295,7 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
             {arOptions && (
               <ArButton source={arSource} options={arOptions} clearPresetRow={pickerEnabled} />
             )}
+            {posterSrc && <PosterOverlay src={posterSrc} visible={posterVisible} />}
             {children}
           </div>
         </ViewerProvider>

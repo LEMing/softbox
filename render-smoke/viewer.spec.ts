@@ -505,6 +505,21 @@ test('animations prop plays the model clip: the model itself moves', async ({ pa
   expect(errors).toEqual([]);
 });
 
+test('the poster dismisses itself after the first painted frame', async ({ page }) => {
+  const errors = await openScene(page, '?poster=1');
+
+  // The model has loaded and painted (waitForBoot) — the magenta poster must
+  // fade and self-remove; a stuck poster is exactly the regression to catch.
+  await expect(page.getByTestId('viewer-poster')).toHaveCount(0, { timeout: 10_000 });
+
+  // And the canvas underneath really shows the scene, not leftover magenta.
+  const screenshot = await screenshotCanvas(page);
+  const center = pixelAt(screenshot, Math.floor(screenshot.width / 2), Math.floor(screenshot.height / 2));
+  expect(colorDistance(center, { r: 255, g: 0, b: 255 })).toBeGreaterThan(45);
+
+  expect(errors).toEqual([]);
+});
+
 test('captureStill returns a substantial PNG data URL', async ({ page }) => {
   const errors = await openScene(page);
 
