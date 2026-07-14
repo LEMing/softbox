@@ -39,4 +39,12 @@ describe('CodeSnippet', () => {
     await waitFor(() => expect(writeText).toHaveBeenCalled());
     expect(screen.queryByText('Copied')).not.toBeInTheDocument();
   });
+
+  it('offers a close action when used as a compact-screen sheet', () => {
+    const onClose = jest.fn();
+    render(<CodeSnippet onClose={onClose} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close code' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });

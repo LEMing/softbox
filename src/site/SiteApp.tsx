@@ -7,7 +7,6 @@ import { Toggles } from './Toggles';
 import { CodeSnippet } from './CodeSnippet';
 import { useDropModel } from './useDropModel';
 import { useMediaQuery } from './useMediaQuery';
-import { FONT, glassPanel } from './siteTheme';
 import { DEFAULT_SCENE, VIEWER_SCENES } from '../scenes';
 import type { ViewerScene } from '../types/options';
 
@@ -48,10 +47,25 @@ const MOTORHOME_CAMERA = {
   fov: 30,
 };
 
+// Portrait screens need substantially more distance to fit a long vehicle
+// inside their narrow horizontal field of view. The direction stays the same
+// as the desktop hero angle, only the dolly distance changes.
+const MOTORHOME_MOBILE_CAMERA = {
+  position: [-15.21, 13.39, 26.27] as const,
+  target: MOTORHOME_CAMERA.target,
+  fov: 30,
+};
+
 interface Pin {
   id: number;
   point: [number, number, number];
 }
+
+const GLASS_SURFACE =
+  'border border-white/70 bg-white/85 shadow-[0_18px_50px_rgba(24,25,28,0.12),0_2px_8px_rgba(24,25,28,0.05)] backdrop-blur-2xl dark:border-white/10 dark:bg-neutral-950/85 dark:shadow-black/35';
+
+const ICON_BUTTON =
+  'grid size-10 cursor-pointer place-items-center rounded-xl bg-transparent text-neutral-600 no-underline transition hover:bg-black/7 hover:text-neutral-950 active:scale-95 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white';
 
 const GitHubMark = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -62,6 +76,30 @@ const GitHubMark = () => (
 const NpmMark = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
     <path d="M0 0v16h16V0H0zm13 13h-2V5H8v8H3V3h10v10z" />
+  </svg>
+);
+
+const UploadIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const SlidersIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M4 7h10m4 0h2M4 17h2m4 0h10M14 4v6M10 14v6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
+const CodeIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="m8.5 8-4 4 4 4m7-8 4 4-4 4M14 5l-4 14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const DownloadIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -93,11 +131,11 @@ export function SiteApp() {
   const [variantNames, setVariantNames] = useState<string[]>([]);
   const [variant, setVariant] = useState<string | null>(null);
   const [stillState, setStillState] = useState<'idle' | 'capturing' | 'failed'>('idle');
+  const [mobilePanel, setMobilePanel] = useState<'controls' | 'code' | null>(null);
   const pinIdRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const viewerRef = useRef<SimpleViewerHandle>(null);
-  const showSnippet = useMediaQuery('(min-width: 840px)');
-  const showStillButton = useMediaQuery('(min-width: 560px)');
+  const useMobileCamera = useMediaQuery('(max-width: 700px)');
 
   // A fresh drop always takes the stage.
   useEffect(() => {
@@ -172,168 +210,63 @@ export function SiteApp() {
     setPins((current) => current.filter((pin) => pin.id !== id));
   };
 
+  const lookChangeCount = [
+    scene !== DEFAULT_SCENE,
+    turntable,
+    animations,
+    pathTraced,
+    bloom,
+    vignette,
+    filmGrain,
+    colorGrade,
+    variant !== null,
+  ].filter(Boolean).length;
+
+  const resetLook = () => {
+    setScene(DEFAULT_SCENE);
+    setTurntable(false);
+    setAnimations(false);
+    setPathTraced(false);
+    setBloom(false);
+    setVignette(false);
+    setFilmGrain(false);
+    setColorGrade(false);
+    setVariant(null);
+  };
+
+  const optionLines = [
+    '    ui: { presets: true },',
+    ...(scene !== DEFAULT_SCENE ? [`    scene: '${scene}',`] : []),
+    ...(variant ? [`    variant: '${variant}',`] : []),
+    ...(pathTraced ? ['    pathTracing: { enabled: true },'] : []),
+    ...(bloom || vignette || filmGrain || colorGrade
+      ? [`    renderer: { ${[
+          ...(bloom ? ['bloom: true'] : []),
+          ...(vignette ? ['vignette: true'] : []),
+          ...(filmGrain ? ['filmGrain: true'] : []),
+          ...(colorGrade ? ['colorGrade: true'] : []),
+        ].join(', ')} },`]
+      : []),
+  ];
+  const usage = [
+    "import { SimpleViewer } from 'softbox';",
+    '',
+    '<SimpleViewer',
+    '  object="/model.glb"',
+    ...(turntable ? ['  turntable'] : []),
+    ...(animations ? ['  animations'] : []),
+    '  options={{',
+    ...optionLines,
+    '  }}',
+    '/>',
+  ].join('\n');
+
+  const selectedModelName = selected === DROPPED_KEY && dropped ? dropped.name : selected;
+  const controlsOpen = mobilePanel === 'controls';
+  const codeOpen = mobilePanel === 'code';
+
   return (
-    <div style={{ width: '100%', height: '100%', margin: 0, padding: 0, position: 'relative', fontFamily: FONT }}>
-      <div
-        style={{
-          position: 'absolute',
-          top: 16,
-          left: 16,
-          zIndex: 10,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10,
-          padding: '14px 16px',
-          maxWidth: 'calc(100vw - 32px)',
-          ...glassPanel,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: '#111318' }}>
-            softbox
-          </span>
-          <span style={{ fontSize: 12.5, color: '#6a6a75' }}>
-            batteries-included React 3D viewer
-          </span>
-          <a
-            href="https://github.com/LEMing/softbox"
-            target="_blank"
-            rel="noreferrer"
-            aria-label="GitHub repository"
-            style={{ color: '#3f3f4a', display: 'inline-flex', alignSelf: 'center', padding: 6, margin: -6 }}
-          >
-            <GitHubMark />
-          </a>
-          <a
-            href="https://www.npmjs.com/package/softbox"
-            target="_blank"
-            rel="noreferrer"
-            aria-label="npm package"
-            style={{ color: '#3f3f4a', display: 'inline-flex', alignSelf: 'center', padding: 6, margin: -6 }}
-          >
-            <NpmMark />
-          </a>
-        </div>
-        <Picker label="Model" items={pickerItems} value={selected} onChange={setSelected} />
-        <Picker
-          label="Scene"
-          items={Object.keys(VIEWER_SCENES)}
-          value={scene}
-          onChange={(value) => setScene(value as ViewerScene)}
-        />
-        {variantNames.length > 0 && (
-          <Picker
-            label="Variant"
-            items={['default', ...variantNames]}
-            value={variant ?? 'default'}
-            onChange={(name) => setVariant(name === 'default' ? null : name)}
-          />
-        )}
-        <Toggles
-          label="Motion"
-          items={[
-            { key: 'turntable', label: 'turntable', active: turntable, onToggle: setTurntable },
-            { key: 'animations', label: 'animations', active: animations, onToggle: setAnimations },
-          ]}
-        />
-        <Toggles
-          label="Render"
-          items={[
-            { key: 'pathtraced', label: 'path traced', active: pathTraced, onToggle: setPathTraced },
-          ]}
-        />
-        <Toggles
-          label="Post"
-          items={[
-            { key: 'bloom', label: 'bloom', active: bloom, onToggle: setBloom },
-            { key: 'vignette', label: 'vignette', active: vignette, onToggle: setVignette },
-            { key: 'grain', label: 'grain', active: filmGrain, onToggle: setFilmGrain },
-            { key: 'grade', label: 'grade', active: colorGrade, onToggle: setColorGrade },
-          ]}
-        />
-        <div style={{ fontSize: 11.5, color: rejectedName ? '#b3261e' : '#7a7a85' }} role="status">
-          {rejectedName ? (
-            <>Only self-contained <code style={{ fontSize: 11 }}>.glb</code> models are supported</>
-          ) : (
-            <>
-              Drag &amp; drop a <code style={{ fontSize: 11 }}>.glb</code> anywhere — or{' '}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                style={{
-                  border: 'none',
-                  background: 'none',
-                  padding: 0,
-                  fontFamily: FONT,
-                  fontSize: 11.5,
-                  color: '#3f3f4a',
-                  fontWeight: 600,
-                  textDecoration: 'underline',
-                  cursor: 'pointer',
-                }}
-              >
-                browse
-              </button>
-              . Click the model to pin a hotspot.
-            </>
-          )}
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".glb"
-          onChange={handleFileChosen}
-          aria-label="Choose a .glb model file"
-          style={{ display: 'none' }}
-        />
-      </div>
-
-      {showSnippet && (
-        <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}>
-          <CodeSnippet
-            usage={[
-              "import { SimpleViewer } from 'softbox';",
-              '',
-              '<SimpleViewer',
-              '  object="/model.glb"',
-              ...(turntable ? ['  turntable'] : []),
-              ...(animations ? ['  animations'] : []),
-              `  options={{ ${[
-                'ui: { presets: true }',
-                ...(scene !== DEFAULT_SCENE ? [`scene: '${scene}'`] : []),
-                ...(variant ? [`variant: '${variant}'`] : []),
-                ...(pathTraced ? ['pathTracing: { enabled: true }'] : []),
-              ].join(', ')} }}`,
-              '/>',
-            ].join('\n')}
-          />
-        </div>
-      )}
-
-      {showStillButton && (
-        <button
-          type="button"
-          onClick={handleDownloadStill}
-          disabled={stillState === 'capturing'}
-          style={{
-            position: 'absolute',
-            right: 16,
-            bottom: 16,
-            zIndex: 10,
-            padding: '10px 16px',
-            fontFamily: FONT,
-            fontSize: 12.5,
-            fontWeight: 600,
-            color: stillState === 'failed' ? '#b3261e' : '#111318',
-            cursor: stillState === 'capturing' ? 'wait' : 'pointer',
-            ...glassPanel,
-            borderRadius: 999,
-          }}
-        >
-          {stillState === 'capturing' ? 'Capturing…' : stillState === 'failed' ? 'Capture failed' : 'Download still ⤓'}
-        </button>
-      )}
-
+    <main className="relative isolate h-full w-full overflow-hidden bg-neutral-100 font-sans text-neutral-950 scheme-light dark:bg-neutral-950 dark:text-white dark:scheme-dark">
       <SimpleViewer
         ref={viewerRef}
         object={modelUrl}
@@ -352,9 +285,9 @@ export function SiteApp() {
           ...(selected === 'Motorhome'
             ? {
                 camera: {
-                  position: [...MOTORHOME_CAMERA.position],
-                  target: [...MOTORHOME_CAMERA.target],
-                  fov: MOTORHOME_CAMERA.fov,
+                  position: [...(useMobileCamera ? MOTORHOME_MOBILE_CAMERA.position : MOTORHOME_CAMERA.position)],
+                  target: [...(useMobileCamera ? MOTORHOME_MOBILE_CAMERA.target : MOTORHOME_CAMERA.target)],
+                  fov: useMobileCamera ? MOTORHOME_MOBILE_CAMERA.fov : MOTORHOME_CAMERA.fov,
                   autoFitToObject: false,
                 },
               }
@@ -373,24 +306,7 @@ export function SiteApp() {
               onClick={() => removePin(pin.id)}
               aria-label={`Remove hotspot ${index + 1}`}
               title="Click to remove"
-              style={{
-                width: 24,
-                height: 24,
-                borderRadius: '50%',
-                border: '2px solid rgba(255,255,255,0.95)',
-                background: 'rgba(17,19,24,0.92)',
-                color: '#fff',
-                fontFamily: FONT,
-                fontSize: 11,
-                fontWeight: 700,
-                lineHeight: 1,
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: 0,
-              }}
+              className="grid size-6 cursor-pointer place-items-center rounded-full border-2 border-white/95 bg-neutral-950/90 p-0 text-[11px] leading-none font-bold text-white shadow-lg shadow-black/35 transition hover:scale-110 dark:border-neutral-950/90 dark:bg-white dark:text-neutral-950"
             >
               {index + 1}
             </button>
@@ -398,34 +314,231 @@ export function SiteApp() {
         ))}
       </SimpleViewer>
 
-      {isDragging && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 20,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(17,19,24,0.35)',
-            backdropFilter: 'blur(4px)',
-            WebkitBackdropFilter: 'blur(4px)',
-            pointerEvents: 'none',
-          }}
-        >
-          <div
-            style={{
-              ...glassPanel,
-              padding: '18px 28px',
-              fontSize: 15,
-              fontWeight: 600,
-              color: '#111318',
-            }}
+      <header className="pointer-events-none absolute top-[max(14px,env(safe-area-inset-top))] right-4 left-4 z-20 flex items-center justify-between max-[1100px]:top-[max(10px,env(safe-area-inset-top))] max-[1100px]:right-2.5 max-[1100px]:left-2.5">
+        <div className={`${GLASS_SURFACE} pointer-events-auto flex h-[52px] items-center gap-2.5 rounded-2xl py-1.5 pr-3 pl-2 max-[1100px]:h-12 max-[1100px]:rounded-[15px] max-[1100px]:pr-2.5 max-[1100px]:pl-1.5`}>
+          <div className="grid size-9 place-items-center rounded-[11px] bg-neutral-950 text-xl font-extrabold tracking-[-0.06em] text-white shadow-lg shadow-black/20 dark:bg-white dark:text-neutral-950" aria-hidden="true">s</div>
+          <div className="flex min-w-0 flex-col gap-px leading-tight">
+            <strong className="text-[15px] font-bold tracking-[-0.025em]">softbox</strong>
+            <span className="text-[11px] whitespace-nowrap text-neutral-500 dark:text-neutral-400 max-[480px]:hidden">React 3D viewer</span>
+          </div>
+          <span className="ml-1 inline-flex items-center gap-1.5 rounded-full border border-emerald-700/15 bg-emerald-50/80 px-2 py-1 text-[10px] font-bold tracking-[0.04em] text-emerald-700 uppercase dark:border-emerald-300/15 dark:bg-emerald-400/10 dark:text-emerald-300 max-[1100px]:hidden">
+            <i className="size-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.12)]" aria-hidden="true" /> Live
+          </span>
+        </div>
+
+        <nav className={`${GLASS_SURFACE} pointer-events-auto flex h-[52px] items-center gap-1 rounded-2xl p-1 max-[1100px]:h-12 max-[1100px]:rounded-[15px]`} aria-label="Project links and actions">
+          <button
+            type="button"
+            className="flex h-10 cursor-pointer items-center gap-2 rounded-xl bg-neutral-950 px-3.5 text-xs font-bold text-white shadow-lg shadow-black/15 transition hover:bg-neutral-800 active:scale-[0.97] dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200 max-[1100px]:w-10 max-[1100px]:justify-center max-[1100px]:px-0"
+            onClick={() => fileInputRef.current?.click()}
           >
-            Drop your .glb to view it
+            <UploadIcon />
+            <span className="max-[1100px]:hidden">Open .glb</span>
+          </button>
+          <span className="mx-1 h-5.5 w-px bg-black/10 dark:bg-white/10 max-[1100px]:hidden" aria-hidden="true" />
+          <a href="https://github.com/LEMing/softbox" target="_blank" rel="noreferrer" aria-label="GitHub repository" className={`${ICON_BUTTON} max-[480px]:hidden`}>
+            <GitHubMark />
+          </a>
+          <a href="https://www.npmjs.com/package/softbox" target="_blank" rel="noreferrer" aria-label="npm package" className={`${ICON_BUTTON} max-[480px]:hidden`}>
+            <NpmMark />
+          </a>
+        </nav>
+      </header>
+
+      <button
+        type="button"
+        className={`absolute inset-0 z-30 hidden cursor-default border-0 bg-neutral-950/30 backdrop-blur-[3px] transition duration-200 max-[1100px]:block ${
+          mobilePanel !== null
+            ? 'max-[1100px]:visible max-[1100px]:opacity-100'
+            : 'max-[1100px]:invisible max-[1100px]:opacity-0'
+        }`}
+        onClick={() => setMobilePanel(null)}
+        aria-label="Close open panel"
+        tabIndex={mobilePanel === null ? -1 : 0}
+      />
+
+      <aside
+        id="playground-controls"
+        className={`${GLASS_SURFACE} absolute top-20 left-4 z-[15] flex max-h-[calc(100dvh-158px)] w-[366px] flex-col overflow-hidden rounded-[22px] transition-[transform,opacity,visibility] duration-300 ease-out max-[1100px]:top-auto max-[1100px]:right-0 max-[1100px]:bottom-0 max-[1100px]:left-0 max-[1100px]:z-40 max-[1100px]:max-h-[min(76dvh,720px)] max-[1100px]:w-auto max-[1100px]:rounded-t-[26px] max-[1100px]:rounded-b-none max-[1100px]:border-white/60 max-[1100px]:bg-white/97 max-[1100px]:pb-[env(safe-area-inset-bottom)] max-[1100px]:shadow-[0_-16px_50px_rgba(24,25,28,0.16)] dark:max-[1100px]:border-white/10 dark:max-[1100px]:bg-neutral-950/97 ${
+          controlsOpen
+            ? 'max-[1100px]:visible max-[1100px]:translate-y-0 max-[1100px]:opacity-100'
+            : 'max-[1100px]:invisible max-[1100px]:translate-y-[calc(100%+16px)] max-[1100px]:opacity-0'
+        }`}
+      >
+        <div className="absolute top-2 left-1/2 z-10 hidden h-1 w-8 -translate-x-1/2 rounded-full bg-black/20 dark:bg-white/20 max-[1100px]:block" aria-hidden="true" />
+        <div className="flex shrink-0 items-start justify-between gap-4 px-5 pt-5 pb-4 max-[1100px]:pt-6 max-[480px]:px-4">
+          <div>
+            <span className="block text-[10px] font-bold tracking-[0.095em] text-neutral-500 uppercase dark:text-neutral-400">Live playground</span>
+            <h1 className="mt-1 text-xl leading-none font-bold tracking-[-0.04em] text-neutral-950 dark:text-white">Customize the shot</h1>
+            <p className="mt-1.5 max-w-52 overflow-hidden text-xs text-ellipsis whitespace-nowrap text-neutral-500 dark:text-neutral-400" title={selectedModelName}>{selectedModelName}</p>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={resetLook}
+              className="min-h-8 cursor-pointer rounded-lg bg-black/5 px-2.5 text-[11px] font-bold text-neutral-600 transition hover:bg-black/10 disabled:cursor-default disabled:opacity-35 dark:bg-white/8 dark:text-neutral-300 dark:hover:bg-white/15"
+              disabled={lookChangeCount === 0}
+            >
+              Reset
+            </button>
+            <button type="button" onClick={() => setMobilePanel(null)} className={`${ICON_BUTTON} hidden text-2xl font-light max-[1100px]:grid`} aria-label="Close controls">
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-color:rgba(20,21,24,0.14)_transparent] [scrollbar-width:thin]">
+          <section className="border-t border-black/8 px-5 py-4.5 dark:border-white/10 max-[480px]:px-4">
+            <Picker label="Model" items={pickerItems} value={selected} onChange={setSelected} />
+          </section>
+
+          <section className="flex flex-col gap-4 border-t border-black/8 px-5 py-4.5 dark:border-white/10 max-[480px]:px-4">
+            <Picker
+              label="Scene"
+              items={Object.keys(VIEWER_SCENES)}
+              value={scene}
+              onChange={(value) => setScene(value as ViewerScene)}
+            />
+            {variantNames.length > 0 && (
+              <Picker
+                label="Variant"
+                items={['default', ...variantNames]}
+                value={variant ?? 'default'}
+                onChange={(name) => setVariant(name === 'default' ? null : name)}
+              />
+            )}
+          </section>
+
+          <section className="flex flex-col gap-5 border-t border-black/8 px-5 py-4.5 dark:border-white/10 max-[480px]:px-4">
+            <Toggles
+              label="Motion"
+              items={[
+                { key: 'turntable', label: 'turntable', active: turntable, onToggle: setTurntable },
+                { key: 'animations', label: 'animations', active: animations, onToggle: setAnimations },
+              ]}
+            />
+            <Toggles
+              label="Quality"
+              items={[
+                { key: 'pathtraced', label: 'path traced', active: pathTraced, onToggle: setPathTraced },
+              ]}
+            />
+            <Toggles
+              label="Finishing"
+              items={[
+                { key: 'bloom', label: 'bloom', active: bloom, onToggle: setBloom },
+                { key: 'vignette', label: 'vignette', active: vignette, onToggle: setVignette },
+                { key: 'grain', label: 'grain', active: filmGrain, onToggle: setFilmGrain },
+                { key: 'grade', label: 'grade', active: colorGrade, onToggle: setColorGrade },
+              ]}
+            />
+          </section>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2 border-t border-black/8 px-5 pt-3 pb-4 text-[10.5px] leading-tight text-neutral-500 dark:border-white/10 dark:text-neutral-400 max-[1100px]:flex-wrap max-[480px]:px-4" role="status">
+          {rejectedName ? (
+            <span className="font-semibold text-red-700 dark:text-red-400">Only self-contained <code>.glb</code> models are supported</span>
+          ) : (
+            <>
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="flex cursor-pointer items-center gap-1.5 bg-transparent p-0 text-[11px] font-bold whitespace-nowrap text-neutral-800 hover:underline hover:underline-offset-3 dark:text-neutral-200">
+                <UploadIcon /> Import your model
+              </button>
+              <span>or drop a .glb anywhere</span>
+              <span className="hidden w-full pt-0.5 max-[1100px]:block">Tip: click the model to add a hotspot</span>
+            </>
+          )}
+        </div>
+      </aside>
+
+      <aside
+        id="playground-code"
+        className={`absolute top-20 right-4 z-[15] w-[min(410px,calc(100vw-430px))] transition-[transform,opacity,visibility] duration-300 ease-out max-[1100px]:top-auto max-[1100px]:right-0 max-[1100px]:bottom-0 max-[1100px]:left-0 max-[1100px]:z-40 max-[1100px]:max-h-[min(76dvh,720px)] max-[1100px]:w-auto max-[1100px]:overflow-hidden max-[1100px]:rounded-t-[26px] max-[1100px]:bg-white/97 max-[1100px]:pb-[env(safe-area-inset-bottom)] max-[1100px]:shadow-[0_-16px_50px_rgba(24,25,28,0.16)] dark:max-[1100px]:bg-neutral-950/97 ${
+          codeOpen
+            ? 'max-[1100px]:visible max-[1100px]:translate-y-0 max-[1100px]:opacity-100'
+            : 'max-[1100px]:invisible max-[1100px]:translate-y-[calc(100%+16px)] max-[1100px]:opacity-0'
+        }`}
+      >
+        <div className="absolute top-2 left-1/2 z-10 hidden h-1 w-8 -translate-x-1/2 rounded-full bg-black/20 dark:bg-white/20 max-[1100px]:block" aria-hidden="true" />
+        <CodeSnippet usage={usage} onClose={() => setMobilePanel(null)} />
+      </aside>
+
+      <div className={`${GLASS_SURFACE} absolute bottom-[calc(68px+env(safe-area-inset-bottom))] left-1/2 z-20 hidden min-h-11 -translate-x-1/2 items-stretch rounded-[15px] p-1 max-[1100px]:flex`} aria-label="Playground panels">
+        <button
+          type="button"
+          className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-xl px-3 text-[11px] font-bold whitespace-nowrap transition active:scale-[0.97] ${
+            controlsOpen
+              ? 'bg-neutral-950 text-white dark:bg-white dark:text-neutral-950'
+              : 'bg-transparent text-neutral-700 hover:bg-black/5 dark:text-neutral-200 dark:hover:bg-white/10'
+          }`}
+          aria-expanded={controlsOpen}
+          aria-controls="playground-controls"
+          onClick={() => setMobilePanel(controlsOpen ? null : 'controls')}
+        >
+          <SlidersIcon />
+          <span>Customize</span>
+          {lookChangeCount > 0 && (
+            <strong
+              aria-label={`${lookChangeCount} active changes`}
+              className={`grid size-[17px] place-items-center rounded-full text-[9px] ${
+                controlsOpen
+                  ? 'bg-white text-neutral-950 dark:bg-neutral-950 dark:text-white'
+                  : 'bg-neutral-950 text-white dark:bg-white dark:text-neutral-950'
+              }`}
+            >
+              {lookChangeCount}
+            </strong>
+          )}
+        </button>
+        <span className="my-2 w-px bg-black/10 dark:bg-white/10" aria-hidden="true" />
+        <button
+          type="button"
+          className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-xl px-3 text-[11px] font-bold whitespace-nowrap transition active:scale-[0.97] ${
+            codeOpen
+              ? 'bg-neutral-950 text-white dark:bg-white dark:text-neutral-950'
+              : 'bg-transparent text-neutral-700 hover:bg-black/5 dark:text-neutral-200 dark:hover:bg-white/10'
+          }`}
+          aria-expanded={codeOpen}
+          aria-controls="playground-code"
+          onClick={() => setMobilePanel(codeOpen ? null : 'code')}
+        >
+          <CodeIcon />
+          <span>Code</span>
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleDownloadStill}
+        disabled={stillState === 'capturing'}
+        className={`${GLASS_SURFACE} absolute right-4 bottom-[max(16px,env(safe-area-inset-bottom))] z-[15] flex min-h-[42px] cursor-pointer items-center gap-2 rounded-[14px] px-4 text-[11.5px] font-bold transition active:scale-[0.97] disabled:cursor-wait disabled:opacity-70 max-[1100px]:top-[calc(max(10px,env(safe-area-inset-top))+58px)] max-[1100px]:right-2.5 max-[1100px]:bottom-auto max-[1100px]:size-[42px] max-[1100px]:min-h-0 max-[1100px]:justify-center max-[1100px]:p-0 ${
+          stillState === 'failed' ? 'text-red-700 dark:text-red-400' : 'text-neutral-950 dark:text-white'
+        }`}
+        data-state={stillState}
+        aria-label="Download still"
+      >
+        <DownloadIcon />
+        <span className="max-[1100px]:hidden">{stillState === 'capturing' ? 'Capturing…' : stillState === 'failed' ? 'Capture failed' : 'Save still'}</span>
+      </button>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".glb"
+        onChange={handleFileChosen}
+        aria-label="Choose a .glb model file"
+        className="sr-only"
+        tabIndex={-1}
+      />
+
+      {isDragging && (
+        <div className="pointer-events-none absolute inset-0 z-[60] grid place-items-center bg-neutral-950/30 backdrop-blur-[10px]">
+          <div className={`${GLASS_SURFACE} flex min-w-[270px] flex-col items-center gap-1 rounded-3xl px-8 py-6 text-center`}>
+            <span className="mb-2 grid size-11 place-items-center rounded-[14px] bg-neutral-950 text-white dark:bg-white dark:text-neutral-950"><UploadIcon /></span>
+            <strong className="text-[17px] tracking-[-0.025em]">Drop to preview</strong>
+            <span className="text-[11px] text-neutral-500 dark:text-neutral-400">Your model stays on this device</span>
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }
