@@ -260,6 +260,38 @@ describe('SiteApp motion toggles', () => {
     expect(snippet).toHaveTextContent('turntable');
     expect(snippet).toHaveTextContent('animations');
   });
+
+  it('includes finishing effects in the live snippet and resets the look', () => {
+    render(<SiteApp />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'bloom' }));
+    fireEvent.click(screen.getByRole('button', { name: 'vignette' }));
+
+    const snippet = screen.getByText(/SimpleViewer/, { selector: 'pre' });
+    expect(snippet).toHaveTextContent('renderer: { bloom: true, vignette: true }');
+    expect(screen.getByRole('button', { name: 'bloom' })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+    expect(snippet).not.toHaveTextContent('renderer:');
+    expect(screen.getByRole('button', { name: 'bloom' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('opens one compact-screen panel at a time', () => {
+    render(<SiteApp />);
+    const customize = screen.getByRole('button', { name: 'Customize' });
+    const code = screen.getByRole('button', { name: 'Code' });
+
+    fireEvent.click(customize);
+    expect(customize).toHaveAttribute('aria-expanded', 'true');
+    expect(code).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(code);
+    expect(customize).toHaveAttribute('aria-expanded', 'false');
+    expect(code).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close code' }));
+    expect(code).toHaveAttribute('aria-expanded', 'false');
+  });
 });
 
 describe('SiteApp still capture', () => {
@@ -288,7 +320,7 @@ describe('SiteApp still capture', () => {
     act(() => {
       jest.advanceTimersByTime(2500);
     });
-    expect(screen.getByText(/Download still/)).toBeInTheDocument();
+    expect(screen.getByText('Save still')).toBeInTheDocument();
     jest.useRealTimers();
   });
 });
