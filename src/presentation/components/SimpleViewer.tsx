@@ -1,4 +1,12 @@
-import React, { useRef, forwardRef, useImperativeHandle, useMemo, useCallback } from 'react';
+import React, {
+  useRef,
+  forwardRef,
+  useImperativeHandle,
+  useMemo,
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
 import { SimpleViewerHandle, SimpleViewerProps } from '../../types';
 import { CaptureStillOptions, CaptureVideoOptions } from '../../types/SimpleViewerHandle';
 import {
@@ -15,6 +23,7 @@ import { ViewerGizmo } from './ViewerGizmo';
 import { ViewerErrorBoundary } from './ViewerErrorBoundary';
 import { LoadingOverlay } from './LoadingOverlay';
 import { PresetPicker } from './PresetPicker';
+import { ArButton } from './ArButton';
 import { resolveLoadingIndicator } from './loadingIndicatorConfig';
 import { ThreeObject3DAdapter } from '../../infrastructure/three/ThreeObject3D';
 import {
@@ -72,6 +81,26 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
 
     const isGizmoEnabled = options.helpers?.gizmo !== undefined && options.helpers.gizmo !== false;
     const gizmoOptions = typeof options.helpers?.gizmo === 'object' ? options.helpers.gizmo : {};
+
+    // AR handoff is UI-only chrome, read live off the raw options like `ui`.
+    const arOptions = options.ar === true ? {} : options.ar || null;
+    // The AR button must hand off the model that is ON STAGE, which the
+    // `object` prop stops describing after an imperative handle.loadModel()
+    // swap — track the engine's own record of the loaded URL instead. The
+    // prop is only the pre-first-load fallback.
+    const [loadedModelUrl, setLoadedModelUrl] = useState<string | null>(null);
+    useEffect(() => {
+      if (!viewer) {
+        setLoadedModelUrl(null);
+        return;
+      }
+      const updateLoadedUrl = () => setLoadedModelUrl(viewer.getModelUrl());
+      // A model may already be on stage (runtime-only remounts).
+      updateLoadedUrl();
+      events.on('model:loaded', updateLoadedUrl);
+      return () => events.off('model:loaded', updateLoadedUrl);
+    }, [viewer, events]);
+    const arSource = loadedModelUrl ?? object;
 
     // Built-in loading overlay configuration (UI-only).
     const loadingIndicator = useMemo(
@@ -220,6 +249,9 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
               /* The defaults ARE the studio look (pinned by presets.test.ts),
                  so with no preset set the studio chip is the honest active one. */
               <PresetPicker active={activePreset ?? 'studio'} onSelect={selectPreset} />
+            )}
+            {arOptions && (
+              <ArButton source={arSource} options={arOptions} clearPresetRow={pickerEnabled} />
             )}
             {children}
           </div>

@@ -36,6 +36,7 @@ Balanced studio lighting, a baked soft contact shadow that grounds the model, au
 - **[Turntable](#turntable)** — one-word showcase auto-rotate that pauses while the user drags
 - **[Animations](#animations)** — GLTF clips autoplay with one word; play/pause/clip-picker API
 - **[Material variants](#material-variants)** — KHR_materials_variants colorways, switched live with one option
+- **[AR](#ar)** — one option hands the model to AR Quick Look (iOS) / Scene Viewer (Android)
 - **[Photoreal mode](#photoreal-mode--stills)** — progressive path tracing + `captureStill()` PNG export
 - **[Video capture](#video-capture)** — `captureVideo()` records the canvas to WebM/MP4, zero dependencies
 - **[Hotspots & click selection](#hotspot-annotations--click-selection)** — DOM pins on world-space points, BVH-accelerated picking
@@ -138,6 +139,33 @@ Semantics worth knowing: `variant: null` is the declarative reset, while
 pick survives unrelated option changes. Variant materials materialize in
 the background right after load (first paint never waits for colorways
 nobody opened); an early pick is applied the moment they're ready.
+
+## AR
+
+One option puts an **AR** button over the canvas that opens the model in the
+platform's native AR viewer — no WebXR session, no extra bundle:
+
+```tsx
+<SimpleViewer object={url} options={{ ar: true }} />
+
+// iOS AR Quick Look cannot read GLB — give it the USDZ counterpart:
+<SimpleViewer object={url} options={{ ar: { iosSrc: '/shoe.usdz', title: 'Runner' } }} />
+```
+
+- **Android** → Scene Viewer, straight from the model's own URL (`ar: true`
+  is enough). The model must be loaded from an **https** URL — a dropped
+  `blob:` file has no address a native app could fetch, and Scene Viewer
+  refuses plain http. Imperative `loadModel()` swaps are tracked — the
+  button always hands off the model that is on stage.
+- **iOS** → AR Quick Look, from `iosSrc` (USDZ).
+- **Desktop / unsupported** → the button simply never renders, so setting
+  `ar` unconditionally is safe. On an Android-UA device that turns out to
+  have no AR component (Quest, TV boxes), the failed handoff bounces back
+  reload-free and the button retires itself.
+
+`placement` picks the corner (`bottom-left` by default; it lifts above the
+built-in preset picker on its own). UI-only: toggling `ar` never rebuilds
+the viewer or reloads the model.
 
 ## Turntable
 
