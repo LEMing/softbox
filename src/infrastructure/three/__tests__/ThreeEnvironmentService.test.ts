@@ -25,6 +25,7 @@ import { applyStudioContrast } from '../studioEnvironmentContrast';
 import { ThreeEnvironmentService, GROUNDED_SKYBOX_NAME } from '../ThreeEnvironmentService';
 import { CONTACT_SHADOW_HELPER_FLAG } from '../ContactShadowBaker';
 import { ThreeSceneAdapter } from '../ThreeScene';
+import { fitCoverBackgroundToViewport } from '../backgroundImageFit';
 import { IRenderer } from '../../../core/interfaces/IRenderer';
 import { IScene, ITexture } from '../../../core/interfaces/IScene';
 import { ErrorCode } from '../../../errors';
@@ -426,6 +427,19 @@ describe('ThreeEnvironmentService render-target lifecycle', () => {
       expect(threeScene.background).toBe(texture);
       expect(texture.colorSpace).toBe(THREE.SRGBColorSpace);
       expect(threeScene.environment).toBeNull();
+    });
+
+    it('marks the uploaded image to be cropped to the viewport rather than stretched', async () => {
+      const service = await initialized();
+      const texture = new THREE.Texture({ width: 400, height: 100 } as unknown as HTMLImageElement);
+      mockLoad(texture);
+      const sceneAdapter = new ThreeSceneAdapter(new THREE.Scene());
+
+      await service.setBackgroundImage(sceneAdapter, '/wide.jpg');
+      fitCoverBackgroundToViewport(sceneAdapter.getThreeScene(), 1);
+
+      expect(texture.repeat.x).toBeCloseTo(0.25);
+      expect(texture.offset.x).toBeCloseTo(0.375);
     });
 
     it('disposes the previous VIEWER-painted background on replace', async () => {

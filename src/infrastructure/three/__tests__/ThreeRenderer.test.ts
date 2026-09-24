@@ -342,5 +342,20 @@ describe('ThreeRendererAdapter', () => {
       expect(texture.offset.x).toBeCloseTo(0);
       expect(texture.offset.y).toBeCloseTo(0.25);
     });
+
+    it('fits the image before a post-processed frame too', async () => {
+      const { adapter, fake, scene, camera, texture } = await withBackgroundImage(imageOfSize(400, 100));
+      resizeDrawingBuffer(fake, 300, 300);
+      const composerRender = jest.fn(() => true);
+      (adapter as unknown as { postPipeline: unknown }).postPipeline = { render: composerRender };
+
+      const result = adapter.renderPostProcessed(scene, camera);
+
+      expect(result.ok).toBe(true);
+      expect(composerRender).toHaveBeenCalled();
+      expect(fake.render).not.toHaveBeenCalled();
+      expect(texture.repeat.x).toBeCloseTo(0.25);
+      expect(texture.offset.x).toBeCloseTo(0.375);
+    });
   });
 });

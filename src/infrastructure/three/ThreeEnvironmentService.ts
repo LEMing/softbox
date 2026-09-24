@@ -16,6 +16,7 @@ import { Result } from '../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import { toThreeScene, toThreeTexture } from './unwrap';
 import { markViewerOwnedBackground, disposeViewerOwnedBackground } from './backgroundOwnership';
+import { markCoverFitBackground } from './backgroundImageFit';
 import { RendererWithInternalAccess } from '../../types/CommonTypes';
 import { DEFAULT_STUDIO_LOOK, StudioLook } from '../../types/options';
 
@@ -379,6 +380,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.needsUpdate = true;
       markViewerOwnedBackground(texture);
+      markCoverFitBackground(texture);
 
       // Free the outgoing background ONLY if the viewer painted it — an
       // env-map backdrop is the cached original the cache/tracer still hold.

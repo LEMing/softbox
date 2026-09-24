@@ -1,6 +1,23 @@
 Changelog
 =========
 
+4.25.1
+---
+
+### Background images keep their proportions
+
+* **`setBackgroundImage` now fills the canvas like CSS `object-fit: cover`.** The image
+  used to be stretched to the canvas, so a wide or tall photo came out squeezed, and its
+  shape changed every time the window was resized. It is now scaled to cover the canvas
+  at its own aspect ratio and cropped around its centre. The crop is recomputed on every
+  frame from the drawing-buffer size, so it holds through resizes, `captureStill` at a
+  custom size, and the post-processing path.
+* Only images set through `setBackgroundImage` are cropped. Gradient backdrops,
+  environment maps and textures a consumer assigns to `scene.background` directly are
+  left alone.
+* The render-smoke suite now pins the colours too: without post-processing, the
+  backdrop's pixels match the source image's sRGB values.
+
 4.25.0
 ---
 

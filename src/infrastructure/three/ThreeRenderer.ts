@@ -10,6 +10,7 @@ import { ICamera } from '../../core/interfaces/ICamera';
 import { Result } from '../../utils/Result';
 import { ThreeSceneAdapter } from './ThreeScene';
 import { ThreeCameraAdapter } from './ThreeCamera';
+import { fitCoverBackgroundToViewport } from './backgroundImageFit';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import { generateUUID } from '../../utils/uuid';
 import { RendererOptionsConverter, TONE_MAPPING_BY_NAME } from '../converters/RendererOptionsConverter';
@@ -160,6 +161,7 @@ export class ThreeRendererAdapter implements IRenderer {
       const threeScene = scene.getThreeScene();
       const threeCamera = camera.getThreeCamera();
 
+      this.fitBackgroundToDrawingBuffer(threeScene, this.renderer);
       this.renderer.render(threeScene, threeCamera);
       return Result.ok(undefined);
     } catch (error) {
@@ -189,7 +191,9 @@ export class ThreeRendererAdapter implements IRenderer {
       return this.render(scene, camera);
     }
     try {
-      const applied = this.postPipeline.render(scene.getThreeScene(), camera.getThreeCamera());
+      const threeScene = scene.getThreeScene();
+      this.fitBackgroundToDrawingBuffer(threeScene, this.renderer);
+      const applied = this.postPipeline.render(threeScene, camera.getThreeCamera());
       if (!applied) {
         return this.render(scene, camera);
       }
@@ -203,6 +207,11 @@ export class ThreeRendererAdapter implements IRenderer {
         )
       );
     }
+  }
+
+  private fitBackgroundToDrawingBuffer(threeScene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
+    const canvas = renderer.domElement;
+    fitCoverBackgroundToViewport(threeScene, canvas.width / canvas.height);
   }
 
   setSize(width: number, height: number): void {
