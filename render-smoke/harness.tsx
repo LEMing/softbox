@@ -8,6 +8,7 @@ import {
   type ViewerPreset,
   type ViewerScene,
 } from '../src';
+import { bandedBackdrop, type BackdropOrientation } from './bandedBackdrop';
 
 /**
  * The render-smoke harness: a self-contained page (no network fetches) that
@@ -35,6 +36,7 @@ declare global {
     __captureVideo: (duration: number) => Promise<{ size: number; type: string }>;
     __ptSamples: number;
     __setScene: (scene: ViewerScene) => void;
+    __setBandedBackdrop: (orientation: BackdropOrientation) => Promise<void>;
   }
 }
 
@@ -122,6 +124,8 @@ const Harness = () => {
     // Read the ref at call time: the handle is recreated once the core viewer
     // initializes, and only the late one has a live captureStill.
     window.__captureStill = async () => viewerRef.current!.captureStill();
+    window.__setBandedBackdrop = async (orientation: BackdropOrientation) =>
+      viewerRef.current!.setBackgroundImage(bandedBackdrop(orientation));
     // Blobs don't cross page.evaluate — hand the test size + type instead.
     window.__captureVideo = async (duration: number) => {
       const blob = await viewerRef.current!.captureVideo({ duration });

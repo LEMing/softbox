@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ThreeRendererAdapter } from '../ThreeRenderer';
 import { ThreeSceneAdapter } from '../ThreeScene';
 import { ThreePerspectiveCameraAdapter } from '../ThreeCamera';
+import { ThreeEnvironmentService } from '../ThreeEnvironmentService';
 import { IScene } from '../../../core/interfaces/IScene';
 import { ICamera } from '../../../core/interfaces/ICamera';
 import { ErrorCode } from '../../../errors';
@@ -279,6 +280,67 @@ describe('ThreeRendererAdapter', () => {
       expect(adapter.getThreeRenderer()).toBe(fake as unknown as THREE.WebGLRenderer);
       adapter.dispose();
       expect(adapter.getInternalRenderer()).toBeNull();
+    });
+  });
+
+  describe('uploaded background image', () => {
+    const imageOfSize = (width: number, height: number): HTMLImageElement => {
+      const image = document.createElement('img');
+      image.width = width;
+      image.height = height;
+      return image;
+    };
+
+    const withBackgroundImage = async (image: HTMLImageElement) => {
+      const { adapter, fake } = initialized();
+      const { scene, camera } = makeSceneAndCamera();
+      const result = await new ThreeEnvironmentService().setBackgroundImage(scene, image);
+      expect(result.ok).toBe(true);
+      const texture = scene.getThreeScene().background as THREE.Texture;
+      return { adapter, fake, scene, camera, texture };
+    };
+
+    const resizeDrawingBuffer = (fake: FakeWebGLRenderer, width: number, height: number) => {
+      fake.domElement.width = width;
+      fake.domElement.height = height;
+    };
+
+    it('crops a wide image to the middle of a square canvas instead of squeezing it', async () => {
+      const { adapter, fake, scene, camera, texture } = await withBackgroundImage(imageOfSize(400, 100));
+      resizeDrawingBuffer(fake, 300, 300);
+
+      adapter.render(scene, camera);
+
+      expect(texture.repeat.x).toBeCloseTo(0.25);
+      expect(texture.repeat.y).toBeCloseTo(1);
+      expect(texture.offset.x).toBeCloseTo(0.375);
+      expect(texture.offset.y).toBeCloseTo(0);
+    });
+
+    it('crops a tall image to the middle of a square canvas instead of stretching it', async () => {
+      const { adapter, fake, scene, camera, texture } = await withBackgroundImage(imageOfSize(100, 400));
+      resizeDrawingBuffer(fake, 300, 300);
+
+      adapter.render(scene, camera);
+
+      expect(texture.repeat.x).toBeCloseTo(1);
+      expect(texture.repeat.y).toBeCloseTo(0.25);
+      expect(texture.offset.x).toBeCloseTo(0);
+      expect(texture.offset.y).toBeCloseTo(0.375);
+    });
+
+    it('keeps the image proportions when the canvas is resized', async () => {
+      const { adapter, fake, scene, camera, texture } = await withBackgroundImage(imageOfSize(400, 200));
+      resizeDrawingBuffer(fake, 300, 300);
+      adapter.render(scene, camera);
+
+      resizeDrawingBuffer(fake, 800, 200);
+      adapter.render(scene, camera);
+
+      expect(texture.repeat.x).toBeCloseTo(1);
+      expect(texture.repeat.y).toBeCloseTo(0.5);
+      expect(texture.offset.x).toBeCloseTo(0);
+      expect(texture.offset.y).toBeCloseTo(0.25);
     });
   });
 });

@@ -1,5 +1,13 @@
 import { test, expect, Page } from '@playwright/test';
 import { PNG } from 'pngjs';
+import {
+  BACKDROP_BAND_COLOR,
+  BACKDROP_BAND_LENGTH,
+  BACKDROP_BASE_COLOR,
+  BACKDROP_LONG_SIDE,
+  BACKDROP_SHORT_SIDE,
+  type BackdropOrientation,
+} from './bandedBackdrop';
 
 /**
  * Pixel-level smoke of the real WebGL pipeline. These tests assert on ranges
@@ -234,6 +242,87 @@ test('outdoor_concrete scene: the env image replaces the studio backdrop', async
     }
   }
   expect(orange / total).toBeGreaterThan(0.005);
+
+  expect(errors).toEqual([]);
+});
+
+const hexToRgb = (hex: string): Rgb => ({
+  r: parseInt(hex.slice(1, 3), 16),
+  g: parseInt(hex.slice(3, 5), 16),
+  b: parseInt(hex.slice(5, 7), 16),
+});
+
+const BAND = hexToRgb(BACKDROP_BAND_COLOR);
+const BASE = hexToRgb(BACKDROP_BASE_COLOR);
+const BAND_SHARE_WHEN_STRETCHED = BACKDROP_BAND_LENGTH / BACKDROP_LONG_SIDE;
+const EXACT_COLOR_TOLERANCE = 12;
+
+const rowOf = (png: PNG, y: number): Rgb[] =>
+  Array.from({ length: png.width }, (_, x) => pixelAt(png, x, y));
+
+const columnOf = (png: PNG, x: number): Rgb[] =>
+  Array.from({ length: png.height }, (_, y) => pixelAt(png, x, y));
+
+const bandShare = (line: Rgb[]): number =>
+  line.filter((pixel) => colorDistance(pixel, BAND) < 60).length / line.length;
+
+const bandShareWhenCovering = (canvasAlongLongSide: number, canvasAlongShortSide: number): number => {
+  const imagePixelsPerCanvasPixel = BACKDROP_SHORT_SIDE / canvasAlongShortSide;
+  return BACKDROP_BAND_LENGTH / (canvasAlongLongSide * imagePixelsPerCanvasPixel);
+};
+
+const showBandedBackdrop = async (page: Page, orientation: BackdropOrientation) => {
+  const framesBefore = await page.evaluate(() => window.__renderedFrames);
+  await page.evaluate((value) => window.__setBandedBackdrop(value), orientation);
+  await waitForFramesAfter(page, framesBefore);
+};
+
+const waitForFramesAfter = async (page: Page, framesBefore: number) => {
+  await page.waitForFunction((count) => window.__renderedFrames > count + 1, framesBefore, {
+    timeout: 60_000,
+  });
+};
+
+const resizeViewer = async (page: Page, width: number, height: number) => {
+  const framesBefore = await page.evaluate(() => window.__renderedFrames);
+  await page.evaluate(
+    ([cssWidth, cssHeight]) => {
+      const root = document.getElementById('root')!;
+      root.style.width = `${cssWidth}px`;
+      root.style.height = `${cssHeight}px`;
+    },
+    [width, height]
+  );
+  await waitForFramesAfter(page, framesBefore);
+};
+
+test('a wide background image is cropped to the canvas, not squeezed, and keeps its sRGB colors', async ({ page }) => {
+  const errors = await openScene(page);
+  await showBandedBackdrop(page, 'wide');
+
+  const landscape = await screenshotCanvas(page);
+  const topRow = rowOf(landscape, 4);
+  expect(bandShare(topRow)).toBeCloseTo(bandShareWhenCovering(landscape.width, landscape.height), 1);
+  expect(bandShare(topRow)).toBeGreaterThan(BAND_SHARE_WHEN_STRETCHED * 2);
+  expect(colorDistance(topRow[landscape.width >> 1], BAND)).toBeLessThanOrEqual(EXACT_COLOR_TOLERANCE);
+  expect(colorDistance(topRow[2], BASE)).toBeLessThanOrEqual(EXACT_COLOR_TOLERANCE);
+
+  await resizeViewer(page, 360, 480);
+  const portrait = await screenshotCanvas(page);
+  expect(portrait.height).toBeGreaterThan(portrait.width);
+  expect(bandShare(rowOf(portrait, 4))).toBeCloseTo(bandShareWhenCovering(portrait.width, portrait.height), 1);
+
+  expect(errors).toEqual([]);
+});
+
+test('a tall background image is cropped to the canvas, not stretched', async ({ page }) => {
+  const errors = await openScene(page);
+  await showBandedBackdrop(page, 'tall');
+
+  const png = await screenshotCanvas(page);
+  const leftColumn = columnOf(png, 4);
+  expect(bandShare(leftColumn)).toBeCloseTo(bandShareWhenCovering(png.height, png.width), 1);
+  expect(bandShare(leftColumn)).toBeGreaterThan(BAND_SHARE_WHEN_STRETCHED * 2);
 
   expect(errors).toEqual([]);
 });
