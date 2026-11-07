@@ -12,11 +12,11 @@ import { RendererOptions } from '../RendererOptions';
 describe('engine-agnostic option types', () => {
   it('accepts THREE enum constants for the renderer option numbers', () => {
     const renderer: RendererOptions = {
-      shadowMapType: THREE.PCFSoftShadowMap,
+      shadowMapType: THREE.VSMShadowMap,
       toneMapping: THREE.ACESFilmicToneMapping,
       outputColorSpace: THREE.SRGBColorSpace,
     };
-    expect(renderer.shadowMapType).toBe(THREE.PCFSoftShadowMap);
+    expect(renderer.shadowMapType).toBe(THREE.VSMShadowMap);
     expect(renderer.toneMapping).toBe(THREE.ACESFilmicToneMapping);
   });
 

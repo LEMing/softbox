@@ -2,7 +2,8 @@ jest.mock('three', () => {
   const actual = jest.requireActual('three');
   const pmremTexture = () => {
     const texture = new actual.Texture();
-    texture.mapping = actual.CubeUVReflectionMapping;
+    texture.mapping = actual.CubeReflectionMapping;
+    texture.isPMREMTexture = true;
     return texture;
   };
   class MockPMREMGenerator {

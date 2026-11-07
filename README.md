@@ -51,7 +51,7 @@ Balanced studio lighting, a baked soft contact shadow that grounds the model, au
 npm install softbox
 ```
 
-Peer dependencies: `react` / `react-dom` `>=18 <20`, `three` `>=0.177 <0.186`.
+Peer dependencies: `react` / `react-dom` `>=18 <20`, `three` `>=0.177 <0.188`.
 
 ## Quick start
 

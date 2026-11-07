@@ -24,6 +24,10 @@ export default {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
       useESM: true,
     }],
+    '^.+\\.js$': ['ts-jest', {
+      tsconfig: { allowJs: true },
+      transpilation: true,
+    }],
   },
   collectCoverage: true,
   collectCoverageFrom: ['src/**/*.{ts,tsx}'],
