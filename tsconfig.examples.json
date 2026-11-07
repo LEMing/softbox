@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "softbox": ["./src/index.ts"]
+    }
+  },
+  "include": ["examples/**/*.ts", "examples/**/*.tsx"]
+}

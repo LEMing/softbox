@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    color-scheme: light;
+    background: #f5f5f5;
+    font-synthesis: none;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      background: #0a0a0a;
+    }
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button {
+    touch-action: manipulation;
+  }
+
+  :where(button, a):focus-visible {
+    outline: 3px solid color-mix(in srgb, #3b82f6 72%, transparent);
+    outline-offset: 2px;
+  }
+}
+
+/* The preset strip and AR action are rendered inside the library component,
+   so the playground cannot attach Tailwind utilities to them directly. */
+@media (max-width: 1100px) {
+  [data-testid="viewer-preset-picker"] {
+    bottom: max(10px, env(safe-area-inset-bottom)) !important;
+    max-width: calc(100% - 20px) !important;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  [data-testid="viewer-preset-picker"]::-webkit-scrollbar {
+    display: none;
+  }
+
+  [data-testid="viewer-preset-picker"] > button {
+    min-height: 36px;
+    scroll-snap-align: center;
+  }
+
+  [data-testid="viewer-ar-button"] {
+    top: calc(max(10px, env(safe-area-inset-top)) + 58px) !important;
+    bottom: auto !important;
+    left: 10px !important;
+    min-height: 42px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-testid="viewer-preset-picker"],
+  [data-testid="viewer-ar-button"] {
+    border-color: rgb(255 255 255 / 0.1) !important;
+    background: rgb(10 10 10 / 0.82) !important;
+    color: #f5f5f5 !important;
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.32) !important;
+  }
+
+  [data-testid="viewer-preset-picker"] > button:not([aria-pressed="true"]) {
+    color: #d4d4d4 !important;
+  }
+
+  [data-testid="viewer-preset-picker"] > button[aria-pressed="true"] {
+    border-color: #f5f5f5 !important;
+    background: #f5f5f5 !important;
+    color: #0a0a0a !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "name": "softbox",
+  "private": false,
+  "version": "4.25.1",
+  "homepage": "https://leming.github.io/softbox/",
+  "type": "module",
+  "description": "Batteries-included React 3D viewer — any GLB looks studio-shot in one line",
+  "keywords": [
+    "3d",
+    "three.js",
+    "react",
+    "viewer",
+    "glb",
+    "gltf",
+    "product viewer",
+    "webgl",
+    "model-viewer",
+    "path-tracing",
+    "turntable"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LEMing/softbox.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "NODE_ENV=production tsc --noEmit && vite build",
+    "postbuild": "node scripts/copy-cjs-types.mjs",
+    "build:site": "vite build --config vite.site.config.ts",
+    "preview": "vite preview",
+    "test": "jest --runInBand",
+    "typecheck": "tsc --noEmit",
+    "typecheck:examples": "tsc -p tsconfig.examples.json",
+    "typecheck:smoke": "tsc -p tsconfig.smoke.json",
+    "test:render": "playwright test",
+    "smoke": "node scripts/smoke.mjs",
+    "type-smoke": "node scripts/type-smoke.mjs",
+    "attw": "attw --pack .",
+    "knip": "knip",
+    "lint": "eslint 'src/**/*.{ts,tsx}' --max-warnings 0",
+    "lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix",
+    "prepublishOnly": "npm run lint && npm run typecheck && npm run build && npm run test && npm run smoke && npm run type-smoke && npm run attw",
+    "postpublish": "echo 'Published successfully!'"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "dist/simple-viewer.cjs",
+  "module": "dist/simple-viewer.es.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/simple-viewer.es.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/simple-viewer.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@eslint/js": "^10.0.1",
+    "@microsoft/api-extractor": "^7.58.9",
+    "@playwright/test": "^1.61.1",
+    "@tailwindcss/vite": "^4.3.2",
+    "@testing-library/jest-dom": "^6.4.8",
+    "@testing-library/react": "^16.1.0",
+    "@types/jest": "^30.0.0",
+    "@types/pngjs": "^6.0.5",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.185.1",
+    "@vitejs/plugin-react": "^6.0.3",
+    "eslint": "^10.7.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "jest": "^30.4.2",
+    "jest-environment-jsdom": "^30.4.1",
+    "knip": "^6.26.0",
+    "pngjs": "^7.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.3.2",
+    "three": "^0.185.1",
+    "three-gpu-pathtracer": "^0.0.23",
+    "three-mesh-bvh": "^0.9.11",
+    "threedgizmo": "^1.2.1",
+    "ts-jest": "^29.4.11",
+    "typescript": "^5.5.3",
+    "typescript-eslint": "^8.63.0",
+    "unplugin-dts": "^1.0.3",
+    "vite": "^8.1.4"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0 <20.0.0",
+    "react-dom": ">=18.0.0 <20.0.0",
+    "three": ">=0.177.0 <0.186.0"
+  },
+  "sideEffects": [
+    "./dist/simple-viewer.es.js",
+    "./dist/simple-viewer.cjs"
+  ],
+  "bugs": {
+    "url": "https://github.com/LEMing/softbox/issues"
+  }
+}

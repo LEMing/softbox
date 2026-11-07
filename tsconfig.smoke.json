@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": ["render-smoke/**/*", "playwright.config.ts", "src/**/*"],
+  "exclude": ["node_modules", "src/**/*.test.ts", "src/**/*.test.tsx", "src/**/__tests__/**", "src/__mocks__/**/*"]
+}

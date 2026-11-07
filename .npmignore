@@ -1,0 +1,10 @@
+src/__tests__
+src/__mocks__
+__tests__
+__mocks__
+*.test.ts
+*.test.tsx
+jest.config.js
+.gitignore
+tsconfig.json
+vite.config.ts

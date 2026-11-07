@@ -1,0 +1,89 @@
+name: CI
+
+permissions:
+  contents: read
+
+# Superseded PR pushes cancel their stale runs; in-progress main runs are
+# not cancelled — the release workflow's publish gate waits for green CI on
+# the exact merge commit. (A QUEUED main run can still be superseded by a
+# newer push; the release gate's workflow_dispatch hatch covers that case.)
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Escape hatch for the release workflow's green-CI gate: mint a fresh CI
+  # run for a head whose original runs are gone ([skip ci] merge, or aged
+  # out of Actions retention) without having to push a new commit.
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (incl. clean-architecture boundary)
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Type check examples
+        run: npm run typecheck:examples
+
+      - name: Test (enforces coverage thresholds)
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Build site
+        run: npm run build:site
+
+      - name: Package smoke test (ESM + CJS entrypoints)
+        run: npm run smoke
+
+      - name: Type smoke test (nodenext + bundler consumers)
+        run: npm run type-smoke
+
+      - name: Are the types wrong (packaging correctness)
+        run: npm run attw
+
+      - name: Dead-code check
+        run: npm run knip
+
+  render-smoke:
+    runs-on: ubuntu-latest
+    # Contended runners rasterize in software 5-10x slower than average ones.
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check render-smoke harness
+        run: npm run typecheck:smoke
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Render smoke (real WebGL pixels via SwiftShader)
+        run: npm run test:render
