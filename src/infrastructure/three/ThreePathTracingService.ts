@@ -22,6 +22,7 @@ import {
 import { toThreeScene, toThreeCamera, toThreeRenderer } from './unwrap';
 import { TypedEventEmitter } from '../../events/EventEmitter';
 import { CONTACT_SHADOW_HELPER_FLAG, PATH_TRACING_FLOOR_FLAG } from './ContactShadowBaker';
+import { provideCubeUvChunkForPathTracer } from './cubeUvChunkForPathTracer';
 
 export class ThreePathTracingService implements IPathTracingService {
   /**
@@ -245,6 +246,7 @@ export class ThreePathTracingService implements IPathTracingService {
         );
       }
 
+      provideCubeUvChunkForPathTracer();
       this.pathTracer = new WebGLPathTracer(threeRenderer) as ExtendedWebGLPathTracer;
 
       // Configure the path tracer
