@@ -1,6 +1,19 @@
 Changelog
 =========
 
+4.26.0
+---
+
+### Three.js r186 and r187
+
+* **The `three` peer range now reaches r187** (`>=0.177.0 <0.188.0`, was `<0.186.0`).
+  The bundled addons (GLTFLoader, OrbitControls, RoomEnvironment and the rest) are
+  built from three 0.187.0 sources, and the playground and tests run on it.
+* **`shadowMap.type: 'pcfsoft'` now sets `PCFShadowMap`.** three r186 removed the
+  soft PCF filter: it falls back to `PCFShadowMap` with a console warning on every
+  renderer. Softbox now asks for `PCFShadowMap` directly, so the shadows look as they
+  do on r186+ and the warning is gone. The option name stays, so no caller breaks.
+
 4.25.1
 ---
 

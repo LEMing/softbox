@@ -17,6 +17,7 @@ import { ThreeViewerError, ErrorCode } from '../../errors';
 import { toThreeScene, toThreeTexture } from './unwrap';
 import { markViewerOwnedBackground, disposeViewerOwnedBackground } from './backgroundOwnership';
 import { markCoverFitBackground } from './backgroundImageFit';
+import { isPrefilteredEnvironment } from './prefilteredEnvironment';
 import { RendererWithInternalAccess } from '../../types/CommonTypes';
 import { DEFAULT_STUDIO_LOOK, StudioLook } from '../../types/options';
 
@@ -234,7 +235,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       // studio cube capture) — never to whichever original happens to sit
       // first in the cache.
       const original = this.originalByPmrem.get(threeTexture);
-      if (threeTexture.mapping === THREE.CubeUVReflectionMapping) {
+      if (isPrefilteredEnvironment(threeTexture)) {
         if (original) {
           (threeScene as SceneWithOriginalTexture).__originalEnvironmentTexture = original;
         } else {
@@ -256,7 +257,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       if (options?.setBackground ?? true) {
         disposeViewerOwnedBackground(threeScene);
         if (
-          threeTexture.mapping === THREE.CubeUVReflectionMapping &&
+          isPrefilteredEnvironment(threeTexture) &&
           original?.mapping === THREE.EquirectangularReflectionMapping
         ) {
           threeScene.background = original;

@@ -100,11 +100,11 @@ describe('ThreeRendererAdapter', () => {
   });
 
   describe('initialize', () => {
-    it('maps the shadow-map options onto the renderer', () => {
+    it('maps the shadow-map options onto the renderer, pcfsoft onto PCF since three r186 removed the soft filter', () => {
       const { fake } = initialized({ shadowMap: { enabled: true, type: 'pcfsoft' } });
       expect(fake.shadowMap.enabled).toBe(true);
       expect(fake.shadowMap.autoUpdate).toBe(true);
-      expect(fake.shadowMap.type).toBe(THREE.PCFSoftShadowMap);
+      expect(fake.shadowMap.type).toBe(THREE.PCFShadowMap);
     });
 
     it('maps every tone-mapping operator name to its THREE constant', () => {

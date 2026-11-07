@@ -1,7 +1,7 @@
 {
   "name": "softbox",
   "private": false,
-  "version": "4.25.1",
+  "version": "4.26.0",
   "homepage": "https://leming.github.io/softbox/",
   "type": "module",
   "description": "Batteries-included React 3D viewer — any GLB looks studio-shot in one line",
@@ -80,7 +80,7 @@
     "@types/pngjs": "^6.0.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/three": "^0.185.1",
+    "@types/three": "^0.187.0",
     "@vitejs/plugin-react": "^6.0.3",
     "eslint": "^10.7.0",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -91,7 +91,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwindcss": "^4.3.2",
-    "three": "^0.185.1",
+    "three": "^0.187.0",
     "three-gpu-pathtracer": "^0.0.23",
     "three-mesh-bvh": "^0.9.11",
     "threedgizmo": "^1.2.1",
@@ -104,7 +104,7 @@
   "peerDependencies": {
     "react": ">=18.0.0 <20.0.0",
     "react-dom": ">=18.0.0 <20.0.0",
-    "three": ">=0.177.0 <0.186.0"
+    "three": ">=0.177.0 <0.188.0"
   },
   "sideEffects": [
     "./dist/simple-viewer.es.js",

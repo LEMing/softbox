@@ -67,7 +67,7 @@ export class ThreeRendererAdapter implements IRenderer {
           const shadowMapTypes = {
             'basic': THREE.BasicShadowMap,
             'pcf': THREE.PCFShadowMap,
-            'pcfsoft': THREE.PCFSoftShadowMap,
+            'pcfsoft': THREE.PCFShadowMap,
             'vsm': THREE.VSMShadowMap,
           };
           this.renderer.shadowMap.type = shadowMapTypes[options.shadowMap.type] ;
