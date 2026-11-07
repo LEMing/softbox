@@ -13,6 +13,16 @@ Changelog
   soft PCF filter: it falls back to `PCFShadowMap` with a console warning on every
   renderer. Softbox now asks for `PCFShadowMap` directly, so the shadows look as they
   do on r186+ and the warning is gone. The option name stays, so no caller breaks.
+* **Path tracing keeps working on r186+.** The bundled three-gpu-pathtracer (0.0.23, and
+  0.0.28 as well) converts cube environments and backgrounds with a shader that includes
+  `cube_uv_reflection_fragment`, a chunk r186 deleted, so the studio room failed to compile
+  (`Can not resolve #include <cube_uv_reflection_fragment>`). That shader samples the cube
+  with `textureCube` and never calls the chunk's functions, so softbox registers an empty
+  chunk when three has none; on older three the shipped chunk is left alone.
+* **PMREM environments are recognised on both sides of r186.** r186 removed
+  `CubeUVReflectionMapping`: PMREM now returns a cube texture marked `isPMREMTexture`.
+  The environment service checks either marker, so the equirect backdrop and the path
+  tracer's readable source are picked as before.
 
 4.25.1
 ---
