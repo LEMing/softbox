@@ -18,10 +18,9 @@ name: Release
 #   published: a re-run after a partial failure (published but not tagged)
 #   repairs the missing tag instead of skipping it forever.
 #
-# Requires the NPM_TOKEN repository secret: an npm granular access token with
-# read/write scoped to the `softbox` package. Rotate before its expiry date —
-# a run that fails with ENEEDAUTH means the token is missing or expired;
-# re-run it via workflow_dispatch after fixing the secret.
+# Authenticates through npm trusted publishing (OIDC), with no NPM_TOKEN: the
+# Trusted Publisher on npmjs.com is GitHub Actions, LEMing/softbox, workflow
+# release.yml. It needs npm 11.5.1 or later, newer than Node 22 ships.
 on:
   push:
     branches: [main]
@@ -127,13 +126,15 @@ jobs:
           echo "Timed out waiting for CI — refusing to publish."
           exit 1
 
+      - name: Install npm with trusted publishing
+        if: steps.guard.outputs.publish == 'true'
+        run: npm install -g npm@11.21.2
+
       # prepublishOnly runs the local gate on top of green CI: lint,
       # typecheck, build, test, package smoke, type smoke and attw.
       - name: Publish to npm (with provenance)
         if: steps.guard.outputs.publish == 'true'
         run: npm publish --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       # Deliberately not gated on publish having happened THIS run: after a
       # partial failure (npm publish succeeded, this step failed) the guard
