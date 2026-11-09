@@ -71,6 +71,15 @@ describe('ViewerFactory selection.bvh threading', () => {
     ViewerFactory.createViewer(document.createElement('canvas'), {});
     expect(loaderSpy).toHaveBeenCalledWith(expect.objectContaining({ bvh: undefined }));
   });
+
+  it('lets the model loader read the renderer once the viewer has initialized it', () => {
+    ViewerFactory.createViewer(document.createElement('canvas'), {});
+    const { getRenderer } = loaderSpy.mock.calls[0][0];
+    const initializedRenderer = {} as THREE.WebGLRenderer;
+    jest.spyOn(ViewerRenderer.prototype, 'getWebGLRenderer').mockReturnValue(initializedRenderer);
+
+    expect(getRenderer()).toBe(initializedRenderer);
+  });
 });
 
 describe('ViewerFactory units validation', () => {

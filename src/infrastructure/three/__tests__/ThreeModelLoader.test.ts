@@ -75,13 +75,29 @@ describe('ThreeGLTFLoaderAdapter', () => {
 
     it('detects KTX2 GPU support when a renderer is provided', async () => {
       const renderer = {} as THREE.WebGLRenderer;
-      await loadWith({ renderer });
+      await loadWith({ getRenderer: () => renderer });
+
+      expect(ktx2Instances[0].detectSupport).toHaveBeenCalledWith(renderer);
+    });
+
+    it('reads the renderer when the first model loads, not when the loader is built', async () => {
+      let renderer: THREE.WebGLRenderer | null = null;
+      const loader = new ThreeGLTFLoaderAdapter({ getRenderer: () => renderer });
+      renderer = {} as THREE.WebGLRenderer;
+
+      await loader.load('model.glb');
 
       expect(ktx2Instances[0].detectSupport).toHaveBeenCalledWith(renderer);
     });
 
     it('skips KTX2 support detection when no renderer is provided', async () => {
       await loadWith();
+
+      expect(ktx2Instances[0].detectSupport).not.toHaveBeenCalled();
+    });
+
+    it('skips KTX2 support detection while the renderer is not initialized', async () => {
+      await loadWith({ getRenderer: () => null });
 
       expect(ktx2Instances[0].detectSupport).not.toHaveBeenCalled();
     });

@@ -34,7 +34,7 @@ export class ViewerFactory {
     const controls = this.createControls(camera, canvas, options);
     
     const modelLoader = new ExtendedModelLoaderFactory().createDefaultLoader({
-      renderer: renderer.getWebGLRenderer() ?? undefined,
+      getRenderer: () => renderer.getWebGLRenderer(),
       bvh: options.selection?.bvh,
       ...options.loaders,
     });
