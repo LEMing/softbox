@@ -1,8 +1,6 @@
-import { ICamera } from '../interfaces/ICamera';
+import type * as THREE from 'three';
 
-export function applyCameraAspect(camera: ICamera, aspect: number): void {
-  if (camera.type === 'perspective' && 'aspect' in camera) {
-    camera.aspect = aspect;
-  }
+export function applyCameraAspect(camera: THREE.PerspectiveCamera, aspect: number): void {
+  camera.aspect = aspect;
   camera.updateProjectionMatrix();
 }

@@ -4,7 +4,8 @@ import {
   IPathTracingSettings,
   PathTracingPausedEvent,
 } from '../../core/services/IPathTracingService';
-import { IScene, ICamera, Result } from '../../core/interfaces';
+import type * as THREE from 'three';
+import { Result } from '../../utils/Result';
 import { TypedEventEmitter } from '../../events/EventEmitter';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 
@@ -64,7 +65,7 @@ export class LazyPathTracingService implements IPathTracingService {
     }
   }
 
-  render(scene: IScene, camera: ICamera): Promise<Result<void>> {
+  render(scene: THREE.Scene, camera: THREE.Camera): Promise<Result<void>> {
     if (!this.inner) {
       return Promise.resolve(Result.ok(undefined));
     }

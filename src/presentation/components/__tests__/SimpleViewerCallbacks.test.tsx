@@ -6,7 +6,6 @@ import { useViewerCore } from '../../hooks';
 import { TypedEventEmitter } from '../../../events/EventEmitter';
 import { ViewerEventMap } from '../../../core/events/CoreViewerEvents';
 import { ThreeViewerError, ErrorCode } from '../../../errors';
-import { ThreeObject3DAdapter } from '../../../infrastructure/three/ThreeObject3D';
 import * as THREE from 'three';
 
 jest.mock('../../hooks', () => {
@@ -23,7 +22,7 @@ const makeViewer = (coreBus: TypedEventEmitter<ViewerEventMap>) => ({
   getModelUrl: () => null,
   getCamera: () => null,
   getControls: () => null,
-  getRenderer: () => null,
+  getRenderer: () => ({ getWebGLRenderer: () => null }),
   requestRender: jest.fn(),
   loadModel: jest.fn(() => new Promise(() => {})),
   dispose: jest.fn(),
@@ -50,7 +49,7 @@ describe('SimpleViewer option callbacks', () => {
     act(() => {
       coreBus.emit('model:progress', { url: 'x.glb', loaded: 25, total: 100 });
       coreBus.emit('model:loaded', {
-        model: new ThreeObject3DAdapter(new THREE.Object3D()),
+        model: new THREE.Object3D(),
         loadTime: 5,
       });
       coreBus.emit('model:error', { error, url: 'x.glb' });
@@ -78,7 +77,7 @@ describe('SimpleViewer option callbacks', () => {
 
     act(() => {
       coreBus.emit('model:loaded', {
-        model: new ThreeObject3DAdapter(new THREE.Object3D()),
+        model: new THREE.Object3D(),
         loadTime: 5,
       });
     });

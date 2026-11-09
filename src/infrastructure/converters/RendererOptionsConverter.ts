@@ -1,28 +1,37 @@
 import * as THREE from 'three';
-import { IRendererOptions } from '../../core/interfaces/IRenderer';
+import { ViewerRendererOptions } from '../../core/rendering/ViewerRenderer';
+import { resolveColorGrade } from '../../core/rendering/colorGrade';
 import { RendererOptions } from '../../types/options/RendererOptions';
 
-export type ToneMappingName = 'none' | 'linear' | 'reinhard' | 'cineon' | 'aces' | 'agx' | 'neutral';
+const TONE_MAPPING_BY_NAME = new Map<string, THREE.ToneMapping>([
+  ['none', THREE.NoToneMapping],
+  ['linear', THREE.LinearToneMapping],
+  ['reinhard', THREE.ReinhardToneMapping],
+  ['cineon', THREE.CineonToneMapping],
+  ['aces', THREE.ACESFilmicToneMapping],
+  ['agx', THREE.AgXToneMapping],
+  ['neutral', THREE.NeutralToneMapping],
+]);
 
-export const TONE_MAPPING_BY_NAME: Record<ToneMappingName, THREE.ToneMapping> = {
-  none: THREE.NoToneMapping,
-  linear: THREE.LinearToneMapping,
-  reinhard: THREE.ReinhardToneMapping,
-  cineon: THREE.CineonToneMapping,
-  aces: THREE.ACESFilmicToneMapping,
-  agx: THREE.AgXToneMapping,
-  neutral: THREE.NeutralToneMapping,
-};
+const SHADOW_MAP_TYPE_BY_NAME = new Map<string, THREE.ShadowMapType>([
+  ['basic', THREE.BasicShadowMap],
+  ['pcf', THREE.PCFShadowMap],
+  ['pcfsoft', THREE.PCFShadowMap],
+  ['vsm', THREE.VSMShadowMap],
+]);
 
-const TONE_MAPPING_NAMES = new Map<THREE.ToneMapping, ToneMappingName>(
-  (Object.entries(TONE_MAPPING_BY_NAME) as Array<[ToneMappingName, THREE.ToneMapping]>).map(
-    ([name, constant]) => [constant, name]
-  )
-);
+const SHADOW_MAP_TYPE_BY_CONSTANT = new Map<number, THREE.ShadowMapType>([
+  [THREE.BasicShadowMap, THREE.BasicShadowMap],
+  [THREE.PCFShadowMap, THREE.PCFShadowMap],
+  [THREE.PCFSoftShadowMap, THREE.PCFShadowMap],
+  [THREE.VSMShadowMap, THREE.VSMShadowMap],
+]);
+
+const SUPPORTED_TONE_MAPPINGS = new Set<number>(TONE_MAPPING_BY_NAME.values());
 
 export class RendererOptionsConverter {
-  static convertRendererOptions(options: RendererOptions): IRendererOptions {
-    const converted: IRendererOptions = {
+  static convertRendererOptions(options: RendererOptions): ViewerRendererOptions {
+    const converted: ViewerRendererOptions = {
       antialias: options.antialias,
       alpha: options.alpha,
       premultipliedAlpha: options.premultipliedAlpha,
@@ -40,7 +49,7 @@ export class RendererOptionsConverter {
 
     if (options.toneMapping !== undefined || options.toneMappingExposure !== undefined) {
       converted.toneMapping = {
-        type: this.convertToneMappingType(options.toneMapping),
+        type: this.convertToneMapping(options.toneMapping),
         exposure: options.toneMappingExposure ?? 1,
       };
     }
@@ -48,7 +57,7 @@ export class RendererOptionsConverter {
     const bloom = options.bloom;
     const vignette = options.vignette;
     const filmGrain = options.filmGrain;
-    const colorGrade = this.resolveColorGrade(options.colorGrade);
+    const colorGrade = resolveColorGrade(options.colorGrade);
     if (bloom || vignette || filmGrain || colorGrade) {
       converted.postProcessing = {
         bloom: bloom ?? false,
@@ -61,45 +70,23 @@ export class RendererOptionsConverter {
     return converted;
   }
 
-  private static readonly DEFAULT_GRADE_CONTRAST = 0.12;
-  private static readonly DEFAULT_GRADE_SATURATION = 0.15;
-
-  static resolveColorGrade(
-    raw: unknown
-  ): { contrast: number; saturation: number } | undefined {
-    if (!raw) {
-      return undefined;
+  private static convertShadowMapType(type: unknown): THREE.ShadowMapType | undefined {
+    if (typeof type === 'number') {
+      return SHADOW_MAP_TYPE_BY_CONSTANT.get(type);
     }
-    if (raw === true) {
-      return { contrast: this.DEFAULT_GRADE_CONTRAST, saturation: this.DEFAULT_GRADE_SATURATION };
-    }
-    if (typeof raw === 'object') {
-      const grade = raw as { contrast?: number; saturation?: number };
-      return {
-        contrast: grade.contrast ?? this.DEFAULT_GRADE_CONTRAST,
-        saturation: grade.saturation ?? this.DEFAULT_GRADE_SATURATION,
-      };
+    if (typeof type === 'string') {
+      return SHADOW_MAP_TYPE_BY_NAME.get(type);
     }
     return undefined;
   }
 
-  private static convertShadowMapType(type: unknown): 'basic' | 'pcf' | 'pcfsoft' | 'vsm' | undefined {
-    if (typeof type === 'number') {
-      if (type === THREE.BasicShadowMap) return 'basic';
-      if (type === THREE.PCFShadowMap) return 'pcf';
-      if (type === THREE.PCFSoftShadowMap) return 'pcfsoft';
-      if (type === THREE.VSMShadowMap) return 'vsm';
+  private static convertToneMapping(type: unknown): THREE.ToneMapping {
+    if (typeof type === 'number' && SUPPORTED_TONE_MAPPINGS.has(type)) {
+      return type as THREE.ToneMapping;
     }
-    return typeof type === 'string' ? type as 'basic' | 'pcf' | 'pcfsoft' | 'vsm' : undefined;
-  }
-
-  private static convertToneMappingType(type: unknown): ToneMappingName {
-    if (typeof type === 'number') {
-      const name = TONE_MAPPING_NAMES.get(type as THREE.ToneMapping);
-      if (name) {
-        return name;
-      }
+    if (typeof type === 'string') {
+      return TONE_MAPPING_BY_NAME.get(type) ?? THREE.NeutralToneMapping;
     }
-    return (typeof type === 'string' ? type : 'neutral') as ToneMappingName;
+    return THREE.NeutralToneMapping;
   }
 }

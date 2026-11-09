@@ -1,17 +1,20 @@
+import * as THREE from 'three';
 import { SceneConfigurator } from '../SceneConfigurator';
-import { IScene, ITexture, Result } from '../interfaces';
+import { Result } from '../../utils/Result';
 import { ISceneSetupService } from '../services/ISceneSetupService';
 import { IEnvironmentService } from '../services/IEnvironmentService';
-import { IRenderer } from '../interfaces/IRenderer';
+import type { ViewerRenderer } from '../rendering/ViewerRenderer';
 import { SimpleViewerOptions } from '../../types/SimpleViewerOptions';
 
 type Overrides = Record<string, unknown>;
 
 const ok = () => Result.ok(undefined);
 
-const makeScene = (): jest.Mocked<IScene> => ({}) as unknown as jest.Mocked<IScene>;
-const makeRenderer = (): IRenderer => ({}) as unknown as IRenderer;
-const makeTexture = (): ITexture => ({ id: 't', image: null, needsUpdate: false, dispose: jest.fn() });
+const webGLRenderer = {} as THREE.WebGLRenderer;
+const makeScene = (): THREE.Scene => new THREE.Scene();
+const makeRenderer = (): ViewerRenderer =>
+  ({ getWebGLRenderer: () => webGLRenderer }) as unknown as ViewerRenderer;
+const makeTexture = (): THREE.Texture => new THREE.Texture();
 
 const makeSceneSetup = (overrides: Overrides = {}): jest.Mocked<ISceneSetupService> =>
   ({
@@ -176,7 +179,7 @@ describe('SceneConfigurator', () => {
       await configurator.configureEnvironment(
         scene, env, makeSceneSetup(), makeRenderer(), { environment: { url: 'env.hdr' } }, notDisposed
       );
-      expect(env.initialize).toHaveBeenCalled();
+      expect(env.initialize).toHaveBeenCalledWith({ renderer: webGLRenderer, autoDispose: true });
       expect(env.loadEnvironmentMap).toHaveBeenCalledWith('env.hdr');
       expect(env.applyToScene).toHaveBeenCalled();
     });

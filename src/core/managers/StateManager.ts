@@ -1,6 +1,6 @@
+import type * as THREE from 'three';
 import { ViewerState } from '../entities/ViewerState';
 import { ThreeViewerError } from '../../errors';
-import { IObject3D } from '../interfaces';
 
 export interface StateChangeCallback {
   (state: ViewerState): void;
@@ -27,7 +27,7 @@ export class StateManager {
     this.updateState(this.state.startLoading());
   }
 
-  setLoaded(model: IObject3D): void {
+  setLoaded(model: THREE.Object3D): void {
     this.updateState(this.state.setLoaded(model));
   }
 
@@ -59,7 +59,7 @@ export class StateManager {
     return this.state.status;
   }
 
-  getCurrentModel(): IObject3D | null {
+  getCurrentModel(): THREE.Object3D | null {
     return this.state.currentModel;
   }
 

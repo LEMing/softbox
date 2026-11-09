@@ -1,29 +1,16 @@
 import * as THREE from 'three';
-import { IScene } from '../../../core/interfaces/IScene';
-import { IObject3D } from '../../../core/interfaces/IObject3D';
 import { Result } from '../../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../../errors';
-import { toThreeObject, toThreeScene } from '../unwrap';
 import { CONTACT_SHADOW_LIVE_NAME, PATH_TRACING_FLOOR_FLAG } from '../ContactShadowBaker';
-import { disposeObject3D } from '../disposal';
+import { disposeObject3D } from '../../../core/disposal';
 import { HexTileConfig } from '../HexTileConfig';
 import { GridFactory } from '../grids/GridFactory';
 import { GridType, IGridOptions } from '../grids/IGridStyle';
 import { SceneUserData } from './sceneUserData';
 
-export function addDynamicGrid(scene: IScene, object: IObject3D, scaleFactor: number = 1.2): Result<void> {
+export function addDynamicGrid(scene: THREE.Scene, object: THREE.Object3D, scaleFactor: number = 1.2): Result<void> {
   try {
-    const threeScene = toThreeScene(scene);
-    if (!threeScene) {
-      return Result.err(
-        new ThreeViewerError(
-          'Scene must be ThreeSceneAdapter',
-          ErrorCode.INVALID_PARAMETER
-        )
-      );
-    }
-
-    const userData = threeScene.userData as SceneUserData;
+    const userData = scene.userData as SceneUserData;
     const gridOptions = userData?.gridOptions;
 
     if (!gridOptions?.enabled) {
@@ -31,26 +18,17 @@ export function addDynamicGrid(scene: IScene, object: IObject3D, scaleFactor: nu
     }
 
     const existingGrids: THREE.Object3D[] = [];
-    threeScene.traverse((child: THREE.Object3D) => {
+    scene.traverse((child: THREE.Object3D) => {
       if (child.userData?.isGrid || child.userData?.isHexGrid || child.userData?.isDefaultGrid) {
         existingGrids.push(child);
       }
     });
     existingGrids.forEach(grid => {
       disposeObject3D(grid);
-      threeScene.remove(grid);
+      scene.remove(grid);
     });
 
-    const threeObject = toThreeObject(object);
-    if (!threeObject) {
-      return Result.err(
-        new ThreeViewerError(
-          'Object must expose a Three.js Object3D',
-          ErrorCode.INVALID_PARAMETER
-        )
-      );
-    }
-    const box = new THREE.Box3().setFromObject(threeObject);
+    const box = new THREE.Box3().setFromObject(object);
     const size = box.getSize(new THREE.Vector3());
 
     if (box.isEmpty() || !Number.isFinite(size.x) || !Number.isFinite(size.z)) {
@@ -82,7 +60,6 @@ export function addDynamicGrid(scene: IScene, object: IObject3D, scaleFactor: nu
     } else if (gridRadius < 3 && requiredWidth > hexWidth * 2) {
       gridRadius = 3;
     }
-
 
     const gridType = gridOptions.type || GridType.HEXAGONAL_GLASS;
     const gridSize = Math.max(size.x, size.z) * scaleFactor;
@@ -117,7 +94,7 @@ export function addDynamicGrid(scene: IScene, object: IObject3D, scaleFactor: nu
     const gridCenter = box.getCenter(new THREE.Vector3());
     grid.position.set(gridCenter.x, 0, gridCenter.z);
 
-    threeScene.add(grid);
+    scene.add(grid);
 
     return Result.ok(undefined);
   } catch (error) {

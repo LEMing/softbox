@@ -1,12 +1,11 @@
 import * as THREE from 'three';
 import { createGradientBackground } from '../gradientBackground';
-import { IScene } from '../../../../core/interfaces/IScene';
 import { ErrorCode } from '../../../../errors';
 
 const paint = (
-  scene: unknown,
+  scene: THREE.Scene,
   options: Parameters<typeof createGradientBackground>[1]
-) => createGradientBackground(scene as IScene, options);
+) => createGradientBackground(scene, options);
 
 function stubCanvas2D() {
   const gradient = { addColorStop: jest.fn() };
@@ -88,14 +87,6 @@ describe('createGradientBackground', () => {
     paint(scene, { topColor: '#222', bottomColor: '#222' });
 
     expect(disposeSpy).not.toHaveBeenCalled();
-  });
-
-  it('errors when the scene is not a three scene', () => {
-    const result = paint({}, { topColor: '#111', bottomColor: '#111' });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe(ErrorCode.INVALID_PARAMETER);
-    }
   });
 
   it('errors when a 2D context cannot be created', () => {

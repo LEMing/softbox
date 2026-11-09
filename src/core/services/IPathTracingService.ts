@@ -1,7 +1,6 @@
+import type * as THREE from 'three';
 import { Result } from '../../utils/Result';
-import { IRenderer } from '../interfaces/IRenderer';
-import { IScene } from '../interfaces/IScene';
-import { ICamera } from '../interfaces/ICamera';
+import type { ViewerRenderer } from '../rendering/ViewerRenderer';
 import { TypedEventEmitter } from '../../events/EventEmitter';
 
 export type PathTracingPausedReason = 'completed' | 'gave-up';
@@ -20,7 +19,7 @@ export interface IPathTracingService {
   
   updateSettings(settings: Partial<IPathTracingSettings>): void;
   
-  render(scene: IScene, camera: ICamera): Promise<Result<void>>;
+  render(scene: THREE.Scene, camera: THREE.Camera): Promise<Result<void>>;
   
   getSampleCount(): number;
   
@@ -39,7 +38,7 @@ export interface IPathTracingService {
 
 export interface IPathTracingOptions {
   enabled: boolean;
-  renderer: IRenderer;
+  renderer: ViewerRenderer;
 }
 
 export interface IPathTracingSettings {

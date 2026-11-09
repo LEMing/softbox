@@ -1,13 +1,8 @@
 import * as THREE from 'three';
+import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { ThreeSceneSetupService } from '../ThreeSceneSetupService';
-import { ThreeObject3DAdapter } from '../ThreeObject3D';
-import { ICamera } from '../../../core/interfaces/ICamera';
-import { IControls } from '../../../core/interfaces/IControls';
-import { IObject3D } from '../../../core/interfaces/IObject3D';
+import { fitCameraToObject } from '../sceneSetup/cameraFit';
 import { ErrorCode } from '../../../errors';
-
-const asCamera = (camera: THREE.Camera): ICamera =>
-  ({ getThreeCamera: () => camera } as unknown as ICamera);
 
 const makeControls = () => {
   const controls = {
@@ -16,8 +11,7 @@ const makeControls = () => {
     update: jest.fn(),
     dispose: jest.fn()
   };
-  const adapter = { getThreeControls: () => controls } as unknown as IControls;
-  return { controls, adapter };
+  return { controls, orbit: controls as unknown as OrbitControls };
 };
 
 describe('ThreeSceneSetupService.fitCameraToObject', () => {
@@ -27,13 +21,9 @@ describe('ThreeSceneSetupService.fitCameraToObject', () => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2));
     mesh.position.set(10, 0, 5);
     const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-    const { controls, adapter } = makeControls();
+    const { controls, orbit } = makeControls();
 
-    const result = service.fitCameraToObject(
-      new ThreeObject3DAdapter(mesh),
-      asCamera(camera),
-      adapter
-    );
+    const result = service.fitCameraToObject(mesh, camera, orbit);
 
     expect(result.ok).toBe(true);
     expect(controls.target.x).toBeCloseTo(10);
@@ -53,63 +43,27 @@ describe('ThreeSceneSetupService.fitCameraToObject', () => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
     const updateSpy = jest.spyOn(camera, 'updateProjectionMatrix');
-    const { adapter } = makeControls();
+    const { orbit } = makeControls();
 
-    const result = service.fitCameraToObject(
-      new ThreeObject3DAdapter(mesh),
-      asCamera(camera),
-      adapter
-    );
+    const result = fitCameraToObject(mesh, camera, orbit);
 
     expect(result.ok).toBe(true);
     expect(updateSpy).toHaveBeenCalled();
   });
 
-  it('fails loud when the object is not unwrappable', () => {
-    const camera = new THREE.PerspectiveCamera();
-    const { adapter } = makeControls();
-
-    const result = service.fitCameraToObject(
-      {} as unknown as IObject3D,
-      asCamera(camera),
-      adapter
-    );
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe(ErrorCode.INVALID_PARAMETER);
-    }
-  });
-
-  it('fails loud when the camera is neither perspective nor orthographic', () => {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
-    const { adapter } = makeControls();
-
-    const result = service.fitCameraToObject(
-      new ThreeObject3DAdapter(mesh),
-      {} as unknown as ICamera,
-      adapter
-    );
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe(ErrorCode.INVALID_PARAMETER);
-    }
-  });
-
-  it('fails loud when the controls are not unwrappable', () => {
+  it('wraps a failure while retargeting the controls into a camera error', () => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
     const camera = new THREE.PerspectiveCamera();
+    const { controls, orbit } = makeControls();
+    controls.update.mockImplementation(() => {
+      throw new Error('controls detached');
+    });
 
-    const result = service.fitCameraToObject(
-      new ThreeObject3DAdapter(mesh),
-      asCamera(camera),
-      {} as unknown as IControls
-    );
+    const result = service.fitCameraToObject(mesh, camera, orbit);
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.code).toBe(ErrorCode.INVALID_PARAMETER);
+      expect(result.error.code).toBe(ErrorCode.CAMERA_INIT_FAILED);
     }
   });
 });

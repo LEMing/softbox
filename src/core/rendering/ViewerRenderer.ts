@@ -1,29 +1,49 @@
 import * as THREE from 'three';
-import {
-  IRenderer,
-  IRendererOptions,
-  IRendererCapabilities,
-  IPostProcessingEffects
-} from '../../core/interfaces/IRenderer';
-import { IScene } from '../../core/interfaces/IScene';
-import { ICamera } from '../../core/interfaces/ICamera';
 import { Result } from '../../utils/Result';
-import { ThreeSceneAdapter } from './ThreeScene';
-import { ThreeCameraAdapter } from './ThreeCamera';
 import { fitCoverBackgroundToViewport } from './backgroundImageFit';
 import { ThreeViewerError, ErrorCode } from '../../errors';
-import { generateUUID } from '../../utils/uuid';
-import { RendererOptionsConverter, TONE_MAPPING_BY_NAME } from '../converters/RendererOptionsConverter';
+import { ColorGrade, resolveColorGrade } from './colorGrade';
 import {
   PostProcessingPipeline,
   PostProcessingConfig,
   anyPostEffectEnabled,
-} from './postprocessing/PostProcessingPipeline';
+} from './PostProcessingPipeline';
 
-export class ThreeRendererAdapter implements IRenderer {
+export interface ViewerRendererOptions {
+  antialias?: boolean;
+  alpha?: boolean;
+  premultipliedAlpha?: boolean;
+  preserveDrawingBuffer?: boolean;
+  powerPreference?: WebGLPowerPreference;
+  pixelRatio?: number;
+  shadowMap?: {
+    enabled: boolean;
+    type?: THREE.ShadowMapType;
+  };
+  toneMapping?: {
+    type: THREE.ToneMapping;
+    exposure: number;
+  };
+  postProcessing?: {
+    bloom?: boolean;
+    vignette?: boolean;
+    filmGrain?: boolean;
+    colorGrade?: ColorGrade;
+  };
+}
+
+export interface PostProcessingEffects {
+  bloom: boolean;
+  vignette: boolean;
+  filmGrain: boolean;
+  colorGrade: boolean | Partial<ColorGrade>;
+}
+
+const MAX_POST_PROCESSED_PIXEL_RATIO = 2;
+
+export class ViewerRenderer {
   private renderer: THREE.WebGLRenderer | null = null;
-  private _id: string = generateUUID();
-  private canvas?: HTMLCanvasElement;
+  private readonly canvas?: HTMLCanvasElement;
   private postPipeline: PostProcessingPipeline | null = null;
   private requestedPixelRatio = 1;
   private postLoadErrorHandler?: (error: unknown) => void;
@@ -36,11 +56,7 @@ export class ThreeRendererAdapter implements IRenderer {
     this.postLoadErrorHandler = handler;
   }
 
-  get id(): string {
-    return this._id;
-  }
-
-  initialize(options: IRendererOptions): Result<void> {
+  initialize(options: ViewerRendererOptions): Result<void> {
     try {
       this.renderer = new THREE.WebGLRenderer({
         canvas: this.canvas,
@@ -51,37 +67,27 @@ export class ThreeRendererAdapter implements IRenderer {
         powerPreference: options.powerPreference ?? 'default',
       });
 
-
       if (options.shadowMap) {
         this.renderer.shadowMap.enabled = options.shadowMap.enabled;
         this.renderer.shadowMap.autoUpdate = true;
-        if (options.shadowMap.type) {
-          const shadowMapTypes = {
-            'basic': THREE.BasicShadowMap,
-            'pcf': THREE.PCFShadowMap,
-            'pcfsoft': THREE.PCFShadowMap,
-            'vsm': THREE.VSMShadowMap,
-          };
-          this.renderer.shadowMap.type = shadowMapTypes[options.shadowMap.type] ;
+        if (options.shadowMap.type !== undefined) {
+          this.renderer.shadowMap.type = options.shadowMap.type;
         }
       }
 
       if (options.toneMapping) {
-        this.renderer.toneMapping = TONE_MAPPING_BY_NAME[options.toneMapping.type];
+        this.renderer.toneMapping = options.toneMapping.type;
         this.renderer.toneMappingExposure = options.toneMapping.exposure;
       }
 
-      const postConfig = {
+      const postConfig: PostProcessingConfig = {
         bloom: options.postProcessing?.bloom ?? false,
         vignette: options.postProcessing?.vignette ?? false,
         filmGrain: options.postProcessing?.filmGrain ?? false,
         colorGrade: options.postProcessing?.colorGrade ?? null,
       };
-      const postEnabled = anyPostEffectEnabled(postConfig);
       this.requestedPixelRatio = options.pixelRatio ?? window.devicePixelRatio;
-      this.renderer.setPixelRatio(
-        postEnabled ? Math.min(this.requestedPixelRatio, 2) : this.requestedPixelRatio
-      );
+      this.applyPixelRatioFor(postConfig);
 
       if (this.canvas) {
         const { clientWidth, clientHeight } = this.canvas.parentElement || this.canvas;
@@ -92,11 +98,7 @@ export class ThreeRendererAdapter implements IRenderer {
 
       this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-      if (postEnabled) {
-        this.postPipeline = new PostProcessingPipeline(this.renderer, postConfig, (error) =>
-          this.postLoadErrorHandler?.(error)
-        );
-      }
+      this.postPipeline = this.createPipelineFor(this.renderer, postConfig);
 
       return Result.ok(undefined);
     } catch (error) {
@@ -110,7 +112,7 @@ export class ThreeRendererAdapter implements IRenderer {
     }
   }
 
-  render(scene: IScene, camera: ICamera): Result<void> {
+  render(scene: THREE.Scene, camera: THREE.Camera): Result<void> {
     if (!this.renderer) {
       return Result.err(
         new ThreeViewerError(
@@ -121,29 +123,8 @@ export class ThreeRendererAdapter implements IRenderer {
     }
 
     try {
-      if (!(scene instanceof ThreeSceneAdapter)) {
-        return Result.err(
-          new ThreeViewerError(
-            'Scene must be a ThreeSceneAdapter',
-            ErrorCode.INVALID_PARAMETER
-          )
-        );
-      }
-
-      if (!(camera instanceof ThreeCameraAdapter)) {
-        return Result.err(
-          new ThreeViewerError(
-            'Camera must be a ThreeCameraAdapter',
-            ErrorCode.INVALID_PARAMETER
-          )
-        );
-      }
-
-      const threeScene = scene.getThreeScene();
-      const threeCamera = camera.getThreeCamera();
-
-      this.fitBackgroundToDrawingBuffer(threeScene, this.renderer);
-      this.renderer.render(threeScene, threeCamera);
+      this.fitBackgroundToDrawingBuffer(scene, this.renderer);
+      this.renderer.render(scene, camera);
       return Result.ok(undefined);
     } catch (error) {
       return Result.err(
@@ -156,19 +137,13 @@ export class ThreeRendererAdapter implements IRenderer {
     }
   }
 
-  renderPostProcessed(scene: IScene, camera: ICamera): Result<void> {
-    if (
-      !this.postPipeline ||
-      !this.renderer ||
-      !(scene instanceof ThreeSceneAdapter) ||
-      !(camera instanceof ThreeCameraAdapter)
-    ) {
+  renderPostProcessed(scene: THREE.Scene, camera: THREE.Camera): Result<void> {
+    if (!this.postPipeline || !this.renderer) {
       return this.render(scene, camera);
     }
     try {
-      const threeScene = scene.getThreeScene();
-      this.fitBackgroundToDrawingBuffer(threeScene, this.renderer);
-      const applied = this.postPipeline.render(threeScene, camera.getThreeCamera());
+      this.fitBackgroundToDrawingBuffer(scene, this.renderer);
+      const applied = this.postPipeline.render(scene, camera);
       if (!applied) {
         return this.render(scene, camera);
       }
@@ -184,9 +159,9 @@ export class ThreeRendererAdapter implements IRenderer {
     }
   }
 
-  private fitBackgroundToDrawingBuffer(threeScene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
+  private fitBackgroundToDrawingBuffer(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
     const canvas = renderer.domElement;
-    fitCoverBackgroundToViewport(threeScene, canvas.width / canvas.height);
+    fitCoverBackgroundToViewport(scene, canvas.width / canvas.height);
   }
 
   setSize(width: number, height: number): void {
@@ -217,7 +192,7 @@ export class ThreeRendererAdapter implements IRenderer {
     }
   }
 
-  setPostProcessing(effects: IPostProcessingEffects): void {
+  setPostProcessing(effects: PostProcessingEffects): void {
     if (!this.renderer) {
       return;
     }
@@ -225,21 +200,30 @@ export class ThreeRendererAdapter implements IRenderer {
       bloom: effects.bloom,
       vignette: effects.vignette,
       filmGrain: effects.filmGrain,
-      colorGrade: RendererOptionsConverter.resolveColorGrade(effects.colorGrade) ?? null,
+      colorGrade: resolveColorGrade(effects.colorGrade) ?? null,
     };
 
     this.postPipeline?.dispose();
-    this.postPipeline = null;
+    this.applyPixelRatioFor(config);
+    this.postPipeline = this.createPipelineFor(this.renderer, config);
+  }
 
-    const postEnabled = anyPostEffectEnabled(config);
-    this.renderer.setPixelRatio(
-      postEnabled ? Math.min(this.requestedPixelRatio, 2) : this.requestedPixelRatio
-    );
-    if (postEnabled) {
-      this.postPipeline = new PostProcessingPipeline(this.renderer, config, (error) =>
-        this.postLoadErrorHandler?.(error)
-      );
+  private applyPixelRatioFor(config: PostProcessingConfig): void {
+    if (anyPostEffectEnabled(config)) {
+      this.renderer?.setPixelRatio(Math.min(this.requestedPixelRatio, MAX_POST_PROCESSED_PIXEL_RATIO));
+      return;
     }
+    this.renderer?.setPixelRatio(this.requestedPixelRatio);
+  }
+
+  private createPipelineFor(
+    renderer: THREE.WebGLRenderer,
+    config: PostProcessingConfig
+  ): PostProcessingPipeline | null {
+    if (!anyPostEffectEnabled(config)) {
+      return null;
+    }
+    return new PostProcessingPipeline(renderer, config, (error) => this.postLoadErrorHandler?.(error));
   }
 
   getDomElement(): HTMLCanvasElement {
@@ -249,36 +233,12 @@ export class ThreeRendererAdapter implements IRenderer {
     return this.renderer.domElement;
   }
 
-  getContext(): WebGL2RenderingContext | WebGLRenderingContext {
-    if (!this.renderer) {
-      throw new Error('Renderer not initialized');
-    }
-    return this.renderer.getContext();
+  getWebGLRenderer(): THREE.WebGLRenderer | null {
+    return this.renderer;
   }
 
-  get capabilities(): IRendererCapabilities {
-    if (!this.renderer) {
-      return {
-        maxTextureSize: 0,
-        maxCubemapSize: 0,
-        maxAttributes: 0,
-        maxVertexUniforms: 0,
-        maxFragmentUniforms: 0,
-        maxSamples: 0,
-        isWebGL2: false,
-      };
-    }
-
-    const caps = this.renderer.capabilities;
-    return {
-      maxTextureSize: caps.maxTextureSize,
-      maxCubemapSize: caps.maxCubemapSize,
-      maxAttributes: caps.maxAttributes,
-      maxVertexUniforms: caps.maxVertexUniforms,
-      maxFragmentUniforms: caps.maxFragmentUniforms,
-      maxSamples: caps.maxSamples || 0,
-      isWebGL2: caps.isWebGL2,
-    };
+  getMaxTextureSize(): number {
+    return this.renderer?.capabilities.maxTextureSize ?? 0;
   }
 
   dispose(): void {
@@ -292,13 +252,5 @@ export class ThreeRendererAdapter implements IRenderer {
 
   isDisposed(): boolean {
     return this.renderer === null;
-  }
-
-  getInternalRenderer(): THREE.WebGLRenderer | null {
-    return this.renderer;
-  }
-  
-  getThreeRenderer(): THREE.WebGLRenderer | null {
-    return this.getInternalRenderer();
   }
 }

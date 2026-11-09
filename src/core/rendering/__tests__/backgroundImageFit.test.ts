@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { fitCoverBackgroundToViewport, markCoverFitBackground } from '../backgroundImageFit';
-import { markViewerOwnedBackground } from '../backgroundOwnership';
+import { markViewerOwnedBackground } from '../../../infrastructure/three/backgroundOwnership';
 
 const sceneWithBackground = (background: THREE.Scene['background']): THREE.Scene => {
   const scene = new THREE.Scene();

@@ -21,7 +21,7 @@ const makeViewer = (playAnimations: jest.Mock) => ({
   getScene: jest.fn(() => null),
   getModelUrl: () => null,
   getCamera: jest.fn(() => null),
-  getRenderer: jest.fn(() => null),
+  getRenderer: jest.fn(() => ({ getWebGLRenderer: () => null })),
   getControls: jest.fn(() => null),
   getEvents: jest.fn(() => new TypedEventEmitter()),
   requestRender: jest.fn(),

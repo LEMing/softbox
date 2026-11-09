@@ -6,7 +6,6 @@ import { SimpleViewer } from '../SimpleViewer';
 import { useViewerCore } from '../../hooks';
 import { TypedEventEmitter } from '../../../events/EventEmitter';
 import { ViewerEventMap } from '../../../core/events/CoreViewerEvents';
-import { ThreeObject3DAdapter } from '../../../infrastructure/three/ThreeObject3D';
 import { Result } from '../../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../../errors';
 
@@ -26,7 +25,7 @@ const makeViewer = (loadModel: jest.Mock = jest.fn(() => new Promise(() => {})))
     getModelUrl: () => null,
     getCamera: () => null,
     getControls: () => null,
-    getRenderer: () => null,
+    getRenderer: () => ({ getWebGLRenderer: () => null }),
     getEvents: () => coreEvents,
     requestRender: jest.fn(),
     loadModel,
@@ -43,7 +42,7 @@ beforeEach(() => {
 const emitLoaded = () =>
   act(() => {
     coreEvents.emit('model:loaded', {
-      model: new ThreeObject3DAdapter(new THREE.Object3D()) as never,
+      model: new THREE.Object3D(),
       loadTime: 1,
     });
   });

@@ -1,7 +1,5 @@
 import * as THREE from 'three';
 import { ThreeSceneSetupService } from '../ThreeSceneSetupService';
-import { ThreeSceneAdapter } from '../ThreeScene';
-import { ThreeObject3DAdapter } from '../ThreeObject3D';
 
 describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
   it('shrinks the shadow camera frustum to fit a small object', () => {
@@ -19,8 +17,8 @@ describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
 
     const service = new ThreeSceneSetupService();
     const result = service.fitShadowCameraToObject(
-      new ThreeSceneAdapter(threeScene),
-      new ThreeObject3DAdapter(object)
+      threeScene,
+      object
     );
 
     expect(result.ok).toBe(true);
@@ -46,8 +44,8 @@ describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
 
     const service = new ThreeSceneSetupService();
     const result = service.fitShadowCameraToObject(
-      new ThreeSceneAdapter(threeScene),
-      new ThreeObject3DAdapter(object)
+      threeScene,
+      object
     );
 
     expect(result.ok).toBe(true);
@@ -69,8 +67,8 @@ describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
 
     const service = new ThreeSceneSetupService();
     const result = service.fitShadowCameraToObject(
-      new ThreeSceneAdapter(threeScene),
-      new ThreeObject3DAdapter(object)
+      threeScene,
+      object
     );
 
     expect(result.ok).toBe(true);
@@ -88,8 +86,8 @@ describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
 
     const service = new ThreeSceneSetupService();
     const result = service.fitShadowCameraToObject(
-      new ThreeSceneAdapter(threeScene),
-      new ThreeObject3DAdapter(object)
+      threeScene,
+      object
     );
 
     expect(result.ok).toBe(true);
@@ -107,8 +105,8 @@ describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
 
     const service = new ThreeSceneSetupService();
     const result = service.fitShadowCameraToObject(
-      new ThreeSceneAdapter(threeScene),
-      new ThreeObject3DAdapter(object)
+      threeScene,
+      object
     );
 
     expect(result.ok).toBe(true);
@@ -130,8 +128,8 @@ describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
     const directionBefore = light.position.clone().sub(light.target.position);
     const service = new ThreeSceneSetupService();
     const result = service.fitShadowCameraToObject(
-      new ThreeSceneAdapter(threeScene),
-      new ThreeObject3DAdapter(object)
+      threeScene,
+      object
     );
 
     expect(result.ok).toBe(true);
@@ -161,8 +159,8 @@ describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
     threeScene.add(object);
 
     const result = new ThreeSceneSetupService().fitShadowCameraToObject(
-      new ThreeSceneAdapter(threeScene),
-      new ThreeObject3DAdapter(object)
+      threeScene,
+      object
     );
 
     expect(result.ok).toBe(true);
@@ -185,13 +183,13 @@ describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
     const farModel = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2));
     farModel.position.set(100, 1, -40);
     threeScene.add(farModel);
-    service.fitShadowCameraToObject(new ThreeSceneAdapter(threeScene), new ThreeObject3DAdapter(farModel));
+    service.fitShadowCameraToObject(threeScene, farModel);
     threeScene.remove(farModel);
 
     const homeModel = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2));
     homeModel.position.set(0, 1, 0);
     threeScene.add(homeModel);
-    service.fitShadowCameraToObject(new ThreeSceneAdapter(threeScene), new ThreeObject3DAdapter(homeModel));
+    service.fitShadowCameraToObject(threeScene, homeModel);
 
     expect(light.target.position.x).toBeCloseTo(0);
     expect(light.target.position.z).toBeCloseTo(0);

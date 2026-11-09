@@ -78,7 +78,7 @@ export default {
       functions: 95,
       lines: 90,
     },
-    './src/infrastructure/three/disposal.ts': {
+    './src/core/disposal.ts': {
       statements: 100,
       branches: 90,
       functions: 100,
@@ -132,13 +132,13 @@ export default {
       functions: 95,
       lines: 95,
     },
-    './src/infrastructure/three/postprocessing/PostProcessingPipeline.ts': {
+    './src/core/rendering/PostProcessingPipeline.ts': {
       statements: 95,
       branches: 90,
       functions: 95,
       lines: 95,
     },
-    './src/infrastructure/three/ThreeRenderer.ts': {
+    './src/core/rendering/ViewerRenderer.ts': {
       statements: 90,
       branches: 80,
       functions: 90,

@@ -1,6 +1,5 @@
+import type * as THREE from 'three';
+import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { ViewerEventMap as GenericViewerEventMap } from '../../events/ViewerEventMap';
-import { IObject3D } from '../interfaces/IObject3D';
-import { ICamera } from '../interfaces/ICamera';
-import { IControls } from '../interfaces/IControls';
 
-export type ViewerEventMap = GenericViewerEventMap<IObject3D, ICamera, IControls, unknown>;
+export type ViewerEventMap = GenericViewerEventMap<THREE.Object3D, THREE.Camera, OrbitControls, unknown>;

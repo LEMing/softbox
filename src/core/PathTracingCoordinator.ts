@@ -1,5 +1,7 @@
+import type * as THREE from 'three';
 import { IPathTracingService } from './services/IPathTracingService';
-import { IRenderer, IScene, ICamera, Result } from './interfaces';
+import type { ViewerRenderer } from './rendering/ViewerRenderer';
+import { Result } from '../utils/Result';
 import { TypedEventEmitter } from '../events/EventEmitter';
 import { ViewerEventMap } from './events/CoreViewerEvents';
 import { RenderLoopManager } from './utils/RenderLoopManager';
@@ -15,7 +17,7 @@ export interface PathTracingCoordinatorDependencies {
   service: IPathTracingService | undefined;
   events: TypedEventEmitter<ViewerEventMap>;
   renderLoopManager: RenderLoopManager;
-  renderer: IRenderer;
+  renderer: ViewerRenderer;
   getOptions: () => SimpleViewerOptions;
   isDisposed: () => boolean;
   schedule: (callback: () => void, delayMs: number) => void;
@@ -198,7 +200,7 @@ export class PathTracingCoordinator {
     };
   }
 
-  render(scene: IScene, camera: ICamera): Promise<Result<void>> | null {
+  render(scene: THREE.Scene, camera: THREE.Camera): Promise<Result<void>> | null {
     const service = this.deps.service;
     if (!service || service.isPathTracerDisposed()) {
       return null;

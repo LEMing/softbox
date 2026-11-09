@@ -1,4 +1,4 @@
-import { ICamera, IVector3 } from '../interfaces';
+import type * as THREE from 'three';
 
 export interface SerializedSceneState {
   modelUrl?: string;
@@ -8,33 +8,35 @@ export interface SerializedSceneState {
   rendererSize: { width: number; height: number };
 }
 
+const ORIGIN = { x: 0, y: 0, z: 0 };
+
 export class SceneSerializer {
   static serialize(
     modelUrl: string | undefined,
-    camera: ICamera,
-    controls: { target?: IVector3 },
+    camera: THREE.Camera,
+    controls: { target?: THREE.Vector3 },
     canvas: HTMLCanvasElement
   ): SerializedSceneState {
     const cameraPos = camera.position;
-    
-    const target: IVector3 = controls.target || { x: 0, y: 0, z: 0, set: () => {}, copy: () => {}, add: () => {}, multiply: () => {}, normalize: () => {}, length: () => 0 };
-    
+
+    const target = controls.target ?? ORIGIN;
+
     return {
       modelUrl,
       cameraPosition: { x: cameraPos.x, y: cameraPos.y, z: cameraPos.z },
       cameraTarget: { x: target.x, y: target.y, z: target.z },
       controlsTarget: { x: target.x, y: target.y, z: target.z },
-      rendererSize: { 
-        width: canvas.clientWidth, 
-        height: canvas.clientHeight 
+      rendererSize: {
+        width: canvas.clientWidth,
+        height: canvas.clientHeight
       }
     };
   }
-  
+
   static async restore(
     state: SerializedSceneState,
-    camera: ICamera,
-    controls: { target?: IVector3; update?: () => void },
+    camera: THREE.Camera,
+    controls: { target?: THREE.Vector3; update?: () => void },
     loadModel?: (url: string) => Promise<void>
   ): Promise<void> {
     camera.position.set(
@@ -42,19 +44,9 @@ export class SceneSerializer {
       state.cameraPosition.y,
       state.cameraPosition.z
     );
-    
-    camera.lookAt({
-      x: state.cameraTarget.x,
-      y: state.cameraTarget.y,
-      z: state.cameraTarget.z,
-      set: () => {},
-      copy: () => {},
-      add: () => {},
-      multiply: () => {},
-      normalize: () => {},
-      length: () => 0
-    });
-    
+
+    camera.lookAt(state.cameraTarget.x, state.cameraTarget.y, state.cameraTarget.z);
+
     if (controls.target) {
       controls.target.set(
         state.controlsTarget.x,
@@ -62,11 +54,11 @@ export class SceneSerializer {
         state.controlsTarget.z
       );
     }
-    
+
     if (controls.update) {
       controls.update();
     }
-    
+
     if (state.modelUrl && loadModel) {
       await loadModel(state.modelUrl);
     }

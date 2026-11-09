@@ -1,7 +1,5 @@
 import * as THREE from 'three';
 import { ThreeSceneSetupService } from '../ThreeSceneSetupService';
-import { ThreeSceneAdapter } from '../ThreeScene';
-import { ThreeObject3DAdapter } from '../ThreeObject3D';
 
 const doubleSidedBox = (size: [number, number, number]) =>
   new THREE.Mesh(new THREE.BoxGeometry(...size), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
@@ -26,8 +24,8 @@ describe('ThreeSceneSetupService.snapObjectToFloor', () => {
 
     const service = new ThreeSceneSetupService();
     const result = service.snapObjectToFloor(
-      new ThreeSceneAdapter(threeScene),
-      new ThreeObject3DAdapter(objectGroup)
+      threeScene,
+      objectGroup
     );
 
     expect(result.ok).toBe(true);
@@ -50,8 +48,8 @@ describe('ThreeSceneSetupService.snapObjectToFloor', () => {
 
     const service = new ThreeSceneSetupService();
     const result = service.snapObjectToFloor(
-      new ThreeSceneAdapter(threeScene),
-      new ThreeObject3DAdapter(objectGroup)
+      threeScene,
+      objectGroup
     );
 
     expect(result.ok).toBe(true);
@@ -74,8 +72,8 @@ describe('ThreeSceneSetupService.snapObjectToFloor', () => {
 
     const service = new ThreeSceneSetupService();
     const result = service.snapObjectToFloor(
-      new ThreeSceneAdapter(threeScene),
-      new ThreeObject3DAdapter(objectGroup)
+      threeScene,
+      objectGroup
     );
 
     expect(result.ok).toBe(true);
@@ -105,8 +103,8 @@ describe('ThreeSceneSetupService.snapObjectToFloor', () => {
 
     const service = new ThreeSceneSetupService();
     const result = service.snapObjectToFloor(
-      new ThreeSceneAdapter(threeScene),
-      new ThreeObject3DAdapter(objectGroup)
+      threeScene,
+      objectGroup
     );
 
     expect(result.ok).toBe(true);
@@ -121,8 +119,8 @@ describe('ThreeSceneSetupService.snapObjectToFloor', () => {
 
     const service = new ThreeSceneSetupService();
     const result = service.snapObjectToFloor(
-      new ThreeSceneAdapter(threeScene),
-      new ThreeObject3DAdapter(objectMesh)
+      threeScene,
+      objectMesh
     );
 
     expect(result.ok).toBe(true);
@@ -145,8 +143,8 @@ describe('ThreeSceneSetupService.snapObjectToFloor', () => {
 
     const service = new ThreeSceneSetupService();
     const result = service.snapObjectToFloor(
-      new ThreeSceneAdapter(threeScene),
-      new ThreeObject3DAdapter(objectGroup)
+      threeScene,
+      objectGroup
     );
 
     expect(result.ok).toBe(true);

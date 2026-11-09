@@ -1,8 +1,8 @@
+import type * as THREE from 'three';
 import { Result } from '../../utils/Result';
-import { IObject3D } from '../interfaces/IObject3D';
 
 export interface IAnimationService {
-  attach(model: IObject3D): void;
+  attach(model: THREE.Object3D): void;
   getClipNames(): string[];
   play(clipName?: string): Result<void>;
   pause(): void;

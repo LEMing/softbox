@@ -1,10 +1,7 @@
+import type * as THREE from 'three';
 import { ContactShadowMode } from '../../../core/services/ISceneSetupService';
-import { IScene } from '../../../core/interfaces/IScene';
-import { IObject3D } from '../../../core/interfaces/IObject3D';
-import { IRenderer } from '../../../core/interfaces/IRenderer';
 import { Result } from '../../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../../errors';
-import { toThreeObject, toThreeRenderer, toThreeScene } from '../unwrap';
 import {
   ContactShadowBaker,
   CONTACT_SHADOW_BAKED_NAME,
@@ -14,46 +11,25 @@ import {
 import { findDirectionalLight } from './findDirectionalLight';
 
 export function bakeContactShadow(
-  scene: IScene,
-  object: IObject3D,
-  renderer: IRenderer,
+  scene: THREE.Scene,
+  object: THREE.Object3D,
+  renderer: THREE.WebGLRenderer | null,
   baker: ContactShadowBaker
 ): Result<void> {
   try {
-    const threeScene = toThreeScene(scene);
-    if (!threeScene) {
-      return Result.err(
-        new ThreeViewerError(
-          'Scene must be ThreeSceneAdapter',
-          ErrorCode.INVALID_PARAMETER
-        )
-      );
-    }
-
-    const threeObject = toThreeObject(object);
-    if (!threeObject) {
-      return Result.err(
-        new ThreeViewerError(
-          'Object must expose a Three.js Object3D',
-          ErrorCode.INVALID_PARAMETER
-        )
-      );
-    }
-
-    const threeRenderer = toThreeRenderer(renderer);
-    if (!threeRenderer || !threeRenderer.shadowMap.enabled) {
+    if (!renderer || !renderer.shadowMap.enabled) {
       return Result.ok(undefined);
     }
 
-    const directionalLight = findDirectionalLight(threeScene);
+    const directionalLight = findDirectionalLight(scene);
     if (!directionalLight || !directionalLight.castShadow) {
       return Result.ok(undefined);
     }
 
     baker.bake({
-      renderer: threeRenderer,
-      scene: threeScene,
-      object: threeObject,
+      renderer,
+      scene,
+      object,
       light: directionalLight,
     });
 
@@ -69,18 +45,9 @@ export function bakeContactShadow(
   }
 }
 
-export function resetContactShadow(scene: IScene): Result<void> {
+export function resetContactShadow(scene: THREE.Scene): Result<void> {
   try {
-    const threeScene = toThreeScene(scene);
-    if (!threeScene) {
-      return Result.err(
-        new ThreeViewerError(
-          'Scene must be ThreeSceneAdapter',
-          ErrorCode.INVALID_PARAMETER
-        )
-      );
-    }
-    restoreLiveContactShadow(threeScene);
+    restoreLiveContactShadow(scene);
     return Result.ok(undefined);
   } catch (error) {
     return Result.err(
@@ -93,20 +60,10 @@ export function resetContactShadow(scene: IScene): Result<void> {
   }
 }
 
-export function setContactShadowMode(scene: IScene, mode: ContactShadowMode): Result<void> {
+export function setContactShadowMode(scene: THREE.Scene, mode: ContactShadowMode): Result<void> {
   try {
-    const threeScene = toThreeScene(scene);
-    if (!threeScene) {
-      return Result.err(
-        new ThreeViewerError(
-          'Scene must be ThreeSceneAdapter',
-          ErrorCode.INVALID_PARAMETER
-        )
-      );
-    }
-
-    const baked = threeScene.getObjectByName(CONTACT_SHADOW_BAKED_NAME);
-    const live = threeScene.getObjectByName(CONTACT_SHADOW_LIVE_NAME);
+    const baked = scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME);
+    const live = scene.getObjectByName(CONTACT_SHADOW_LIVE_NAME);
 
     if (mode === 'baked' && !baked) {
       return Result.ok(undefined);

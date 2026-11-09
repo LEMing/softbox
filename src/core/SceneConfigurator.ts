@@ -1,9 +1,9 @@
-import { IScene } from './interfaces';
+import type * as THREE from 'three';
 import { ISceneSetupService, ILightingOptions, IHelperOptions } from './services/ISceneSetupService';
 import { IEnvironmentService } from './services/IEnvironmentService';
-import { IRenderer } from './interfaces/IRenderer';
+import type { ViewerRenderer } from './rendering/ViewerRenderer';
 import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
-import { Vec3Like } from './interfaces/Vec3Like';
+import { Vec3Like } from '../types/Vec3Like';
 import { environmentApplyOptions } from './environmentApplyOptions';
 
 const DARK_STUDIO_BACKGROUND = '#1a1a1f';
@@ -25,7 +25,7 @@ const toColor = (color: string | number | undefined): string | undefined =>
 
 export class SceneConfigurator {
   configureScene(
-    scene: IScene,
+    scene: THREE.Scene,
     sceneSetupService: ISceneSetupService,
     options: SimpleViewerOptions
   ): void {
@@ -95,14 +95,17 @@ export class SceneConfigurator {
   }
 
   async configureEnvironment(
-    scene: IScene,
+    scene: THREE.Scene,
     environmentService: IEnvironmentService,
     sceneSetupService: ISceneSetupService | undefined,
-    renderer: IRenderer,
+    renderer: ViewerRenderer,
     options: SimpleViewerOptions,
     isDisposed: () => boolean
   ): Promise<void> {
-    const envInitResult = await environmentService.initialize({ renderer, autoDispose: true });
+    const envInitResult = await environmentService.initialize({
+      renderer: renderer.getWebGLRenderer(),
+      autoDispose: true,
+    });
     if (isDisposed()) {
       return;
     }
@@ -141,7 +144,7 @@ export class SceneConfigurator {
   }
 
   private paintFallbackBackdrop(
-    scene: IScene,
+    scene: THREE.Scene,
     sceneSetupService: ISceneSetupService | undefined,
     options: SimpleViewerOptions
   ): void {
@@ -161,7 +164,7 @@ export class SceneConfigurator {
   }
 
   private applyStudioEnvironment(
-    scene: IScene,
+    scene: THREE.Scene,
     environmentService: IEnvironmentService,
     sceneSetupService: ISceneSetupService | undefined,
     options: SimpleViewerOptions,

@@ -1,4 +1,4 @@
-import { IScene } from './interfaces/IScene';
+import type * as THREE from 'three';
 import { IEnvironmentService } from './services/IEnvironmentService';
 import { ISceneSetupService } from './services/ISceneSetupService';
 import { SimpleViewerOptions } from '../types/SimpleViewerOptions';
@@ -9,7 +9,7 @@ import { PathTracingCoordinator } from './PathTracingCoordinator';
 import { environmentApplyOptions } from './environmentApplyOptions';
 
 export interface EnvironmentControllerDependencies {
-  scene: IScene;
+  scene: THREE.Scene;
   renderLoopManager: RenderLoopManager;
   pathTracing: PathTracingCoordinator;
   environmentService?: IEnvironmentService;

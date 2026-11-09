@@ -3,9 +3,7 @@ import {
   ISelectionService,
   SelectionServiceOptions,
 } from '../../core/services/ISelectionService';
-import { ThreeObject3DAdapter } from './ThreeObject3D';
 import { buildRaycastBvh } from './bvh';
-import { toThreeCamera, toThreeObject } from './unwrap';
 import { bestEffort } from '../../utils/bestEffort';
 
 const DRAG_THRESHOLD_PX = { touch: 10, default: 5 };
@@ -79,9 +77,7 @@ export class ThreeSelectionService implements ISelectionService {
     const { canvas, camera, getPickRoot, onPick } = this.options;
 
     const root = getPickRoot();
-    const threeRoot = toThreeObject(root);
-    const threeCamera = toThreeCamera(camera);
-    if (!threeRoot || !threeCamera) {
+    if (!root) {
       onPick(null);
       return;
     }
@@ -97,18 +93,18 @@ export class ThreeSelectionService implements ISelectionService {
     );
 
     if (this.options.bvh ?? true) {
-      buildRaycastBvh(threeRoot);
+      buildRaycastBvh(root);
     }
 
-    this.raycaster.setFromCamera(ndc, threeCamera);
+    this.raycaster.setFromCamera(ndc, camera);
     this.raycaster.firstHitOnly = true;
-    const hit = this.raycaster.intersectObject(threeRoot, true)[0];
+    const hit = this.raycaster.intersectObject(root, true)[0];
     if (!hit) {
       onPick(null);
       return;
     }
     onPick({
-      object: new ThreeObject3DAdapter(hit.object),
+      object: hit.object,
       point: { x: hit.point.x, y: hit.point.y, z: hit.point.z },
     });
   }

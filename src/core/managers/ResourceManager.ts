@@ -1,15 +1,16 @@
-import { IScene } from '../interfaces';
+import type * as THREE from 'three';
+import { disposeSceneContents } from '../disposal';
 import { IPathTracingService } from '../services/IPathTracingService';
 import { IEnvironmentService } from '../services/IEnvironmentService';
 
 export interface ResourceManagerDependencies {
-  scene: IScene;
+  scene: THREE.Scene;
   pathTracingService?: IPathTracingService;
   environmentService?: IEnvironmentService;
 }
 
 export class ResourceManager {
-  private readonly scene: IScene;
+  private readonly scene: THREE.Scene;
   private pathTracingService?: IPathTracingService;
   private environmentService?: IEnvironmentService;
 
@@ -32,7 +33,7 @@ export class ResourceManager {
   }
 
   disposeSceneResources(_preservePathTracing: boolean = false): void {
-    this.scene.disposeContents({ keepBackgrounds: true });
+    disposeSceneContents(this.scene, { keepBackgrounds: true });
 
     this.triggerGarbageCollection();
   }
@@ -52,7 +53,7 @@ export class ResourceManager {
   dispose(): void {
     this.disposeServices();
 
-    this.scene.disposeContents();
+    disposeSceneContents(this.scene);
 
     this.triggerGarbageCollection();
   }

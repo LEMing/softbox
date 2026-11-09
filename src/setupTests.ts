@@ -16,7 +16,6 @@ console.log = (...args) => {
   if (
     typeof message === 'string' && 
     (message.includes('[ViewerCore]') || 
-     message.includes('[ThreeRendererAdapter]') ||
      message.includes('[useViewerCore]') ||
      message.includes('stopRenderLoop') ||
      message.includes('Disposing')) &&

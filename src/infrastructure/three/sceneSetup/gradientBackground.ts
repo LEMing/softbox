@@ -1,10 +1,8 @@
 import * as THREE from 'three';
 import { markViewerOwnedBackground, disposeViewerOwnedBackground } from '../backgroundOwnership';
 import { IGradientOptions } from '../../../core/services/ISceneSetupService';
-import { IScene } from '../../../core/interfaces/IScene';
 import { Result } from '../../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../../errors';
-import { toThreeScene } from '../unwrap';
 
 const GRADIENT_CANVAS_HEIGHT = 512;
 const VERTICAL_STRIP_WIDTH = 2;
@@ -44,18 +42,8 @@ function createGradient(context: CanvasRenderingContext2D, options: IGradientOpt
   return createVerticalGradient(context, height);
 }
 
-export function createGradientBackground(scene: IScene, options: IGradientOptions): Result<void> {
+export function createGradientBackground(scene: THREE.Scene, options: IGradientOptions): Result<void> {
   try {
-    const threeScene = toThreeScene(scene);
-    if (!threeScene) {
-      return Result.err(
-        new ThreeViewerError(
-          'Scene must be ThreeSceneAdapter',
-          ErrorCode.INVALID_PARAMETER
-        )
-      );
-    }
-
     const canvas = document.createElement('canvas');
     canvas.width = canvasWidthFor(options);
     canvas.height = GRADIENT_CANVAS_HEIGHT;
@@ -81,8 +69,8 @@ export function createGradientBackground(scene: IScene, options: IGradientOption
     texture.needsUpdate = true;
     markViewerOwnedBackground(texture);
 
-    disposeViewerOwnedBackground(threeScene);
-    threeScene.background = texture;
+    disposeViewerOwnedBackground(scene);
+    scene.background = texture;
 
     return Result.ok(undefined);
   } catch (error) {

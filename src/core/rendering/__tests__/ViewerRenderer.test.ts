@@ -1,10 +1,6 @@
 import * as THREE from 'three';
-import { ThreeRendererAdapter } from '../ThreeRenderer';
-import { ThreeSceneAdapter } from '../ThreeScene';
-import { ThreePerspectiveCameraAdapter } from '../ThreeCamera';
-import { ThreeEnvironmentService } from '../ThreeEnvironmentService';
-import { IScene } from '../../../core/interfaces/IScene';
-import { ICamera } from '../../../core/interfaces/ICamera';
+import { ViewerRenderer } from '../ViewerRenderer';
+import { ThreeEnvironmentService } from '../../../infrastructure/three/ThreeEnvironmentService';
 import { ErrorCode } from '../../../errors';
 
 const fakeInstances: FakeWebGLRenderer[] = [];
@@ -12,7 +8,7 @@ let constructorShouldThrow = false;
 
 class FakeWebGLRenderer {
   constructorArgs: unknown;
-  shadowMap = { enabled: false, autoUpdate: false, type: 0 };
+  shadowMap = { enabled: false, autoUpdate: false, type: THREE.PCFShadowMap as THREE.ShadowMapType };
   toneMapping = 0;
   toneMappingExposure = 1;
   outputColorSpace = '';
@@ -30,7 +26,6 @@ class FakeWebGLRenderer {
   getPixelRatio = jest.fn(() => 2);
   setSize = jest.fn();
   render = jest.fn();
-  getContext = jest.fn(() => ({ fake: 'gl' }));
   dispose = jest.fn();
 
   constructor(args: unknown) {
@@ -72,49 +67,49 @@ jest.mock('three/examples/jsm/shaders/HueSaturationShader.js', () => ({ HueSatur
 
 const lastFake = () => fakeInstances[fakeInstances.length - 1];
 
-const initialized = (options: Parameters<ThreeRendererAdapter['initialize']>[0] = {}) => {
-  const adapter = new ThreeRendererAdapter();
+const initialized = (options: Parameters<ViewerRenderer['initialize']>[0] = {}) => {
+  const adapter = new ViewerRenderer();
   const result = adapter.initialize(options);
   expect(result.ok).toBe(true);
   return { adapter, fake: lastFake() };
 };
 
 const makeSceneAndCamera = () => ({
-  scene: new ThreeSceneAdapter(new THREE.Scene()),
-  camera: new ThreePerspectiveCameraAdapter(new THREE.PerspectiveCamera()),
+  scene: new THREE.Scene(),
+  camera: new THREE.PerspectiveCamera(),
 });
 
-describe('ThreeRendererAdapter', () => {
+describe('ViewerRenderer', () => {
   beforeEach(() => {
     fakeInstances.length = 0;
     constructorShouldThrow = false;
   });
 
   describe('initialize', () => {
-    it('maps the shadow-map options onto the renderer, pcfsoft onto PCF since three r186 removed the soft filter', () => {
-      const { fake } = initialized({ shadowMap: { enabled: true, type: 'pcfsoft' } });
+    it('applies the shadow-map options onto the renderer', () => {
+      const { fake } = initialized({ shadowMap: { enabled: true, type: THREE.VSMShadowMap } });
       expect(fake.shadowMap.enabled).toBe(true);
       expect(fake.shadowMap.autoUpdate).toBe(true);
+      expect(fake.shadowMap.type).toBe(THREE.VSMShadowMap);
+    });
+
+    it('applies the basic shadow map even though its constant is zero', () => {
+      const { fake } = initialized({ shadowMap: { enabled: true, type: THREE.BasicShadowMap } });
+      expect(fake.shadowMap.type).toBe(THREE.BasicShadowMap);
+    });
+
+    it('keeps the default shadow-map type when none is requested', () => {
+      const { fake } = initialized({ shadowMap: { enabled: false } });
+      expect(fake.shadowMap.enabled).toBe(false);
       expect(fake.shadowMap.type).toBe(THREE.PCFShadowMap);
     });
 
-    it('maps every tone-mapping operator name to its THREE constant', () => {
-      const expected: Array<[string, number]> = [
-        ['none', THREE.NoToneMapping],
-        ['linear', THREE.LinearToneMapping],
-        ['reinhard', THREE.ReinhardToneMapping],
-        ['cineon', THREE.CineonToneMapping],
-        ['aces', THREE.ACESFilmicToneMapping],
-        ['agx', THREE.AgXToneMapping],
-        ['neutral', THREE.NeutralToneMapping],
-      ];
-      for (const [name, constant] of expected) {
-        const { fake } = initialized({
-          toneMapping: { type: name as 'neutral', exposure: 1.3 },
-        });
-        expect(fake.toneMapping).toBe(constant);
-        expect(fake.toneMappingExposure).toBe(1.3);
-      }
+    it('applies the tone-mapping operator and exposure', () => {
+      const { fake } = initialized({
+        toneMapping: { type: THREE.AgXToneMapping, exposure: 1.3 },
+      });
+      expect(fake.toneMapping).toBe(THREE.AgXToneMapping);
+      expect(fake.toneMappingExposure).toBe(1.3);
     });
 
     it('applies the requested pixel ratio unchanged when no post effect is on', () => {
@@ -127,6 +122,24 @@ describe('ThreeRendererAdapter', () => {
       expect(fake.setPixelRatio).toHaveBeenCalledWith(2);
     });
 
+    it('sizes the drawing buffer to the canvas parent when it has a layout', () => {
+      const parent = document.createElement('div');
+      Object.defineProperty(parent, 'clientWidth', { value: 640 });
+      Object.defineProperty(parent, 'clientHeight', { value: 480 });
+      const canvas = document.createElement('canvas');
+      parent.appendChild(canvas);
+
+      expect(new ViewerRenderer(canvas).initialize({}).ok).toBe(true);
+
+      expect(lastFake().setSize).toHaveBeenCalledWith(640, 480);
+    });
+
+    it('leaves the drawing buffer alone when the canvas has no layout yet', () => {
+      expect(new ViewerRenderer(document.createElement('canvas')).initialize({}).ok).toBe(true);
+
+      expect(lastFake().setSize).not.toHaveBeenCalled();
+    });
+
     it('forces the sRGB output color space', () => {
       const { fake } = initialized();
       expect(fake.outputColorSpace).toBe(THREE.SRGBColorSpace);
@@ -134,7 +147,7 @@ describe('ThreeRendererAdapter', () => {
 
     it('returns an error result when the WebGL context cannot be created', () => {
       constructorShouldThrow = true;
-      const adapter = new ThreeRendererAdapter();
+      const adapter = new ViewerRenderer();
       const result = adapter.initialize({});
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -145,7 +158,7 @@ describe('ThreeRendererAdapter', () => {
 
   describe('render', () => {
     it('errors before initialize', () => {
-      const adapter = new ThreeRendererAdapter();
+      const adapter = new ViewerRenderer();
       const { scene, camera } = makeSceneAndCamera();
       const result = adapter.render(scene, camera);
       expect(result.ok).toBe(false);
@@ -154,19 +167,12 @@ describe('ThreeRendererAdapter', () => {
       }
     });
 
-    it('rejects non-adapter scene/camera arguments', () => {
-      const { adapter } = initialized();
-      const { scene, camera } = makeSceneAndCamera();
-      expect(adapter.render({} as IScene, camera).ok).toBe(false);
-      expect(adapter.render(scene, {} as ICamera).ok).toBe(false);
-    });
-
-    it('unwraps the adapters and renders the three scene', () => {
+    it('renders the scene through the camera', () => {
       const { adapter, fake } = initialized();
       const { scene, camera } = makeSceneAndCamera();
       const result = adapter.render(scene, camera);
       expect(result.ok).toBe(true);
-      expect(fake.render).toHaveBeenCalledWith(scene.getThreeScene(), camera.getThreeCamera());
+      expect(fake.render).toHaveBeenCalledWith(scene, camera);
     });
 
     it('wraps a renderer throw into a RENDER_FAILED result', () => {
@@ -218,7 +224,7 @@ describe('ThreeRendererAdapter', () => {
     });
 
     it('reports pixel ratio 1 before initialize', () => {
-      expect(new ThreeRendererAdapter().getPixelRatio()).toBe(1);
+      expect(new ViewerRenderer().getPixelRatio()).toBe(1);
     });
 
     it('applies a live tone-mapping exposure change', () => {
@@ -229,27 +235,21 @@ describe('ThreeRendererAdapter', () => {
   });
 
   describe('accessors and lifecycle', () => {
-    it('exposes the canvas and GL context once initialized', () => {
+    it('exposes the canvas once initialized', () => {
       const { adapter, fake } = initialized();
       expect(adapter.getDomElement()).toBe(fake.domElement);
-      expect(adapter.getContext()).toEqual({ fake: 'gl' });
     });
 
-    it('throws on canvas/context access before initialize', () => {
-      const adapter = new ThreeRendererAdapter();
+    it('throws on canvas access before initialize', () => {
+      const adapter = new ViewerRenderer();
       expect(() => adapter.getDomElement()).toThrow();
-      expect(() => adapter.getContext()).toThrow();
     });
 
-    it('reports zeroed capabilities before initialize and real ones after', () => {
-      const bare = new ThreeRendererAdapter();
-      expect(bare.capabilities.maxTextureSize).toBe(0);
-      expect(bare.capabilities.isWebGL2).toBe(false);
+    it('reports a zero max texture size before initialize and the real one after', () => {
+      expect(new ViewerRenderer().getMaxTextureSize()).toBe(0);
 
       const { adapter } = initialized();
-      expect(adapter.capabilities.maxTextureSize).toBe(8192);
-      expect(adapter.capabilities.maxSamples).toBe(8);
-      expect(adapter.capabilities.isWebGL2).toBe(true);
+      expect(adapter.getMaxTextureSize()).toBe(8192);
     });
 
     it('disposes the renderer exactly once and reports the disposed state', () => {
@@ -262,12 +262,12 @@ describe('ThreeRendererAdapter', () => {
       expect(fake.dispose).toHaveBeenCalledTimes(1);
     });
 
-    it('exposes the internal renderer through both accessors', () => {
+    it('exposes the WebGL renderer until it is disposed', () => {
+      expect(new ViewerRenderer().getWebGLRenderer()).toBeNull();
       const { adapter, fake } = initialized();
-      expect(adapter.getInternalRenderer()).toBe(fake as unknown as THREE.WebGLRenderer);
-      expect(adapter.getThreeRenderer()).toBe(fake as unknown as THREE.WebGLRenderer);
+      expect(adapter.getWebGLRenderer()).toBe(fake as unknown as THREE.WebGLRenderer);
       adapter.dispose();
-      expect(adapter.getInternalRenderer()).toBeNull();
+      expect(adapter.getWebGLRenderer()).toBeNull();
     });
   });
 
@@ -284,7 +284,7 @@ describe('ThreeRendererAdapter', () => {
       const { scene, camera } = makeSceneAndCamera();
       const result = await new ThreeEnvironmentService().setBackgroundImage(scene, image);
       expect(result.ok).toBe(true);
-      const texture = scene.getThreeScene().background as THREE.Texture;
+      const texture = scene.background as THREE.Texture;
       return { adapter, fake, scene, camera, texture };
     };
 

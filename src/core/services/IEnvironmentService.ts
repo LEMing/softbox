@@ -1,27 +1,25 @@
+import type * as THREE from 'three';
 import { Result } from '../../utils/Result';
-import { IScene } from '../interfaces/IScene';
-import { ITexture } from '../interfaces/IScene';
-import { IRenderer } from '../interfaces/IRenderer';
 import { StudioLook } from '../../types/options';
 
 export interface IEnvironmentService {
   initialize(options: IEnvironmentOptions): Promise<Result<void>>;
   
-  loadEnvironmentMap(url: string): Promise<Result<ITexture>>;
+  loadEnvironmentMap(url: string): Promise<Result<THREE.Texture>>;
   
-  applyToScene(scene: IScene, texture: ITexture, options?: IEnvironmentApplyOptions): Result<void>;
+  applyToScene(scene: THREE.Scene, texture: THREE.Texture, options?: IEnvironmentApplyOptions): Result<void>;
   
-  createStudioEnvironment(look?: StudioLook): Result<ITexture>;
+  createStudioEnvironment(look?: StudioLook): Result<THREE.Texture>;
 
-  setBackgroundImage(scene: IScene, source: string | File | HTMLImageElement): Promise<Result<void>>;
+  setBackgroundImage(scene: THREE.Scene, source: string | File | HTMLImageElement): Promise<Result<void>>;
 
-  removeGroundProjection(scene: IScene): void;
+  removeGroundProjection(scene: THREE.Scene): void;
 
   dispose(): void;
 }
 
 export interface IEnvironmentOptions {
-  renderer: IRenderer;
+  renderer: THREE.WebGLRenderer | null;
   autoDispose?: boolean;
 }
 

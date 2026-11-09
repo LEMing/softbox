@@ -1,8 +1,9 @@
+import * as THREE from 'three';
 import { LazyPathTracingService } from '../LazyPathTracingService';
 import { IPathTracingOptions } from '../../../core/services/IPathTracingService';
 import { TypedEventEmitter } from '../../../events/EventEmitter';
 import { Result } from '../../../utils/Result';
-import { IRenderer } from '../../../core/interfaces';
+import type { ViewerRenderer } from '../../../core/rendering/ViewerRenderer';
 
 const innerInstances: MockInner[] = [];
 
@@ -38,7 +39,7 @@ jest.mock('../ThreePathTracingService', () => ({
 
 const initOptions = (): IPathTracingOptions => ({
   enabled: true,
-  renderer: {} as IRenderer,
+  renderer: {} as ViewerRenderer,
 });
 
 beforeEach(() => {
@@ -55,7 +56,7 @@ describe('LazyPathTracingService', () => {
     const service = new LazyPathTracingService();
 
     const result = await service.initialize({
-      renderer: {} as IRenderer,
+      renderer: {} as ViewerRenderer,
       enabled: true,
     } as IPathTracingOptions);
 
@@ -74,7 +75,7 @@ describe('LazyPathTracingService', () => {
     expect(service.canResume()).toBe(false);
     expect(service.isSupported()).toBe(true);
     service.reset();
-    const rendered = await service.render({} as never, {} as never);
+    const rendered = await service.render(new THREE.Scene(), new THREE.PerspectiveCamera());
     expect(rendered.ok).toBe(true);
     expect(innerInstances).toHaveLength(0);
   });

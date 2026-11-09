@@ -1,16 +1,15 @@
-import { IObject3D } from '../interfaces';
-import { ICamera } from '../interfaces/ICamera';
-import { Vec3Like } from '../interfaces/Vec3Like';
+import type * as THREE from 'three';
+import { Vec3Like } from '../../types/Vec3Like';
 
 export interface SelectionPick {
-  object: IObject3D;
+  object: THREE.Object3D;
   point: Vec3Like;
 }
 
 export interface SelectionServiceOptions {
   canvas: HTMLCanvasElement;
-  camera: ICamera;
-  getPickRoot: () => IObject3D | null;
+  camera: THREE.Camera;
+  getPickRoot: () => THREE.Object3D | null;
   onPick: (pick: SelectionPick | null) => void;
   bvh?: boolean;
 }

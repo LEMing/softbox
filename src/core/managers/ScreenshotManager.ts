@@ -1,9 +1,11 @@
-import { IRenderer, ICamera, IControls } from '../interfaces';
+import type * as THREE from 'three';
+import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import type { ViewerRenderer } from '../rendering/ViewerRenderer';
 import { canvasToPngDataUrl } from '../utils/canvasPng';
 import { SceneSerializer, SerializedSceneState } from '../utils/SceneSerializer';
 
 export interface ScreenshotManagerDependencies {
-  renderer: IRenderer;
+  renderer: ViewerRenderer;
   onRestore?: () => Promise<void>;
 }
 
@@ -13,7 +15,7 @@ export class ScreenshotManager {
   private screenshotResizeHandler?: () => void;
   private serializedSceneState?: SerializedSceneState;
 
-  private readonly renderer: IRenderer;
+  private readonly renderer: ViewerRenderer;
   private readonly onRestore?: () => Promise<void>;
 
   constructor(dependencies: ScreenshotManagerDependencies) {
@@ -26,8 +28,8 @@ export class ScreenshotManager {
   }
 
   captureAndReplace(
-    camera: ICamera,
-    controls: IControls,
+    camera: THREE.Camera,
+    controls: OrbitControls,
     lastModelUrl?: string,
     onResourcesDisposed?: () => void
   ): void {

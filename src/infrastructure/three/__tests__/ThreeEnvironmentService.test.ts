@@ -25,18 +25,10 @@ import * as THREE from 'three';
 import { applyStudioContrast } from '../studioEnvironmentContrast';
 import { ThreeEnvironmentService, GROUNDED_SKYBOX_NAME } from '../ThreeEnvironmentService';
 import { CONTACT_SHADOW_HELPER_FLAG } from '../ContactShadowBaker';
-import { ThreeSceneAdapter } from '../ThreeScene';
-import { fitCoverBackgroundToViewport } from '../backgroundImageFit';
-import { IRenderer } from '../../../core/interfaces/IRenderer';
-import { IScene, ITexture } from '../../../core/interfaces/IScene';
-import { ErrorCode } from '../../../errors';
-
-const rawTexture = (texture: ITexture): THREE.Texture =>
-  (texture as unknown as { getThreeTexture(): THREE.Texture }).getThreeTexture();
+import { fitCoverBackgroundToViewport } from '../../../core/rendering/backgroundImageFit';
 
 describe('ThreeEnvironmentService', () => {
-  const rendererWith = (overrides: Partial<{ renderer: unknown }> = {}): IRenderer =>
-    ({ renderer: {} as THREE.WebGLRenderer, ...overrides }) as unknown as IRenderer;
+  const stubRenderer = (): THREE.WebGLRenderer => ({}) as THREE.WebGLRenderer;
 
   const cubeCapableService = async (): Promise<ThreeEnvironmentService> => {
     const cubeCapableRenderer = {
@@ -51,7 +43,7 @@ describe('ThreeEnvironmentService', () => {
     } as unknown as THREE.WebGLRenderer;
     const service = new ThreeEnvironmentService();
     const init = await service.initialize({
-      renderer: { renderer: cubeCapableRenderer } as unknown as IRenderer,
+      renderer: cubeCapableRenderer,
     });
     expect(init.ok).toBe(true);
     return service;
@@ -59,14 +51,14 @@ describe('ThreeEnvironmentService', () => {
 
   const initialized = async (): Promise<ThreeEnvironmentService> => {
     const service = new ThreeEnvironmentService();
-    const result = await service.initialize({ renderer: rendererWith() });
+    const result = await service.initialize({ renderer: stubRenderer() });
     expect(result.ok).toBe(true);
     return service;
   };
 
-  it('fails to initialize when no Three.js renderer can be reached', async () => {
+  it('fails to initialize before the WebGL renderer exists', async () => {
     const service = new ThreeEnvironmentService();
-    const result = await service.initialize({ renderer: {} as IRenderer });
+    const result = await service.initialize({ renderer: null });
     expect(result.ok).toBe(false);
   });
 
@@ -93,40 +85,12 @@ describe('ThreeEnvironmentService', () => {
     const loaded = await service.loadEnvironmentMap('env.hdr');
     if (!loaded.ok) throw loaded.error;
 
-    const scene = new ThreeSceneAdapter();
+    const scene = new THREE.Scene();
     const result = service.applyToScene(scene, loaded.value, { backgroundBlurriness: 0.2 });
 
     expect(result.ok).toBe(true);
-    expect(scene.getThreeScene().environment).not.toBeNull();
-    expect(scene.getThreeScene().background).not.toBeNull();
-  });
-
-  it('applies to a raw THREE.Scene through the shared unwrap helpers', async () => {
-    const service = await initialized();
-    const loaded = await service.loadEnvironmentMap('env.hdr');
-    if (!loaded.ok) throw loaded.error;
-
-    const scene = new THREE.Scene();
-    const result = service.applyToScene(
-      scene as unknown as IScene,
-      loaded.value,
-      { setBackground: false }
-    );
-
-    expect(result.ok).toBe(true);
     expect(scene.environment).not.toBeNull();
-  });
-
-  it('rejects a scene that is neither an adapter nor a THREE.Scene', async () => {
-    const service = await initialized();
-    const loaded = await service.loadEnvironmentMap('env.hdr');
-    if (!loaded.ok) throw loaded.error;
-
-    const result = service.applyToScene({} as unknown as IScene, loaded.value);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe(ErrorCode.INVALID_PARAMETER);
-    }
+    expect(scene.background).not.toBeNull();
   });
 
   it('lights the scene without a background when setBackground is false', async () => {
@@ -134,12 +98,12 @@ describe('ThreeEnvironmentService', () => {
     const loaded = await service.loadEnvironmentMap('env.hdr');
     if (!loaded.ok) throw loaded.error;
 
-    const scene = new ThreeSceneAdapter();
+    const scene = new THREE.Scene();
     const result = service.applyToScene(scene, loaded.value, { setBackground: false });
 
     expect(result.ok).toBe(true);
-    expect(scene.getThreeScene().environment).not.toBeNull();
-    expect(scene.getThreeScene().background).toBeNull();
+    expect(scene.environment).not.toBeNull();
+    expect(scene.background).toBeNull();
   });
 
   it('creates a studio environment only after initialization', async () => {
@@ -154,11 +118,11 @@ describe('ThreeEnvironmentService', () => {
     const studio = service.createStudioEnvironment();
     if (!studio.ok) throw studio.error;
 
-    const scene = new ThreeSceneAdapter();
+    const scene = new THREE.Scene();
     const applied = service.applyToScene(scene, studio.value, { setBackground: false });
     expect(applied.ok).toBe(true);
 
-    const original = (scene.getThreeScene() as THREE.Scene & {
+    const original = (scene as THREE.Scene & {
       __originalEnvironmentTexture?: THREE.Texture;
     }).__originalEnvironmentTexture;
     expect(original).toBeDefined();
@@ -171,13 +135,13 @@ describe('ThreeEnvironmentService', () => {
     const second = await service.loadEnvironmentMap('second.hdr');
     if (!first.ok || !second.ok) throw new Error('loads failed');
 
-    const scene = new ThreeSceneAdapter();
+    const scene = new THREE.Scene();
     const applied = service.applyToScene(scene, second.value);
     expect(applied.ok).toBe(true);
 
-    const secondOriginal = rawTexture(service.getOriginalEnvironmentTexture('second.hdr')!);
-    const firstOriginal = rawTexture(service.getOriginalEnvironmentTexture('first.hdr')!);
-    const threeScene = scene.getThreeScene() as THREE.Scene & {
+    const secondOriginal = service.getOriginalEnvironmentTexture('second.hdr')!;
+    const firstOriginal = service.getOriginalEnvironmentTexture('first.hdr')!;
+    const threeScene = scene as THREE.Scene & {
       __originalEnvironmentTexture?: THREE.Texture;
     };
     expect(threeScene.background).toBe(secondOriginal);
@@ -193,11 +157,11 @@ describe('ThreeEnvironmentService', () => {
     const studio = service.createStudioEnvironment();
     if (!studio.ok) throw studio.error;
 
-    const scene = new ThreeSceneAdapter();
+    const scene = new THREE.Scene();
     const applied = service.applyToScene(scene, studio.value, { setBackground: false });
     expect(applied.ok).toBe(true);
 
-    const original = (scene.getThreeScene() as THREE.Scene & {
+    const original = (scene as THREE.Scene & {
       __originalEnvironmentTexture?: THREE.Texture;
     }).__originalEnvironmentTexture;
     expect((original as THREE.CubeTexture).isCubeTexture).toBe(true);
@@ -210,7 +174,7 @@ describe('ThreeEnvironmentService', () => {
     const secondStudio = service.createStudioEnvironment();
     if (!firstStudio.ok || !secondStudio.ok) throw new Error('studio builds failed');
 
-    expect(rawTexture(secondStudio.value)).toBe(rawTexture(firstStudio.value));
+    expect(secondStudio.value).toBe(firstStudio.value);
     const generator = (service as unknown as {
       pmremGenerator: { fromScene: jest.Mock };
     }).pmremGenerator;
@@ -221,14 +185,13 @@ describe('ThreeEnvironmentService', () => {
     const service = await initialized();
     const loaded = await service.loadEnvironmentMap('env.hdr');
     if (!loaded.ok) throw loaded.error;
-    const scene = new ThreeSceneAdapter();
+    const scene = new THREE.Scene();
 
     const applied = service.applyToScene(scene, loaded.value, {
       groundProjection: { height: 2, radius: 120 },
     });
     expect(applied.ok).toBe(true);
-    const threeScene = scene.getThreeScene();
-    const skybox = threeScene.getObjectByName(GROUNDED_SKYBOX_NAME) as THREE.Mesh;
+    const skybox = scene.getObjectByName(GROUNDED_SKYBOX_NAME) as THREE.Mesh;
     expect(skybox).toBeDefined();
     expect(skybox.userData[CONTACT_SHADOW_HELPER_FLAG]).toBe(true);
     expect(skybox.userData.softboxBackgroundNode).toBe(true);
@@ -237,34 +200,34 @@ describe('ThreeEnvironmentService', () => {
 
     const reapplied = service.applyToScene(scene, loaded.value, {});
     expect(reapplied.ok).toBe(true);
-    expect(threeScene.getObjectByName(GROUNDED_SKYBOX_NAME)).toBeUndefined();
+    expect(scene.getObjectByName(GROUNDED_SKYBOX_NAME)).toBeUndefined();
   });
 
   it('ground projection: skipped when no equirect source exists (studio cube path)', async () => {
     const service = await initialized();
     const studio = service.createStudioEnvironment();
     if (!studio.ok) throw studio.error;
-    const scene = new ThreeSceneAdapter();
+    const scene = new THREE.Scene();
 
     const applied = service.applyToScene(scene, studio.value, {
       setBackground: false,
       groundProjection: { height: 2, radius: 120 },
     });
     expect(applied.ok).toBe(true);
-    expect(scene.getThreeScene().getObjectByName(GROUNDED_SKYBOX_NAME)).toBeUndefined();
+    expect(scene.getObjectByName(GROUNDED_SKYBOX_NAME)).toBeUndefined();
   });
 
   it('ground projection: emulates backgroundIntensity by dimming the skybox mesh', async () => {
     const service = await initialized();
     const loaded = await service.loadEnvironmentMap('env.hdr');
     if (!loaded.ok) throw loaded.error;
-    const scene = new ThreeSceneAdapter();
+    const scene = new THREE.Scene();
 
     service.applyToScene(scene, loaded.value, {
       groundProjection: { height: 2, radius: 120 },
       backgroundIntensity: 0.5,
     });
-    const skybox = scene.getThreeScene().getObjectByName(GROUNDED_SKYBOX_NAME) as THREE.Mesh;
+    const skybox = scene.getObjectByName(GROUNDED_SKYBOX_NAME) as THREE.Mesh;
     const material = skybox.material as THREE.MeshBasicMaterial;
     expect(material.color.r).toBeCloseTo(0.5);
     expect(material.userData.softboxExternallyOwnedTextures).toBe(true);
@@ -281,9 +244,9 @@ describe('ThreeEnvironmentService', () => {
       throw new Error('studio builds failed');
     }
 
-    expect(rawTexture(soft.value)).not.toBe(rawTexture(crisp.value));
-    expect(rawTexture(crispAgain.value)).toBe(rawTexture(crisp.value));
-    expect(rawTexture(softAgain.value)).toBe(rawTexture(soft.value));
+    expect(soft.value).not.toBe(crisp.value);
+    expect(crispAgain.value).toBe(crisp.value);
+    expect(softAgain.value).toBe(soft.value);
     const generator = (service as unknown as {
       pmremGenerator: { fromScene: jest.Mock };
     }).pmremGenerator;
@@ -308,14 +271,14 @@ describe('ThreeEnvironmentService', () => {
     const studio = service.createStudioEnvironment();
     if (!studio.ok) throw studio.error;
 
-    const scene = new ThreeSceneAdapter();
+    const scene = new THREE.Scene();
     const applied = service.applyToScene(scene, studio.value, { setBackground: false });
     expect(applied.ok).toBe(true);
-    expect(scene.getThreeScene().environment).not.toBeNull();
+    expect(scene.environment).not.toBeNull();
 
     const again = service.createStudioEnvironment();
     if (!again.ok) throw again.error;
-    expect(rawTexture(again.value)).toBe(rawTexture(studio.value));
+    expect(again.value).toBe(studio.value);
     const generator = (service as unknown as {
       pmremGenerator: { fromScene: jest.Mock };
     }).pmremGenerator;
@@ -329,8 +292,8 @@ describe('ThreeEnvironmentService', () => {
     const original = service.getOriginalEnvironmentTexture('env.hdr');
     if (!original) throw new Error('expected an original texture');
 
-    const pmremDispose = jest.spyOn(rawTexture(loaded.value), 'dispose');
-    const originalDispose = jest.spyOn(rawTexture(original), 'dispose');
+    const pmremDispose = jest.spyOn(loaded.value, 'dispose');
+    const originalDispose = jest.spyOn(original, 'dispose');
 
     service.dispose();
 
@@ -341,8 +304,7 @@ describe('ThreeEnvironmentService', () => {
 });
 
 describe('ThreeEnvironmentService render-target lifecycle', () => {
-  const stubRenderer = (): IRenderer =>
-    ({ renderer: {} as THREE.WebGLRenderer }) as unknown as IRenderer;
+  const stubRenderer = (): THREE.WebGLRenderer => ({}) as THREE.WebGLRenderer;
 
   it('disposes the PMREM render targets, not just their textures', async () => {
     const service = new ThreeEnvironmentService();
@@ -376,8 +338,7 @@ describe('ThreeEnvironmentService render-target lifecycle', () => {
 
     const initialized = async (): Promise<ThreeEnvironmentService> => {
       const service = new ThreeEnvironmentService();
-      const renderer = { renderer: {} as THREE.WebGLRenderer } as unknown as IRenderer;
-      const result = await service.initialize({ renderer });
+      const result = await service.initialize({ renderer: {} as THREE.WebGLRenderer });
       expect(result.ok).toBe(true);
       return service;
     };
@@ -401,25 +362,24 @@ describe('ThreeEnvironmentService render-target lifecycle', () => {
       const service = await initialized();
       const texture = new THREE.Texture();
       mockLoad(texture);
-      const sceneAdapter = new ThreeSceneAdapter(new THREE.Scene());
-      const threeScene = sceneAdapter.getThreeScene();
+      const scene = new THREE.Scene();
 
-      const result = await service.setBackgroundImage(sceneAdapter, '/photo.jpg');
+      const result = await service.setBackgroundImage(scene, '/photo.jpg');
 
       expect(result.ok).toBe(true);
-      expect(threeScene.background).toBe(texture);
+      expect(scene.background).toBe(texture);
       expect(texture.colorSpace).toBe(THREE.SRGBColorSpace);
-      expect(threeScene.environment).toBeNull();
+      expect(scene.environment).toBeNull();
     });
 
     it('marks the uploaded image to be cropped to the viewport rather than stretched', async () => {
       const service = await initialized();
       const texture = new THREE.Texture({ width: 400, height: 100 } as unknown as HTMLImageElement);
       mockLoad(texture);
-      const sceneAdapter = new ThreeSceneAdapter(new THREE.Scene());
+      const scene = new THREE.Scene();
 
-      await service.setBackgroundImage(sceneAdapter, '/wide.jpg');
-      fitCoverBackgroundToViewport(sceneAdapter.getThreeScene(), 1);
+      await service.setBackgroundImage(scene, '/wide.jpg');
+      fitCoverBackgroundToViewport(scene, 1);
 
       expect(texture.repeat.x).toBeCloseTo(0.25);
       expect(texture.offset.x).toBeCloseTo(0.375);
@@ -427,42 +387,40 @@ describe('ThreeEnvironmentService render-target lifecycle', () => {
 
     it('disposes the previous VIEWER-painted background on replace', async () => {
       const service = await initialized();
-      const sceneAdapter = new ThreeSceneAdapter(new THREE.Scene());
-      const threeScene = sceneAdapter.getThreeScene();
+      const scene = new THREE.Scene();
       mockLoad(new THREE.Texture());
-      await service.setBackgroundImage(sceneAdapter, '/first.jpg');
-      const previous = threeScene.background as THREE.Texture;
+      await service.setBackgroundImage(scene, '/first.jpg');
+      const previous = scene.background as THREE.Texture;
       const disposeSpy = jest.spyOn(previous, 'dispose');
       mockLoad(new THREE.Texture());
 
-      await service.setBackgroundImage(sceneAdapter, '/second.jpg');
+      await service.setBackgroundImage(scene, '/second.jpg');
 
       expect(disposeSpy).toHaveBeenCalled();
     });
 
     it('leaves a consumer-set background texture alone on replace', async () => {
       const service = await initialized();
-      const sceneAdapter = new ThreeSceneAdapter(new THREE.Scene());
-      const threeScene = sceneAdapter.getThreeScene();
+      const scene = new THREE.Scene();
       const consumerTexture = new THREE.Texture();
-      threeScene.background = consumerTexture;
+      scene.background = consumerTexture;
       const disposeSpy = jest.spyOn(consumerTexture, 'dispose');
       mockLoad(new THREE.Texture());
 
-      await service.setBackgroundImage(sceneAdapter, '/photo.jpg');
+      await service.setBackgroundImage(scene, '/photo.jpg');
 
       expect(disposeSpy).not.toHaveBeenCalled();
     });
 
     it('accepts an HTMLImageElement directly without loading', async () => {
       const service = await initialized();
-      const sceneAdapter = new ThreeSceneAdapter(new THREE.Scene());
+      const scene = new THREE.Scene();
       const image = document.createElement('img');
 
-      const result = await service.setBackgroundImage(sceneAdapter, image);
+      const result = await service.setBackgroundImage(scene, image);
 
       expect(result.ok).toBe(true);
-      expect((sceneAdapter.getThreeScene().background as THREE.Texture).image).toBe(image);
+      expect((scene.background as THREE.Texture).image).toBe(image);
     });
 
     it('creates and revokes an object URL for a File source', async () => {
@@ -480,7 +438,7 @@ describe('ThreeEnvironmentService render-target lifecycle', () => {
       mockLoad(new THREE.Texture());
       const file = new File(['x'], 'bg.png', { type: 'image/png' });
 
-      await service.setBackgroundImage(new ThreeSceneAdapter(new THREE.Scene()), file);
+      await service.setBackgroundImage(new THREE.Scene(), file);
 
       expect(createObjectURL).toHaveBeenCalledWith(file);
       expect(revokeObjectURL).toHaveBeenCalledWith('blob:bg');
@@ -500,15 +458,7 @@ describe('ThreeEnvironmentService render-target lifecycle', () => {
         return new THREE.Texture();
       }) as never);
 
-      const result = await service.setBackgroundImage(new ThreeSceneAdapter(new THREE.Scene()), '/missing.jpg');
-
-      expect(result.ok).toBe(false);
-    });
-
-    it('rejects a scene that is not a ThreeSceneAdapter', async () => {
-      const service = await initialized();
-
-      const result = await service.setBackgroundImage({} as unknown as IScene, '/x.jpg');
+      const result = await service.setBackgroundImage(new THREE.Scene(), '/missing.jpg');
 
       expect(result.ok).toBe(false);
     });

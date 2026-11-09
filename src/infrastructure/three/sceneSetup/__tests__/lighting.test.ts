@@ -1,20 +1,14 @@
 import * as THREE from 'three';
 import { addLighting } from '../lighting';
 import { ILightingOptions } from '../../../../core/services/ISceneSetupService';
-import { IScene } from '../../../../core/interfaces/IScene';
 
-const light = (scene: unknown, options: ILightingOptions) =>
-  addLighting(scene as IScene, options);
+const light = (scene: THREE.Scene, options: ILightingOptions) =>
+  addLighting(scene, options);
 
 const directionalsOf = (scene: THREE.Scene): THREE.DirectionalLight[] =>
   scene.children.filter((c): c is THREE.DirectionalLight => (c as THREE.DirectionalLight).isDirectionalLight);
 
 describe('addLighting', () => {
-  it('errors when the scene is not a three scene', () => {
-    const result = light({}, { ambient: { intensity: 1 } });
-    expect(result.ok).toBe(false);
-  });
-
   it('builds a three-point rig: a shadow-casting key plus shadowless fill and rim', () => {
     const scene = new THREE.Scene();
     const result = light(scene, {

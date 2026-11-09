@@ -1,6 +1,5 @@
 import * as THREE from 'three';
-import { ThreeAnchorProjector, ThreeAnchorProjectionService } from '../ThreeAnchorProjector';
-import { ICamera, IObject3D } from '../../../core/interfaces';
+import { AnchorProjector } from '../AnchorProjector';
 
 const makeSources = (model: THREE.Object3D | null = null) => {
   const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
@@ -15,17 +14,17 @@ const makeSources = (model: THREE.Object3D | null = null) => {
   Object.defineProperty(canvas, 'clientHeight', { value: 200, configurable: true });
 
   const sources = {
-    camera: { getThreeCamera: () => camera } as unknown as ICamera,
+    camera,
     getCanvas: () => canvas as HTMLCanvasElement | null,
-    getModel: () => (model ? { getThreeObject: () => model } : null) as IObject3D | null,
+    getModel: () => model,
   };
   return { sources, camera, canvas };
 };
 
-describe('ThreeAnchorProjector', () => {
+describe('AnchorProjector', () => {
   it('projects the world origin to the canvas center', () => {
     const { sources } = makeSources();
-    const projector = new ThreeAnchorProjector(sources);
+    const projector = new AnchorProjector(sources);
 
     const projection = projector.project({ x: 0, y: 0, z: 0 }, false);
 
@@ -34,14 +33,14 @@ describe('ThreeAnchorProjector', () => {
 
   it('reports an anchor behind the camera as not visible', () => {
     const { sources } = makeSources();
-    const projector = new ThreeAnchorProjector(sources);
+    const projector = new AnchorProjector(sources);
 
     expect(projector.project({ x: 0, y: 0, z: 10 }, false)).toEqual({ visible: false });
   });
 
   it('memoizes: an unchanged view returns null, a camera move recomputes', () => {
     const { sources, camera } = makeSources();
-    const projector = new ThreeAnchorProjector(sources);
+    const projector = new AnchorProjector(sources);
     const anchor = { x: 0, y: 0, z: 0 };
 
     expect(projector.project(anchor, false)).not.toBeNull();
@@ -58,7 +57,7 @@ describe('ThreeAnchorProjector', () => {
 
   it('invalidate() forces a recompute of an unchanged view', () => {
     const { sources } = makeSources();
-    const projector = new ThreeAnchorProjector(sources);
+    const projector = new AnchorProjector(sources);
     const anchor = { x: 0, y: 0, z: 0 };
 
     projector.project(anchor, false);
@@ -73,7 +72,7 @@ describe('ThreeAnchorProjector', () => {
     wall.position.set(0, 0, 2);
     wall.updateMatrixWorld();
     const { sources } = makeSources(wall);
-    const projector = new ThreeAnchorProjector(sources);
+    const projector = new AnchorProjector(sources);
 
     expect(projector.project({ x: 0, y: 0, z: 0 }, true)).toEqual({ visible: false });
 
@@ -86,7 +85,7 @@ describe('ThreeAnchorProjector', () => {
 
   it('treats a missing model as not occluding', () => {
     const { sources } = makeSources();
-    const projector = new ThreeAnchorProjector(sources);
+    const projector = new AnchorProjector(sources);
 
     const projection = projector.project({ x: 0, y: 0, z: 0 }, true);
     expect(projection && projection.visible).toBe(true);
@@ -94,16 +93,15 @@ describe('ThreeAnchorProjector', () => {
 
   it('returns null (keep previous placement) while the canvas is unavailable', () => {
     const { sources } = makeSources();
-    const projector = new ThreeAnchorProjector({ ...sources, getCanvas: () => null });
+    const projector = new AnchorProjector({ ...sources, getCanvas: () => null });
 
     expect(projector.project({ x: 0, y: 0, z: 0 }, false)).toBeNull();
   });
 
-  it('is produced by the service with per-projector memoization state', () => {
+  it('keeps memoization state per projector', () => {
     const { sources } = makeSources();
-    const service = new ThreeAnchorProjectionService();
-    const first = service.createProjector(sources);
-    const second = service.createProjector(sources);
+    const first = new AnchorProjector(sources);
+    const second = new AnchorProjector(sources);
 
     expect(first.project({ x: 0, y: 0, z: 0 }, false)).not.toBeNull();
     expect(second.project({ x: 0, y: 0, z: 0 }, false)).not.toBeNull();

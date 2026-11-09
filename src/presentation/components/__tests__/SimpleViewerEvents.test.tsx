@@ -6,7 +6,6 @@ import { SimpleViewerHandle } from '../../../types';
 import { useViewerCore } from '../../hooks';
 import { TypedEventEmitter } from '../../../events/EventEmitter';
 import { ViewerEventMap } from '../../../core/events/CoreViewerEvents';
-import { ThreeObject3DAdapter } from '../../../infrastructure/three/ThreeObject3D';
 import * as THREE from 'three';
 
 jest.mock('../../hooks', () => {
@@ -27,7 +26,7 @@ describe('SimpleViewer event forwarding', () => {
     getModelUrl: () => null,
         getCamera: () => null,
         getControls: () => null,
-        getRenderer: () => null,
+        getRenderer: () => ({ getWebGLRenderer: () => null }),
         requestRender: jest.fn(),
         loadModel: jest.fn(() => new Promise(() => {})),
         dispose: jest.fn(),
@@ -49,7 +48,7 @@ describe('SimpleViewer event forwarding', () => {
     expect(onLoading).toHaveBeenCalledWith({ url: 'x.glb' });
   });
 
-  it('forwards object:selected with the unwrapped object and the hit point', async () => {
+  it('forwards object:selected with the picked object and the hit point', async () => {
     const coreBus = new TypedEventEmitter<ViewerEventMap>();
     mockedUseViewerCore.mockReturnValue({
       viewer: {
@@ -58,7 +57,7 @@ describe('SimpleViewer event forwarding', () => {
     getModelUrl: () => null,
         getCamera: () => null,
         getControls: () => null,
-        getRenderer: () => null,
+        getRenderer: () => ({ getWebGLRenderer: () => null }),
         requestRender: jest.fn(),
         loadModel: jest.fn(() => new Promise(() => {})),
         dispose: jest.fn(),
@@ -76,7 +75,7 @@ describe('SimpleViewer event forwarding', () => {
     const threeObject = new THREE.Object3D();
     act(() => {
       coreBus.emit('object:selected', {
-        object: new ThreeObject3DAdapter(threeObject),
+        object: threeObject,
         point: { x: 1, y: 2, z: 3 },
       });
     });

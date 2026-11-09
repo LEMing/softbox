@@ -1,47 +1,24 @@
 import * as THREE from 'three';
-import { IScene } from '../../../core/interfaces/IScene';
-import { IObject3D } from '../../../core/interfaces/IObject3D';
 import { Result } from '../../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../../errors';
-import { toThreeObject, toThreeScene } from '../unwrap';
 import { findDirectionalLight } from './findDirectionalLight';
 
-export function fitShadowCameraToObject(scene: IScene, object: IObject3D): Result<void> {
+export function fitShadowCameraToObject(scene: THREE.Scene, object: THREE.Object3D): Result<void> {
   try {
-    const threeScene = toThreeScene(scene);
-    if (!threeScene) {
-      return Result.err(
-        new ThreeViewerError(
-          'Scene must be ThreeSceneAdapter',
-          ErrorCode.INVALID_PARAMETER
-        )
-      );
-    }
-
-    const threeObject = toThreeObject(object);
-    if (!threeObject) {
-      return Result.err(
-        new ThreeViewerError(
-          'Object must expose a Three.js Object3D',
-          ErrorCode.INVALID_PARAMETER
-        )
-      );
-    }
-
-    const box = new THREE.Box3().setFromObject(threeObject);
+    const box = new THREE.Box3().setFromObject(object);
     if (box.isEmpty() || !Number.isFinite(box.min.x) || !Number.isFinite(box.max.x)) {
       return Result.ok(undefined);
     }
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
 
-    const directionalLight = findDirectionalLight(threeScene);
+    const directionalLight = findDirectionalLight(scene);
     if (!directionalLight || !directionalLight.castShadow) {
       return Result.ok(undefined);
     }
 
     const isViewerRig =
-      directionalLight.parent === threeScene && directionalLight.target.parent === threeScene;
+      directionalLight.parent === scene && directionalLight.target.parent === scene;
     if (isViewerRig) {
       const lightDirection = directionalLight.position.clone().sub(directionalLight.target.position);
       directionalLight.target.position.copy(center);

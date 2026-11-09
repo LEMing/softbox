@@ -7,8 +7,3 @@ export type ControlsInstance = {
   target: THREE.Vector3;
   getThreeControls?(): unknown;
 };
-
-export type RendererWithInternalAccess = {
-  renderer?: THREE.WebGLRenderer;
-  getThreeRenderer?: () => THREE.WebGLRenderer;
-};

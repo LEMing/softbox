@@ -5,20 +5,17 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { GroundedSkybox } from 'three/examples/jsm/objects/GroundedSkybox';
 import { applyStudioContrast } from './studioEnvironmentContrast';
 import { CONTACT_SHADOW_HELPER_FLAG } from './ContactShadowBaker';
-import { BACKGROUND_NODE_FLAG, EXTERNALLY_OWNED_TEXTURES_FLAG } from './disposal';
+import { BACKGROUND_NODE_FLAG, EXTERNALLY_OWNED_TEXTURES_FLAG } from '../../core/disposal';
 import { 
   IEnvironmentService, 
   IEnvironmentOptions,
   IEnvironmentApplyOptions 
 } from '../../core/services/IEnvironmentService';
-import { IScene, ITexture } from '../../core/interfaces/IScene';
 import { Result } from '../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../errors';
-import { toThreeScene, toThreeTexture } from './unwrap';
 import { markViewerOwnedBackground, disposeViewerOwnedBackground } from './backgroundOwnership';
-import { markCoverFitBackground } from './backgroundImageFit';
+import { markCoverFitBackground } from '../../core/rendering/backgroundImageFit';
 import { isPrefilteredEnvironment } from './prefilteredEnvironment';
-import { RendererWithInternalAccess } from '../../types/CommonTypes';
 import { DEFAULT_STUDIO_LOOK, StudioLook } from '../../types/options';
 
 const STUDIO_CUBE_CAPTURE_SIZE = 256;
@@ -50,10 +47,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
 
   async initialize(options: IEnvironmentOptions): Promise<Result<void>> {
     try {
-      const rendererAccess = options.renderer as RendererWithInternalAccess;
-      const threeRenderer = rendererAccess.renderer ||
-        rendererAccess.getThreeRenderer?.();
-
+      const threeRenderer = options.renderer;
       if (!threeRenderer) {
         return Result.err(
           new ThreeViewerError(
@@ -79,11 +73,11 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     }
   }
 
-  async loadEnvironmentMap(url: string): Promise<Result<ITexture>> {
+  async loadEnvironmentMap(url: string): Promise<Result<THREE.Texture>> {
     try {
       const cachedTexture = this.loadedTextures.get(url);
       if (cachedTexture) {
-        return Result.ok(new ThreeTextureAdapter(cachedTexture));
+        return Result.ok(cachedTexture);
       }
 
       const extension = url.split('.').pop()?.toLowerCase();
@@ -144,11 +138,11 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         this.loadedTextures.set(url + '_original', texture);
         this.originalByPmrem.set(pmremTexture, texture);
 
-        return Result.ok(new ThreeTextureAdapter(pmremTexture));
+        return Result.ok(pmremTexture);
       }
 
       this.loadedTextures.set(url, texture);
-      return Result.ok(new ThreeTextureAdapter(texture));
+      return Result.ok(texture);
     } catch (error) {
       return Result.err(
         new ThreeViewerError(
@@ -160,75 +154,55 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     }
   }
 
-  applyToScene(scene: IScene, texture: ITexture, options?: IEnvironmentApplyOptions): Result<void> {
+  applyToScene(scene: THREE.Scene, texture: THREE.Texture, options?: IEnvironmentApplyOptions): Result<void> {
     try {
-      const threeScene = toThreeScene(scene);
-      if (!threeScene) {
-        return Result.err(
-          new ThreeViewerError(
-            'Scene must be ThreeSceneAdapter',
-            ErrorCode.INVALID_PARAMETER
-          )
-        );
-      }
-
-      const threeTexture = toThreeTexture(texture);
-      if (!threeTexture) {
-        return Result.err(
-          new ThreeViewerError(
-            'Texture must be ThreeTextureAdapter',
-            ErrorCode.INVALID_PARAMETER
-          )
-        );
-      }
-
-      threeScene.environment = threeTexture;
+      scene.environment = texture;
       
       if (options) {
         if (options.backgroundBlurriness !== undefined) {
-          threeScene.backgroundBlurriness = options.backgroundBlurriness;
+          scene.backgroundBlurriness = options.backgroundBlurriness;
         }
         if (options.backgroundIntensity !== undefined) {
-          threeScene.backgroundIntensity = options.backgroundIntensity;
+          scene.backgroundIntensity = options.backgroundIntensity;
         }
         if (options.environmentIntensity !== undefined) {
-          threeScene.environmentIntensity = options.environmentIntensity;
+          scene.environmentIntensity = options.environmentIntensity;
         }
       }
       
-      const original = this.originalByPmrem.get(threeTexture);
-      if (isPrefilteredEnvironment(threeTexture)) {
+      const original = this.originalByPmrem.get(texture);
+      if (isPrefilteredEnvironment(texture)) {
         if (original) {
-          (threeScene as SceneWithOriginalTexture).__originalEnvironmentTexture = original;
+          (scene as SceneWithOriginalTexture).__originalEnvironmentTexture = original;
         } else {
-          delete (threeScene as SceneWithOriginalTexture).__originalEnvironmentTexture;
+          delete (scene as SceneWithOriginalTexture).__originalEnvironmentTexture;
         }
-      } else if (threeTexture.mapping === THREE.EquirectangularReflectionMapping) {
-        (threeScene as SceneWithOriginalTexture).__originalEnvironmentTexture = threeTexture;
+      } else if (texture.mapping === THREE.EquirectangularReflectionMapping) {
+        (scene as SceneWithOriginalTexture).__originalEnvironmentTexture = texture;
       }
 
       if (options?.setBackground ?? true) {
-        disposeViewerOwnedBackground(threeScene);
+        disposeViewerOwnedBackground(scene);
         if (
-          isPrefilteredEnvironment(threeTexture) &&
+          isPrefilteredEnvironment(texture) &&
           original?.mapping === THREE.EquirectangularReflectionMapping
         ) {
-          threeScene.background = original;
+          scene.background = original;
         } else {
-          threeScene.background = threeTexture;
+          scene.background = texture;
         }
       }
 
-      this.removeGroundedSkybox(threeScene);
+      this.removeGroundedSkybox(scene);
       const equirect =
-        threeTexture.mapping === THREE.EquirectangularReflectionMapping
-          ? threeTexture
+        texture.mapping === THREE.EquirectangularReflectionMapping
+          ? texture
           : original?.mapping === THREE.EquirectangularReflectionMapping
             ? original
             : null;
       if (options?.groundProjection && equirect) {
         this.addGroundedSkybox(
-          threeScene,
+          scene,
           equirect,
           options.groundProjection,
           options.backgroundIntensity
@@ -248,7 +222,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
   }
 
   private addGroundedSkybox(
-    threeScene: THREE.Scene,
+    scene: THREE.Scene,
     equirect: THREE.Texture,
     projection: { height: number; radius: number },
     backgroundIntensity?: number
@@ -265,18 +239,15 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       }
     }
     skybox.position.y = projection.height - 0.01;
-    threeScene.add(skybox);
+    scene.add(skybox);
   }
 
-  removeGroundProjection(scene: IScene): void {
-    const threeScene = toThreeScene(scene);
-    if (threeScene) {
-      this.removeGroundedSkybox(threeScene);
-    }
+  removeGroundProjection(scene: THREE.Scene): void {
+    this.removeGroundedSkybox(scene);
   }
 
-  private removeGroundedSkybox(threeScene: THREE.Scene): void {
-    const existing = threeScene.getObjectByName(GROUNDED_SKYBOX_NAME) as THREE.Mesh | undefined;
+  private removeGroundedSkybox(scene: THREE.Scene): void {
+    const existing = scene.getObjectByName(GROUNDED_SKYBOX_NAME) as THREE.Mesh | undefined;
     if (!existing) {
       return;
     }
@@ -286,31 +257,23 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     materials.forEach((material) => material.dispose());
   }
 
-  getOriginalEnvironmentTexture(url: string): ITexture | null {
-    const originalTexture = this.loadedTextures.get(url + '_original');
-    return originalTexture ? new ThreeTextureAdapter(originalTexture) : null;
+  getOriginalEnvironmentTexture(url: string): THREE.Texture | null {
+    return this.loadedTextures.get(url + '_original') ?? null;
   }
 
   async setBackgroundImage(
-    scene: IScene,
+    scene: THREE.Scene,
     source: string | File | HTMLImageElement
   ): Promise<Result<void>> {
     try {
-      const threeScene = toThreeScene(scene);
-      if (!threeScene) {
-        return Result.err(
-          new ThreeViewerError('Scene must be ThreeSceneAdapter', ErrorCode.INVALID_PARAMETER)
-        );
-      }
-
       const texture = await this.loadBackgroundTexture(source);
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.needsUpdate = true;
       markViewerOwnedBackground(texture);
       markCoverFitBackground(texture);
 
-      disposeViewerOwnedBackground(threeScene);
-      threeScene.background = texture;
+      disposeViewerOwnedBackground(scene);
+      scene.background = texture;
       return Result.ok(undefined);
     } catch (error) {
       return Result.err(
@@ -348,7 +311,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     });
   }
 
-  createStudioEnvironment(look: StudioLook = DEFAULT_STUDIO_LOOK): Result<ITexture> {
+  createStudioEnvironment(look: StudioLook = DEFAULT_STUDIO_LOOK): Result<THREE.Texture> {
     try {
       if (!this.pmremGenerator) {
         return Result.err(
@@ -361,7 +324,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
 
       const cached = this.studioBakes.get(look);
       if (cached) {
-        return Result.ok(new ThreeTextureAdapter(cached.pmremTexture));
+        return Result.ok(cached.pmremTexture);
       }
 
       const roomEnvironment = new RoomEnvironment();
@@ -379,7 +342,7 @@ export class ThreeEnvironmentService implements IEnvironmentService {
 
       roomEnvironment.dispose();
 
-      return Result.ok(new ThreeTextureAdapter(roomTexture));
+      return Result.ok(roomTexture);
     } catch (error) {
       return Result.err(
         new ThreeViewerError(
@@ -438,33 +401,5 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       this.pmremGenerator = null;
     }
     this.threeRenderer = null;
-  }
-}
-
-class ThreeTextureAdapter implements ITexture {
-  constructor(private texture: THREE.Texture) {}
-
-  get id(): string {
-    return this.texture.uuid;
-  }
-
-  get image(): HTMLImageElement | ImageData | HTMLCanvasElement | HTMLVideoElement | null {
-    return this.texture.image as HTMLImageElement | ImageData | HTMLCanvasElement | HTMLVideoElement | null;
-  }
-
-  get needsUpdate(): boolean {
-    return this.texture.needsUpdate;
-  }
-
-  set needsUpdate(value: boolean) {
-    this.texture.needsUpdate = value;
-  }
-
-  dispose(): void {
-    this.texture.dispose();
-  }
-
-  getThreeTexture(): THREE.Texture {
-    return this.texture;
   }
 }

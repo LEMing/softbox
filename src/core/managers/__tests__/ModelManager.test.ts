@@ -1,25 +1,33 @@
+import * as THREE from 'three';
+import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { ModelManager } from '../ModelManager';
-import {
-  IModelLoader,
-  IObject3D,
-  IScene,
-  ICamera,
-  IControls,
-  Result,
-  MODEL_VARIANT_NAMES_KEY,
-} from '../../interfaces';
+import { IModelLoader, MODEL_VARIANT_NAMES_KEY } from '../../services/IModelLoader';
+import { Result } from '../../../utils/Result';
 import { IFloorAlignmentService } from '../../services/IFloorAlignmentService';
 import { ISceneSetupService } from '../../services/ISceneSetupService';
 import { ThreeViewerError, ErrorCode } from '../../../errors';
 import { TypedEventEmitter } from '../../../events/EventEmitter';
 import { ViewerEventMap } from '../../events/CoreViewerEvents';
 
+type DisposableModel = THREE.Group & { disposeGeometry: jest.SpyInstance };
+
+const makeModel = (): DisposableModel => {
+  const geometry = new THREE.BoxGeometry();
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial());
+  const group = new THREE.Group() as DisposableModel;
+  group.add(mesh);
+  group.disposeGeometry = jest.spyOn(geometry, 'dispose');
+  return group;
+};
+
 describe('ModelManager', () => {
   let modelManager: ModelManager;
   let mockModelLoader: jest.Mocked<IModelLoader>;
-  let mockScene: jest.Mocked<IScene>;
-  let mockCamera: jest.Mocked<ICamera>;
-  let mockControls: jest.Mocked<IControls>;
+  let mockScene: THREE.Scene;
+  let addSpy: jest.SpyInstance;
+  let removeSpy: jest.SpyInstance;
+  let mockCamera: THREE.PerspectiveCamera;
+  let mockControls: OrbitControls;
   let mockFloorAlignmentService: jest.Mocked<IFloorAlignmentService>;
   let mockSceneSetupService: jest.Mocked<ISceneSetupService>;
   let mockEvents: TypedEventEmitter<ViewerEventMap>;
@@ -29,22 +37,16 @@ describe('ModelManager', () => {
       load: jest.fn()
     } as unknown as jest.Mocked<IModelLoader>;
 
-    mockScene = {
-      add: jest.fn().mockReturnValue(Result.ok(undefined)),
-      remove: jest.fn().mockReturnValue(Result.ok(undefined)),
-      clear: jest.fn(),
-      traverse: jest.fn()
-    } as unknown as jest.Mocked<IScene>;
+    mockScene = new THREE.Scene();
+    addSpy = jest.spyOn(mockScene, 'add');
+    removeSpy = jest.spyOn(mockScene, 'remove');
 
-    mockCamera = {
-      type: 'perspective',
-      updateProjectionMatrix: jest.fn()
-    } as unknown as jest.Mocked<ICamera>;
+    mockCamera = new THREE.PerspectiveCamera();
 
     mockControls = {
       update: jest.fn(),
       dispose: jest.fn()
-    } as unknown as jest.Mocked<IControls>;
+    } as unknown as OrbitControls;
 
     mockFloorAlignmentService = {
       alignToFloor: jest.fn().mockReturnValue(Result.ok(undefined))
@@ -83,22 +85,15 @@ describe('ModelManager', () => {
 
   describe('loadModel', () => {
     describe('loading from URL', () => {
-      let mockModel: IObject3D;
+      let mockModel: DisposableModel;
       
       beforeEach(() => {
-        mockModel = {
-          traverse: jest.fn((callback: (obj: unknown) => void) => {
-            const child = { castShadow: false, receiveShadow: false };
-            callback(child);
-          }),
-          dispose: jest.fn()
-        } as unknown as IObject3D;
+        mockModel = makeModel();
       });
 
       beforeEach(() => {
         mockModelLoader.load.mockResolvedValue(Result.ok({
-          scene: mockModel,
-          animations: []
+          scene: mockModel
         }));
       });
 
@@ -108,7 +103,7 @@ describe('ModelManager', () => {
 
         expect(result.ok).toBe(true);
         expect(mockModelLoader.load).toHaveBeenCalledWith(url, expect.any(Function));
-        expect(mockScene.add).toHaveBeenCalledWith(mockModel);
+        expect(addSpy).toHaveBeenCalledWith(mockModel);
         expect(modelManager.getCurrentModel()).toBe(mockModel);
         expect(modelManager.getLastModelUrl()).toBe(url);
       });
@@ -116,7 +111,6 @@ describe('ModelManager', () => {
       it('surfaces variant names from the namespaced userData key, as a defensive copy', async () => {
         mockModelLoader.load.mockResolvedValue(Result.ok({
           scene: mockModel,
-          animations: [],
           userData: { [MODEL_VARIANT_NAMES_KEY]: ['beach', 'midnight'] },
         }));
 
@@ -131,7 +125,6 @@ describe('ModelManager', () => {
       it('ignores an authored `variants` root extra (no KHR extension)', async () => {
         mockModelLoader.load.mockResolvedValue(Result.ok({
           scene: mockModel,
-          animations: [],
           userData: { variants: ['summer', 'winter'] },
         }));
 
@@ -152,7 +145,6 @@ describe('ModelManager', () => {
       it('clears the previous model variants when an object source loads', async () => {
         mockModelLoader.load.mockResolvedValue(Result.ok({
           scene: mockModel,
-          animations: [],
           userData: { [MODEL_VARIANT_NAMES_KEY]: ['beach'] },
         }));
         await modelManager.loadModel('test.glb', mockEvents);
@@ -166,7 +158,7 @@ describe('ModelManager', () => {
         mockModelLoader.load.mockImplementation(async (_url, onProgress) => {
           onProgress?.(50, 200);
           onProgress?.(200, 200);
-          return Result.ok({ scene: mockModel, animations: [] });
+          return Result.ok({ scene: mockModel });
         });
         const progressEvents: Array<{ url: string; loaded: number; total: number }> = [];
         mockEvents.on('model:progress', (data) => progressEvents.push(data));
@@ -209,10 +201,7 @@ describe('ModelManager', () => {
       });
 
       it('should enable shadows on model', async () => {
-        const child = { castShadow: false, receiveShadow: false };
-        (mockModel.traverse as jest.Mock).mockImplementation((callback: (obj: unknown) => void) => {
-          callback(child);
-        });
+        const child = mockModel.children[0];
 
         await modelManager.loadModel('test.glb', mockEvents);
 
@@ -296,31 +285,29 @@ describe('ModelManager', () => {
 
       it('should dispose previous model', async () => {
         await modelManager.loadModel('model1.glb', mockEvents);
-        const firstModel = modelManager.getCurrentModel();
+        const firstModel = mockModel;
+        mockModelLoader.load.mockResolvedValue(Result.ok({ scene: makeModel() }));
 
         await modelManager.loadModel('model2.glb', mockEvents);
 
-        expect(mockScene.remove).toHaveBeenCalledWith(firstModel);
-        expect(firstModel?.dispose).toHaveBeenCalled();
+        expect(removeSpy).toHaveBeenCalledWith(firstModel);
+        expect(firstModel.disposeGeometry).toHaveBeenCalled();
       });
     });
 
     describe('loading from object', () => {
-      let mockObject: IObject3D;
+      let mockObject: THREE.Object3D;
       
       beforeEach(() => {
-        mockObject = {
-          traverse: jest.fn(),
-          dispose: jest.fn()
-        } as unknown as IObject3D;
+        mockObject = makeModel();
       });
 
-      it('should accept IObject3D directly', async () => {
+      it('should accept a THREE.Object3D directly', async () => {
         const result = await modelManager.loadModel(mockObject, mockEvents);
 
         expect(result.ok).toBe(true);
         expect(mockModelLoader.load).not.toHaveBeenCalled();
-        expect(mockScene.add).toHaveBeenCalledWith(mockObject);
+        expect(addSpy).toHaveBeenCalledWith(mockObject);
         expect(modelManager.getCurrentModel()).toBe(mockObject);
       });
 
@@ -355,14 +342,14 @@ describe('ModelManager', () => {
       });
 
       it('should handle scene add errors', async () => {
-        const mockModel = { traverse: jest.fn(), dispose: jest.fn() } as unknown as IObject3D;
         mockModelLoader.load.mockResolvedValue(Result.ok({
-          scene: mockModel,
-          animations: []
+          scene: makeModel()
         }));
 
         const addError = new ThreeViewerError('Add failed', ErrorCode.SCENE_OPERATION_FAILED);
-        mockScene.add.mockReturnValue(Result.err(addError));
+        addSpy.mockImplementation(() => {
+          throw addError;
+        });
 
         const result = await modelManager.loadModel('test.glb', mockEvents);
 
@@ -375,10 +362,9 @@ describe('ModelManager', () => {
       it('should warn on service failures but continue', async () => {
         const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
         
-        const mockModel = { traverse: jest.fn(), dispose: jest.fn() } as unknown as IObject3D;
+        const mockModel = makeModel();
         mockModelLoader.load.mockResolvedValue(Result.ok({
-          scene: mockModel,
-          animations: []
+          scene: mockModel
         }));
 
         mockFloorAlignmentService.alignToFloor.mockReturnValue(
@@ -403,23 +389,45 @@ describe('ModelManager', () => {
 
         consoleWarnSpy.mockRestore();
       });
+
+      it('warns on every failing scene setup step and still loads', async () => {
+        const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+        mockModelLoader.load.mockResolvedValue(Result.ok({ scene: makeModel() }));
+        const failure = () => Result.err(new ThreeViewerError('step failed', ErrorCode.OPERATION_FAILED));
+        mockSceneSetupService.snapObjectToFloor.mockReturnValue(failure());
+        mockSceneSetupService.fitShadowCameraToObject.mockReturnValue(failure());
+        mockSceneSetupService.resetContactShadow.mockReturnValue(failure());
+        mockSceneSetupService.fitCameraToObject.mockReturnValue(failure());
+
+        const result = await modelManager.loadModel('test.glb', mockEvents);
+
+        expect(result.ok).toBe(true);
+        const warnings = consoleWarnSpy.mock.calls.map(([message]) => message);
+        expect(warnings).toEqual(expect.arrayContaining([
+          'Failed to snap object to floor:',
+          'Failed to fit shadow camera to object:',
+          'Failed to reset the contact shadow:',
+          'Failed to fit camera to object:',
+        ]));
+
+        consoleWarnSpy.mockRestore();
+      });
     });
   });
 
   describe('disposeCurrentModel', () => {
     it('should dispose current model', async () => {
-      const mockModel = { traverse: jest.fn(), dispose: jest.fn() } as unknown as IObject3D;
+      const mockModel = makeModel();
       mockModelLoader.load.mockResolvedValue(Result.ok({
-        scene: mockModel,
-        animations: []
+        scene: mockModel
       }));
 
       await modelManager.loadModel('test.glb', mockEvents);
       
       modelManager.disposeCurrentModel();
 
-      expect(mockScene.remove).toHaveBeenCalledWith(mockModel);
-      expect(mockModel.dispose).toHaveBeenCalled();
+      expect(removeSpy).toHaveBeenCalledWith(mockModel);
+      expect(mockModel.disposeGeometry).toHaveBeenCalled();
       expect(modelManager.getCurrentModel()).toBeNull();
     });
 
@@ -430,46 +438,38 @@ describe('ModelManager', () => {
 
   describe('dispose', () => {
     it('should dispose all resources', async () => {
-      const mockModel = { traverse: jest.fn(), dispose: jest.fn() } as unknown as IObject3D;
+      const mockModel = makeModel();
       mockModelLoader.load.mockResolvedValue(Result.ok({
-        scene: mockModel,
-        animations: []
+        scene: mockModel
       }));
 
       await modelManager.loadModel('test.glb', mockEvents);
       
       modelManager.dispose();
 
-      expect(mockScene.remove).toHaveBeenCalledWith(mockModel);
-      expect(mockModel.dispose).toHaveBeenCalled();
+      expect(removeSpy).toHaveBeenCalledWith(mockModel);
+      expect(mockModel.disposeGeometry).toHaveBeenCalled();
       expect(modelManager.getCurrentModel()).toBeNull();
       expect(modelManager.getLastModelUrl()).toBeUndefined();
     });
   });
 
-  describe('disposeObject (private)', () => {
-    it('delegates disposal to the object (canonical geometry/material/texture disposal lives in the adapter)', async () => {
-      const mockModel = {
-        traverse: jest.fn(),
-        dispose: jest.fn(),
-      } as unknown as IObject3D;
+  describe('model disposal', () => {
+    it('disposes the model geometry exactly once through the shared disposal helper', async () => {
+      const mockModel = makeModel();
 
       mockModelLoader.load.mockResolvedValue(Result.ok({
-        scene: mockModel,
-        animations: []
+        scene: mockModel
       }));
 
       await modelManager.loadModel('test.glb', mockEvents);
       modelManager.disposeCurrentModel();
 
-      expect(mockModel.dispose).toHaveBeenCalledTimes(1);
+      expect(mockModel.disposeGeometry).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('units conversion', () => {
-    const makeModel = () =>
-      ({ traverse: jest.fn(), dispose: jest.fn() } as unknown as IObject3D);
-
     const makeManager = (unitsScaleToMeters?: number) =>
       new ModelManager({
         modelLoader: mockModelLoader,
@@ -490,7 +490,7 @@ describe('ModelManager', () => {
 
       expect(result.ok).toBe(true);
       expect(mockSceneSetupService.wrapInUnitsScaleGroup).toHaveBeenCalledWith(model, 0.0254);
-      expect(mockScene.add).toHaveBeenCalledWith(wrapper);
+      expect(addSpy).toHaveBeenCalledWith(wrapper);
       expect(result.ok && result.value).toBe(wrapper);
     });
 
@@ -501,7 +501,7 @@ describe('ModelManager', () => {
 
       expect(result.ok).toBe(true);
       expect(mockSceneSetupService.wrapInUnitsScaleGroup).not.toHaveBeenCalled();
-      expect(mockScene.add).toHaveBeenCalledWith(model);
+      expect(addSpy).toHaveBeenCalledWith(model);
     });
 
     it('defaults to no conversion when the factor is omitted', async () => {
@@ -513,6 +513,24 @@ describe('ModelManager', () => {
       expect(mockSceneSetupService.wrapInUnitsScaleGroup).not.toHaveBeenCalled();
     });
 
+    it('fails the load when a units conversion is configured without a scene setup service', async () => {
+      const manager = new ModelManager({
+        modelLoader: mockModelLoader,
+        scene: mockScene,
+        camera: mockCamera,
+        controls: mockControls,
+        unitsScaleToMeters: 0.0254
+      });
+
+      const result = await manager.loadModel(makeModel(), mockEvents);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe(ErrorCode.INVALID_PARAMETER);
+      }
+      expect(addSpy).not.toHaveBeenCalled();
+    });
+
     it('fails the load when the wrap fails instead of rendering at the wrong scale', async () => {
       mockSceneSetupService.wrapInUnitsScaleGroup.mockReturnValue(
         Result.err(new ThreeViewerError('boom', ErrorCode.SCENE_OPERATION_FAILED))
@@ -521,7 +539,7 @@ describe('ModelManager', () => {
       const result = await makeManager(0.0254).loadModel(makeModel(), mockEvents);
 
       expect(result.ok).toBe(false);
-      expect(mockScene.add).not.toHaveBeenCalled();
+      expect(addSpy).not.toHaveBeenCalled();
     });
   });
 });

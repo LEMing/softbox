@@ -1,5 +1,7 @@
 import { ScreenshotManager } from '../ScreenshotManager';
-import { IRenderer, ICamera, IControls } from '../../interfaces';
+import * as THREE from 'three';
+import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import type { ViewerRenderer } from '../../rendering/ViewerRenderer';
 import { SceneSerializer } from '../../utils/SceneSerializer';
 
 jest.mock('../../utils/SceneSerializer', () => ({
@@ -15,11 +17,11 @@ jest.mock('../../utils/SceneSerializer', () => ({
 
 describe('ScreenshotManager', () => {
   let screenshotManager: ScreenshotManager;
-  let mockRenderer: jest.Mocked<IRenderer>;
+  let mockRenderer: jest.Mocked<ViewerRenderer>;
   let mockCanvas: HTMLCanvasElement;
   let mockParent: HTMLElement;
-  let mockCamera: jest.Mocked<ICamera>;
-  let mockControls: jest.Mocked<IControls>;
+  let mockCamera: THREE.PerspectiveCamera;
+  let mockControls: OrbitControls;
   let onRestore: jest.Mock;
 
   beforeEach(() => {
@@ -36,17 +38,14 @@ describe('ScreenshotManager', () => {
       setSize: jest.fn(),
       initialize: jest.fn(),
       dispose: jest.fn()
-    } as unknown as jest.Mocked<IRenderer>;
+    } as unknown as jest.Mocked<ViewerRenderer>;
     
-    mockCamera = {
-      type: 'perspective',
-      updateProjectionMatrix: jest.fn()
-    } as unknown as jest.Mocked<ICamera>;
+    mockCamera = new THREE.PerspectiveCamera();
     
     mockControls = {
       update: jest.fn(),
       dispose: jest.fn()
-    } as unknown as jest.Mocked<IControls>;
+    } as unknown as OrbitControls;
     
     onRestore = jest.fn();
     

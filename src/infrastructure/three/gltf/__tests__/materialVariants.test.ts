@@ -6,8 +6,8 @@ import {
   DEFAULT_MATERIAL_KEY,
   VARIANT_MATERIALS_KEY,
 } from '../materialVariants';
-import { MODEL_VARIANT_NAMES_KEY } from '../../../../core/interfaces/IModelLoader';
-import { STASHED_MATERIALS_KEY } from '../../disposal';
+import { MODEL_VARIANT_NAMES_KEY } from '../../../../core/services/IModelLoader';
+import { STASHED_MATERIALS_KEY } from '../../../../core/disposal';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader';
 
 const EXTENSION = 'KHR_materials_variants';

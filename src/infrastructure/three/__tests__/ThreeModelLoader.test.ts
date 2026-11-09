@@ -6,7 +6,7 @@ import {
   VARIANT_MATERIALS_KEY,
   whenMaterialVariantsResolved,
 } from '../gltf/materialVariants';
-import { MODEL_VARIANT_NAMES_KEY } from '../../../core/interfaces/IModelLoader';
+import { MODEL_VARIANT_NAMES_KEY } from '../../../core/services/IModelLoader';
 import { dracoInstances, resetDracoMock } from '../../../__mocks__/DRACOLoaderMock';
 import { ktx2Instances, resetKtx2Mock } from '../../../__mocks__/KTX2LoaderMock';
 import { MeshoptDecoder } from '../../../__mocks__/MeshoptDecoderMock';
@@ -123,13 +123,18 @@ describe('ThreeGLTFLoaderAdapter', () => {
   });
 
   describe('load', () => {
-    it('resolves an IModel from the underlying GLTFLoader', async () => {
+    it('resolves the glTF scene itself, carrying its animation clips', async () => {
+      const scene = new THREE.Group();
+      const clip = new THREE.AnimationClip('Spin', 1, []);
+      setNextGltf({ scene, animations: [clip] });
+
       const adapter = new ThreeGLTFLoaderAdapter();
       const result = await adapter.load('model.glb');
 
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.value.scene).toBeDefined();
+        expect(result.value.scene).toBe(scene);
+        expect(result.value.scene.animations).toEqual([clip]);
       }
     });
 

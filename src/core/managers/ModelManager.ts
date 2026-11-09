@@ -1,12 +1,8 @@
-import {
-  IModelLoader,
-  IObject3D,
-  IScene,
-  ICamera,
-  IControls,
-  Result,
-  MODEL_VARIANT_NAMES_KEY,
-} from '../interfaces';
+import type * as THREE from 'three';
+import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { IModelLoader, MODEL_VARIANT_NAMES_KEY } from '../services/IModelLoader';
+import { Result } from '../../utils/Result';
+import { disposeObject3D } from '../disposal';
 import { IFloorAlignmentService } from '../services/IFloorAlignmentService';
 import { ISceneSetupService } from '../services/ISceneSetupService';
 import { ThreeViewerError, ErrorCode } from '../../errors';
@@ -15,9 +11,9 @@ import { ViewerEventMap } from '../events/CoreViewerEvents';
 
 export interface ModelManagerDependencies {
   modelLoader: IModelLoader;
-  scene: IScene;
-  camera: ICamera;
-  controls: IControls;
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  controls: OrbitControls;
   floorAlignmentService?: IFloorAlignmentService;
   sceneSetupService?: ISceneSetupService;
   autoFitToObject?: boolean;
@@ -26,15 +22,15 @@ export interface ModelManagerDependencies {
 }
 
 export class ModelManager {
-  private currentModel: IObject3D | null = null;
+  private currentModel: THREE.Object3D | null = null;
   private lastModelUrl?: string;
   private currentModelUrl: string | null = null;
   private currentVariants: string[] = [];
   
   private readonly modelLoader: IModelLoader;
-  private readonly scene: IScene;
-  private readonly camera: ICamera;
-  private readonly controls: IControls;
+  private readonly scene: THREE.Scene;
+  private readonly camera: THREE.PerspectiveCamera;
+  private readonly controls: OrbitControls;
   private readonly floorAlignmentService?: IFloorAlignmentService;
   private readonly sceneSetupService?: ISceneSetupService;
   private readonly autoFitToObject: boolean;
@@ -53,7 +49,7 @@ export class ModelManager {
     this.unitsScaleToMeters = dependencies.unitsScaleToMeters ?? 1;
   }
 
-  getCurrentModel(): IObject3D | null {
+  getCurrentModel(): THREE.Object3D | null {
     return this.currentModel;
   }
 
@@ -70,13 +66,13 @@ export class ModelManager {
   }
 
   async loadModel(
-    source: string | IObject3D,
+    source: string | THREE.Object3D,
     events: TypedEventEmitter<ViewerEventMap>
-  ): Promise<Result<IObject3D>> {
+  ): Promise<Result<THREE.Object3D>> {
     const startTime = performance.now();
 
     try {
-      let model: IObject3D;
+      let model: THREE.Object3D;
 
       if (typeof source === 'string') {
         this.lastModelUrl = source;
@@ -113,13 +109,10 @@ export class ModelManager {
 
       if (this.currentModel) {
         this.scene.remove(this.currentModel);
-        this.disposeObject(this.currentModel);
+        disposeObject3D(this.currentModel);
       }
 
-      const addResult = this.scene.add(model);
-      if (!addResult.ok) {
-        throw addResult.error;
-      }
+      this.scene.add(model);
 
       if (this.floorAlignment && this.floorAlignmentService) {
         const alignResult = this.floorAlignmentService.alignToFloor(model);
@@ -129,10 +122,8 @@ export class ModelManager {
       }
 
       model.traverse((child) => {
-        if ('castShadow' in child && 'receiveShadow' in child) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-        }
+        child.castShadow = true;
+        child.receiveShadow = true;
       });
 
       this.currentModel = model;
@@ -196,13 +187,9 @@ export class ModelManager {
   disposeCurrentModel(): void {
     if (this.currentModel) {
       this.scene.remove(this.currentModel);
-      this.disposeObject(this.currentModel);
+      disposeObject3D(this.currentModel);
       this.currentModel = null;
     }
-  }
-
-  private disposeObject(object: IObject3D): void {
-    object.dispose();
   }
 
   dispose(): void {

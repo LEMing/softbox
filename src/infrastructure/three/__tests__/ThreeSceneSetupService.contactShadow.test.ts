@@ -1,10 +1,6 @@
 import * as THREE from 'three';
 import { ThreeSceneSetupService } from '../ThreeSceneSetupService';
-import { ThreeSceneAdapter } from '../ThreeScene';
-import { ThreeObject3DAdapter } from '../ThreeObject3D';
 import { CONTACT_SHADOW_BAKED_NAME, CONTACT_SHADOW_LIVE_NAME } from '../ContactShadowBaker';
-import { IRenderer } from '../../../core/interfaces/IRenderer';
-import { IScene } from '../../../core/interfaces/IScene';
 
 const createMockThreeRenderer = () => {
   const renderer = Object.create(THREE.WebGLRenderer.prototype) as THREE.WebGLRenderer;
@@ -25,8 +21,13 @@ const createMockThreeRenderer = () => {
   return renderer;
 };
 
-const asRenderer = (internal: unknown): IRenderer =>
-  ({ getThreeRenderer: () => internal } as unknown as IRenderer);
+const sceneFailingWith = (method: 'traverse' | 'getObjectByName') => {
+  const scene = new THREE.Scene();
+  jest.spyOn(scene, method).mockImplementation(() => {
+    throw new Error('scene operation failed');
+  });
+  return scene;
+};
 
 const createSceneWithLight = () => {
   const threeScene = new THREE.Scene();
@@ -48,9 +49,9 @@ describe('ThreeSceneSetupService contact shadow', () => {
       const service = new ThreeSceneSetupService();
 
       const result = service.bakeContactShadow(
-        new ThreeSceneAdapter(threeScene),
-        new ThreeObject3DAdapter(model),
-        asRenderer(createMockThreeRenderer())
+        threeScene,
+        model,
+        createMockThreeRenderer()
       );
 
       expect(result.ok).toBe(true);
@@ -67,9 +68,9 @@ describe('ThreeSceneSetupService contact shadow', () => {
       const targetDispose = jest.spyOn(THREE.WebGLRenderTarget.prototype, 'dispose');
 
       const result = service.bakeContactShadow(
-        new ThreeSceneAdapter(threeScene),
-        new ThreeObject3DAdapter(model),
-        asRenderer(internal)
+        threeScene,
+        model,
+        internal
       );
 
       expect(result.ok).toBe(false);
@@ -78,27 +79,27 @@ describe('ThreeSceneSetupService contact shadow', () => {
       targetDispose.mockRestore();
     });
 
-    it('rejects a scene that is not a ThreeSceneAdapter', () => {
+    it('wraps a failing scene walk into an error result', () => {
       const service = new ThreeSceneSetupService();
       const model = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
 
       const result = service.bakeContactShadow(
-        {} as unknown as IScene,
-        new ThreeObject3DAdapter(model),
-        asRenderer(createMockThreeRenderer())
+        sceneFailingWith('traverse'),
+        model,
+        createMockThreeRenderer()
       );
 
       expect(result.ok).toBe(false);
     });
 
-    it('no-ops without a usable internal renderer', () => {
+    it('no-ops before the renderer exists', () => {
       const { threeScene, model } = createSceneWithLight();
       const service = new ThreeSceneSetupService();
 
       const result = service.bakeContactShadow(
-        new ThreeSceneAdapter(threeScene),
-        new ThreeObject3DAdapter(model),
-        asRenderer(null)
+        threeScene,
+        model,
+        null
       );
 
       expect(result.ok).toBe(true);
@@ -112,9 +113,9 @@ describe('ThreeSceneSetupService contact shadow', () => {
       const service = new ThreeSceneSetupService();
 
       const result = service.bakeContactShadow(
-        new ThreeSceneAdapter(threeScene),
-        new ThreeObject3DAdapter(model),
-        asRenderer(renderer)
+        threeScene,
+        model,
+        renderer
       );
 
       expect(result.ok).toBe(true);
@@ -128,9 +129,9 @@ describe('ThreeSceneSetupService contact shadow', () => {
       const service = new ThreeSceneSetupService();
 
       const result = service.bakeContactShadow(
-        new ThreeSceneAdapter(threeScene),
-        new ThreeObject3DAdapter(model),
-        asRenderer(createMockThreeRenderer())
+        threeScene,
+        model,
+        createMockThreeRenderer()
       );
 
       expect(result.ok).toBe(true);
@@ -150,7 +151,7 @@ describe('ThreeSceneSetupService contact shadow', () => {
       threeScene.add(baked, live);
       const service = new ThreeSceneSetupService();
 
-      const result = service.resetContactShadow(new ThreeSceneAdapter(threeScene));
+      const result = service.resetContactShadow(threeScene);
 
       expect(result.ok).toBe(true);
       expect(threeScene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeUndefined();
@@ -158,9 +159,9 @@ describe('ThreeSceneSetupService contact shadow', () => {
       expect(live.visible).toBe(true);
     });
 
-    it('rejects a scene that is not a ThreeSceneAdapter', () => {
+    it('wraps a failing scene lookup into an error result', () => {
       const service = new ThreeSceneSetupService();
-      const result = service.resetContactShadow({} as never);
+      const result = service.resetContactShadow(sceneFailingWith('getObjectByName'));
       expect(result.ok).toBe(false);
     });
   });
@@ -182,7 +183,7 @@ describe('ThreeSceneSetupService contact shadow', () => {
       const { threeScene, baked, live } = createSceneWithBothShadows();
       const service = new ThreeSceneSetupService();
 
-      const result = service.setContactShadowMode(new ThreeSceneAdapter(threeScene), 'live');
+      const result = service.setContactShadowMode(threeScene, 'live');
 
       expect(result.ok).toBe(true);
       expect(baked.visible).toBe(false);
@@ -192,9 +193,9 @@ describe('ThreeSceneSetupService contact shadow', () => {
     it('switches back to the baked shadow', () => {
       const { threeScene, baked, live } = createSceneWithBothShadows();
       const service = new ThreeSceneSetupService();
-      service.setContactShadowMode(new ThreeSceneAdapter(threeScene), 'live');
+      service.setContactShadowMode(threeScene, 'live');
 
-      const result = service.setContactShadowMode(new ThreeSceneAdapter(threeScene), 'baked');
+      const result = service.setContactShadowMode(threeScene, 'baked');
 
       expect(result.ok).toBe(true);
       expect(baked.visible).toBe(true);
@@ -208,16 +209,16 @@ describe('ThreeSceneSetupService contact shadow', () => {
       threeScene.add(live);
       const service = new ThreeSceneSetupService();
 
-      const result = service.setContactShadowMode(new ThreeSceneAdapter(threeScene), 'baked');
+      const result = service.setContactShadowMode(threeScene, 'baked');
 
       expect(result.ok).toBe(true);
       expect(live.visible).toBe(true);
     });
 
-    it('rejects a scene that is not a ThreeSceneAdapter', () => {
+    it('wraps a failing scene lookup into an error result', () => {
       const service = new ThreeSceneSetupService();
 
-      const result = service.setContactShadowMode({} as unknown as IScene, 'baked');
+      const result = service.setContactShadowMode(sceneFailingWith('getObjectByName'), 'baked');
 
       expect(result.ok).toBe(false);
     });

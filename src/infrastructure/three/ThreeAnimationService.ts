@@ -1,9 +1,7 @@
 import * as THREE from 'three';
 import { IAnimationService } from '../../core/services/IAnimationService';
-import { IObject3D } from '../../core/interfaces/IObject3D';
 import { Result } from '../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../errors';
-import { toThreeObject } from './unwrap';
 
 export class ThreeAnimationService implements IAnimationService {
   private mixer: THREE.AnimationMixer | null = null;
@@ -12,13 +10,9 @@ export class ThreeAnimationService implements IAnimationService {
   private playing = false;
   private speed = 1;
 
-  attach(model: IObject3D): void {
+  attach(model: THREE.Object3D): void {
     this.detach();
-    const target = toThreeObject(model);
-    if (!target) {
-      return;
-    }
-    const clipRoot = findClipBearingNode(target);
+    const clipRoot = findClipBearingNode(model);
     if (clipRoot) {
       this.clips = clipRoot.animations;
       this.mixer = new THREE.AnimationMixer(clipRoot);

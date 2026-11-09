@@ -1,4 +1,4 @@
-import { Vec3Like } from '../../core/interfaces/Vec3Like';
+import { Vec3Like } from '../Vec3Like';
 
 export interface AmbientLightOptions {
   color?: string | number;
