@@ -57,7 +57,7 @@ afterEach(() => jest.restoreAllMocks());
 
 describe('SimpleViewer loading overlay', () => {
   it('shows the overlay while a model is loading', () => {
-    arrange(jest.fn(() => new Promise(() => {}))); // never resolves
+    arrange(jest.fn(() => new Promise(() => {})));
     const { getByTestId } = render(<SimpleViewer object="model.glb" />);
     expect(getByTestId('viewer-loading-overlay')).toHaveAttribute('aria-busy', 'true');
   });
@@ -102,16 +102,13 @@ describe('SimpleViewer loading overlay', () => {
     const { rerender, queryByTestId } = render(<SimpleViewer object="a.glb" />);
     expect(queryByTestId('viewer-loading-overlay')).toBeTruthy();
 
-    // Swap to a new model before the first load resolves.
     rerender(<SimpleViewer object="b.glb" />);
 
-    // The first (now superseded) load resolving must NOT hide the overlay.
     await act(async () => {
       first.resolve(Result.ok(undefined));
     });
     expect(queryByTestId('viewer-loading-overlay')).toBeTruthy();
 
-    // The current load resolving does.
     await act(async () => {
       second.resolve(Result.ok(undefined));
     });

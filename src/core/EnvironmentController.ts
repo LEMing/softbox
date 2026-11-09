@@ -14,40 +14,23 @@ export interface EnvironmentControllerDependencies {
   pathTracing: PathTracingCoordinator;
   environmentService?: IEnvironmentService;
   sceneSetupService?: ISceneSetupService;
-  /** Live view of the viewer's resolved options (the reference is reassigned on merges). */
   getOptions: () => SimpleViewerOptions;
-  /** Merge a partial into the viewer's stored options (deepMerge semantics). */
   mergeOptions: (partial: Partial<SimpleViewerOptions>) => void;
   isDisposed: () => boolean;
-  /** Restart a wound-down render loop so a look change repaints. */
   reviveRenderLoop: () => void;
 }
 
-/**
- * Owns the RUNTIME environment & backdrop changes — the scene's background
- * paint (flat fill or radial studio vignette) and the live environment-map
- * API (`setEnvironmentMap` / `resetEnvironment` / `setBackgroundImage` /
- * `setBackgroundColor`). Pulled out of ViewerCore so the viewer orchestrates
- * lifecycle while this owns the "what dresses the scene right now" concern;
- * the construction-time counterpart is `SceneConfigurator`.
- */
 export class EnvironmentController {
   constructor(private readonly deps: EnvironmentControllerDependencies) {}
 
-  // A flat fill, or a radial studio vignette when a `backgroundColorEdge` is set
-  // (base behind the subject → edge in the corners). Single source of truth so
-  // every backdrop repaint — preset switch, environment reset, solid override —
-  // agrees on flat-vs-radial.
   private backgroundGradient(color: string | number, edge: string | number | undefined) {
     return edge !== undefined
       ? { topColor: String(color), bottomColor: String(edge), radial: true }
       : { topColor: String(color), bottomColor: String(color) };
   }
 
-  /** Runtime repaint of the backdrop (preset switch / options update). */
   applyBackgroundColor(color: string | number): void {
     const options = this.deps.getOptions();
-    // An environment map owns the background when present; don't override it.
     if (options.environment?.url || !this.deps.sceneSetupService) {
       return;
     }
@@ -60,14 +43,8 @@ export class EnvironmentController {
     this.deps.renderLoopManager.requestRender();
   }
 
-  /**
-   * Runtime: replace the environment map (reflections + background) with the HDRI
-   * at `url`. Textures are cached by URL, so toggling the same map on/off is cheap.
-   */
   async setEnvironmentMap(url: string): Promise<Result<void>> {
     if (this.deps.isDisposed()) {
-      // Same contract as the capture APIs: a disposed viewer reports the
-      // failure instead of claiming success for work it never did.
       return Result.err(
         new ThreeViewerError('Viewer is disposed', ErrorCode.INVALID_STATE)
       );
@@ -79,8 +56,6 @@ export class EnvironmentController {
     }
     const loadResult = await this.deps.environmentService.loadEnvironmentMap(url);
     if (this.deps.isDisposed()) {
-      // Same contract as the capture APIs: a disposed viewer reports the
-      // failure instead of claiming success for work it never did.
       return Result.err(
         new ThreeViewerError('Viewer is disposed', ErrorCode.INVALID_STATE)
       );
@@ -89,9 +64,6 @@ export class EnvironmentController {
       return Result.err(loadResult.error);
     }
     const options = this.deps.getOptions();
-    // environmentApplyOptions keeps the configured ground projection across
-    // runtime env swaps — applyToScene clears the previous skybox, and a
-    // hand-copied option block here once silently stripped the projection.
     const applyResult = this.deps.environmentService.applyToScene(this.deps.scene, loadResult.value, {
       ...environmentApplyOptions(options),
       setBackground: true,
@@ -104,14 +76,8 @@ export class EnvironmentController {
     return Result.ok(undefined);
   }
 
-  /**
-   * Runtime: drop back to the built-in studio environment and the clean gradient
-   * background, undoing a prior setEnvironmentMap / setBackgroundImage.
-   */
   resetEnvironment(): Result<void> {
     if (this.deps.isDisposed()) {
-      // Same contract as the capture APIs: a disposed viewer reports the
-      // failure instead of claiming success for work it never did.
       return Result.err(
         new ThreeViewerError('Viewer is disposed', ErrorCode.INVALID_STATE)
       );
@@ -121,8 +87,6 @@ export class EnvironmentController {
         new ThreeViewerError('Environment service unavailable', ErrorCode.INVALID_STATE)
       );
     }
-    // Restore the SAME studio grade the viewer was built with (scenes drive
-    // `environment.studioLook`), not whatever grade happens to be the default.
     const studioResult = this.deps.environmentService.createStudioEnvironment(
       this.deps.getOptions().environment?.studioLook
     );
@@ -146,14 +110,8 @@ export class EnvironmentController {
     return Result.ok(undefined);
   }
 
-  /**
-   * Runtime: paint an uploaded image as the scene backdrop, leaving the studio/HDRI
-   * lighting (scene.environment) untouched.
-   */
   async setBackgroundImage(source: string | File | HTMLImageElement): Promise<Result<void>> {
     if (this.deps.isDisposed()) {
-      // Same contract as the capture APIs: a disposed viewer reports the
-      // failure instead of claiming success for work it never did.
       return Result.err(
         new ThreeViewerError('Viewer is disposed', ErrorCode.INVALID_STATE)
       );
@@ -165,8 +123,6 @@ export class EnvironmentController {
     }
     const result = await this.deps.environmentService.setBackgroundImage(this.deps.scene, source);
     if (this.deps.isDisposed()) {
-      // Same contract as the capture APIs: a disposed viewer reports the
-      // failure instead of claiming success for work it never did.
       return Result.err(
         new ThreeViewerError('Viewer is disposed', ErrorCode.INVALID_STATE)
       );
@@ -174,22 +130,13 @@ export class EnvironmentController {
     if (!result.ok) {
       return result;
     }
-    // A custom backdrop is an explicit opt-out of the projected world — the
-    // skybox mesh would otherwise occlude it completely (silent no-op).
     this.deps.environmentService.removeGroundProjection(this.deps.scene);
     this.repaintAfterEnvironmentChange();
     return Result.ok(undefined);
   }
 
-  /**
-   * Runtime: set a solid background color (e.g. to clear a background image back to
-   * the theme color). Unlike updateOptions this is an explicit override, so it paints
-   * even when an environment URL is configured.
-   */
   setBackgroundColor(color: string | number): Result<void> {
     if (this.deps.isDisposed()) {
-      // Same contract as the capture APIs: a disposed viewer reports the
-      // failure instead of claiming success for work it never did.
       return Result.err(
         new ThreeViewerError('Viewer is disposed', ErrorCode.INVALID_STATE)
       );
@@ -199,8 +146,6 @@ export class EnvironmentController {
         new ThreeViewerError('Scene setup service unavailable', ErrorCode.INVALID_STATE)
       );
     }
-    // An explicit solid override drops any radial vignette; clear the edge so the
-    // stored state matches the flat paint (and a later restore stays flat).
     const result = this.deps.sceneSetupService.createGradientBackground(
       this.deps.scene,
       this.backgroundGradient(color, undefined)
@@ -208,8 +153,6 @@ export class EnvironmentController {
     if (!result.ok) {
       return result;
     }
-    // Same as setBackgroundImage: the projection mesh would occlude the
-    // requested solid backdrop.
     this.deps.environmentService?.removeGroundProjection(this.deps.scene);
     this.deps.mergeOptions({ backgroundColor: color });
     this.deps.getOptions().backgroundColorEdge = undefined;
@@ -223,7 +166,6 @@ export class EnvironmentController {
     if (color === undefined || !this.deps.sceneSetupService) {
       return;
     }
-    // Honour a preset's radial vignette (e.g. dark) so it survives a reset.
     const result = this.deps.sceneSetupService.createGradientBackground(
       this.deps.scene,
       this.backgroundGradient(color, options.backgroundColorEdge)
@@ -234,8 +176,6 @@ export class EnvironmentController {
   }
 
   private repaintAfterEnvironmentChange(): void {
-    // A live path-traced session must re-ingest the new environment/background;
-    // the forced reset re-runs the tracer's scene setup on the next frame.
     this.deps.pathTracing.resetAccumulation(true);
     this.deps.reviveRenderLoop();
     this.deps.renderLoopManager.requestRender();

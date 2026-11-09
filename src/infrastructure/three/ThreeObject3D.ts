@@ -5,13 +5,6 @@ import { ThreeVector3Adapter } from './ThreeVector3';
 import { disposeObject3D } from './disposal';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 
-/**
- * IVector3 view over a THREE.Euler. The rotation shares IVector3 with
- * position/scale on the engine-agnostic surface, but an Euler is NOT a
- * Vector3 — the previous double cast made `normalize()`/`length()` crash on
- * the missing methods. Component reads/writes map 1:1 to the live Euler; the
- * vector-space operations act on the raw component triple.
- */
 class ThreeEulerAdapter implements IVector3 {
   constructor(private readonly euler: THREE.Euler) {}
 
@@ -62,9 +55,6 @@ class ThreeEulerAdapter implements IVector3 {
   }
 }
 
-/**
- * Adapter for Three.js Object3D to implement IObject3D
- */
 export class ThreeObject3DAdapter implements IObject3D {
   private readonly positionAdapter: ThreeVector3Adapter;
   private readonly rotationAdapter: ThreeEulerAdapter;
@@ -184,12 +174,10 @@ export class ThreeObject3DAdapter implements IObject3D {
     disposeObject3D(this.object);
   }
 
-  // Get the underlying Three.js object
   getThreeObject(): THREE.Object3D {
     return this.object;
   }
 
-  // Static factory methods
   static fromThreeObject(object: THREE.Object3D): ThreeObject3DAdapter {
     return new ThreeObject3DAdapter(object);
   }

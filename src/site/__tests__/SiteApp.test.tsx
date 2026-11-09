@@ -97,8 +97,6 @@ const clickModel = (point = { x: 1, y: 2, z: 3 }) => {
 };
 
 beforeAll(() => {
-  // jsdom has no matchMedia; pretend every query matches so the media-gated
-  // chrome (snippet, still button) renders.
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
     value: jest.fn().mockImplementation((query: string) => ({
@@ -210,13 +208,11 @@ describe('SiteApp motion toggles', () => {
   it('offers the Variant picker only for variant-bearing models and reflects the pick', () => {
     (viewerMock as unknown as { __variants: string[] }).__variants = [];
     render(<SiteApp />);
-    // No variants reported → no Variant row.
     act(() => {
       viewerMock.__events.emit('model:loaded', { model: {} as never, loadTime: 1 });
     });
     expect(screen.queryByRole('group', { name: 'Variant' })).not.toBeInTheDocument();
 
-    // A variants-bearing model loads → the row appears; picking wires the option.
     (viewerMock as unknown as { __variants: string[] }).__variants = ['midnight', 'beach'];
     act(() => {
       viewerMock.__events.emit('model:loaded', { model: {} as never, loadTime: 1 });
@@ -227,7 +223,6 @@ describe('SiteApp motion toggles', () => {
       "variant: 'beach'"
     );
 
-    // The `default` chip is the way back to the authored materials.
     fireEvent.click(screen.getByRole('button', { name: 'default' }));
     expect(screen.getByTestId('viewer')).toHaveAttribute('data-variant', '');
     expect(screen.getByText(/SimpleViewer/, { selector: 'pre' })).not.toHaveTextContent('variant:');
@@ -235,7 +230,6 @@ describe('SiteApp motion toggles', () => {
 
   it('switches the scene through the Scene picker and reflects it in the snippet', () => {
     render(<SiteApp />);
-    // The default scene reaches the viewer and stays out of the snippet.
     expect(screen.getByTestId('viewer')).toHaveAttribute('data-scene', 'studio_dome');
     expect(screen.queryByText(/scene:/, { selector: 'pre' })).not.toBeInTheDocument();
 

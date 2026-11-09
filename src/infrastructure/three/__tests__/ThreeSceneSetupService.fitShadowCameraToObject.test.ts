@@ -14,7 +14,6 @@ describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
     light.shadow.camera.bottom = -50;
     threeScene.add(light);
 
-    // A tiny 0.06m object (avocado-scale).
     const object = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.06));
     threeScene.add(object);
 
@@ -42,7 +41,6 @@ describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
     light.shadow.camera.bottom = -50;
     threeScene.add(light);
 
-    // A large 200m object — bigger than the original fixed ±50 frustum.
     const object = new THREE.Mesh(new THREE.BoxGeometry(200, 10, 10));
     threeScene.add(object);
 
@@ -61,8 +59,6 @@ describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
     const light = new THREE.DirectionalLight('#ffffff', 2);
     light.position.set(40, 90, 40);
     light.castShadow = true;
-    // The configured fixed span: bias × (far − near) ≈ 2cm in world space at
-    // ANY model size — which erases a 6cm object's entire contact shadow.
     light.shadow.camera.near = 0.5;
     light.shadow.camera.far = 200;
     threeScene.add(light);
@@ -80,8 +76,6 @@ describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
     expect(result.ok).toBe(true);
     const camera = light.shadow.camera;
     const lightDistance = light.position.distanceTo(light.target.position);
-    // The span hugs the object (2 × the fitted half-extent), so the same
-    // normalized bias now offsets by a model-proportional world distance.
     expect(camera.far - camera.near).toBeLessThan(1);
     expect(camera.near).toBeLessThan(lightDistance);
     expect(camera.far).toBeGreaterThan(lightDistance);
@@ -129,9 +123,6 @@ describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
     threeScene.add(light);
     threeScene.add(light.target);
 
-    // The frustum is centered on the light's position→target axis; with the
-    // target left at the origin, a model out at x=100 falls entirely outside
-    // it and casts nothing.
     const object = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2));
     object.position.set(100, 1, -40);
     threeScene.add(object);
@@ -155,8 +146,6 @@ describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
 
   it('never re-aims a light embedded in the loaded model (parent-space coordinates)', () => {
     const threeScene = new THREE.Scene();
-    // A GLB-authored light arrives nested inside the model's own hierarchy,
-    // with its target parented to the light (GLTFLoader punctual lights).
     const modelRoot = new THREE.Group();
     modelRoot.position.set(10, 0, 10);
     const embeddedLight = new THREE.DirectionalLight('#ffffff', 1);
@@ -177,12 +166,9 @@ describe('ThreeSceneSetupService.fitShadowCameraToObject', () => {
     );
 
     expect(result.ok).toBe(true);
-    // World-space centers written into parent-space coordinates would
-    // scramble the author's lighting — position and target must not move.
     expect(embeddedLight.position.x).toBeCloseTo(0);
     expect(embeddedLight.position.y).toBeCloseTo(5);
     expect(embeddedLight.target.position.z).toBeCloseTo(-1);
-    // The frustum fit itself still applies.
     expect(embeddedLight.shadow.camera.right).toBeGreaterThan(0);
   });
 

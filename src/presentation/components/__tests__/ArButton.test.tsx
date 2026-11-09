@@ -84,7 +84,6 @@ describe('ArButton', () => {
     });
 
     expect(screen.queryByTestId('viewer-ar-button')).not.toBeInTheDocument();
-    // The beacon hash is stripped so it cannot re-trigger or leak into URLs.
     expect(window.location.hash).toBe('');
   });
 
@@ -97,7 +96,6 @@ describe('ArButton', () => {
     expect(screen.getByTestId('viewer-ar-button')).toHaveStyle({ bottom: '64px' });
 
     rerender(<ArButton source={HTTPS_GLB} options={{ placement: 'top-right' }} clearPresetRow />);
-    // Top placements have nothing to clear.
     expect(screen.getByTestId('viewer-ar-button')).toHaveStyle({ top: '16px', right: '16px' });
   });
 });

@@ -3,17 +3,11 @@ import { createGradientBackground } from '../gradientBackground';
 import { IScene } from '../../../../core/interfaces/IScene';
 import { ErrorCode } from '../../../../errors';
 
-/** createGradientBackground unwraps a raw three Scene at runtime; cast for TS. */
 const paint = (
   scene: unknown,
   options: Parameters<typeof createGradientBackground>[1]
 ) => createGradientBackground(scene as IScene, options);
 
-/**
- * jsdom ships no 2D canvas, so `getContext('2d')` returns null by default and
- * the real gradient code never runs. Stub it with a fake context that records
- * which gradient factory was used and the colour stops it received.
- */
 function stubCanvas2D() {
   const gradient = { addColorStop: jest.fn() };
   const context = {
@@ -59,12 +53,10 @@ describe('createGradientBackground', () => {
     });
 
     expect(result.ok).toBe(true);
-    // Centre lifted above the middle, outer radius reaching the corners.
     expect(context.createRadialGradient).toHaveBeenCalledWith(256, 205, 0, 256, 256, 380);
     expect(context.createLinearGradient).not.toHaveBeenCalled();
     expect(canvases[0].width).toBe(512);
     expect(canvases[0].height).toBe(512);
-    // Centre colour behind the subject, darker edge in the corners.
     expect(gradient.addColorStop).toHaveBeenCalledWith(0, '#242430');
     expect(gradient.addColorStop).toHaveBeenCalledWith(1, '#050507');
     expect(scene.background).toBeInstanceOf(THREE.CanvasTexture);

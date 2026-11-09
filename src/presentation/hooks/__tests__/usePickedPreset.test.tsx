@@ -45,7 +45,6 @@ describe('usePickedPreset', () => {
     act(() => result.current.selectPreset('dark'));
     act(() => result.current.selectPreset('outdoor'));
 
-    // The echo of the FIRST pick lands after the second — must not revert.
     rerender({ consumer: 'dark' });
     expect(result.current.activePreset).toBe('outdoor');
 

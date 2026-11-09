@@ -1,7 +1,5 @@
 export const gltfInstances: GLTFLoader[] = [];
 
-/** Tests set this to make the next load yield a specific gltf shape (e.g. a
- * variants-bearing model); cleared by resetGltfMock. */
 let nextGltf: object | null = null;
 export const setNextGltf = (gltf: object | null) => {
   nextGltf = gltf;
@@ -15,9 +13,6 @@ export class GLTFLoader {
       _onProgress?: (progress: unknown) => void,
       onError?: (error: unknown) => void
     ) => {
-      // The real loader invokes onLoad inside a promise chain whose catch
-      // routes a throwing callback to onError — mirror that, or tests of the
-      // error path would reject the whole load() promise instead.
       try {
         onLoad?.(
           (nextGltf as { scene: object; animations: unknown[] } | null) ?? {

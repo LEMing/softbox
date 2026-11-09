@@ -6,14 +6,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { MapControls } from 'three/examples/jsm/controls/MapControls';
 
-// Define proper types for the Gizmo mock
 interface GizmoProps {
   camera: THREE.Camera;
   controls: OrbitControls | MapControls;
   render: () => void;
 }
 
-// Mock threedgizmo module
 jest.mock('threedgizmo', () => ({
   Gizmo: ({ camera, controls, render: _render }: GizmoProps) => (
     <div data-testid="gizmo-component">
@@ -29,14 +27,11 @@ describe('ViewerGizmo', () => {
   let mockRender: jest.Mock;
 
   beforeEach(() => {
-    // Create mock camera
     mockCamera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
     
-    // Create mock controls
     const mockCanvas = document.createElement('canvas');
     mockControls = new OrbitControls(mockCamera, mockCanvas);
     
-    // Create mock render function
     mockRender = jest.fn();
   });
 
@@ -102,7 +97,6 @@ describe('ViewerGizmo', () => {
       right: '10px'
     });
 
-    // Test other placements
     rerender(
       <ViewerGizmo
         camera={mockCamera}

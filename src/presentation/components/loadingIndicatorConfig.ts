@@ -12,16 +12,9 @@ const DEFAULTS: ResolvedLoadingIndicator = {
   enabled: true,
   label: 'Loading…',
   color: '#ffffff',
-  // Scrim dark enough that the white spinner stays legible (>4.5:1) on BOTH the
-  // default light background (#f0f0f7) and dark studio mode.
   backdrop: 'rgba(15,16,20,0.6)',
 };
 
-/**
- * Normalize the `loadingIndicator` option (`undefined | boolean | object`) into
- * a concrete config. Omitted/`true` enables the default overlay; `false`
- * disables it; an object overrides individual fields.
- */
 export function resolveLoadingIndicator(
   option: boolean | LoadingIndicatorOptions | undefined
 ): ResolvedLoadingIndicator {

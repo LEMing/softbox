@@ -16,7 +16,6 @@ export class TypedEventEmitter<T> {
       eventListeners.add(listener as EventListener<unknown>);
     }
     
-    // Return unsubscribe function
     return () => {
       this.listeners.get(event)?.delete(listener as EventListener<unknown>);
     };
@@ -55,16 +54,10 @@ export class TypedEventEmitter<T> {
     return this.listeners.get(event)?.size || 0;
   }
   
-  /**
-   * Alias for removing a listener (compatible with Node.js EventEmitter)
-   */
   off<K extends keyof T>(event: K, listener: (data: T[K]) => void): void {
     this.listeners.get(event)?.delete(listener as EventListener<unknown>);
   }
   
-  /**
-   * Alias for on (compatible with Node.js EventEmitter)
-   */
   removeListener<K extends keyof T>(event: K, listener: (data: T[K]) => void): void {
     this.off(event, listener);
   }

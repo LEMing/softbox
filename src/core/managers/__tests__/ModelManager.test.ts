@@ -25,12 +25,10 @@ describe('ModelManager', () => {
   let mockEvents: TypedEventEmitter<ViewerEventMap>;
 
   beforeEach(() => {
-    // Mock model loader
     mockModelLoader = {
       load: jest.fn()
     } as unknown as jest.Mocked<IModelLoader>;
 
-    // Mock scene
     mockScene = {
       add: jest.fn().mockReturnValue(Result.ok(undefined)),
       remove: jest.fn().mockReturnValue(Result.ok(undefined)),
@@ -38,7 +36,6 @@ describe('ModelManager', () => {
       traverse: jest.fn()
     } as unknown as jest.Mocked<IScene>;
 
-    // Mock camera and controls
     mockCamera = {
       type: 'perspective',
       updateProjectionMatrix: jest.fn()
@@ -49,7 +46,6 @@ describe('ModelManager', () => {
       dispose: jest.fn()
     } as unknown as jest.Mocked<IControls>;
 
-    // Mock services
     mockFloorAlignmentService = {
       alignToFloor: jest.fn().mockReturnValue(Result.ok(undefined))
     } as unknown as jest.Mocked<IFloorAlignmentService>;
@@ -65,10 +61,8 @@ describe('ModelManager', () => {
       wrapInUnitsScaleGroup: jest.fn()
     } as unknown as jest.Mocked<ISceneSetupService>;
 
-    // Create event emitter
     mockEvents = new TypedEventEmitter<ViewerEventMap>();
 
-    // Create model manager
     modelManager = new ModelManager({
       modelLoader: mockModelLoader,
       scene: mockScene,
@@ -94,7 +88,6 @@ describe('ModelManager', () => {
       beforeEach(() => {
         mockModel = {
           traverse: jest.fn((callback: (obj: unknown) => void) => {
-            // Simulate traversing children
             const child = { castShadow: false, receiveShadow: false };
             callback(child);
           }),
@@ -131,14 +124,11 @@ describe('ModelManager', () => {
 
         const names = modelManager.getVariantNames();
         expect(names).toEqual(['beach', 'midnight']);
-        // Mutating the returned array must not defeat name validation.
         names.push('forged');
         expect(modelManager.getVariantNames()).toEqual(['beach', 'midnight']);
       });
 
       it('ignores an authored `variants` root extra (no KHR extension)', async () => {
-        // GLTFLoader copies root extras verbatim into gltf.userData — app
-        // metadata must not masquerade as colorways and grow a dead picker.
         mockModelLoader.load.mockResolvedValue(Result.ok({
           scene: mockModel,
           animations: [],
@@ -154,8 +144,6 @@ describe('ModelManager', () => {
         await modelManager.loadModel('https://cdn.x/a.glb', mockEvents);
         expect(modelManager.getCurrentModelUrl()).toBe('https://cdn.x/a.glb');
 
-        // The AR handoff keys off this: an object swap must null it even
-        // though getLastModelUrl (the restoration bookmark) keeps the URL.
         await modelManager.loadModel(mockModel, mockEvents);
         expect(modelManager.getCurrentModelUrl()).toBeNull();
         expect(modelManager.getLastModelUrl()).toBe('https://cdn.x/a.glb');
@@ -245,22 +233,16 @@ describe('ModelManager', () => {
       it('fits the shadow camera during the load, but never bakes (the viewer defers the bake)', async () => {
         await modelManager.loadModel('test.glb', mockEvents);
 
-        // The fit is cheap and the live realtime shadow needs it immediately.
         expect(mockSceneSetupService.fitShadowCameraToObject).toHaveBeenCalledWith(
           mockScene,
           mockModel
         );
-        // The bake is a synchronous multi-pass render that would hold the
-        // loading overlay (and the first paint) hostage on a weak GPU —
-        // ViewerCore schedules it past the first painted frame instead.
         expect(mockSceneSetupService.bakeContactShadow).not.toHaveBeenCalled();
       });
 
       it('evicts the previous model\'s stale baked disc during the load', async () => {
         await modelManager.loadModel('test.glb', mockEvents);
 
-        // The new model's bake is deferred; without this the OLD model's baked
-        // shadow (wrong shape/size/position) would show for the whole window.
         expect(mockSceneSetupService.resetContactShadow).toHaveBeenCalledWith(mockScene);
       });
 
@@ -313,11 +295,9 @@ describe('ModelManager', () => {
       });
 
       it('should dispose previous model', async () => {
-        // Load first model
         await modelManager.loadModel('model1.glb', mockEvents);
         const firstModel = modelManager.getCurrentModel();
 
-        // Load second model
         await modelManager.loadModel('model2.glb', mockEvents);
 
         expect(mockScene.remove).toHaveBeenCalledWith(firstModel);
@@ -401,7 +381,6 @@ describe('ModelManager', () => {
           animations: []
         }));
 
-        // Make services fail
         mockFloorAlignmentService.alignToFloor.mockReturnValue(
           Result.err(new ThreeViewerError('Align failed', ErrorCode.OPERATION_FAILED))
         );
@@ -411,10 +390,8 @@ describe('ModelManager', () => {
 
         const result = await modelManager.loadModel('test.glb', mockEvents);
 
-        // Should still succeed
         expect(result.ok).toBe(true);
         
-        // Should warn about failures
         expect(consoleWarnSpy).toHaveBeenCalledWith(
           'Failed to align model to floor:',
           expect.any(ThreeViewerError)
@@ -485,8 +462,6 @@ describe('ModelManager', () => {
       await modelManager.loadModel('test.glb', mockEvents);
       modelManager.disposeCurrentModel();
 
-      // ModelManager delegates to object.dispose(); the actual geometry/material/
-      // texture/shadow disposal is covered by disposal.test.ts against real THREE.
       expect(mockModel.dispose).toHaveBeenCalledTimes(1);
     });
   });

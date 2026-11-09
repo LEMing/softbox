@@ -8,9 +8,6 @@ import { IVector3 } from '../../core/interfaces/IObject3D';
 import { ThreeObject3DAdapter } from './ThreeObject3D';
 import { ThreeVector3Adapter } from './ThreeVector3';
 
-/**
- * Base adapter for Three.js cameras
- */
 export abstract class ThreeCameraAdapter extends ThreeObject3DAdapter implements ICamera {
   protected camera: THREE.Camera;
 
@@ -65,23 +62,15 @@ export abstract class ThreeCameraAdapter extends ThreeObject3DAdapter implements
     target.set(threeVector.x, threeVector.y, threeVector.z);
   }
 
-  /**
-   * Get the internal Three.js camera
-   * Implementation of IRendererExtension interface
-   */
   getInternalRenderer(): THREE.Camera | null {
     return this.camera;
   }
   
-  // The canonical unwrap surface (consumed by unwrap.ts via duck-typing).
   getThreeCamera(): THREE.Camera {
     return this.camera;
   }
 }
 
-/**
- * Adapter for Three.js PerspectiveCamera
- */
 export class ThreePerspectiveCameraAdapter extends ThreeCameraAdapter implements IPerspectiveCamera {
   private perspectiveCamera: THREE.PerspectiveCamera;
 
@@ -123,9 +112,6 @@ export class ThreePerspectiveCameraAdapter extends ThreeCameraAdapter implements
   }
 }
 
-/**
- * Adapter for Three.js OrthographicCamera
- */
 export class ThreeOrthographicCameraAdapter extends ThreeCameraAdapter implements IOrthographicCamera {
   private orthographicCamera: THREE.OrthographicCamera;
 

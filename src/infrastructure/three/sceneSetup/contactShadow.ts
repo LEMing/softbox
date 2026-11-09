@@ -40,8 +40,6 @@ export function bakeContactShadow(
       );
     }
 
-    // No usable WebGL renderer (headless/SSR) or shadows disabled — the
-    // live catcher, if any, stays in charge.
     const threeRenderer = toThreeRenderer(renderer);
     if (!threeRenderer || !threeRenderer.shadowMap.enabled) {
       return Result.ok(undefined);
@@ -71,13 +69,6 @@ export function bakeContactShadow(
   }
 }
 
-/**
- * Evict any (stale) baked contact-shadow disc and put the live realtime
- * catcher back in charge. Called at the start of a model load: the new
- * model's bake is deferred past the first painted frames, and without this
- * the PREVIOUS model's baked shadow would keep showing underneath it for the
- * whole deferral window.
- */
 export function resetContactShadow(scene: IScene): Result<void> {
   try {
     const threeScene = toThreeScene(scene);
@@ -117,8 +108,6 @@ export function setContactShadowMode(scene: IScene, mode: ContactShadowMode): Re
     const baked = threeScene.getObjectByName(CONTACT_SHADOW_BAKED_NAME);
     const live = threeScene.getObjectByName(CONTACT_SHADOW_LIVE_NAME);
 
-    // Without a baked shadow there is nothing to switch to — keep the live
-    // catcher up rather than leaving the floor shadowless.
     if (mode === 'baked' && !baked) {
       return Result.ok(undefined);
     }

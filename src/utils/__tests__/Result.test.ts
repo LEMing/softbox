@@ -141,13 +141,11 @@ describe('Result', () => {
       const errorResult: Result<string> = Result.err(new ThreeViewerError('Error', ErrorCode.UNKNOWN));
       
       if (successResult.ok) {
-        // TypeScript should know this is the success case
         const value: string = successResult.value;
         expect(value).toBe('value');
       }
       
       if (!errorResult.ok) {
-        // TypeScript should know this is the error case
         const error: ThreeViewerError = errorResult.error;
         expect(error.message).toBe('Error');
       }

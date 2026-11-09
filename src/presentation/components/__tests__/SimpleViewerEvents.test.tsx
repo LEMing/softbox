@@ -9,8 +9,6 @@ import { ViewerEventMap } from '../../../core/events/CoreViewerEvents';
 import { ThreeObject3DAdapter } from '../../../infrastructure/three/ThreeObject3D';
 import * as THREE from 'three';
 
-// Keep the REAL useViewerEventHandlers (it does the forwarding under test) and
-// only stub useViewerCore so we control the viewer's core event bus.
 jest.mock('../../hooks', () => {
   const actual = jest.requireActual('../../hooks');
   return { ...actual, useViewerCore: jest.fn() };
@@ -48,7 +46,6 @@ describe('SimpleViewer event forwarding', () => {
       coreBus.emit('model:loading', { url: 'x.glb' });
     });
 
-    // The documented "roll your own from events" path must actually receive it.
     expect(onLoading).toHaveBeenCalledWith({ url: 'x.glb' });
   });
 

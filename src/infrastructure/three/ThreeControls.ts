@@ -5,9 +5,6 @@ import { IVector3 } from '../../core/interfaces/IObject3D';
 import { ThreeVector3Adapter } from './ThreeVector3';
 import * as THREE from 'three';
 
-/**
- * Base adapter for Three.js controls
- */
 abstract class ThreeControlsAdapter {
   protected targetAdapter: ThreeVector3Adapter;
 
@@ -165,15 +162,12 @@ abstract class ThreeControlsAdapter {
   }
 
   connect(_domElement: HTMLElement): void {
-    // Three.js controls connect automatically in constructor
-    // This method is for compatibility with our interface
   }
 
   disconnect(): void {
     this.controls.dispose();
   }
 
-  // MapControls extends OrbitControls, so both flavors support the turntable.
   get autoRotate(): boolean {
     return this.controls.autoRotate;
   }
@@ -195,9 +189,6 @@ abstract class ThreeControlsAdapter {
   }
 }
 
-/**
- * Adapter for Three.js OrbitControls
- */
 export class ThreeOrbitControlsAdapter extends ThreeControlsAdapter implements IOrbitControls {
   constructor(camera: THREE.Camera, domElement: HTMLElement) {
     super(new OrbitControls(camera, domElement));
@@ -208,14 +199,10 @@ export class ThreeOrbitControlsAdapter extends ThreeControlsAdapter implements I
   }
 }
 
-/**
- * Adapter for Three.js MapControls
- */
 export class ThreeMapControlsAdapter extends ThreeControlsAdapter implements IMapControls {
   constructor(camera: THREE.Camera, domElement: HTMLElement) {
     const controls = new MapControls(camera, domElement);
     super(controls);
-    // MapControls always use screen space panning
     controls.screenSpacePanning = true;
   }
 
@@ -228,6 +215,5 @@ export class ThreeMapControlsAdapter extends ThreeControlsAdapter implements IMa
   }
 
   set screenSpacePanning(value: true) {
-    // MapControls always use screen space panning
   }
 }

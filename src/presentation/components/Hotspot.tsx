@@ -2,14 +2,8 @@ import React, { useEffect, useRef } from 'react';
 import { useViewerContext } from './ViewerContext';
 
 export interface HotspotProps {
-  /** World-space anchor point, e.g. a `point` from the `object:selected` event. */
   position: [number, number, number];
-  /**
-   * Hide the hotspot when the model occludes its anchor point (a raycast per
-   * rendered frame). Off by default.
-   */
   occlude?: boolean;
-  /** Pin content; without children a default dot pin is rendered. */
   children?: React.ReactNode;
 }
 
@@ -28,14 +22,6 @@ const DefaultPin = () => (
   />
 );
 
-/**
- * A DOM annotation anchored to a world-space point of the scene. Render it as
- * a child of `SimpleViewer`; the anchor is projected through the camera after
- * every rendered frame, so it tracks orbiting, zooming and resizes. Points
- * behind the camera are hidden; `occlude` also hides it when the model covers
- * the anchor. The projection math lives behind the viewer's anchor-projection
- * port — this component only wires events to DOM styles.
- */
 export function Hotspot({ position, occlude = false, children }: HotspotProps) {
   const { viewer } = useViewerContext();
   const elementRef = useRef<HTMLDivElement>(null);
@@ -58,7 +44,6 @@ export function Hotspot({ position, occlude = false, children }: HotspotProps) {
     const update = () => {
       const projection = projector.project(anchor, occlude);
       if (!projection) {
-        // Nothing affecting the projection changed — keep the placement.
         return;
       }
       if (!projection.visible) {
@@ -70,8 +55,6 @@ export function Hotspot({ position, occlude = false, children }: HotspotProps) {
       element.style.top = `${projection.top}px`;
     };
 
-    // model:loaded may change occlusion without moving the camera; force a
-    // full recompute.
     const invalidateAndUpdate = () => {
       projector.invalidate();
       update();
@@ -84,8 +67,6 @@ export function Hotspot({ position, occlude = false, children }: HotspotProps) {
       events.on('controls:change', update),
       events.on('model:loaded', invalidateAndUpdate),
     ];
-    // ViewerCore.resize() renders directly (no render:complete), so track
-    // window resizes too; the size guard makes redundant calls free.
     window.addEventListener('resize', invalidateAndUpdate);
     return () => {
       unsubscribe.forEach((off) => off());
@@ -93,7 +74,6 @@ export function Hotspot({ position, occlude = false, children }: HotspotProps) {
     };
   }, [viewer, x, y, z, occlude]);
 
-  // false/null (e.g. `{showLabel && <Card />}`) falls back to the default pin.
   const hasChildren = children !== undefined && children !== null && children !== false;
 
   return (
@@ -106,10 +86,7 @@ export function Hotspot({ position, occlude = false, children }: HotspotProps) {
         top: 0,
         transform: 'translate(-50%, -50%)',
         visibility: 'hidden',
-        // Below the built-in chrome (preset picker z10, loading overlay z20).
         zIndex: 5,
-        // The passive default pin must not block orbiting or click-picking;
-        // interactive custom children keep receiving pointer events.
         pointerEvents: hasChildren ? 'auto' : 'none',
       }}
     >

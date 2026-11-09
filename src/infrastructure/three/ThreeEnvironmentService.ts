@@ -21,11 +21,7 @@ import { isPrefilteredEnvironment } from './prefilteredEnvironment';
 import { RendererWithInternalAccess } from '../../types/CommonTypes';
 import { DEFAULT_STUDIO_LOOK, StudioLook } from '../../types/options';
 
-/** Cube face size for the studio-room capture the path tracer ingests:
- * enough for soft studio lighting (the tracer blurs it into an equirect
- * anyway), cheap enough to bake once per session. */
 const STUDIO_CUBE_CAPTURE_SIZE = 256;
-/** Near/far span covering the RoomEnvironment's ~10m procedural room. */
 const STUDIO_CUBE_NEAR_METERS = 0.1;
 const STUDIO_CUBE_FAR_METERS = 100;
 
@@ -33,13 +29,8 @@ type SceneWithOriginalTexture = THREE.Scene & {
   __originalEnvironmentTexture?: THREE.Texture;
 };
 
-/** Scene-graph name of the ground-projected skybox mesh, for lookup/removal. */
 export const GROUNDED_SKYBOX_NAME = 'softbox-grounded-skybox';
 
-/** One session bake of the studio room: the PMREM the raster pipeline lights
- * with plus the cube capture the path tracer reads. The capture is
- * best-effort — `null` when it failed (the raster look is unaffected, path
- * tracing just gets no studio environment). */
 interface StudioBake {
   pmremTexture: THREE.Texture;
   cubeTarget: THREE.WebGLCubeRenderTarget | null;
@@ -49,28 +40,16 @@ export class ThreeEnvironmentService implements IEnvironmentService {
   private pmremGenerator: THREE.PMREMGenerator | null = null;
   private threeRenderer: THREE.WebGLRenderer | null = null;
   private loadedTextures: Map<string, THREE.Texture> = new Map();
-  // PMREM outputs live in render targets; disposing only their .texture leaks
-  // one FBO per build, so the targets themselves are retained and freed.
   private renderTargets: THREE.WebGLRenderTarget[] = [];
-  // Session bakes of the procedural studio room, one per grade (`crisp` /
-  // `soft`): each holds the PMREM plus the cube capture the path tracer needs
-  // (it cannot read PMREM's packed CubeUV layout, but converts a plain cube
-  // texture to the equirectangular map it wants by itself).
   private readonly studioBakes = new Map<StudioLook, StudioBake>();
-  // Each PMREM texture mapped to the source the path tracer can actually read
-  // (the loaded equirect, or the studio cube capture). applyToScene receives
-  // only the PMREM, and scanning the cache for "any _original" instead binds
-  // every later environment to the FIRST one ever loaded.
   private readonly originalByPmrem = new WeakMap<THREE.Texture, THREE.Texture>();
   private disposed = false;
 
   constructor() {
-    // PMREMGenerator will be created when initialize is called with a renderer
   }
 
   async initialize(options: IEnvironmentOptions): Promise<Result<void>> {
     try {
-      // Get the Three.js renderer
       const rendererAccess = options.renderer as RendererWithInternalAccess;
       const threeRenderer = rendererAccess.renderer ||
         rendererAccess.getThreeRenderer?.();
@@ -102,13 +81,11 @@ export class ThreeEnvironmentService implements IEnvironmentService {
 
   async loadEnvironmentMap(url: string): Promise<Result<ITexture>> {
     try {
-      // Check cache
       const cachedTexture = this.loadedTextures.get(url);
       if (cachedTexture) {
         return Result.ok(new ThreeTextureAdapter(cachedTexture));
       }
 
-      // Determine loader based on file extension
       const extension = url.split('.').pop()?.toLowerCase();
       let loader: RGBELoader | EXRLoader | THREE.TextureLoader;
 
@@ -134,7 +111,6 @@ export class ThreeEnvironmentService implements IEnvironmentService {
           );
       }
 
-      // Load texture
       const texture = await new Promise<THREE.Texture>((resolve, reject) => {
         loader.load(
           url,
@@ -146,8 +122,6 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         );
       });
 
-      // The service can be torn down while the fetch is in flight (StrictMode
-      // remount, fast structural rebuild) — don't cache into a disposed store.
       if (this.disposed) {
         texture.dispose();
         return Result.err(
@@ -159,18 +133,13 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         );
       }
 
-      // Process with PMREM for environment mapping
       if (this.pmremGenerator) {
-        // Set the mapping for equirectangular projection
         texture.mapping = THREE.EquirectangularReflectionMapping;
 
         const renderTarget = this.pmremGenerator.fromEquirectangular(texture);
         this.renderTargets.push(renderTarget);
         const pmremTexture = renderTarget.texture;
-        // Keep the original texture for path tracing
-        // texture.dispose(); // Don't dispose - path tracer needs the original
         
-        // Store both textures - PMREM for standard rendering, original for path tracing
         this.loadedTextures.set(url, pmremTexture);
         this.loadedTextures.set(url + '_original', texture);
         this.originalByPmrem.set(pmremTexture, texture);
@@ -213,10 +182,8 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         );
       }
 
-      // Set environment for reflections
       threeScene.environment = threeTexture;
       
-      // Apply blur and intensity settings if provided
       if (options) {
         if (options.backgroundBlurriness !== undefined) {
           threeScene.backgroundBlurriness = options.backgroundBlurriness;
@@ -229,31 +196,17 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         }
       }
       
-      // Also hand the path tracer a source it can read: the tracer cannot
-      // consume PMREM's packed CubeUV layout, so a PMREM environment resolves
-      // through originalByPmrem to ITS OWN source (the loaded equirect, or the
-      // studio cube capture) — never to whichever original happens to sit
-      // first in the cache.
       const original = this.originalByPmrem.get(threeTexture);
       if (isPrefilteredEnvironment(threeTexture)) {
         if (original) {
           (threeScene as SceneWithOriginalTexture).__originalEnvironmentTexture = original;
         } else {
-          // No readable source for this PMREM (the studio cube capture can
-          // fail soft): clear any stale original from a previously applied
-          // environment so the tracer's PMREM-without-original give-up path
-          // engages instead of ingesting the old environment's light.
           delete (threeScene as SceneWithOriginalTexture).__originalEnvironmentTexture;
         }
       } else if (threeTexture.mapping === THREE.EquirectangularReflectionMapping) {
-        // Already equirectangular — usable by the tracer directly.
         (threeScene as SceneWithOriginalTexture).__originalEnvironmentTexture = threeTexture;
       }
 
-      // For the visible backdrop prefer the matching equirect original: a PMREM
-      // texture used as background renders as a weird low-res sphere. The studio
-      // cube capture is not equirect and never reaches here as a backdrop (the
-      // studio path applies with setBackground: false).
       if (options?.setBackground ?? true) {
         disposeViewerOwnedBackground(threeScene);
         if (
@@ -266,9 +219,6 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         }
       }
 
-      // Ground projection: every environment application clears the previous
-      // skybox (a stale one would keep painting the OLD environment's world);
-      // one is (re)built only when requested and an equirect source exists.
       this.removeGroundedSkybox(threeScene);
       const equirect =
         threeTexture.mapping === THREE.EquirectangularReflectionMapping
@@ -297,15 +247,6 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     }
   }
 
-  /**
-   * A GroundedSkybox projects the equirect environment onto a virtual ground
-   * plane so the model appears to STAND in the world instead of floating in
-   * front of a backdrop. It is a raster-only presentation trick: the mesh is
-   * flagged like the other shadow helpers so the path tracer's ingest hides
-   * it and lights from the equirect environment directly (an enclosing
-   * projected sphere would occlude that env exactly like the studio dome
-   * would).
-   */
   private addGroundedSkybox(
     threeScene: THREE.Scene,
     equirect: THREE.Texture,
@@ -315,16 +256,10 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     const skybox = new GroundedSkybox(equirect, projection.height, projection.radius);
     skybox.name = GROUNDED_SKYBOX_NAME;
     skybox.userData[CONTACT_SHADOW_HELPER_FLAG] = true;
-    // The skybox IS the backdrop: the screenshot flow's keepBackgrounds pass
-    // must leave it alive, exactly like scene.background.
     skybox.userData[BACKGROUND_NODE_FLAG] = true;
     const materials = Array.isArray(skybox.material) ? skybox.material : [skybox.material];
     for (const material of materials) {
-      // The map is the cache-owned equirect that scene.background and the
-      // path tracer still reference — canonical disposal must not free it.
       material.userData[EXTERNALLY_OWNED_TEXTURES_FLAG] = true;
-      // The skybox occludes scene.background, so scene.backgroundIntensity
-      // can't reach it; emulate the dimming on the mesh itself.
       if (backgroundIntensity !== undefined && 'color' in material) {
         (material as THREE.MeshBasicMaterial).color.setScalar(backgroundIntensity);
       }
@@ -340,7 +275,6 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     }
   }
 
-  /** Remove and free a previous ground projection (its map is cache-owned). */
   private removeGroundedSkybox(threeScene: THREE.Scene): void {
     const existing = threeScene.getObjectByName(GROUNDED_SKYBOX_NAME) as THREE.Mesh | undefined;
     if (!existing) {
@@ -352,19 +286,11 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     materials.forEach((material) => material.dispose());
   }
 
-  /**
-   * Get the original environment texture (for path tracing)
-   */
   getOriginalEnvironmentTexture(url: string): ITexture | null {
     const originalTexture = this.loadedTextures.get(url + '_original');
     return originalTexture ? new ThreeTextureAdapter(originalTexture) : null;
   }
 
-  /**
-   * Set the scene background to a plain (non-equirect) LDR image without touching
-   * scene.environment — the studio/HDRI lighting stays, only the backdrop changes.
-   * Accepts an image URL/data-URL, a File, or an HTMLImageElement.
-   */
   async setBackgroundImage(
     scene: IScene,
     source: string | File | HTMLImageElement
@@ -383,8 +309,6 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       markViewerOwnedBackground(texture);
       markCoverFitBackground(texture);
 
-      // Free the outgoing background ONLY if the viewer painted it — an
-      // env-map backdrop is the cached original the cache/tracer still hold.
       disposeViewerOwnedBackground(threeScene);
       threeScene.background = texture;
       return Result.ok(undefined);
@@ -435,20 +359,11 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         );
       }
 
-      // The studio room is deterministic, so one bake per grade serves the
-      // whole session: without this cache every setEnvironmentMap↔
-      // resetEnvironment round trip pushed another PMREM render target (only
-      // freed at dispose) and re-ran the full room bake + cube capture.
       const cached = this.studioBakes.get(look);
       if (cached) {
         return Result.ok(new ThreeTextureAdapter(cached.pmremTexture));
       }
 
-      // Create the RoomEnvironment scene; the `crisp` grade pushes it to a
-      // higher-contrast studio look (darker surround, punchier soft-boxes)
-      // before it is baked, the `soft` grade bakes the room as-built — either
-      // way both the PMREM env map and the path tracer's cube capture below
-      // share the same graded room.
       const roomEnvironment = new RoomEnvironment();
       if (look !== 'soft') {
         applyStudioContrast(roomEnvironment);
@@ -458,14 +373,10 @@ export class ThreeEnvironmentService implements IEnvironmentService {
       const roomTexture = renderTarget.texture;
 
       this.captureStudioCubeOriginal(look, roomEnvironment, roomTexture);
-      // The PMREM must be cached even when the capture failed: a miss here
-      // meant every setEnvironmentMap↔resetEnvironment round trip re-baked
-      // the room and leaked one more PMREM render target until dispose.
       if (!this.studioBakes.has(look)) {
         this.studioBakes.set(look, { pmremTexture: roomTexture, cubeTarget: null });
       }
 
-      // Clean up
       roomEnvironment.dispose();
 
       return Result.ok(new ThreeTextureAdapter(roomTexture));
@@ -480,14 +391,6 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     }
   }
 
-  /**
-   * Capture the studio room into a plain cube texture alongside the PMREM
-   * build. PMREM's packed CubeUV layout is only readable by the raster
-   * pipeline; the path tracer needs a source it can convert to an
-   * equirectangular map, and it accepts cube textures for exactly that.
-   * Failure is non-fatal — the raster look is untouched, path tracing
-   * just has no environment to ingest (and pauses itself as before).
-   */
   private captureStudioCubeOriginal(
     look: StudioLook,
     room: RoomEnvironment,
@@ -505,9 +408,6 @@ export class ThreeEnvironmentService implements IEnvironmentService {
         STUDIO_CUBE_FAR_METERS,
         cubeTarget
       );
-      // Capture raw HDR radiance like PMREM does internally: tone mapping
-      // would bake the display transform into the light values and the room
-      // reads several stops too dark as an environment.
       const originalToneMapping = this.threeRenderer.toneMapping;
       this.threeRenderer.toneMapping = THREE.NoToneMapping;
       try {
@@ -527,8 +427,6 @@ export class ThreeEnvironmentService implements IEnvironmentService {
     this.loadedTextures.forEach(texture => texture.dispose());
     this.loadedTextures.clear();
 
-    // Render-target dispose also frees its texture; texture.dispose above is
-    // idempotent, so the double call is harmless.
     this.renderTargets.forEach(target => target.dispose());
     this.renderTargets = [];
 
@@ -543,7 +441,6 @@ export class ThreeEnvironmentService implements IEnvironmentService {
   }
 }
 
-// Adapter for Three.js Texture
 class ThreeTextureAdapter implements ITexture {
   constructor(private texture: THREE.Texture) {}
 

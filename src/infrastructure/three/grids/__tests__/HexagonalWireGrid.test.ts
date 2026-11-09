@@ -19,8 +19,6 @@ const positionsAreFinite = (group: THREE.Object3D): boolean => {
 
 describe('HexagonalWireGrid', () => {
   it('produces finite vertex positions for a single-hex grid (radius 0)', () => {
-    // The dynamic grid gives small objects hexRadius: 0 / divisions: 1, which
-    // used to divide size by 0 and poison the geometry with Infinity/NaN.
     const grid = new HexagonalWireGrid().createGrid({
       size: 0.12,
       divisions: 1,
@@ -30,7 +28,6 @@ describe('HexagonalWireGrid', () => {
     expect(grid.children.length).toBeGreaterThan(0);
     expect(positionsAreFinite(grid)).toBe(true);
 
-    // computeBoundingSphere must not report a NaN radius.
     const line = grid.children[0] as THREE.Line;
     line.geometry.computeBoundingSphere();
     expect(Number.isFinite(line.geometry.boundingSphere?.radius ?? NaN)).toBe(true);

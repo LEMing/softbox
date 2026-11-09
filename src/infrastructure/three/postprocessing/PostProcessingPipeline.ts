@@ -1,22 +1,16 @@
 import * as THREE from 'three';
 
-/** Which opt-in post-processing effects are enabled. */
 export interface PostProcessingConfig {
   bloom: boolean;
   vignette: boolean;
   filmGrain: boolean;
-  /** Contrast + saturation grade amounts, or null when off. */
   colorGrade: { contrast: number; saturation: number } | null;
 }
 
-/** True when at least one effect is on (so a composer is worth building). */
 export function anyPostEffectEnabled(config: PostProcessingConfig): boolean {
   return config.bloom || config.vignette || config.filmGrain || config.colorGrade !== null;
 }
 
-// Structural typing over the three/examples pass classes we lazy-load, so this
-// module needs no compile-time dependency on them (they ship as a separate
-// chunk that only opt-in consumers download).
 interface Composer {
   addPass(pass: unknown): void;
   render(): void;
@@ -44,39 +38,26 @@ interface PostModules {
   HueSaturationShader?: unknown;
 }
 
-/**
- * Bloom (UnrealBloomPass) tuning. A HIGH threshold means only genuinely blown
- * highlights (a headlight, a direct sun glint) seed the glow, so it reads as a
- * subtle studio touch rather than a haze over the whole brightly-lit scene — the
- * brighter three-point rig + contrastier studio env push a lot of glossy
- * specular into HDR, hence the high threshold + low strength.
- */
 const BLOOM_STRENGTH = 0.08;
 const BLOOM_RADIUS = 0.25;
 const BLOOM_THRESHOLD = 2.5;
-/** Vignette (VignetteShader) tuning: darken the frame corners to focus the subject. */
 const VIGNETTE_OFFSET = 1.15;
 const VIGNETTE_DARKNESS = 1.05;
-/** Film-grain speckle strength (added to rgb in display space). */
 const GRAIN_INTENSITY = 0.05;
 
-// A deterministic, per-pixel grain applied once in display space — NOT animated
-// (a fixed photographic grain layer, not shimmering noise). The hash seeds off
-// gl_FragCoord (the device-pixel coordinate), so the speckle is one pixel wide
-// at any canvas resolution and needs no resolution uniform to track resizes.
 const STATIC_GRAIN_SHADER = {
   uniforms: {
     tDiffuse: { value: null as THREE.Texture | null },
     intensity: { value: GRAIN_INTENSITY },
   },
-  vertexShader: /* glsl */ `
+  vertexShader: `
     varying vec2 vUv;
     void main() {
       vUv = uv;
       gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
     }
   `,
-  fragmentShader: /* glsl */ `
+  fragmentShader: `
     uniform sampler2D tDiffuse;
     uniform float intensity;
     varying vec2 vUv;
@@ -91,26 +72,12 @@ const STATIC_GRAIN_SHADER = {
   `,
 };
 
-/**
- * A lazy, opt-in post-processing composer for the raster render path. The
- * three/examples pass classes are dynamic-imported on construction so a viewer
- * that uses no effects never downloads them, and the render loop falls back to
- * the plain renderer until the chunk has loaded.
- *
- * Pass order matters: bloom operates in the linear HDR working space BEFORE
- * tone mapping (OutputPass), while the vignette and film grain are display-space
- * touches applied AFTER it.
- */
 export class PostProcessingPipeline {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly config: PostProcessingConfig;
   private modules: PostModules | null = null;
   private composer: Composer | null = null;
   private renderPass: RenderPass | null = null;
-  // Every pass handed to composer.addPass. EffectComposer.dispose() frees only
-  // its own ping-pong targets and internal copy pass — user-added passes are
-  // the caller's to dispose (three's contract), and UnrealBloomPass alone holds
-  // eleven render targets that would otherwise leak on every effects change.
   private passes: Array<{ dispose?: () => void }> = [];
   private disposed = false;
   private loadFailed = false;
@@ -129,9 +96,6 @@ export class PostProcessingPipeline {
 
   private async load(): Promise<void> {
     try {
-      // The vignette, the static grain and the colour grade all run through
-      // ShaderPass, so load it when any is on; each shader itself only when its
-      // effect is on (grain uses the in-module STATIC_GRAIN_SHADER).
       const grade = this.config.colorGrade !== null;
       const needsShaderPass = this.config.vignette || this.config.filmGrain || grade;
       const [ec, rp, op, bloom, sp, vig, grade2] = await Promise.all([
@@ -169,10 +133,6 @@ export class PostProcessingPipeline {
       };
     } catch (error) {
       this.loadFailed = true;
-      // The render fallback keeps the viewer alive, but the consumer who asked
-      // for the effects must be able to SEE the degradation programmatically.
-      // Not after a mid-load dispose though: the effects were already swapped
-      // away, so a stale failure event would report on a pipeline nobody owns.
       if (!this.disposed) {
         this.onLoadError?.(error);
       }
@@ -180,25 +140,16 @@ export class PostProcessingPipeline {
     }
   }
 
-  /** The chunk has loaded and the pipeline can render. */
   isReady(): boolean {
     return this.modules !== null && !this.disposed && !this.loadFailed;
   }
 
-  /**
-   * Render the scene through the composer. Returns false when the pipeline
-   * isn't ready yet (the caller should fall back to a plain render).
-   */
   render(scene: THREE.Scene, camera: THREE.Camera): boolean {
     const modules = this.modules;
     if (modules === null || this.disposed || this.loadFailed) {
       return false;
     }
     const composer = this.composer ?? this.build(modules, scene, camera);
-    // Refresh the beauty pass with the live scene/camera every frame: this
-    // viewer swaps the camera on auto-fit and can reload the model, so the
-    // references captured when the composer was built go stale (RenderPass
-    // would keep drawing an empty scene from the wrong camera).
     if (this.renderPass) {
       this.renderPass.scene = scene;
       this.renderPass.camera = camera;
@@ -210,16 +161,7 @@ export class PostProcessingPipeline {
   private build(modules: PostModules, scene: THREE.Scene, camera: THREE.Camera): Composer {
     const bufferSize = this.renderer.getDrawingBufferSize(new THREE.Vector2());
 
-    // Let EffectComposer own its render targets: it creates them HalfFloat with
-    // the linear working color space the pass chain expects, so RenderPass
-    // writes linear HDR and only OutputPass tone-maps + encodes to sRGB.
-    // Passing a hand-built target here instead makes the renderer tone-map and
-    // sRGB-encode into it, then OutputPass does it a SECOND time — every frame
-    // washes out to near-white.
     const composer = new modules.EffectComposer(this.renderer);
-    // MSAA on the composer's ping-pong targets: rendering into a composer
-    // bypasses the WebGLRenderer's own antialias, so the beauty buffers carry
-    // the samples instead (else the model's edges alias — a visible regression).
     const samples = Math.min(4, this.renderer.capabilities.maxSamples || 0);
     if (samples > 0) {
       composer.renderTarget1.samples = samples;
@@ -230,7 +172,6 @@ export class PostProcessingPipeline {
     this.addPass(composer, renderPass);
 
     if (this.config.bloom && modules.UnrealBloomPass) {
-      // Params: (resolution, strength, radius, threshold) — see the BLOOM_* consts.
       this.addPass(
         composer,
         new modules.UnrealBloomPass(
@@ -242,15 +183,8 @@ export class PostProcessingPipeline {
       );
     }
 
-    // Tone mapping + sRGB: reads the renderer's operator/exposure, so the
-    // composited frame matches the plain-render look. Everything above runs in
-    // linear HDR; everything below is a display-space touch.
     this.addPass(composer, new modules.OutputPass());
 
-    // Colour grade in display space (after tone mapping): contrast then
-    // saturation, via three's stock shaders — they keep the tone-mapping
-    // operator's hue while adding punch, unlike swapping to a contrastier
-    // operator (which would wash saturated highlights toward white).
     const grade = this.config.colorGrade;
     if (grade && modules.ShaderPass && modules.BrightnessContrastShader && modules.HueSaturationShader) {
       const contrastPass = new modules.ShaderPass(modules.BrightnessContrastShader);

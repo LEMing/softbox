@@ -38,6 +38,7 @@ import { PathTracingCoordinator } from './PathTracingCoordinator';
 import { CaptureController } from './CaptureController';
 import { EnvironmentController } from './EnvironmentController';
 import { ViewerState } from './entities/ViewerState';
+import { bestEffort } from '../utils/bestEffort';
 
 export type { CaptureStillOptions };
 
@@ -49,7 +50,6 @@ export interface ViewerDependencies {
   modelLoader: IModelLoader;
   options: SimpleViewerOptions;
   rendererOptions?: IRendererOptions;
-  // Optional services
   pathTracingService?: IPathTracingService;
   environmentService?: IEnvironmentService;
   sceneSetupService?: ISceneSetupService;
@@ -57,31 +57,17 @@ export interface ViewerDependencies {
   selectionService?: ISelectionService;
   anchorProjectionService?: IAnchorProjectionService;
   animationService?: IAnimationService;
-  /**
-   * Defers work until after the next two painted frames (default:
-   * `deferToNextFrame`, rAF + macrotask twice). Injectable so tests can run
-   * the deferred work deterministically.
-   */
   deferToNextFrame?: (callback: () => void) => void;
 }
 
-/**
- * Core business logic for the 3D viewer — a thin orchestrator over the
- * managers (state, model, screenshot, resources), the path-tracing
- * coordinator and the capture controller. Independent of UI framework and
- * rendering engine.
- */
 export class ViewerCore {
   private readonly events: TypedEventEmitter<ViewerEventMap>;
   private readonly renderLoopManager: RenderLoopManager;
   private frameCount: number = 0;
   private disposed: boolean = false;
   private readonly pendingTimers: Set<ReturnType<typeof setTimeout>> = new Set();
-  // Serializes loadModel() so rapid object changes queue (last-wins) instead of
-  // the second load being rejected while the first is still in flight.
   private modelLoadChain: Promise<unknown> = Promise.resolve();
 
-  // Managers & subsystems
   private readonly stateManager: StateManager;
   private readonly screenshotManager: ScreenshotManager;
   private readonly modelManager: ModelManager;
@@ -92,7 +78,6 @@ export class ViewerCore {
   private readonly environment: EnvironmentController;
   private controlsChangeUnsubscribe: (() => void) | null = null;
 
-  // Dependencies
   private readonly renderer: IRenderer;
   private readonly scene: IScene;
   private readonly camera: ICamera;
@@ -161,7 +146,7 @@ export class ViewerCore {
       idleDelay: renderingOptions.idleDelay,
       targetFPS: renderingOptions.targetFPS,
       enableFrameRateLimiting: renderingOptions.enableFrameRateLimiting,
-      alwaysRender: false // Will be set later based on staticScene
+      alwaysRender: false
     });
 
     this.pathTracing = new PathTracingCoordinator({
@@ -207,8 +192,6 @@ export class ViewerCore {
 
   async initialize(): Promise<Result<void>> {
     try {
-      // Registered before renderer.initialize so a chunk failure on the
-      // INITIAL effects pipeline surfaces too, not only on runtime swaps.
       this.renderer.setPostProcessingErrorHandler?.((error) => {
         if (!this.disposed) {
           this.events.emit('error', {
@@ -229,8 +212,6 @@ export class ViewerCore {
         this.sceneConfigurator.configureScene(this.scene, this.sceneSetupService, this.options);
       }
 
-      // configureEnvironment bails internally if the viewer is disposed across
-      // its awaits; re-check here before the next async step.
       if (this.environmentService) {
         await this.sceneConfigurator.configureEnvironment(
           this.scene,
@@ -250,7 +231,6 @@ export class ViewerCore {
         return Result.ok(undefined);
       }
 
-      // Click-picking on the loaded model → 'object:selected'
       if (this.selectionService) {
         this.selectionService.initialize({
           canvas: this.renderer.getDomElement(),
@@ -268,9 +248,6 @@ export class ViewerCore {
       this.stateManager.setInitialized();
       this.startRenderLoop();
 
-      // The controls mutate the camera directly from user input, so once the
-      // loop has wound down (idle static scene, converged path tracing)
-      // nothing else observes the interaction — this is what wakes it back up.
       this.controlsChangeUnsubscribe = this.controls.onChange(() => {
         if (this.disposed) {
           return;
@@ -303,15 +280,8 @@ export class ViewerCore {
     }
   }
 
-  /**
-   * Load a model. Calls are serialized: when `object` changes faster than a load
-   * resolves, the new load waits for the in-flight one and then supersedes it
-   * (last-wins), instead of being rejected as INVALID_STATE while status is
-   * 'loading' and silently dropped.
-   */
   loadModel(source: string | IObject3D): Promise<Result<void>> {
     const run = this.modelLoadChain.then(() => this.runLoadModel(source));
-    // Keep the chain alive even if a load rejects, so later loads still run.
     this.modelLoadChain = run.then(() => undefined, () => undefined);
     return run;
   }
@@ -341,9 +311,6 @@ export class ViewerCore {
       const result = await this.modelManager.loadModel(source, this.events);
 
       if (this.disposed) {
-        // dispose() ran while the load was in flight: the model manager
-        // already added the freshly-loaded model to a scene nobody renders
-        // and nothing else will ever call dispose() again to reclaim it.
         if (result.ok) {
           this.modelManager.disposeCurrentModel();
         }
@@ -355,24 +322,12 @@ export class ViewerCore {
       if (result.ok) {
         this.stateManager.setLoaded(result.value);
         this.attachAnimations(result.value);
-        // A variant chosen before the model landed (or carried by the merged
-        // options) applies now; a stale/unknown name only warns.
         if (this.options.variant) {
           this.applyVariantOrWarn(this.options.variant);
         }
-        // The loop may have wound down entirely (converged path tracing) —
-        // requestRender alone cannot restart a dead rAF chain, and without
-        // this the new model never paints until the user touches the controls.
         this.reviveRenderLoop();
         this.renderLoopManager.requestRender();
-        // A new model restarts the accumulation from scratch. Forced: the
-        // stale ingest must not survive, or the tracer keeps sampling the
-        // previous model's geometry.
         this.pathTracing.resetAccumulation(true);
-        // The soft contact-shadow bake is a synchronous multi-pass render that
-        // can take a long beat on a weak GPU. Deferred past the first painted
-        // frame so the model (grounded by the live realtime catcher) appears
-        // immediately; the baked disc swaps in silently a couple frames later.
         this.scheduleContactShadowBake(result.value);
         return Result.ok(undefined);
       } else {
@@ -401,7 +356,6 @@ export class ViewerCore {
       if (!this.stateManager.isInitialized() || this.stateManager.getStatus() === 'error') {
         return;
       }
-      // A disposed renderer must stop the loop, not render into a dead context.
       if (!this.renderer || this.renderer.isDisposed()) {
         this.renderLoopManager.stop();
         return;
@@ -411,17 +365,9 @@ export class ViewerCore {
       const fps = deltaTime > 0 ? 1000 / deltaTime : 0;
 
       const isAnimating = this.animationService?.isPlaying() ?? false;
-      // Skip the controls update while they are disabled so an external camera
-      // driver (e.g. a consumer's first-person controls) can own the camera —
-      // OrbitControls.update() re-aims at the orbit target every frame and would
-      // otherwise fight it. The loop still renders unconditionally below, so the
-      // externally-driven camera is shown.
       const controlsChanged = this.controls.enabled ? this.controls.update() : false;
       if (controlsChanged) {
         this.events.emit('controls:change', { controls: this.controls });
-        // A camera move invalidates the accumulated path-traced frame. While
-        // animations play the accumulation is suspended below — resetting
-        // here would re-arm it against geometry that changes every frame.
         if (!isAnimating) {
           this.pathTracing.resetAccumulation();
         }
@@ -433,7 +379,6 @@ export class ViewerCore {
         this.pathTracing.suspendWhileAnimating();
       }
 
-      // Completion is detected across the frame: snapshot before, check after.
       const frameState = this.pathTracing.beforeFrame();
 
       this.renderFrame().catch(error => {
@@ -455,10 +400,6 @@ export class ViewerCore {
     this.renderLoopManager.stop();
   }
 
-  /**
-   * Schedule a deferred callback that is automatically cancelled on dispose and
-   * never runs against a disposed viewer.
-   */
   private schedule(callback: () => void, delayMs: number): void {
     const id = setTimeout(() => {
       this.pendingTimers.delete(id);
@@ -477,16 +418,12 @@ export class ViewerCore {
       console.warn('[ViewerCore] Cannot render - components not initialized');
       return;
     }
-    // A screenshot replaces the live canvas; rendering under it is wasted work.
     if (this.screenshotManager.isActive()) {
       return;
     }
 
     this.stateManager.startRendering();
 
-    // The raster branch routes through the post-processing composer (bloom/
-    // vignette/grain) when the renderer has one; path tracing (when it returns
-    // a frame) bypasses it — the tracer draws to the canvas itself.
     const renderResult = await (
       this.pathTracing.render(this.scene, this.camera) ??
       Promise.resolve(this.renderRaster())
@@ -505,22 +442,12 @@ export class ViewerCore {
     });
   }
 
-  /** Plain raster render, through the post-processing composer when present. */
   private renderRaster(): Result<void> {
     return this.renderer.renderPostProcessed
       ? this.renderer.renderPostProcessed(this.scene, this.camera)
       : this.renderer.render(this.scene, this.camera);
   }
 
-  /**
-   * Apply runtime-tunable options to a live viewer without rebuilding it.
-   *
-   * Only options that are safe to change on a running viewer are honoured here
-   * (background color, tone-mapping exposure, environment intensity, the
-   * post-processing effect toggles). Structural options — antialias, controls
-   * type, path-tracing tuning, lighting, helpers — take effect at construction
-   * time and require a rebuild.
-   */
   updateOptions(partial: Partial<SimpleViewerOptions>): void {
     if (this.disposed) {
       return;
@@ -534,42 +461,21 @@ export class ViewerCore {
     const previousEnvironmentIntensity = this.options.environment?.environmentIntensity;
     const previousVariant = this.options.variant;
     this.options = deepMerge(this.options, partial);
-    // deepMerge intentionally ignores `undefined` overrides so they never wipe a
-    // base value — but switching away from the dark preset sends
-    // `backgroundColorEdge: undefined` precisely to CLEAR the radial vignette.
-    // Honour an explicit clear so a dark→light switch drops the vignette instead
-    // of leaving a dark-cornered scrim stuck on the light background.
     if ('backgroundColorEdge' in partial) {
       this.options.backgroundColorEdge = partial.backgroundColorEdge;
     }
-    // Same lesson one level down: deepMerge merges plain objects key-by-key,
-    // but an object `colorGrade` is a VALUE — the consumer's latest shape must
-    // win wholesale, or a removed sub-field (dropping `saturation`, say)
-    // silently keeps its old amount and the change is filtered as a no-op.
     if (partial.renderer && 'colorGrade' in partial.renderer && this.options.renderer) {
       this.options.renderer.colorGrade = partial.renderer.colorGrade;
     }
 
     let needsRender = false;
-    // A change to either the base colour or its radial-vignette edge repaints
-    // the backdrop; applyBackgroundColor reads the (now-reconciled) edge itself.
     const backgroundChanged =
       partial.backgroundColor !== undefined || partial.backgroundColorEdge !== undefined;
     if (backgroundChanged && this.options.backgroundColor !== undefined) {
       this.environment.applyBackgroundColor(this.options.backgroundColor);
-      // The tracer reads scene.background only at ingest — without a forced
-      // re-ingest a converged traced frame keeps the old backdrop forever
-      // (camera-move resets are non-forced and never re-read it). Guarded on
-      // an ACTUAL value change: the runtime-options effect re-sends the whole
-      // set on every unrelated update, and defaults keep backgroundColor
-      // always defined — a presence check would force a BVH re-ingest per
-      // slider tick.
       const backgroundValueChanged =
         this.options.backgroundColor !== previousBackgroundColor ||
         this.options.backgroundColorEdge !== previousBackgroundColorEdge;
-      // No re-ingest when an environment map owns the backdrop: the repaint
-      // above already no-oped, so restarting a converged accumulation would
-      // burn a full sample budget for a change with zero visual effect.
       if (backgroundValueChanged && !this.options.environment?.url) {
         this.pathTracing.resetAccumulation(true);
       }
@@ -579,10 +485,6 @@ export class ViewerCore {
       this.renderer.setToneMappingExposure(exposure);
       needsRender = true;
     }
-    // Post-processing effects swap the composer live. Guarded against re-sends
-    // of an unchanged set (the runtime-options effect re-sends everything):
-    // rebuilding the composer costs a pipeline chunk + target allocation, so it
-    // must only happen when an effect actually changed.
     const nextPostEffects = ViewerCore.postEffectsKey(this.options);
     if (
       partial.renderer &&
@@ -595,35 +497,22 @@ export class ViewerCore {
         filmGrain: this.options.renderer?.filmGrain ?? false,
         colorGrade: this.options.renderer?.colorGrade ?? false,
       });
-      // The swap re-derives the pixel-ratio cap, which can resize the drawing
-      // buffer (DPR > 2) and CLEAR a completed path-traced frame — whose
-      // presentation path deliberately never repaints (it preserves the
-      // canvas). Force a re-accumulation so a live traced session repaints
-      // instead of sticking blank; same treatment as an environment change.
       this.pathTracing.resetAccumulation(true);
       needsRender = true;
     }
     const environmentIntensity = partial.environment?.environmentIntensity;
     if (environmentIntensity !== undefined) {
       this.scene.setEnvironmentIntensity(environmentIntensity);
-      // Ingest-visible like the background: the tracer samples
-      // scene.environmentIntensity only inside setScene. Same value-change
-      // guard — the default keeps this field defined on every re-send.
       if (environmentIntensity !== previousEnvironmentIntensity) {
         this.pathTracing.resetAccumulation(true);
       }
       needsRender = true;
     }
     const autoRotate = partial.controls?.autoRotate;
-    // Guarded against re-sends of an unchanged value (the runtime-options
-    // effect re-sends the whole set): re-asserting `true` must not override
-    // an imperative pause or spuriously reject a pending capture.
     if (autoRotate !== undefined && autoRotate !== previousAutoRotate) {
       this.controls.autoRotate = autoRotate;
       if (autoRotate) {
         this.renderLoopManager.requireContinuous('turntable');
-        // A spin-up invalidates any pending path-traced capture's wait — the
-        // accumulation now resets every frame and can never converge.
         this.capture.notifyTurntableEnabled();
       } else {
         this.renderLoopManager.releaseContinuous('turntable');
@@ -636,13 +525,8 @@ export class ViewerCore {
       needsRender = true;
     }
     const autoplay = partial.animations?.autoplay;
-    // Guarded against re-sends of an unchanged value: play() restarts clips
-    // from t=0, and the runtime-options effect re-sends the whole set.
     if (autoplay !== undefined && autoplay !== previousAutoplay) {
       if (autoplay) {
-        // Before any model lands there is nothing to play and nothing to
-        // validate a clip name against — the merged option is enough;
-        // attachAnimations applies it when the load resolves.
         if (this.modelManager.getCurrentModel()) {
           this.autoplayFromOptions(autoplay);
         }
@@ -657,17 +541,10 @@ export class ViewerCore {
       needsRender = true;
     }
     const pathTracingEnabled = partial.pathTracing?.enabled;
-    // Guarded against re-sends of an unchanged value (the runtime-options
-    // effect re-sends the whole set): a redundant enable must not restart a
-    // running accumulation, and a redundant disable must not thrash the loop.
     if (pathTracingEnabled !== undefined && pathTracingEnabled !== previousPathTracingEnabled) {
       this.setPathTracingEnabled(pathTracingEnabled);
       needsRender = true;
     }
-    // `null` is the declarative "back to authored materials"; an absent key
-    // leaves an imperative handle.setVariant() choice alone. Guarded against
-    // re-sends of an unchanged value; setMaterialVariant kicks the render
-    // loop itself, and only when a material actually changed.
     if ('variant' in partial) {
       const variant = partial.variant ?? null;
       if (variant !== (previousVariant ?? null)) {
@@ -675,14 +552,11 @@ export class ViewerCore {
       }
     }
     if (needsRender) {
-      // An option change must repaint even after idle detection stopped the
-      // loop (staticScene) — a dead rAF chain ignores the needsRender flag.
       this.reviveRenderLoop();
       this.renderLoopManager.requestRender();
     }
   }
 
-  /** Content key of the resolved post-effect set, for cheap change detection. */
   private static postEffectsKey(options: SimpleViewerOptions): string {
     const renderer = options.renderer;
     return JSON.stringify([
@@ -693,63 +567,32 @@ export class ViewerCore {
     ]);
   }
 
-  /**
-   * Runtime: replace the environment map (reflections + background) with the HDRI
-   * at `url`. Textures are cached by URL, so toggling the same map on/off is cheap.
-   */
   setEnvironmentMap(url: string): Promise<Result<void>> {
     return this.environment.setEnvironmentMap(url);
   }
 
-  /**
-   * Runtime: drop back to the built-in studio environment and the clean gradient
-   * background, undoing a prior setEnvironmentMap / setBackgroundImage.
-   */
   resetEnvironment(): Result<void> {
     return this.environment.resetEnvironment();
   }
 
-  /**
-   * Runtime: paint an uploaded image as the scene backdrop, leaving the studio/HDRI
-   * lighting (scene.environment) untouched.
-   */
   setBackgroundImage(source: string | File | HTMLImageElement): Promise<Result<void>> {
     return this.environment.setBackgroundImage(source);
   }
 
-  /**
-   * Runtime: set a solid background color (e.g. to clear a background image back to
-   * the theme color). Unlike updateOptions this is an explicit override, so it paints
-   * even when an environment URL is configured.
-   */
   setBackgroundColor(color: string | number): Result<void> {
     return this.environment.setBackgroundColor(color);
   }
 
   resize(width: number, height: number): void {
-    // A queued resize (rAF / ResizeObserver) can fire after teardown — e.g. the
-    // StrictMode unmount->remount in dev. Rendering against a disposed renderer
-    // produces WebGL "Program object expected" errors, so bail.
     if (this.disposed) {
       return;
     }
     const targetAspect = width / height;
     const canvas = this.renderer.getDomElement();
-    // The canvas drawing buffer is in DEVICE pixels (CSS size × pixel ratio),
-    // while the incoming dimensions are CSS pixels — compare like with like,
-    // or the no-op guard is dead on every DPR ≠ 1 display and each resize call
-    // runs the full path (redundant setSize + repaint). Math.floor matches
-    // exactly how three's setSize derives the buffer size, so fractional
-    // CSS × ratio products compare correctly too.
     const pixelRatio = this.renderer.getPixelRatio();
     const sizeMatches =
       canvas.width === Math.floor(width * pixelRatio) &&
       canvas.height === Math.floor(height * pixelRatio);
-    // A structural rebuild reuses the already-sized canvas but with a FRESH
-    // camera still at its construction-default aspect. A size-only guard would
-    // then skip applyCameraAspect and the frame renders stretched (a round model
-    // reads as an ellipse). So skip only when the camera aspect is ALSO already
-    // correct, not on canvas size alone.
     const perspectiveAspect =
       this.camera.type === 'perspective' && 'aspect' in this.camera
         ? (this.camera as IPerspectiveCamera).aspect
@@ -765,24 +608,8 @@ export class ViewerCore {
       this.renderer.setSize(width, height);
     }
 
-    // Render immediately so the resized frame never shows stretched — through
-    // the composer when effects are on, or every ResizeObserver tick of a
-    // drag-resize paints an effect-free frame (a visible shimmer).
-    try {
-      this.renderRaster();
-    } catch {
-      // The scene may not be ready yet; the render loop repaints shortly.
-    }
+    bestEffort(() => this.renderRaster());
 
-    // A resize invalidates the whole accumulation, exactly like a camera
-    // move: the tracer's copied camera matrices keep the old aspect (synced
-    // only on reset), its internal setSize self-reset would silently diverge
-    // from the service's own sample counter (a noisy frame then "completes"
-    // early), and the dissolve's raster snapshot is sized to the old buffer.
-    // resetAccumulation also re-arms a converged-and-self-paused tracer; the
-    // loop revive below is what actually restarts accumulation — convergence
-    // hard-stops the rAF chain ~100ms later, and demand flags alone cannot
-    // restart a dead loop.
     this.pathTracing.resetAccumulation();
     this.reviveRenderLoop();
     this.renderLoopManager.requestRender();
@@ -804,11 +631,6 @@ export class ViewerCore {
     return this.renderer.getDomElement();
   }
 
-  /**
-   * Public accessors for the engine-agnostic viewer parts. Presentation code
-   * uses these instead of reaching into private fields, so the interface
-   * boundary survives a private-field rename.
-   */
   getRenderer(): IRenderer {
     return this.renderer;
   }
@@ -825,31 +647,20 @@ export class ViewerCore {
     return this.controls;
   }
 
-  /** The currently loaded model, or null while nothing is loaded. */
   getModel(): IObject3D | null {
     return this.modelManager.getCurrentModel();
   }
 
-  /** Request a single render through the internal render loop. */
   requestRender(): void {
     this.renderLoopManager.requestRender();
   }
 
-  /**
-   * With staticScene idle detection the loop STOPS when idle; waking flags
-   * alone cannot restart a dead requestAnimationFrame chain.
-   */
   private reviveRenderLoop(): void {
     if (this.stateManager.isInitialized() && !this.renderLoopManager.isRunning()) {
       this.startRenderLoop();
     }
   }
 
-  /**
-   * Toggle path tracing on a live viewer — no rebuild, no model refetch. The
-   * enable path loads the tracer lazily, so it awaits; both paths then revive a
-   * wound-down loop and request a frame. A dispose mid-await is guarded.
-   */
   private setPathTracingEnabled(enabled: boolean): void {
     if (enabled) {
       void this.pathTracing
@@ -861,10 +672,6 @@ export class ViewerCore {
           }
         })
         .catch((error) => {
-          // Init failures come back as Results (and emit 'error' in the
-          // coordinator); this catch is the backstop for anything thrown past
-          // that contract, so the runtime toggle can never surface as an
-          // unhandled rejection.
           if (!this.disposed) {
             this.events.emit('error', {
               error: new ThreeViewerError(
@@ -882,37 +689,20 @@ export class ViewerCore {
     }
   }
 
-  /** Clip names of the loaded model, in file order (empty when none). */
   getAnimationNames(): string[] {
     return this.animationService?.getClipNames() ?? [];
   }
 
-  /** KHR_materials_variants names of the loaded model (empty when none). */
   getVariantNames(): string[] {
     return this.modelManager.getVariantNames();
   }
 
-  /**
-   * URL the current model was loaded from (`null` before any load and for
-   * object sources). Tracks imperative `loadModel` swaps, unlike the
-   * component's `object` prop.
-   */
   getModelUrl(): string | null {
     return this.modelManager.getCurrentModelUrl();
   }
 
-  /**
-   * Switch the loaded model to a material variant (`null` restores the
-   * authored materials). Errs on a name the model does not carry — a typo
-   * must not silently show the default look. Before a model lands the choice
-   * is only stored; the load path applies it.
-   */
   setMaterialVariant(variant: string | null): Result<void> {
     const model = this.modelManager.getCurrentModel();
-    // Validate BEFORE storing: a rejected typo must not poison the option,
-    // resurface on the next load, or shadow the same name arriving
-    // declaratively later. Before a model lands there is no name list to
-    // validate against — the choice is stored and the load path applies it.
     if (model && variant !== null && !this.modelManager.getVariantNames().includes(variant)) {
       return Result.err(
         new ThreeViewerError(
@@ -925,8 +715,6 @@ export class ViewerCore {
     if (!model || !this.sceneSetupService) {
       return Result.ok(undefined);
     }
-    // Async only because variant materials materialize in the background
-    // after load; once they are ready the swap is a same-tick microtask.
     void this.sceneSetupService.applyMaterialVariant(model, variant).then((applied) => {
       if (!applied.ok) {
         console.warn('Failed to apply material variant:', applied.error);
@@ -936,8 +724,6 @@ export class ViewerCore {
       if (!applied.value || stale) {
         return;
       }
-      // New materials invalidate a converged traced frame the same way an
-      // environment change does.
       this.pathTracing.resetAccumulation(true);
       this.reviveRenderLoop();
       this.renderLoopManager.requestRender();
@@ -952,11 +738,6 @@ export class ViewerCore {
     }
   }
 
-  /**
-   * Plays one clip by name, or ALL clips when no name is given (looped).
-   * Errs on a clip name the loaded model does not carry — a typo'd name
-   * must not silently leave the model frozen.
-   */
   playAnimations(clipName?: string): Result<void> {
     if (!this.animationService) {
       if (clipName !== undefined) {
@@ -974,8 +755,6 @@ export class ViewerCore {
       return played;
     }
     if (this.animationService.isPlaying()) {
-      // The baked contact shadow is a snapshot of one pose — a moving model
-      // needs the real-time catcher until playback stops.
       this.sceneSetupService?.setContactShadowMode(this.scene, 'live');
       this.renderLoopManager.requireContinuous('animations');
       this.reviveRenderLoop();
@@ -984,10 +763,6 @@ export class ViewerCore {
     return Result.ok(undefined);
   }
 
-  /**
-   * Options-driven autoplay has no caller to hand a Result to — a typo'd
-   * clip name in `animations.autoplay` surfaces on the console instead.
-   */
   private autoplayFromOptions(autoplay: boolean | string): void {
     const played = this.playAnimations(typeof autoplay === 'string' ? autoplay : undefined);
     if (!played.ok) {
@@ -995,25 +770,14 @@ export class ViewerCore {
     }
   }
 
-  /** Freezes playback on the current pose; play() resumes. */
   pauseAnimations(): void {
     this.animationService?.pause();
     this.renderLoopManager.releaseContinuous('animations');
     this.rebakeContactShadowForCurrentPose();
-    // Playback suspended the path-traced accumulation; the model now rests
-    // in a NEW pose, so the resumed accumulation must re-ingest the scene
-    // (force), not just re-sync the camera.
     this.pathTracing.resetAccumulation(true);
-    // One more frame so the swapped-in baked shadow reaches the screen even
-    // though the continuous-render demand is gone.
     this.renderLoopManager.requestRender();
   }
 
-  /**
-   * Re-bake the contact shadow against whatever pose playback stopped on;
-   * the pre-pause bake pictured the load pose. Falls back to leaving the
-   * live catcher up if baking isn't possible right now.
-   */
   private rebakeContactShadowForCurrentPose(): void {
     const model = this.modelManager.getCurrentModel();
     if (!model || !this.sceneSetupService) {
@@ -1025,14 +789,6 @@ export class ViewerCore {
     }
   }
 
-  /**
-   * Bake the load-time contact shadow AFTER the next painted frame, so the
-   * synchronous multi-pass bake never holds the first paint (or the loading
-   * overlay) hostage on a weak GPU. Skipped when the world moved on by the
-   * time it fires: the viewer was disposed, a newer model superseded this one,
-   * or playback started (playing runs in live-shadow mode; the pause handler
-   * re-bakes for the resting pose itself).
-   */
   private scheduleContactShadowBake(model: IObject3D): void {
     this.deferToNextFrame(() => {
       if (
@@ -1043,8 +799,6 @@ export class ViewerCore {
         return;
       }
       this.rebakeContactShadowForCurrentPose();
-      // The bake swaps the live catcher for the baked disc — repaint so the
-      // swap shows even after idle detection wound the loop down.
       this.reviveRenderLoop();
       this.renderLoopManager.requestRender();
     });
@@ -1054,7 +808,6 @@ export class ViewerCore {
     if (!this.animationService) {
       return;
     }
-    // The previous model's playback (and its loop demand) dies with it.
     this.renderLoopManager.releaseContinuous('animations');
     this.animationService.attach(model);
     const animationOptions = this.options.animations;
@@ -1067,11 +820,6 @@ export class ViewerCore {
     }
   }
 
-  /**
-   * Creates a projector that maps a world-space anchor to canvas pixels (the
-   * engine math behind DOM annotations like `Hotspot`), or null when the
-   * viewer was assembled without an anchor-projection service.
-   */
   createAnchorProjector(): IAnchorProjector | null {
     if (!this.anchorProjectionService) {
       return null;
@@ -1083,18 +831,10 @@ export class ViewerCore {
     });
   }
 
-  /**
-   * Capture a still of the current scene as a PNG data URL. See
-   * {@link CaptureController} for the raster and path-traced semantics.
-   */
   captureStill(options: CaptureStillOptions = {}): Promise<Result<string>> {
     return this.capture.captureStill(options);
   }
 
-  /**
-   * Record the live canvas for a few seconds and resolve with the encoded
-   * clip. See {@link CaptureController.captureVideo}.
-   */
   captureVideo(options: CaptureVideoOptions = {}): Promise<Result<Blob>> {
     return this.capture.captureVideo(options);
   }
@@ -1136,17 +876,11 @@ export class ViewerCore {
     this.renderLoopManager.requestRender();
   }
 
-  /**
-   * True once dispose() has run. Lets callers skip work on a viewer that a
-   * structural rebuild tore down underneath an in-flight async op (e.g. a model
-   * load racing a rebuild) instead of surfacing a benign "after dispose" error.
-   */
   isDisposed(): boolean {
     return this.disposed;
   }
 
   dispose(): void {
-    // Mark as disposed first to prevent any further operations
     this.disposed = true;
 
     this.pendingTimers.forEach((id) => clearTimeout(id));
@@ -1158,8 +892,6 @@ export class ViewerCore {
     this.selectionService?.dispose();
     this.animationService?.detach();
 
-    // resourceManager.dispose() already disposes and detaches all scene
-    // contents, so no separate scene.clear() is needed here.
     this.modelManager.dispose();
     this.resourceManager.dispose();
     this.screenshotManager.dispose();
@@ -1168,8 +900,6 @@ export class ViewerCore {
 
     this.stateManager.setDisposed();
 
-    // Settle any captureStill waiter so its promise resolves to INVALID_STATE
-    // instead of dangling after the listener map is cleared below.
     this.capture.settleOnDispose();
 
     this.events.removeAllListeners();

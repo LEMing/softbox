@@ -125,8 +125,6 @@ describe('CaptureController.captureVideo', () => {
     jest.advanceTimersByTime(1000);
     await shortCapture;
 
-    // The long capture is still recording — its own reason must still be
-    // held, not deleted by the short capture releasing a shared string.
     expect(deps.renderLoopManager.hasContinuousDemand()).toBe(true);
 
     jest.advanceTimersByTime(4000);
@@ -160,7 +158,7 @@ describe('CaptureController.captureVideo', () => {
     jest.advanceTimersByTime(1000);
     await capture;
     events.emit('render:complete', { frame: 3, renderTime: 0 });
-    expect(requestFrame).toHaveBeenCalledTimes(2); // unsubscribed after finish
+    expect(requestFrame).toHaveBeenCalledTimes(2);
   });
 
   it('prefers the requested mimeType when supported, falls back otherwise', async () => {

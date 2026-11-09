@@ -84,9 +84,6 @@ describe('sceneViewerIntentUrl', () => {
     expect(url).toContain(`file=${encodeURIComponent('https://cdn.example.com/shoe.glb')}`);
     expect(url).toContain('mode=ar_preferred');
     expect(url).toContain('package=com.google.ar.core');
-    // The fallback is the page itself plus the failure hash: a same-document
-    // navigation (no reload) that doubles as the "this device has no AR"
-    // beacon the button listens for.
     expect(url).toContain(
       `S.browser_fallback_url=${encodeURIComponent(
         `https://shop.example.com/product?id=1${AR_FAILURE_HASH}`
@@ -107,8 +104,6 @@ describe('launchQuickLook', () => {
     const click = jest
       .spyOn(HTMLAnchorElement.prototype, 'click')
       .mockImplementation(function (this: HTMLAnchorElement) {
-        // Quick Look's contract: rel=ar + <img> child, or Safari downloads
-        // the USDZ instead of opening AR.
         expect(this.rel).toBe('ar');
         expect(this.querySelector('img')).not.toBeNull();
         expect(this.href).toBe('https://cdn.example.com/shoe.usdz');

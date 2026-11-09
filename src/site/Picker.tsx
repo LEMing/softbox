@@ -7,7 +7,6 @@ export interface PickerProps {
   onChange: (value: string) => void;
 }
 
-/** A labelled row of single-choice chip buttons (site chrome, not library UI). */
 export const Picker = ({ label, items, value, onChange }: PickerProps) => (
   <div role="group" aria-label={label} className="min-w-0">
     <span className="mb-2.5 block text-[10px] font-bold tracking-[0.095em] text-neutral-500 uppercase dark:text-neutral-400">

@@ -3,7 +3,6 @@ import { addLighting } from '../lighting';
 import { ILightingOptions } from '../../../../core/services/ISceneSetupService';
 import { IScene } from '../../../../core/interfaces/IScene';
 
-/** addLighting unwraps a raw three Scene at runtime; cast for TS. */
 const light = (scene: unknown, options: ILightingOptions) =>
   addLighting(scene as IScene, options);
 
@@ -32,7 +31,6 @@ describe('addLighting', () => {
 
     const directionals = directionalsOf(scene);
     expect(directionals).toHaveLength(3);
-    // Only the key casts a shadow; fill and rim never do (one clean contact shadow).
     expect(directionals.filter((d) => d.castShadow)).toHaveLength(1);
   });
 
@@ -44,9 +42,6 @@ describe('addLighting', () => {
       rim: { intensity: 2.6, position: [18, 52, -72] },
     });
 
-    // findDirectionalLight walks children in order and takes the first; that
-    // must be the key (the only shadow caster), or the contact shadow follows
-    // the wrong light.
     const firstDirectional = directionalsOf(scene)[0];
     expect(firstDirectional.castShadow).toBe(true);
     expect(firstDirectional.position.toArray()).toEqual([40, 90, 40]);

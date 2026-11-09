@@ -15,13 +15,11 @@ const groundMeshesOf = (grid: THREE.Object3D): THREE.Mesh[] =>
     (child) => (child as THREE.Mesh).isMesh && child.name !== CONTACT_SHADOW_LIVE_NAME
   ) as THREE.Mesh[];
 
-/** The OPAQUE inner ground under the model. */
 const discOf = (grid: THREE.Object3D): THREE.Mesh =>
   groundMeshesOf(grid).find(
     (mesh) => !(mesh.material as THREE.Material).transparent
   ) as THREE.Mesh;
 
-/** The transparent rim-fade ring. */
 const ringOf = (grid: THREE.Object3D): THREE.Mesh =>
   groundMeshesOf(grid).find(
     (mesh) => (mesh.material as THREE.Material).transparent
@@ -30,7 +28,6 @@ const ringOf = (grid: THREE.Object3D): THREE.Mesh =>
 const catcherOf = (grid: THREE.Object3D): THREE.Mesh =>
   grid.getObjectByName(CONTACT_SHADOW_LIVE_NAME) as THREE.Mesh;
 
-/** A minimal 2D-context stub — jsdom has no canvas implementation. */
 const stubCanvasContext = () => {
   const context = {
     createImageData: jest.fn((width: number, height: number) => ({
@@ -58,10 +55,6 @@ describe('ConcreteDiscGrid', () => {
     const material = disc.material as THREE.MeshStandardMaterial;
     expect(material.roughness).toBeGreaterThanOrEqual(0.9);
     expect(material.metalness).toBe(0);
-    // The core must stay OUT of the transparent queue: a transparent ground
-    // sorted after a model's glass overwrote the glass shading (the
-    // vanished-windshield bug). Only the rim-fade ring is transparent, and
-    // it draws first among transparents.
     expect(material.transparent).toBe(false);
     const ring = ringOf(grid);
     expect(ring).toBeDefined();
@@ -71,7 +64,6 @@ describe('ConcreteDiscGrid', () => {
     expect(catcher).toBeDefined();
     expect(catcher.userData[CONTACT_SHADOW_HELPER_FLAG]).toBe(true);
     expect((catcher.material as THREE.ShadowMaterial).isShadowMaterial).toBe(true);
-    // Above the concrete surface, so the shadow composites over it.
     expect(catcher.position.y).toBeGreaterThan(0);
   });
 
@@ -90,19 +82,15 @@ describe('ConcreteDiscGrid', () => {
     const grid = new ConcreteDiscGrid().createGrid(options(10));
     const groundRadius = (ringOf(grid).geometry as THREE.RingGeometry).parameters.outerRadius;
     const catcherRadius = (catcherOf(grid).geometry as THREE.CircleGeometry).parameters.radius;
-    // Ground reads as open terrain; the baked shadow clips to the catcher.
     expect(groundRadius).toBeGreaterThanOrEqual(10 * 4);
     expect(catcherRadius).toBeLessThan(groundRadius);
     expect(catcherRadius).toBeGreaterThanOrEqual(10);
-    // The core and ring meet exactly (no gap, no overlap).
     const coreOuter = (discOf(grid).geometry as THREE.RingGeometry).parameters.outerRadius;
     const ringInner = (ringOf(grid).geometry as THREE.RingGeometry).parameters.innerRadius;
     expect(coreOuter).toBeCloseTo(ringInner);
   });
 
   it('vertex colors are always finite — one NaN paints the whole ground black', () => {
-    // Regression: macro-noise periods that do not divide the lattice indexed
-    // the array at a fraction (undefined → NaN vertex colors → black ground).
     const grid = new ConcreteDiscGrid().createGrid(options(10));
     for (const mesh of groundMeshesOf(grid)) {
       const values = mesh.geometry.getAttribute('color').array as Float32Array;
@@ -114,8 +102,6 @@ describe('ConcreteDiscGrid', () => {
   it('caps the ground radius inside the projected world (large models)', () => {
     const grid = new ConcreteDiscGrid().createGrid(options(20));
     const groundRadius = (ringOf(grid).geometry as THREE.RingGeometry).parameters.outerRadius;
-    // 20m footprint × 8 would be 160m — through the 120m projection wall. The
-    // cap keeps the whole rim fade inside the projected world.
     expect(groundRadius).toBeLessThanOrEqual(70);
   });
 
@@ -135,7 +121,6 @@ describe('ConcreteDiscGrid', () => {
     expect(rimAlpha).toBeLessThan(0.02);
     expect((ring.material as THREE.MeshStandardMaterial).vertexColors).toBe(true);
 
-    // The opaque core is fully opaque everywhere (alpha carries no fade).
     const coreColors = discOf(grid).geometry.getAttribute('color');
     for (let i = 0; i < coreColors.count; i += 1) {
       expect(coreColors.getW(i)).toBe(1);
@@ -146,7 +131,6 @@ describe('ConcreteDiscGrid', () => {
     const grid = new ConcreteDiscGrid().createGrid(options());
     const material = discOf(grid).material as THREE.MeshStandardMaterial;
     expect(material.map).toBeNull();
-    // The base color carries the concrete tone in the fallback.
     expect(material.color.getHexString()).not.toBe('ffffff');
   });
 
@@ -156,19 +140,15 @@ describe('ConcreteDiscGrid', () => {
       const grid = new ConcreteDiscGrid().createGrid(options(10));
       const material = discOf(grid).material as THREE.MeshStandardMaterial;
       expect(material.map).not.toBeNull();
-      // The normal map is the realism carrier — grazing light needs relief.
       expect(material.normalMap).not.toBeNull();
       expect(material.roughnessMap).not.toBeNull();
       for (const map of [material.map!, material.normalMap!, material.roughnessMap!]) {
         expect(map.wrapS).toBe(THREE.RepeatWrapping);
         expect(map.wrapT).toBe(THREE.RepeatWrapping);
-        // Repeats scale with the ground size (world-scale grain, not stretched).
         expect(map.repeat.x).toBeGreaterThan(1);
       }
-      // Only the albedo is color data; data maps must stay linear.
       expect(material.map!.colorSpace).toBe(THREE.SRGBColorSpace);
       expect(material.normalMap!.colorSpace).not.toBe(THREE.SRGBColorSpace);
-      // The maps carry tone/roughness; the scalars must not double-apply.
       expect(material.color.getHexString()).toBe('ffffff');
       expect(material.roughness).toBe(1);
     } finally {
@@ -216,15 +196,12 @@ describe('ConcreteDiscGrid', () => {
     });
 
     it('keeps texel density on centimeter-scale models (repeat tracks the ground size)', () => {
-      // A fixed 7m world repeat left an avocado-sized set with a few dozen
-      // texels across the whole frame — giant blurry pixels.
       const grid = new ConcreteDiscGrid().createGrid({
         size: 0.06,
         divisions: 3,
         styleOptions: { texture: 'https://cdn/diff.jpg' },
       });
       const material = discOf(grid).material as THREE.MeshStandardMaterial;
-      // Ground radius 0.48m → repeat clamps to 0.35m → ~2.7 repeats across.
       expect(material.map!.repeat.x).toBeGreaterThan(2);
     });
 
@@ -247,8 +224,6 @@ describe('ConcreteDiscGrid', () => {
         new ConcreteDiscGrid().createGrid(photoOptions())
       ).material as THREE.MeshStandardMaterial;
       errorCallbacks[0]({});
-      // jsdom has no 2D canvas either, so the flat matte tone carries the disc —
-      // never the photo path's white multiplier over nothing.
       expect(material.map).toBeNull();
       expect(material.color.getHexString()).not.toBe('ffffff');
       expect(material.roughness).toBeLessThan(1);
@@ -261,8 +236,6 @@ describe('ConcreteDiscGrid', () => {
         (mesh.material as THREE.Material).userData.softboxDisposed = true;
       }
       errorCallbacks[0]({});
-      // No procedural regeneration onto dead materials (that leaked maps
-      // with no owner) — the guard leaves them untouched.
       expect((discOf(grid).material as THREE.MeshStandardMaterial).map).toBe(photoMap);
     });
 

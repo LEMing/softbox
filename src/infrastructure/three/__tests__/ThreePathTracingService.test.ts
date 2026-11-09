@@ -439,9 +439,6 @@ describe('ThreePathTracingService', () => {
       expect(result.ok).toBe(true);
       expect(ctx.service.isEnabled()).toBe(false);
       expect(ctx.rendererHandle.render).toHaveBeenCalled();
-      // A self-disable must notify like a normal completion, or the render
-      // loop's 'path-tracing' continuous demand leaks forever and a pending
-      // captureStill() never settles.
       expect(pausedListener).toHaveBeenCalledWith(
         expect.objectContaining({ reason: 'gave-up' })
       );
@@ -535,8 +532,6 @@ describe('ThreePathTracingService', () => {
         fadeQuad: object | null;
         fadeSupported: boolean;
       };
-      // Vacuity guard: the dissolve must actually be active in this setup —
-      // a disabled fade would make the reuse assertions compare null to null.
       expect(internals.fadeSupported).toBe(true);
       expect(internals.rasterFadeTarget).not.toBeNull();
       expect(internals.fadeQuad).not.toBeNull();
@@ -546,8 +541,6 @@ describe('ThreePathTracingService', () => {
       const second = await ctx.service.render(ctx.scene, ctx.camera);
       expect(second.ok).toBe(true);
 
-      // The allocate-once guard is load-bearing: dropping it re-creates a
-      // full-canvas HalfFloat render target and a shader material EVERY sample.
       expect(internals.rasterFadeTarget).toBe(firstTarget);
       expect(internals.fadeQuad).toBe(firstQuad);
     });
@@ -563,9 +556,7 @@ describe('ThreePathTracingService', () => {
       const liveCatcher = new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.ShadowMaterial());
       liveCatcher.name = CONTACT_SHADOW_LIVE_NAME;
       liveCatcher.userData[CONTACT_SHADOW_HELPER_FLAG] = true;
-      liveCatcher.visible = false; // installBakedMesh leaves the live catcher hidden
-      // A consumer's model node may collide with the helper NAME — only the
-      // viewer-owned tag may select helpers.
+      liveCatcher.visible = false;
       const impostor = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
       impostor.name = CONTACT_SHADOW_BAKED_NAME;
       ctx.threeScene.add(baked, liveCatcher, impostor);
@@ -595,13 +586,9 @@ describe('ThreePathTracingService', () => {
 
       expect(result.ok).toBe(true);
       expect(lastPathTracer().setScene).toHaveBeenCalled();
-      // Hidden for the ingest, restored right after — the raster fallback
-      // keeps its baked shadow.
       expect(bakedVisibilityWrites).toEqual([false, true]);
-      // The already-hidden live catcher must NOT be force-shown afterwards.
       expect(liveVisibilityWrites).toEqual([]);
       expect(liveCatcher.visible).toBe(false);
-      // The same-named consumer node is untouched — it stays in the ingest.
       expect(impostor.visible).toBe(true);
     });
 
@@ -630,8 +617,6 @@ describe('ThreePathTracingService', () => {
 
       expect(result.ok).toBe(true);
       expect(lastPathTracer().setScene).toHaveBeenCalled();
-      // Shown so the tracer ingests it into the BVH, then hidden again so the
-      // raster fallback keeps its clean invisible-floor look.
       expect(floorVisibilityWrites).toEqual([true, false]);
       expect(ptFloor.visible).toBe(false);
     });
@@ -647,8 +632,6 @@ describe('ThreePathTracingService', () => {
       expect(result.ok).toBe(true);
       expect(peek(ctx.service).sceneInitialized).toBe(true);
       expect(lastPathTracer().setScene).toHaveBeenCalled();
-      // The cube stood in only for the ingest — the raster pipeline keeps
-      // whatever environment the scene actually had.
       expect(ctx.threeScene.environment).toBeNull();
     });
 
@@ -713,7 +696,6 @@ describe('ThreePathTracingService', () => {
       newEnv.mapping = THREE.EquirectangularReflectionMapping;
       (ctx.threeScene as PathTracingScene).__originalEnvironmentTexture = newEnv;
 
-      // A conversion left over from the PREVIOUS environment.
       const stale = new THREE.DataTexture(new Float32Array(4), 1, 1);
       const staleDispose = jest.spyOn(stale, 'dispose');
       peek(ctx.service).convertedEnvTexture = stale;
@@ -799,9 +781,6 @@ describe('ThreePathTracingService', () => {
       expect(result.ok).toBe(true);
       expect(ctx.service.isEnabled()).toBe(false);
       expect(peek(ctx.service).sceneInitialized).toBe(false);
-      // This self-disable must notify the same way as the other give-up
-      // paths, or the render loop's 'path-tracing' continuous demand leaks
-      // forever and a pending captureStill() never settles.
       expect(pausedListener).toHaveBeenCalledWith(
         expect.objectContaining({ reason: 'gave-up' })
       );
@@ -838,12 +817,6 @@ describe('ThreePathTracingService', () => {
 
       const tracer = lastPathTracer();
       expect(tracer.tiles.set).toHaveBeenCalledWith(1, 1);
-      // Env intensity and tone mapping are NO LONGER overridden here — the
-      // tracer inherits scene.environmentIntensity and the renderer's operator
-      // so the converged frame matches the raster preview. (The removed
-      // `environmentIntensity = 2.0` was dead code: three-gpu-pathtracer reads
-      // scene.environmentIntensity, not this property, so the mock's value
-      // stays at its constructor default.)
       expect(tracer.environmentIntensity).toBe(0);
     });
 
@@ -934,13 +907,8 @@ describe('ThreePathTracingService', () => {
       expect(ctx.service.isEnabled()).toBe(false);
       expect(ctx.service.canResume()).toBe(true);
 
-      // The service presents the final frame on the canvas without creating any
-      // DOM overlay or hiding the canvas — that is the presentation layer's job.
       expect(canvas.style.visibility).toBe('');
 
-      // The tracer and its ingested scene survive completion: disposing them
-      // here is what froze the canvas on the first post-convergence camera
-      // move (nothing left to accumulate with, nothing re-rendering).
       const tracer = lastPathTracer();
       jest.advanceTimersByTime(1000);
       expect(tracer.dispose).not.toHaveBeenCalled();
@@ -960,14 +928,12 @@ describe('ThreePathTracingService', () => {
       await ctx.service.render(ctx.scene, ctx.camera);
       expect(ctx.service.isEnabled()).toBe(false);
 
-      // The coordinator's re-arm path: camera-move reset + setEnabled(true).
       ctx.service.reset();
       ctx.service.setEnabled(true);
       const result = await ctx.service.render(ctx.scene, ctx.camera);
 
       expect(result.ok).toBe(true);
       expect(ctx.service.getSampleCount()).toBe(1);
-      // No re-ingest happened — the warm scene was reused.
       expect(lastPathTracer().setScene).toHaveBeenCalledTimes(1);
     });
 
@@ -1045,15 +1011,9 @@ describe('ThreePathTracingService', () => {
       ctx.service.reset();
 
       expect(ctx.service.getSampleCount()).toBe(0);
-      // The tracer is untouched during motion; the camera re-sync is deferred
-      // to the moment accumulation restarts. A full setScene() re-ingest per
-      // camera move is what tore frames apart during turntable rotation.
       expect(lastPathTracer().updateCamera).not.toHaveBeenCalled();
       expect(peek(ctx.service).sceneInitialized).toBe(true);
 
-      // The mocked clock advances 1s per call, so the settle window has
-      // passed by the next render: accumulation resumes with ONE camera
-      // re-sync and no re-ingest.
       await ctx.service.render(ctx.scene, ctx.camera);
       expect(lastPathTracer().updateCamera).toHaveBeenCalledTimes(1);
       expect(lastPathTracer().setScene).toHaveBeenCalledTimes(1);
@@ -1066,8 +1026,6 @@ describe('ThreePathTracingService', () => {
       ctx.threeScene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
 
-      // Freeze the clock: the reset timestamp and the render check now read
-      // the same instant, so the camera counts as still moving.
       (performance.now as jest.Mock).mockReturnValue(777_000);
       ctx.service.reset();
       lastPathTracer().renderSample.mockClear();
@@ -1168,8 +1126,6 @@ describe('ThreePathTracingService', () => {
       ctx.threeScene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
 
-      // DOM overlay management is the presentation layer's concern: the service
-      // presents the final frame on the canvas and emits an event, nothing more.
       expect(parent.querySelector('img')).toBeNull();
       expect(canvas.style.visibility).toBe('');
 
@@ -1254,31 +1210,22 @@ describe('ThreePathTracingService', () => {
 
     it('hides the tracer at the start, caps it while grainy, and releases it once resolved', () => {
       const service = new ThreePathTracingService();
-      // Opening samples: fully hidden under the raster.
       expect(layerOpacity(service, 0)).toBe(0);
       expect(layerOpacity(service, 4)).toBeCloseTo(0);
-      // Grainy phase: the tracer never reads above the 0.3 preview cap.
       for (const samples of [10, 40, 90, 128]) {
         expect(layerOpacity(service, samples)).toBeLessThanOrEqual(0.3 + 1e-6);
       }
-      // Released to fully opaque by the end of the fade window.
       expect(layerOpacity(service, 256)).toBeCloseTo(1);
     });
 
     it('compresses the fade window to the sample budget (no pop at completion)', () => {
       const service = new ThreePathTracingService();
       service.updateSettings({ samples: 12 });
-      // By the final sample the tracer must be fully revealed — with the old
-      // fixed 256-sample window, opacity(12) sat under the 0.3 preview cap and
-      // completion presented the pure traced frame as a hard jump.
       expect(layerOpacity(service, 12)).toBeCloseTo(1);
       expect(layerOpacity(service, 6)).toBeLessThanOrEqual(0.3 + 1e-6);
     });
 
     it('keeps finite opacity for pathological sample budgets (window floor)', () => {
-      // samples = 4 is the exact collapse point without the floor: window =
-      // hold -> release === hold -> smoothstep(4, 4, 4) divides 0/0 to NaN.
-      // Sweep every pathological budget so the pin sits on the true trigger.
       for (const samples of [1, 2, 3, 4, 5]) {
         const service = new ThreePathTracingService();
         service.updateSettings({ samples });

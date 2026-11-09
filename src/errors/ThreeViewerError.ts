@@ -16,7 +16,6 @@ export class ThreeViewerError extends Error {
     this.name = 'ThreeViewerError';
     this.timestamp = new Date();
     
-    // Maintains proper stack trace for where our error was thrown (only available on V8)
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, ThreeViewerError);
     }

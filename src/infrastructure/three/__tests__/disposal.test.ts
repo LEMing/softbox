@@ -44,9 +44,6 @@ describe('disposal', () => {
 
       disposeMaterial(material);
 
-      // The material itself is freed, but its map belongs to the environment
-      // cache / scene background — disposing it here blacked out the sky
-      // after the screenshot flow's keepBackgrounds pass.
       expect(matSpy).toHaveBeenCalledTimes(1);
       expect(mapSpy).not.toHaveBeenCalled();
     });
@@ -83,9 +80,6 @@ describe('disposal', () => {
 
       disposeSceneContents(scene, { keepBackgrounds: true });
 
-      // The screenshot flow frees the heavy contents but must keep the
-      // backdrop restorable — destroying the skybox here permanently lost
-      // the ground projection (nothing recreates it on restore).
       expect(scene.children).toContain(skybox);
       expect(scene.children).not.toContain(model);
     });
@@ -156,9 +150,6 @@ describe('disposal', () => {
       const beachMap = new THREE.Texture();
       beach.map = beachMap;
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(), assigned);
-      // The variant resolver stashes every owned material, including the
-      // assigned one — the walk must free the unassigned colorways too, and
-      // exactly once for the overlap.
       mesh.userData[STASHED_MATERIALS_KEY] = [assigned, beach];
 
       const assignedSpy = jest.spyOn(assigned, 'dispose');
@@ -253,7 +244,6 @@ describe('disposal', () => {
       expect(envSpy).not.toHaveBeenCalled();
       expect(scene.background).toBe(background);
       expect(scene.environment).toBe(environment);
-      // Children are still detached/disposed.
       expect(scene.children).toHaveLength(0);
     });
 

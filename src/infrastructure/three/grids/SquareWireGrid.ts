@@ -10,10 +10,8 @@ export class SquareWireGrid implements IGridStyle {
     const color = new THREE.Color(options.color || 0x888888);
     const centerLineColor = new THREE.Color(options.centerLineColor || options.color || 0x444444);
     
-    // Use Three.js built-in GridHelper
     const grid = new THREE.GridHelper(size, divisions, centerLineColor, color);
     
-    // Adjust opacity if specified
     if (options.opacity !== undefined && options.opacity < 1) {
       const material = grid.material as THREE.LineBasicMaterial;
       material.transparent = true;
@@ -24,6 +22,5 @@ export class SquareWireGrid implements IGridStyle {
   }
   
   dispose(): void {
-    // GridHelper disposes itself
   }
 }

@@ -69,7 +69,6 @@ describe('Hotspot', () => {
     renderHotspot(viewer, canvas, { position: [0, 0, 0] });
 
     const hotspot = screen.getByTestId('viewer-hotspot');
-    // The world origin projects to the canvas center.
     expect(hotspot.style.visibility).toBe('visible');
     expect(parseFloat(hotspot.style.left)).toBeCloseTo(100);
     expect(parseFloat(hotspot.style.top)).toBeCloseTo(100);

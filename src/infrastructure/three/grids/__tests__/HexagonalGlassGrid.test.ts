@@ -28,7 +28,6 @@ describe('HexagonalGlassGrid', () => {
 
     expect(catcher).toBeDefined();
     expect(catcher!.receiveShadow).toBe(true);
-    // Laid flat, just above the (opaque) tile tops so the shadow isn't hidden beneath them.
     expect(catcher!.rotation.x).toBeCloseTo(-Math.PI / 2);
     expect(catcher!.position.y).toBeGreaterThanOrEqual(0);
     expect((catcher!.material as THREE.ShadowMaterial).transparent).toBe(true);
@@ -42,8 +41,6 @@ describe('HexagonalGlassGrid', () => {
   it('merges the whole floor into a single mesh alongside the shadow-catcher', () => {
     const grid = new HexagonalGlassGrid().createGrid(options());
 
-    // One floor mesh + one shadow-catcher — never a mesh per tile: at
-    // real-world paver scale that multiplied into thousands of draw calls.
     expect(grid.children.length).toBe(2);
     const floor = floorMesh(grid);
     expect(floor).toBeDefined();
@@ -56,7 +53,6 @@ describe('HexagonalGlassGrid', () => {
     );
     const singleRing = floorMesh(new HexagonalGlassGrid().createGrid(options()));
 
-    // A single-ring hex layout is 7 tiles.
     const vertsPerTile = singleTile.geometry.getAttribute('position').count;
     expect(singleRing.geometry.getAttribute('position').count).toBe(vertsPerTile * 7);
   });

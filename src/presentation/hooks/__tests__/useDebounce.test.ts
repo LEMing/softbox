@@ -18,22 +18,18 @@ describe('useDebounce', () => {
     const { result } = renderHook(() => useDebounce(mockCallback, delay));
     const debouncedFn = result.current;
 
-    // Call the debounced function multiple times
     act(() => {
       debouncedFn('first');
       debouncedFn('second');
       debouncedFn('third');
     });
 
-    // Callback should not be called immediately
     expect(mockCallback).not.toHaveBeenCalled();
 
-    // Fast-forward time
     act(() => {
       jest.advanceTimersByTime(delay);
     });
 
-    // Callback should be called only once with the last arguments
     expect(mockCallback).toHaveBeenCalledTimes(1);
     expect(mockCallback).toHaveBeenCalledWith('third');
   });
@@ -45,35 +41,28 @@ describe('useDebounce', () => {
     const { result } = renderHook(() => useDebounce(mockCallback, delay));
     const debouncedFn = result.current;
 
-    // First call
     act(() => {
       debouncedFn('first');
     });
 
-    // Advance timer partially
     act(() => {
       jest.advanceTimersByTime(100);
     });
 
-    // Second call should cancel the first
     act(() => {
       debouncedFn('second');
     });
 
-    // Advance timer to complete first delay
     act(() => {
       jest.advanceTimersByTime(100);
     });
 
-    // First call should not execute
     expect(mockCallback).not.toHaveBeenCalled();
 
-    // Advance timer to complete second delay
     act(() => {
       jest.advanceTimersByTime(100);
     });
 
-    // Only second call should execute
     expect(mockCallback).toHaveBeenCalledTimes(1);
     expect(mockCallback).toHaveBeenCalledWith('second');
   });
@@ -106,22 +95,18 @@ describe('useDebounce', () => {
       { initialProps: { callback: createCallback() } }
     );
 
-    // Call with first callback
     act(() => {
       result.current();
     });
 
-    // Update callback
     callbackVersion = 2;
     const newCallback = createCallback();
     rerender({ callback: newCallback });
 
-    // Complete the timeout
     act(() => {
       jest.advanceTimersByTime(delay);
     });
 
-    // Should call the new callback, not the old one
     expect(newCallback).toHaveBeenCalled();
     expect(newCallback()).toBe(2);
   });

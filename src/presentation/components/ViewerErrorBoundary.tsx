@@ -10,9 +10,6 @@ interface State {
   error: Error | null;
 }
 
-/**
- * Error boundary component for viewer
- */
 export class ViewerErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);

@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { applyStudioContrast } from '../studioEnvironmentContrast';
 
-/** A stand-in for RoomEnvironment: a lit surround, a soft-box panel, a light. */
 function makeRoomLike() {
   const scene = new THREE.Scene();
 
@@ -11,7 +10,6 @@ function makeRoomLike() {
   );
   const panel = new THREE.Mesh(
     new THREE.BoxGeometry(),
-    // RoomEnvironment marks its soft-boxes with a high emissiveIntensity.
     new THREE.MeshLambertMaterial({ color: 0x000000, emissive: 0xffffff, emissiveIntensity: 50 })
   );
   const light = new THREE.PointLight(0xffffff, 900);
@@ -24,7 +22,6 @@ describe('applyStudioContrast', () => {
   it('darkens the reflected surround so highlights read against a deeper background', () => {
     const { scene, wall } = makeRoomLike();
     applyStudioContrast(scene);
-    // White (1,1,1) surround multiplied down toward black.
     const color = (wall.material as THREE.MeshStandardMaterial).color;
     expect(color.r).toBeLessThan(1);
     expect(color.r).toBeCloseTo(0.42, 2);
@@ -38,7 +35,6 @@ describe('applyStudioContrast', () => {
     applyStudioContrast(scene);
     const after = (panel.material as THREE.MeshLambertMaterial).emissiveIntensity;
     expect(after).toBeGreaterThan(before);
-    // Its black base colour is not treated as a surround (stays black).
     expect((panel.material as THREE.MeshLambertMaterial).color.getHex()).toBe(0x000000);
   });
 

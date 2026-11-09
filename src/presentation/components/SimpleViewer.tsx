@@ -39,19 +39,10 @@ import * as THREE from 'three';
 const notReadyError = () =>
   new ThreeViewerError('Viewer is not ready yet', ErrorCode.COMPONENT_NOT_MOUNTED);
 
-/**
- * The public viewer component. It is a thin composition over focused hooks —
- * preset-picker state (`usePickedPreset`), prop-shorthand folding
- * (`useResolvedOptions`), the engine (`useViewerCore`), model loading
- * (`useModelLoader`) and event forwarding (`useForwardedEvents`) — plus the
- * imperative handle and the overlay chrome.
- */
 export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
   ({ object, options = {}, preset, pathTraced, turntable, animations, children }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
-    // The `preset` prop is shorthand for `options.preset`; an explicit
-    // `options.preset` wins if both are provided.
     const consumerPreset = options.preset ?? preset;
     const { activePreset, pickerEnabled, selectPreset } = usePickedPreset(
       consumerPreset,
@@ -71,7 +62,6 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
     const events = useForwardedEvents(viewer);
     useOptionCallbacks(viewer, initError, options);
 
-    // Three.js objects for the gizmo and handle, via ViewerCore's accessors.
     const camera = viewer ? toThreeCamera(viewer.getCamera()) : null;
     const controls = viewer ? toThreeControls(viewer.getControls()) : null;
     const renderer = viewer ? toThreeRenderer(viewer.getRenderer()) : null;
@@ -83,12 +73,7 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
     const isGizmoEnabled = options.helpers?.gizmo !== undefined && options.helpers.gizmo !== false;
     const gizmoOptions = typeof options.helpers?.gizmo === 'object' ? options.helpers.gizmo : {};
 
-    // AR handoff is UI-only chrome, read live off the raw options like `ui`.
     const arOptions = options.ar === true ? {} : options.ar || null;
-    // The AR button must hand off the model that is ON STAGE, which the
-    // `object` prop stops describing after an imperative handle.loadModel()
-    // swap — track the engine's own record of the loaded URL instead. The
-    // prop is only the pre-first-load fallback.
     const [loadedModelUrl, setLoadedModelUrl] = useState<string | null>(null);
     useEffect(() => {
       if (!viewer) {
@@ -96,29 +81,18 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
         return;
       }
       const updateLoadedUrl = () => setLoadedModelUrl(viewer.getModelUrl());
-      // A model may already be on stage (runtime-only remounts).
       updateLoadedUrl();
       events.on('model:loaded', updateLoadedUrl);
       return () => events.off('model:loaded', updateLoadedUrl);
     }, [viewer, events]);
     const arSource = loadedModelUrl ?? object;
 
-    // The poster dismisses on the first frame PAINTED after the model
-    // landed — model:loaded alone races the actual draw, and dropping the
-    // poster a frame early flashes the empty stage.
     const posterSrc = options.poster || null;
     const [posterDismissed, setPosterDismissed] = useState(false);
     useEffect(() => {
       if (!posterSrc || posterDismissed) {
         return;
       }
-      // A poster that arrives AFTER the model already loaded (async CMS URL,
-      // a toggled option) has no future model:loaded to wait for — and the
-      // render loop may have idled, so there is no future frame either. The
-      // model demonstrably painted already: dismiss now. Status is read at
-      // subscribe time only; the loading→loaded transition of a watched load
-      // is delivered by the model:loaded event below, ahead of the deciding
-      // paint.
       if (loadState.status === 'loaded') {
         setPosterDismissed(true);
         return;
@@ -140,7 +114,6 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps -- loadState.status is deliberately not a dep: re-running on loading→loaded would dismiss at load, before the first painted frame.
     }, [posterSrc, posterDismissed, events]);
-    // Built-in loading overlay configuration (UI-only).
     const loadingIndicator = useMemo(
       () => resolveLoadingIndicator(options.loadingIndicator),
       [options.loadingIndicator]
@@ -148,9 +121,6 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
     const hasError = loadState.status === 'error' || Boolean(initError);
     const showOverlay =
       loadingIndicator.enabled && (loadState.status === 'loading' || hasError);
-    // A failed load keeps the poster up as the backdrop UNDER the error
-    // overlay — but with the built-in overlay disabled that would read as a
-    // frozen viewer, so the poster steps aside for the consumer's own chrome.
     const posterVisible = !posterDismissed && !(hasError && !loadingIndicator.enabled);
 
     useImperativeHandle(ref, () => {
@@ -257,7 +227,6 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
       };
     }, [viewer, camera, renderer, controls, events]);
 
-    // Always render the canvas, even if the viewer is not ready.
     return (
       <ViewerErrorBoundary>
         <ViewerProvider viewer={viewer} canvasRef={canvasRef}>
@@ -288,8 +257,6 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
               />
             )}
             {pickerEnabled && (
-              /* The defaults ARE the studio look (pinned by presets.test.ts),
-                 so with no preset set the studio chip is the honest active one. */
               <PresetPicker active={activePreset ?? 'studio'} onSelect={selectPreset} />
             )}
             {arOptions && (

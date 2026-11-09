@@ -10,46 +10,24 @@ import { useMediaQuery } from './useMediaQuery';
 import { DEFAULT_SCENE, VIEWER_SCENES } from '../scenes';
 import type { ViewerScene } from '../types/options';
 
-// The Khronos sample set mixes wildly different authored scales (some in
-// real-world meters, some arbitrary). WaterBottle and Avocado are already
-// real-world-scale (a bottle ~0.26m, an avocado ~0.06m) so they're used
-// as-is; Lantern/Helmet/Fox are re-hosted local copies with a corrective
-// root-node scale baked in (see scratch-rescale-glb.mjs in git history) so
-// every sample model sits at a consistent, plausible real-world size under
-// the same 1-unit-= 1-meter convention as the Motorhome.
-// Local model paths are relative (no leading slash): they resolve against the
-// page URL, so the same build works at '/' in dev and under '/softbox/' on
-// GitHub Pages. Root-absolute paths 404 on Pages — they escape the base path.
 const SAMPLE_MODELS: Record<string, string> = {
   Motorhome: 'motorhome.glb',
   Lantern: 'lantern.glb',
   Helmet: 'helmet.glb',
   WaterBottle: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/WaterBottle/glTF-Binary/WaterBottle.glb',
   Avocado: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb',
-  // Carries KHR_materials_variants (colorways) — the Variant picker's showcase.
   Shoe: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/MaterialsVariantsShoe/glTF-Binary/MaterialsVariantsShoe.glb',
-  // Animated (Survey/Walk/Run clips) — the `animations` toggle's showcase.
   Fox: 'fox.glb',
 };
 
 const DROPPED_KEY = 'yours';
 
-// A hand-tuned cinematic framing for the Motorhome model specifically — an
-// elevated 3/4 hero angle, rather than the generic auto-fit's plainer view.
-// Values are absolute world coordinates measured against this model's own
-// bounding box, so this preset is only meaningful for it.
 const MOTORHOME_CAMERA = {
-  // Pulled back a further ~1.35x from the target: the earlier framing filled the
-  // whole frame edge-to-edge (jarringly tight next to the roomy auto-fit models,
-  // and worse on wide windows), so give the hero shot breathing room.
   position: [-9.5, 8.88, 16.38] as const,
   target: [0.02, 1.37, -0.1] as const,
   fov: 30,
 };
 
-// Portrait screens need substantially more distance to fit a long vehicle
-// inside their narrow horizontal field of view. The direction stays the same
-// as the desktop hero angle, only the dolly distance changes.
 const MOTORHOME_MOBILE_CAMERA = {
   position: [-15.21, 13.39, 26.27] as const,
   target: MOTORHOME_CAMERA.target,
@@ -110,12 +88,6 @@ const downloadDataUrl = (dataUrl: string, filename: string) => {
   anchor.click();
 };
 
-/**
- * The playground site: a full-viewport viewer as the hero, the library's own
- * preset picker as the controls, plus site chrome — brand, sample-model picker,
- * install snippet, your own .glb via drag & drop or the file browser, click-to-
- * pin hotspots (object:selected) and a captureStill download button.
- */
 export function SiteApp() {
   const { dropped, isDragging, rejectedName, loadFile } = useDropModel();
   const [selected, setSelected] = useState<string>('Motorhome');
@@ -137,14 +109,12 @@ export function SiteApp() {
   const viewerRef = useRef<SimpleViewerHandle>(null);
   const useMobileCamera = useMediaQuery('(max-width: 700px)');
 
-  // A fresh drop always takes the stage.
   useEffect(() => {
     if (dropped) {
       setSelected(DROPPED_KEY);
     }
   }, [dropped]);
 
-  // Click the model to pin a hotspot at the hit point (the object:selected demo).
   useEffect(() => {
     const handle = viewerRef.current;
     if (!handle) {
@@ -157,15 +127,12 @@ export function SiteApp() {
     });
   }, []);
 
-  // Offer the Variant picker only for models that carry material variants.
   useEffect(() => {
     const handle = viewerRef.current;
     if (!handle) {
       return;
     }
     return handle.events.on('model:loaded', () => {
-      // Read the ref at call time: the handle is recreated as the viewer
-      // initializes/rebuilds, and only the latest one sees the loaded model.
       setVariantNames(viewerRef.current?.getVariantNames() ?? []);
     });
   }, []);
@@ -173,8 +140,6 @@ export function SiteApp() {
   const pickerItems = dropped ? [...Object.keys(SAMPLE_MODELS), DROPPED_KEY] : Object.keys(SAMPLE_MODELS);
   const modelUrl = selected === DROPPED_KEY && dropped ? dropped.url : SAMPLE_MODELS[selected];
 
-  // Pins are anchored to the current model's surface — clear them with it.
-  // Variants belong to the model too: reset both until the next load reports.
   useEffect(() => {
     setPins([]);
     setVariant(null);
@@ -186,7 +151,6 @@ export function SiteApp() {
     if (file) {
       loadFile(file);
     }
-    // Allow re-choosing the same file.
     event.target.value = '';
   };
 
@@ -276,12 +240,7 @@ export function SiteApp() {
           ui: { presets: true },
           scene,
           variant,
-          // Phones get the native-AR chip; desktop (and dropped blob: files)
-          // hide it on their own.
           ar: true,
-          // The Motorhome gets a declarative hero-shot camera so the framing
-          // survives any structural rebuild. autoFitToObject is off so the
-          // hand-tuned 30° framing sticks instead of being re-fit.
           ...(selected === 'Motorhome'
             ? {
                 camera: {
@@ -293,9 +252,6 @@ export function SiteApp() {
               }
             : {}),
           ...(pathTraced ? { pathTracing: { enabled: true } } : {}),
-          // Post-processing effects are RUNTIME fields: toggling one swaps the
-          // composer on the live viewer — no rebuild, no model reload, and the
-          // picked preset survives (the old remount-on-key hack is gone).
           renderer: { bloom, vignette, filmGrain, colorGrade },
         }}
       >

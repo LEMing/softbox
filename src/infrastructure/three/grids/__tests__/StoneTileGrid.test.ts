@@ -7,7 +7,6 @@ describe('StoneTileGrid texture ownership', () => {
   let loadSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    // Each load returns a distinct texture so we can detect sharing/caching.
     loadSpy = jest
       .spyOn(THREE.TextureLoader.prototype, 'load')
       .mockImplementation(() => new THREE.Texture());
@@ -40,7 +39,6 @@ describe('StoneTileGrid texture ownership', () => {
     const first = materialOf(style.createGrid(texturedOptions()));
     const second = materialOf(style.createGrid(texturedOptions()));
 
-    // No cross-grid cache: the two grids must not share texture objects.
     expect(first.map).not.toBe(second.map);
     expect(first.normalMap).not.toBe(second.normalMap);
   });
@@ -50,17 +48,13 @@ describe('StoneTileGrid texture ownership', () => {
     const first = materialOf(style.createGrid(texturedOptions()));
     const firstMap = first.map as THREE.Texture;
 
-    // Simulate the scene's canonical disposal freeing this grid's textures.
     firstMap.dispose();
 
     const second = materialOf(style.createGrid(texturedOptions()));
-    // The new grid must get a fresh texture, never the just-disposed one.
     expect(second.map).not.toBe(firstMap);
   });
 
   it('produces independent textures across grids even through the GridFactory singleton', () => {
-    // GridFactory holds StoneTileGrid as a static singleton — the original
-    // source of the shared, disposed-then-reused texture bug.
     const a = materialOf(GridFactory.createGrid(GridType.STONE_TILES, texturedOptions()));
     const b = materialOf(GridFactory.createGrid(GridType.STONE_TILES, texturedOptions()));
     expect(a.map).not.toBe(b.map);

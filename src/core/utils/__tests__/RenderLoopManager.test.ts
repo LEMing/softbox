@@ -39,7 +39,6 @@ describe('RenderLoopManager continuous-rendering reasons', () => {
     manager.requireContinuous('path-tracing');
     manager.requireContinuous('turntable');
 
-    // The path tracer finishing must not stall the turntable.
     manager.releaseContinuous('path-tracing');
     expect(manager.hasContinuousDemand()).toBe(true);
     expect(manager.getNeedsRender()).toBe(true);
@@ -52,7 +51,7 @@ describe('RenderLoopManager continuous-rendering reasons', () => {
     const manager = makeIdleManager();
     const render = jest.fn();
     manager.start(render);
-    pumpFrame(); // initial needsRender
+    pumpFrame();
     render.mockClear();
 
     manager.requireContinuous('turntable');
@@ -61,13 +60,12 @@ describe('RenderLoopManager continuous-rendering reasons', () => {
     expect(render).toHaveBeenCalledTimes(2);
 
     manager.releaseContinuous('turntable');
-    manager.requestRender(); // the final frame arms the idle timer
+    manager.requestRender();
     pumpFrame();
     render.mockClear();
-    pumpFrame(); // nothing demands a render anymore
+    pumpFrame();
     expect(render).not.toHaveBeenCalled();
 
-    // After the idle delay the loop stops scheduling frames entirely.
     jest.advanceTimersByTime(60);
     pumpFrame();
     expect(rafCallbacks).toHaveLength(0);
@@ -82,13 +80,10 @@ describe('RenderLoopManager continuous-rendering reasons', () => {
   });
 
   it('idles out after a bare releaseContinuous with no following render request', () => {
-    // Regression: releaseContinuous() can drop demand to zero on a frame that
-    // renders nothing (needsRender was already false going in). The idle timer
-    // must still arm on that exact frame, not only on frames that rendered.
     const manager = makeIdleManager();
     const render = jest.fn();
     manager.start(render);
-    pumpFrame(); // initial needsRender
+    pumpFrame();
     render.mockClear();
 
     manager.requireContinuous('video-capture');
@@ -96,7 +91,7 @@ describe('RenderLoopManager continuous-rendering reasons', () => {
     expect(render).toHaveBeenCalledTimes(1);
 
     manager.releaseContinuous('video-capture');
-    pumpFrame(); // nothing demands a render on this frame — must still arm idle
+    pumpFrame();
     render.mockClear();
     pumpFrame();
     expect(render).not.toHaveBeenCalled();

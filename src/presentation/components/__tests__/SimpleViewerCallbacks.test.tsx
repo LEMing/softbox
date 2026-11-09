@@ -9,8 +9,6 @@ import { ThreeViewerError, ErrorCode } from '../../../errors';
 import { ThreeObject3DAdapter } from '../../../infrastructure/three/ThreeObject3D';
 import * as THREE from 'three';
 
-// Keep the real forwarding/callback hooks; stub only useViewerCore so the
-// tests control the core event bus and the init outcome.
 jest.mock('../../hooks', () => {
   const actual = jest.requireActual('../../hooks');
   return { ...actual, useViewerCore: jest.fn() };
@@ -122,7 +120,6 @@ describe('SimpleViewer option callbacks', () => {
     rerender(<SimpleViewer object={null} options={{ onError }} />);
 
     await waitFor(() => expect(onError).toHaveBeenCalledWith(initError));
-    // Once per failure, not once per render.
     rerender(<SimpleViewer object={null} options={{ onError }} />);
     expect(onError).toHaveBeenCalledTimes(1);
   });
@@ -142,7 +139,6 @@ describe('SimpleViewer option callbacks', () => {
     render(<SimpleViewer object="model.glb" options={{ onError }} />);
 
     await waitFor(() => expect(onError).toHaveBeenCalledWith(initError));
-    // The spinner must not spin forever — the overlay shows the error.
     expect(screen.getByText('WebGL context could not be created')).toBeInTheDocument();
   });
 });

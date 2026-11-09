@@ -9,6 +9,7 @@ import { PathTracingCoordinator } from './PathTracingCoordinator';
 import { applyCameraAspect } from './utils/cameraAspect';
 import { canvasToPngDataUrl } from './utils/canvasPng';
 import { generateUUID } from '../utils/uuid';
+import { bestEffort } from '../utils/bestEffort';
 
 type CaptureWaitOutcome = 'complete' | 'disposed' | 'error' | 'turntable';
 
@@ -22,11 +23,8 @@ export interface CaptureControllerDependencies {
   getStatus: () => string;
   isDisposed: () => boolean;
   awaitModelLoads: () => Promise<unknown>;
-  /** Restarts a render loop that idle detection has stopped (staticScene). */
   reviveRenderLoop: () => void;
-  /** Whether the turntable is currently spinning the camera. */
   isAutoRotating: () => boolean;
-  /** Whether the canvas is currently hidden behind a captured screenshot image. */
   isScreenshotActive: () => boolean;
 }
 
@@ -34,7 +32,6 @@ type StreamingCanvas = HTMLCanvasElement & {
   captureStream?: (frameRate?: number) => MediaStream;
 };
 
-/** Best supported container/codec, preferring the caller's choice. */
 const pickVideoMimeType = (preferred?: string): string | undefined => {
   const candidates = [
     preferred,
@@ -46,25 +43,9 @@ const pickVideoMimeType = (preferred?: string): string | undefined => {
   return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate));
 };
 
-/**
- * The captureStill subsystem, extracted from ViewerCore.
- *
- * Raster mode renders one fresh frame at the requested resolution (the
- * drawing buffer is temporarily resized with pixel ratio 1, so `width` ×
- * `height` are exact output pixels) and restores the live size afterwards —
- * all synchronously, so nothing flickers on screen. Path-traced mode waits
- * for the accumulation to complete and captures the canvas as-is; the
- * accumulated samples exist only at the canvas resolution, so an explicit
- * `width`/`height` is rejected rather than silently downgraded to a
- * non-path-traced render.
- */
 export class CaptureController {
   private readonly deps: CaptureControllerDependencies;
-  // Pending waiters, settled by settleOnDispose() so their promises never
-  // dangle after teardown.
   private readonly pendingSettlers = new Set<(outcome: CaptureWaitOutcome) => void>();
-  // Path-traced-still waiters only: notifyTurntableEnabled() settles these
-  // without touching video captures (which a turntable does not invalidate).
   private readonly pathTracedWaitSettlers = new Set<(outcome: CaptureWaitOutcome) => void>();
 
   constructor(deps: CaptureControllerDependencies) {
@@ -77,17 +58,12 @@ export class CaptureController {
         new ThreeViewerError('Cannot capture a still from a disposed viewer', ErrorCode.INVALID_STATE)
       );
     }
-    // A capture taken mid-load would show the previous scene; let queued model
-    // loads finish first.
     await this.deps.awaitModelLoads().catch(() => undefined);
     if (this.deps.isDisposed()) {
       return Result.err(
         new ThreeViewerError('Viewer was disposed while a model load finished', ErrorCode.INVALID_STATE)
       );
     }
-    // A screenshot replaces the canvas with a plain <img>; the live scene
-    // behind it may already be torn down (resources released once the
-    // capture was validated), so reading the canvas would be meaningless.
     if (this.deps.isScreenshotActive()) {
       return Result.err(
         new ThreeViewerError(
@@ -102,27 +78,14 @@ export class CaptureController {
     return this.captureRasterStill(options);
   }
 
-  /** Resolve any pending waiters so their capture promises settle. */
   settleOnDispose(): void {
     [...this.pendingSettlers].forEach((settle) => settle('disposed'));
   }
 
-  /**
-   * A turntable enabled mid-wait resets the path-traced accumulation every
-   * frame, so a pending capture's wait-for-completion can never converge —
-   * settle it now (it rejects with the same INVALID_STATE the up-front
-   * turntable check uses).
-   */
   notifyTurntableEnabled(): void {
     [...this.pathTracedWaitSettlers].forEach((settle) => settle('turntable'));
   }
 
-  /**
-   * Records the live canvas for `duration` seconds via MediaRecorder and
-   * resolves with the encoded clip (WebM in Chromium/Firefox, MP4 in Safari).
-   * The render loop is held continuous for the whole take, so turntable and
-   * animation motion make it into the clip even on otherwise static scenes.
-   */
   async captureVideo(options: CaptureVideoOptions = {}): Promise<Result<Blob>> {
     if (this.deps.isDisposed()) {
       return Result.err(
@@ -177,9 +140,6 @@ export class CaptureController {
       );
     }
 
-    // Under heavy rAF throttling (contended CI, background tabs) auto-capture
-    // can push zero frames into the stream; explicitly forward every rendered
-    // frame where the platform supports it.
     const videoTrack = stream.getVideoTracks()[0] as
       | (MediaStreamTrack & { requestFrame?: () => void })
       | undefined;
@@ -188,9 +148,6 @@ export class CaptureController {
       ? this.deps.events.on('render:complete', () => requestFrame())
       : () => {};
 
-    // A unique reason per take: two overlapping captureVideo() calls must not
-    // share one 'video-capture' string, or the first to finish releases it out
-    // from under the other, starving its still-recording frame forwarding.
     const continuousReason = `video-capture:${generateUUID()}`;
     this.deps.renderLoopManager.requireContinuous(continuousReason);
     this.deps.reviveRenderLoop();
@@ -217,18 +174,12 @@ export class CaptureController {
       };
 
       const onDispose = () => {
-        // Settle FIRST: whether the recorder fires its stop event sync or
-        // async, the partial clip must not win over the dispose error.
         finish(
           Result.err(
             new ThreeViewerError('Viewer was disposed during video capture', ErrorCode.INVALID_STATE)
           )
         );
-        try {
-          recorder.stop();
-        } catch {
-          // Already inactive — nothing to stop.
-        }
+        bestEffort(() => recorder.stop());
       };
       this.pendingSettlers.add(onDispose);
 
@@ -248,8 +199,6 @@ export class CaptureController {
         );
       };
 
-      // A timeslice flushes chunks periodically, so a slow encoder still
-      // materializes data by the time the take ends.
       recorder.start(250);
       stopTimer = setTimeout(() => {
         if (recorder.state !== 'inactive') {
@@ -268,9 +217,6 @@ export class CaptureController {
         )
       );
     }
-    // A spinning turntable resets the accumulation on every frame the camera
-    // moves, so it can never reach the sample target — waiting below would
-    // hang forever. Fail fast instead of guessing at a degraded capture.
     if (this.deps.isAutoRotating()) {
       return Result.err(
         new ThreeViewerError(
@@ -279,10 +225,6 @@ export class CaptureController {
         )
       );
     }
-    // Wait only while the accumulation can still finish. A disabled service
-    // (post-completion reset, failed init, internal error) will never emit
-    // 'pathtracing:complete' again — capture the canvas as it stands instead
-    // of pending forever.
     const accumulating =
       this.deps.pathTracing.isAccumulating() && this.deps.getStatus() !== 'error';
     if (!this.deps.pathTracing.isCompleteHandled() && accumulating) {
@@ -328,16 +270,7 @@ export class CaptureController {
       this.pathTracedWaitSettlers.add(settle);
       offComplete = this.deps.events.once('pathtracing:complete', () => settle('complete'));
       offError = this.deps.events.once('model:error', () => settle('error'));
-      // The tracer can give up on the accumulation without ever completing
-      // (renderer never ready, environment never arrived, or the camera kept
-      // moving and reset it every frame). The canvas still holds a valid
-      // standard-render fallback frame, so capture it rather than hang.
       offSelfPause = this.deps.pathTracing.onSelfPause(() => settle('complete'));
-      // A turntable enabled OUTSIDE updateOptions (e.g. directly on the raw
-      // controls the handle exposes) never reaches notifyTurntableEnabled —
-      // but the render loop emits controls:change every rotated frame, so
-      // observing rotation there closes the bypass. A manual drag also emits
-      // these but converges after release, hence the isAutoRotating filter.
       offControlsChange = this.deps.events.on('controls:change', () => {
         if (this.deps.isAutoRotating()) {
           settle('turntable');
@@ -350,8 +283,6 @@ export class CaptureController {
     const { renderer, scene, camera, renderLoopManager } = this.deps;
     const canvas = renderer.getDomElement();
     const livePixelRatio = renderer.getPixelRatio();
-    // A hidden or detached canvas has no client size; scale the drawing buffer
-    // back to logical pixels instead of mistaking buffer pixels for CSS ones.
     const hasLayout = canvas.clientWidth > 0 && canvas.clientHeight > 0;
     const liveWidth = hasLayout ? canvas.clientWidth : Math.round(canvas.width / livePixelRatio);
     const liveHeight = hasLayout ? canvas.clientHeight : Math.round(canvas.height / livePixelRatio);
@@ -383,26 +314,16 @@ export class CaptureController {
       );
     }
 
-    // The whole resize → render → read → restore cycle runs in one task, so
-    // the intermediate size is never painted to screen. The renderer is driven
-    // directly rather than through resize(): its change-detection guard
-    // compares buffer pixels to logical pixels and could skip the restore.
     renderer.setPixelRatio(1);
     renderer.setSize(targetWidth, targetHeight);
     applyCameraAspect(camera, targetWidth / targetHeight);
-    // Through the post-processing composer when present, so a captured still
-    // carries the same bloom/vignette/grain as the on-screen view.
     const rendered = renderer.renderPostProcessed
       ? renderer.renderPostProcessed(scene, camera)
       : renderer.render(scene, camera);
     const still = rendered.ok ? this.readCanvasPng() : Result.err(rendered.error);
-    // Size first, ratio second: three re-applies the last logical size when the
-    // pixel ratio changes, so this order never allocates a target×DPR buffer.
     renderer.setSize(liveWidth, liveHeight);
     renderer.setPixelRatio(livePixelRatio);
     applyCameraAspect(camera, liveAspect);
-    // Through the composer when effects are on — a plain render here paints
-    // one effect-free frame before the loop's next composed one (a flash).
     if (renderer.renderPostProcessed) {
       renderer.renderPostProcessed(scene, camera);
     } else {

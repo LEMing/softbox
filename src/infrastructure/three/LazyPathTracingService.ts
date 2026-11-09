@@ -8,30 +8,15 @@ import { IScene, ICamera, Result } from '../../core/interfaces';
 import { TypedEventEmitter } from '../../events/EventEmitter';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 
-/**
- * Lazy facade over ThreePathTracingService. three-gpu-pathtracer is ~60 kB
- * gzip — around 40% of the library payload — and only consumers who turn
- * `pathTracing.enabled` on ever need it. The dynamic import in `initialize()`
- * keeps it in a separate chunk that loads on demand, mirroring how the
- * compression decoders are handled.
- *
- * Before initialization every method is a safe no-op with the same defaults
- * an idle tracer would report (0 samples, disabled, not disposed).
- */
 export class LazyPathTracingService implements IPathTracingService {
   readonly events = new TypedEventEmitter<{ 'pathtracing:paused': PathTracingPausedEvent }>();
 
   private inner?: IPathTracingService;
   private disposed = false;
-  // Settings applied before the real service finished loading are replayed
-  // onto it right after construction.
   private pendingSettings?: Partial<IPathTracingSettings>;
   private pendingEnabled?: boolean;
 
   async initialize(options: IPathTracingOptions): Promise<Result<void>> {
-    // The tracer chunk is a network fetch (offline, CDN failure) — a rejected
-    // import must surface as a Result like every other failure, not as an
-    // unhandled rejection racing up through the runtime-toggle chain.
     let ThreePathTracingService: typeof import('./ThreePathTracingService').ThreePathTracingService;
     try {
       ({ ThreePathTracingService } = await import('./ThreePathTracingService'));

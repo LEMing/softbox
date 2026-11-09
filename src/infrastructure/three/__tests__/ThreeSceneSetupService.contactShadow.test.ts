@@ -72,8 +72,6 @@ describe('ThreeSceneSetupService contact shadow', () => {
         asRenderer(internal)
       );
 
-      // Ownership never transferred: the failure path must free the
-      // accumulation target instead of stranding it.
       expect(result.ok).toBe(false);
       expect(targetDispose).toHaveBeenCalled();
       expect(threeScene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeUndefined();
@@ -155,7 +153,6 @@ describe('ThreeSceneSetupService contact shadow', () => {
       const result = service.resetContactShadow(new ThreeSceneAdapter(threeScene));
 
       expect(result.ok).toBe(true);
-      // Evicted AND disposed (the real disc owns a render target), not hidden.
       expect(threeScene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeUndefined();
       expect(disposeSpy).toHaveBeenCalled();
       expect(live.visible).toBe(true);

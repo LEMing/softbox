@@ -4,12 +4,6 @@ import HexTile from '../HexTile';
 import { HexTileConfig } from '../HexTileConfig';
 import { createShadowCatcher } from './shadowCatcher';
 
-/**
- * Merge translated copies of one geometry into a single BufferGeometry —
- * the copies differ ONLY by offset, so this is plain attribute replication
- * (positions shifted per copy, normals/uvs repeated verbatim), no general
- * merge machinery needed.
- */
 function mergeTranslatedCopies(
   canonical: THREE.BufferGeometry,
   offsets: THREE.Vector3[]
@@ -52,8 +46,6 @@ export class HexagonalGlassGrid implements IGridStyle {
   createGrid(options: IGridOptions): THREE.Object3D {
     const group = new THREE.Group();
 
-    // `??`, not `||`: hexRadius 0 is a real request for a single tile (the
-    // dynamic grid sends it for very small objects), not an absent option.
     const radius = options.styleOptions?.hexRadius ?? Math.floor(options.divisions / 2);
     const tileSize = options.styleOptions?.tileSize || 1;
     const color = String(options.color || '#ffffff');
@@ -62,14 +54,6 @@ export class HexagonalGlassGrid implements IGridStyle {
     const width = gridSpacing.width;
     const height = gridSpacing.height;
 
-    // The whole floor is ONE mesh: every tile is the template geometry at a
-    // different offset, merged into a single draw call with one shared
-    // material. At real-world paver scale (a fixed physical tile under a
-    // large model) the floor runs to thousands of tiles — a mesh+geometry+
-    // material per tile multiplied into thousands of draw calls and GPU
-    // objects, dominating first paint. A merged mesh (rather than
-    // InstancedMesh) also keeps the floor visible to the path tracer, whose
-    // scene generator does not expand instances.
     const template = new HexTile(new THREE.Vector3(0, 0, 0), tileSize, color, {
       metalness: options.styleOptions?.metalness,
       roughness: options.styleOptions?.roughness,
@@ -97,28 +81,13 @@ export class HexagonalGlassGrid implements IGridStyle {
     floor.receiveShadow = true;
     group.add(floor);
 
-    // Never uploaded to the GPU (only its arrays were copied), but keep the
-    // teardown explicit to match the rest of the disposal discipline.
     canonicalTile.dispose();
 
-    // A ShadowMaterial only ever shows its shadowed areas — everywhere else
-    // it's fully transparent — so it reads as a clean contact shadow
-    // regardless of how much the studio environment's ambient/IBL lighting
-    // (which isn't blocked by the shadow map at all) washes out the shadow
-    // that the tiles' own PBR shading would otherwise show. Add it just
-    // above the tile tops (tile tops sit at y=0) so it isn't hidden beneath
-    // the now-opaque tiles. It doubles as the real-time fallback while
-    // animations play, when the baked contact shadow (see ContactShadowBaker)
-    // would lag the moving model. Sized to hug the tiles' actual coverage: a
-    // catcher reaching past the last tile shows shadow hovering in mid-air
-    // next to the floor's edge. The baked contact shadow also clips itself
-    // to this disc's radius for the same reason.
     group.add(createShadowCatcher(width * (radius + 0.5), 0.35));
 
     return group;
   }
 
   dispose(): void {
-    // Cleanup if needed
   }
 }

@@ -106,7 +106,6 @@ describe('ThreeAnchorProjector', () => {
     const second = service.createProjector(sources);
 
     expect(first.project({ x: 0, y: 0, z: 0 }, false)).not.toBeNull();
-    // A fresh projector has its own memo state, so it still recomputes.
     expect(second.project({ x: 0, y: 0, z: 0 }, false)).not.toBeNull();
   });
 });

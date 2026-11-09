@@ -1,6 +1,3 @@
-/**
- * Manages render loop with idle detection and performance optimization
- */
 export interface RenderLoopOptions {
   enableIdleDetection?: boolean;
   idleDelay?: number;
@@ -20,7 +17,6 @@ export class RenderLoopManager {
   private readonly frameInterval: number;
   private readonly enableFrameRateLimiting: boolean;
   
-  // Tracking what needs rendering
   private needsRender: boolean = true;
   private continuousRenderingEnabled: boolean = false;
   private readonly continuousReasons: Set<string> = new Set();
@@ -36,39 +32,26 @@ export class RenderLoopManager {
     this.lastRenderTime = performance.now();
   }
   
-  /**
-   * Request a render on the next frame
-   */
   requestRender(): void {
     this.needsRender = true;
     this.wakeUp();
   }
   
-  /**
-   * Demand continuous rendering for a named reason (path tracing, turntable,
-   * animations). The loop stays continuous while ANY reason is held, so one
-   * subsystem finishing cannot silently stall another.
-   */
   requireContinuous(reason: string): void {
     this.continuousReasons.add(reason);
     this.continuousRenderingEnabled = true;
     this.wakeUp();
   }
 
-  /** Release one reason; continuous rendering stops when none remain. */
   releaseContinuous(reason: string): void {
     this.continuousReasons.delete(reason);
     this.continuousRenderingEnabled = this.continuousReasons.size > 0;
   }
 
-  /** Whether any subsystem still demands continuous rendering. */
   hasContinuousDemand(): boolean {
     return this.continuousReasons.size > 0;
   }
   
-  /**
-   * Set always render mode (for non-static scenes)
-   */
   setAlwaysRender(enabled: boolean): void {
     this.alwaysRender = enabled;
     if (enabled) {
@@ -76,9 +59,6 @@ export class RenderLoopManager {
     }
   }
   
-  /**
-   * Wake up from idle state
-   */
   private wakeUp(): void {
     if (this.idleTimeout !== null) {
       clearTimeout(this.idleTimeout);
@@ -87,30 +67,23 @@ export class RenderLoopManager {
     this.isIdle = false;
   }
   
-  /**
-   * Start the render loop
-   */
   start(renderCallback: (deltaTime: number) => void): void {
     if (this.animationFrameId !== null) {
-      return; // Already running
+      return;
     }
     
     const animate = (currentTime: number) => {
-      // Check if we should continue
       if (this.animationFrameId === null) {
         return;
       }
       
-      // Calculate delta time
       const deltaTime = currentTime - this.lastRenderTime;
       
-      // Frame rate limiting
       if (this.enableFrameRateLimiting && deltaTime < this.frameInterval) {
         this.animationFrameId = requestAnimationFrame(animate);
         return;
       }
       
-      // Check if we need to render
       const shouldRender = this.alwaysRender || this.needsRender || this.continuousRenderingEnabled;
 
       if (shouldRender) {
@@ -119,11 +92,6 @@ export class RenderLoopManager {
         this.needsRender = false;
       }
 
-      // Idle-timer arming must track current demand, not whether THIS frame
-      // rendered: releaseContinuous() can drop demand to zero on a frame that
-      // renders nothing (needsRender was already false), and gating the arm
-      // behind `shouldRender` left that frame — and every frame after it —
-      // with no timer ever set, so isIdle never flips and the loop spins forever.
       if (this.enableIdleDetection && !this.alwaysRender) {
         if (this.continuousRenderingEnabled || this.needsRender) {
           this.wakeUp();
@@ -134,7 +102,6 @@ export class RenderLoopManager {
         }
       }
 
-      // Continue loop based on mode and idle state
       const shouldContinue = this.alwaysRender || 
                            !this.enableIdleDetection || 
                            !this.isIdle || 
@@ -144,7 +111,6 @@ export class RenderLoopManager {
       if (shouldContinue) {
         this.animationFrameId = requestAnimationFrame(animate);
       } else {
-        // Stop the loop when idle
         this.animationFrameId = null;
       }
     };
@@ -152,9 +118,6 @@ export class RenderLoopManager {
     this.animationFrameId = requestAnimationFrame(animate);
   }
   
-  /**
-   * Stop the render loop
-   */
   stop(): void {
     if (this.animationFrameId !== null) {
       cancelAnimationFrame(this.animationFrameId);
@@ -166,7 +129,6 @@ export class RenderLoopManager {
       this.idleTimeout = null;
     }
     
-    // Reset all flags to prevent restart
     this.isIdle = false;
     this.needsRender = false;
     this.continuousRenderingEnabled = false;
@@ -174,23 +136,14 @@ export class RenderLoopManager {
     this.alwaysRender = false;
   }
   
-  /**
-   * Check if render loop is running
-   */
   isRunning(): boolean {
     return this.animationFrameId !== null;
   }
   
-  /**
-   * Get idle state
-   */
   getIsIdle(): boolean {
     return this.isIdle;
   }
   
-  /**
-   * Check if currently needs render
-   */
   getNeedsRender(): boolean {
     return this.needsRender || this.continuousRenderingEnabled || this.alwaysRender;
   }

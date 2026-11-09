@@ -8,11 +8,6 @@ import { environmentApplyOptions } from './environmentApplyOptions';
 
 const DARK_STUDIO_BACKGROUND = '#1a1a1f';
 
-/**
- * Normalize a light position to the `[x, y, z]` tuple the engine layer expects.
- * The public option types accept a `{x, y, z}` `Vec3Like` too, so honour it
- * here rather than silently dropping it to the light's fallback direction.
- */
 const toPositionArray = (
   position: Vec3Like | [number, number, number] | undefined
 ): [number, number, number] | undefined => {
@@ -25,21 +20,10 @@ const toPositionArray = (
   return undefined;
 };
 
-/** A colour as a string, or undefined so the engine layer can default cleanly. */
 const toColor = (color: string | number | undefined): string | undefined =>
   color !== undefined ? String(color) : undefined;
 
-/**
- * Configures a scene's visual setup — helpers, lighting, background and the
- * environment map — from the viewer options. Pulled out of ViewerCore so the
- * viewer orchestrates lifecycle while this owns the (engine-agnostic) "how the
- * scene is dressed" concern. Operates only on core interfaces.
- */
 export class SceneConfigurator {
-  /**
-   * Apply helpers, lighting and a solid-color gradient background. Synchronous;
-   * failures are logged and skipped so one bad section never aborts setup.
-   */
   configureScene(
     scene: IScene,
     sceneSetupService: ISceneSetupService,
@@ -93,10 +77,6 @@ export class SceneConfigurator {
       }
     }
 
-    // Set the background color unless something else owns the background: an
-    // environment-map URL paints the image, and dark studio mode paints its own
-    // dark scrim. The default (studio environment) lights the scene but keeps
-    // this clean background color rather than showing its raw PMREM texture.
     const envUrl = options.environment?.url;
     const darkStudioOwnsBackground =
       (options.helpers?.studioEnvironment ?? false) && (options.helpers?.darkStudioMode ?? false);
@@ -114,12 +94,6 @@ export class SceneConfigurator {
     }
   }
 
-  /**
-   * Initialize the environment service and apply an env map (from a URL or the
-   * studio environment) to the scene. `isDisposed` is consulted after every
-   * await so a teardown mid-setup (StrictMode unmount / structural rebuild)
-   * aborts before touching a disposed renderer/scene.
-   */
   async configureEnvironment(
     scene: IScene,
     environmentService: IEnvironmentService,
@@ -151,12 +125,6 @@ export class SceneConfigurator {
         }
         return;
       }
-      // A failed HDRI fetch (offline network, CDN outage) must not leave the
-      // scene unlit or void-black. Fall back to the studio environment for
-      // lighting — unless the consumer EXPLICITLY opted out of it — and
-      // always restore a backdrop: configureScene skipped the gradient
-      // because the env url owned the background, so without this the frame
-      // clears to black.
       console.warn(
         'Failed to load environment map, falling back to the studio look:',
         envResult.error
@@ -172,8 +140,6 @@ export class SceneConfigurator {
     }
   }
 
-  /** The backdrop configureScene deliberately skipped while an env url owned
-   * the background — restored here when that env never arrived. */
   private paintFallbackBackdrop(
     scene: IScene,
     sceneSetupService: ISceneSetupService | undefined,
@@ -208,9 +174,6 @@ export class SceneConfigurator {
       console.warn('Failed to create studio environment:', studioResult.error);
       return;
     }
-    // Studio environment supplies lighting/reflections only; the background
-    // stays the clean color set in configureScene (its PMREM texture would
-    // otherwise render as a washed-out sphere).
     environmentService.applyToScene(scene, studioResult.value, {
       ...applyOptions,
       setBackground: false,

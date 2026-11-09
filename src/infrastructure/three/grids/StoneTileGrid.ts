@@ -11,7 +11,7 @@ export class StoneTileGrid implements IGridStyle {
     const size = options.size;
     const divisions = Math.max(1, options.divisions);
     const tileSize = size / divisions;
-    const gap = tileSize * 0.02; // 2% gap between tiles
+    const gap = tileSize * 0.02;
     const actualTileSize = tileSize - gap;
     
     const height = options.styleOptions?.height || tileSize * 0.05;
@@ -19,16 +19,13 @@ export class StoneTileGrid implements IGridStyle {
     const randomHeight = options.styleOptions?.randomHeight || false;
     const randomRotation = options.styleOptions?.randomRotation || false;
     
-    // Create stone material
     const material = this.createStoneMaterial(options);
     
-    // Create tiles in a grid pattern
     for (let i = 0; i < divisions; i++) {
       for (let j = 0; j < divisions; j++) {
         const x = (i - divisions / 2) * tileSize + tileSize / 2;
         const z = (j - divisions / 2) * tileSize + tileSize / 2;
         
-        // Create tile geometry with beveled edges
         const tileHeight = randomHeight ? height * (0.8 + Math.random() * 0.4) : height;
         
         const shape = new THREE.Shape();
@@ -55,7 +52,6 @@ export class StoneTileGrid implements IGridStyle {
         tile.castShadow = true;
         tile.receiveShadow = true;
         
-        // Add random rotation if enabled
         if (randomRotation) {
           tile.rotation.y = Math.floor(Math.random() * 4) * (Math.PI / 2);
         }
@@ -78,7 +74,6 @@ export class StoneTileGrid implements IGridStyle {
       roughness: roughness,
     };
     
-    // Load textures if provided
     if (options.styleOptions?.texture) {
       const texture = this.loadTexture(options.styleOptions.texture);
       if (texture) {
@@ -109,10 +104,6 @@ export class StoneTileGrid implements IGridStyle {
     return new THREE.MeshStandardMaterial(materialOptions);
   }
   
-  // Each grid owns the textures it loads. They are attached to the grid's
-  // material and freed exactly once by the scene's canonical disposal on
-  // teardown — never cached or shared across grids (a shared cache would hand
-  // out textures that a previous grid's teardown had already disposed).
   private loadTexture(url: string): THREE.Texture | null {
     try {
       return this.textureLoader.load(url);

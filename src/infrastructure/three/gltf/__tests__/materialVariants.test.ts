@@ -26,8 +26,6 @@ const makeVariantGltf = () => {
   const materials = [beach, midnight];
   const parser = {
     getDependency: jest.fn(async (_type: string, index: number) => materials[index]),
-    // The real assignFinalMaterial may swap mesh.material for a derived
-    // clone; the pass-through shape is enough to pin the call order.
     assignFinalMaterial: jest.fn(),
   };
   const gltf = {
@@ -62,7 +60,6 @@ describe('beginMaterialVariantResolution', () => {
     const byName = mesh.userData[VARIANT_MATERIALS_KEY] as Record<string, THREE.Material>;
     expect(byName.beach).toBe(beach);
     expect(byName.midnight).toBe(midnight);
-    // The authored material stays assigned and is remembered for resets.
     expect(mesh.material).toBe(authored);
     expect(mesh.userData[DEFAULT_MATERIAL_KEY]).toBe(authored);
   });
@@ -110,7 +107,6 @@ describe('beginMaterialVariantResolution', () => {
     await resolve(gltf);
 
     expect(mesh.material).toBe(authored);
-    // The half-resolved mesh carries no variant maps — applying stays a no-op.
     expect(mesh.userData[VARIANT_MATERIALS_KEY]).toBeUndefined();
     expect(applyMaterialVariant(gltf.scene, 'beach')).toBe(false);
     expect(warn).toHaveBeenCalledWith('Failed to resolve material variants:', expect.any(Error));
@@ -120,7 +116,6 @@ describe('beginMaterialVariantResolution', () => {
   it('disposes freshly materialized materials instead of stashing them on a disposed mesh', async () => {
     const { gltf, mesh, authored, beach, midnight } = makeVariantGltf();
     beginMaterialVariantResolution(gltf);
-    // The disposal walk ran while materialization was still in flight.
     authored.userData.softboxDisposed = true;
     const beachDispose = jest.spyOn(beach, 'dispose');
     const midnightDispose = jest.spyOn(midnight, 'dispose');

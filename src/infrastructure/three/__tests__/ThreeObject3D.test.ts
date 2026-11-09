@@ -17,10 +17,6 @@ describe('ThreeObject3DAdapter castShadow/receiveShadow', () => {
   });
 
   it('is reachable via the generic IObject3D contract used by ModelManager to enable shadows', () => {
-    // Regression test: model.traverse() used to hand callers a fresh
-    // ThreeObject3DAdapter with no castShadow/receiveShadow at all, so
-    // `'castShadow' in child` was always false and no model ever cast a
-    // shadow. Traversing through the IObject3D interface must now work.
     const parent = new THREE.Group();
     const child = new THREE.Mesh(new THREE.BoxGeometry());
     parent.add(child);

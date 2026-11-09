@@ -12,7 +12,6 @@ export interface TogglesProps {
   items: ToggleItem[];
 }
 
-/** A labelled row of independent on/off chips (site chrome, not library UI). */
 export const Toggles = ({ label, items }: TogglesProps) => (
   <div role="group" aria-label={label} className="min-w-0">
     <span className="mb-2.5 block text-[10px] font-bold tracking-[0.095em] text-neutral-500 uppercase dark:text-neutral-400">

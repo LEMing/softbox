@@ -42,9 +42,6 @@ const makeBundle = (config: {
           ...config.sceneSetupOverrides,
         };
   const reviveRenderLoop = jest.fn();
-  // Real deepMerge, matching ViewerCore's production closure exactly — a
-  // shallow spread would REPLACE nested objects (e.g. environment) and mask
-  // sibling-preservation bugs.
   const mergeOptions = jest.fn((partial: Partial<SimpleViewerOptions>) => {
     options = deepMerge(options, partial);
   });
@@ -135,8 +132,6 @@ describe('EnvironmentController.setEnvironmentMap', () => {
     const b = makeBundle({ options: { environment: { groundProjection: true } } });
     const result = await b.controller.setEnvironmentMap('/other.hdr');
     expect(result.ok).toBe(true);
-    // applyToScene clears the previous skybox; omitting the projection here
-    // silently stripped it until the next structural rebuild.
     expect(b.environmentService!.applyToScene).toHaveBeenCalledWith(
       b.scene,
       b.texture,
@@ -242,7 +237,6 @@ describe('EnvironmentController.resetEnvironment', () => {
       expect.objectContaining({ setBackground: false })
     );
     expect(b.getOptions().environment?.url).toBeUndefined();
-    // The stored radial vignette survives the reset.
     expect(b.sceneSetupService!.createGradientBackground).toHaveBeenCalledWith(b.scene, {
       topColor: '#242430',
       bottomColor: '#050507',
@@ -291,8 +285,6 @@ describe('EnvironmentController.setBackgroundImage', () => {
     const result = await b.controller.setBackgroundImage('/photo.jpg');
     expect(result.ok).toBe(true);
     expect(b.environmentService!.setBackgroundImage).toHaveBeenCalledWith(b.scene, '/photo.jpg');
-    // The projection mesh occludes any other backdrop — a custom backdrop is
-    // an explicit opt-out of the projected world.
     expect(b.environmentService!.removeGroundProjection).toHaveBeenCalledWith(b.scene);
     expect((b.pathTracing as unknown as { resetAccumulation: jest.Mock }).resetAccumulation).toHaveBeenCalledWith(true);
   });

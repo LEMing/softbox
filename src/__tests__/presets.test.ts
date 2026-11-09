@@ -29,7 +29,6 @@ describe('viewer presets', () => {
       expect(preset.backgroundColor).toEqual(expect.any(String));
       expect(preset.renderer?.toneMappingExposure).toEqual(expect.any(Number));
       expect(preset.environment?.environmentIntensity).toEqual(expect.any(Number));
-      // No structural fields — switching a preset must never trigger a rebuild.
       expect(preset.pathTracing).toBeUndefined();
       expect(preset.camera).toBeUndefined();
       expect(preset.controls).toBeUndefined();
@@ -56,7 +55,6 @@ describe('viewer presets', () => {
 
   it('dark floats the subject in a radial cove (a near-black vignette edge)', () => {
     expect(VIEWER_PRESETS.dark.backgroundColorEdge).toBe('#050507');
-    // Only the dark preset carries a vignette edge; the light presets stay flat.
     expect(VIEWER_PRESETS.studio.backgroundColorEdge).toBeUndefined();
     expect(VIEWER_PRESETS.product.backgroundColorEdge).toBeUndefined();
   });
@@ -73,7 +71,7 @@ describe('mergeWithPreset', () => {
     const merged = mergeWithPreset(defaults, { preset: 'product' });
     expect(merged.backgroundColor).toBe('#ffffff');
     expect(merged.renderer?.toneMappingExposure).toBe(1.2);
-    expect(merged.renderer?.antialias).toBe(true); // preserved via deep merge
+    expect(merged.renderer?.antialias).toBe(true);
   });
 
   it('lets explicit options win over the preset', () => {
@@ -82,8 +80,6 @@ describe('mergeWithPreset', () => {
   });
 
   it('deep-merges a partial explicit sub-object instead of replacing defaults+preset wholesale', () => {
-    // Regression: a shallow-spread merge let `{ renderer: { antialias: false } }`
-    // wipe out the preset's toneMappingExposure entirely.
     const merged = mergeWithPreset(defaults, { preset: 'product', renderer: { antialias: false } });
     expect(merged.renderer?.antialias).toBe(false);
     expect(merged.renderer?.toneMappingExposure).toBe(1.2);

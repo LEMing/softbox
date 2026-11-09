@@ -8,12 +8,9 @@ describe('ViewerFactory preserveDrawingBuffer', () => {
   let initSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    // Stop short of touching WebGL: capture the options handed to the renderer.
     initSpy = jest
       .spyOn(ThreeRendererAdapter.prototype, 'initialize')
       .mockReturnValue(Result.ok(undefined));
-    // With the renderer stubbed, environment/path-tracing init warn as they
-    // cannot reach a real WebGL context — expected and irrelevant here.
     jest.spyOn(console, 'warn').mockImplementation(() => {});
     jest.spyOn(console, 'error').mockImplementation(() => {});
   });
@@ -31,9 +28,6 @@ describe('ViewerFactory preserveDrawingBuffer', () => {
   };
 
   it('preserves the drawing buffer even with path tracing off (it can be enabled at runtime)', async () => {
-    // Path tracing is now toggleable on any viewer, and a captured PT still
-    // reads the persisted canvas — so the buffer must be preserved regardless
-    // of the boot-time flag, keeping a runtime enable capture-ready.
     const opts = await capturedOptions({});
     expect(opts.preserveDrawingBuffer).toBe(true);
   });
@@ -88,8 +82,6 @@ describe('ViewerFactory units validation', () => {
       })
     ).toThrow(/furlongs/);
 
-    // Failing after allocation would leak controls listeners and the adapter
-    // graph — nothing may touch the canvas before validation passes.
     expect(addListener).not.toHaveBeenCalled();
     expect(rendererConstructed).not.toHaveBeenCalled();
     rendererConstructed.mockRestore();
