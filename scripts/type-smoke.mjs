@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { lstatSync, unlinkSync, symlinkSync } from 'node:fs';
+import { rmSync, symlinkSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
@@ -9,11 +9,7 @@ const tsc = resolve(root, 'node_modules', 'typescript', 'bin', 'tsc');
 const smokeDir = resolve(root, 'scripts', 'type-smoke');
 
 function removeLink() {
-  try {
-    lstatSync(link);
-    unlinkSync(link);
-  } catch {
-  }
+  rmSync(link, { force: true });
 }
 
 removeLink();

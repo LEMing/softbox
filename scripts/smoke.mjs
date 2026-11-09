@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { lstatSync, unlinkSync, symlinkSync } from 'node:fs';
+import { rmSync, symlinkSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
@@ -7,11 +7,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const link = resolve(root, 'node_modules', 'softbox');
 
 function removeLink() {
-  try {
-    lstatSync(link);
-    unlinkSync(link);
-  } catch {
-  }
+  rmSync(link, { force: true });
 }
 
 function assert(condition, message) {
