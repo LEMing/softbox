@@ -4,46 +4,60 @@
      multi-chunk package: they bundle `three`, our peer dep, or read the tiny
      re-export entry). Refresh the numbers from our own build after a release
      that changes the bundle:
-       npm run build && for f in dist/simple-viewer.es.js dist/ContactShadowBaker-*.js dist/ThreePathTracingService-*.js; do
+       npm run build && for f in dist/*.js; do
          b=$(gzip -c "$f" | wc -c); awk -v b="$b" -v n="$f" 'BEGIN{printf "%s %.1f kB gzip\n", n, b/1000}'; done
-     core = simple-viewer.es.js + ContactShadowBaker-* (the entry statically
-     imports that shared chunk, so both load eagerly);
+     core = simple-viewer.es.js + the one chunk it imports statically
+     (`from "./…"` at the top of the entry), since both load eagerly;
      ThreePathTracingService-* = the lazy path-tracer chunk. -->
 [![npm version](https://img.shields.io/npm/v/softbox)](https://www.npmjs.com/package/softbox)
-[![core size](https://img.shields.io/badge/core-102%20kB%20gzip-blue)](https://bundlephobia.com/package/softbox)
-[![path tracer chunk](https://img.shields.io/badge/%2B%20path%20tracer-49%20kB%20gzip-lightgrey)](https://bundlephobia.com/package/softbox)
+[![core size](https://img.shields.io/badge/core-107%20kB%20gzip-blue)](https://github.com/LEMing/softbox#quality)
+[![path tracer chunk](https://img.shields.io/badge/%2B%20path%20tracer-49%20kB%20gzip-lightgrey)](https://github.com/LEMing/softbox#quality)
 [![CI](https://github.com/LEMing/softbox/actions/workflows/ci.yml/badge.svg)](https://github.com/LEMing/softbox/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/LEMing/softbox/blob/main/LICENSE)
 
-**The batteries-included React 3D viewer — any GLB looks studio-shot in one line.**
+**Studio product renders from a GLB, in one React component.**
 
-> Formerly published as [`threedviewer`](https://www.npmjs.com/package/threedviewer) — renamed in 4.0.0, same API. See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md).
+The live 3D view on the page, the still for the catalog and the turntable clip for the product card all come out of the same component, lit the same way, from the model's real geometry. It runs in the browser, with no render farm, no scene to light by hand and no network request for the lighting.
 
 ```tsx
-<SimpleViewer object="/model.glb" />
+<SimpleViewer ref={viewerRef} object="/sofa.glb" preset="product" />
 ```
 
-Balanced studio lighting, a baked soft contact shadow that grounds the model, auto-framing, compressed-asset decoders — all on by default, zero configuration (the real-scale concrete paver floor is [one option away](#configuration)). Lighting needs zero network requests (the studio environment is procedural); the DRACO/KTX2 decoder wasm is fetched only when a model actually uses that compression, from a CDN by default or [self-hosted](#loaders) for offline use. The core is ~102 kB gzip; the path tracer lives in a lazy chunk that loads only when enabled. Every release is gated by 790+ unit tests plus a Playwright suite that asserts **real WebGL pixels** in CI.
+```ts
+const still = await viewerRef.current.captureStill({ width: 2400 }); // PNG at any size
+const clip = await viewerRef.current.captureVideo({ duration: 8 });  // WebM or MP4
+```
 
 [![softbox playground](https://raw.githubusercontent.com/LEMing/softbox/main/public/og-image.jpg)](https://leming.github.io/softbox/)
 
-**▶ [Live playground](https://leming.github.io/softbox/)** — drag & drop your own `.glb`, switch presets live, click the model to pin hotspots, download a still.
+**▶ [Live playground](https://leming.github.io/softbox/)**: drop in your own `.glb`, switch presets and scenes, turn on path tracing, save a still.
 
-## What you get
+## Made for products that are configured, not photographed
 
-- **[Visual presets](#visual-presets)** — `studio · product · neutral · dark · outdoor`, one word, switched live
-- **[Scenes](#scenes)** — `studio_dome · studio_soft · outdoor_concrete`, one word picks the set the model stands in
-- **[Turntable](#turntable)** — one-word showcase auto-rotate that pauses while the user drags
-- **[Animations](#animations)** — GLTF clips autoplay with one word; play/pause/clip-picker API
-- **[Material variants](#material-variants)** — KHR_materials_variants colorways, switched live with one option
-- **[AR](#ar)** — one option hands the model to AR Quick Look (iOS) / Scene Viewer (Android)
-- **[Poster](#poster)** — an image is the instant first paint; the live model dissolves in when ready
-- **[Photoreal mode](#photoreal-mode--stills)** — progressive path tracing + `captureStill()` PNG export
-- **[Video capture](#video-capture)** — `captureVideo()` records the canvas to WebM/MP4, zero dependencies
-- **[Hotspots & click selection](#hotspot-annotations--click-selection)** — DOM pins on world-space points, BVH-accelerated picking
-- **Compressed assets** — DRACO, KTX2/Basis and Meshopt decoders wired in, fetched lazily
-- **Built-in chrome** — loading overlay, preset picker, viewport gizmo — all optional, all off-or-subtle by default
-- **Typed end to end** — every option, event payload and handle method ships TypeScript types
+A fence at the height and length a customer picked. A sofa in one of forty fabrics. A pergola that exists only as an order. There is nothing to photograph yet, and a generated image cannot be trusted with the proportions. What you do have is the geometry, exported as a GLB or built in code as a `THREE.Object3D`.
+
+softbox turns that geometry into the pictures a product page needs:
+
+| You need | You write |
+|---|---|
+| A live view the customer can orbit | `<SimpleViewer object={model} />` |
+| A catalog still at any resolution | [`captureStill({ width, height })`](#stills) |
+| A photoreal still | [`pathTraced`](#photoreal-stills), then `captureStill()` |
+| A turntable clip | [`turntable`](#video), then `captureVideo({ duration })` |
+| An instant first paint | [`options.poster`](#poster), fed by a still rendered earlier |
+| The same shot of every configuration | [`loadModel(next)`, then `captureStill()`](#every-configuration-one-shoot), in a loop |
+
+Every model gets the same light, the same soft contact shadow and the same automatic framing, so a catalog rendered one configuration at a time still reads as one shoot.
+
+softbox runs in production at [Ergeon](https://www.ergeon.com), where every fence is built to order: the same component shows a configuration live and renders its stills from generated geometry.
+
+## Is softbox the right tool?
+
+Often it is not, and the alternatives are good.
+
+- **AR comes first, or you are not on React.** Use Google's [`<model-viewer>`](https://modelviewer.dev/). It is a web component that works in any framework, and its AR goes further than softbox's handoff to Quick Look and Scene Viewer.
+- **You are building a 3D scene, not presenting one product.** Use [react-three-fiber](https://r3f.docs.pmnd.rs/) with drei's `<Stage>`. You get a composable scene graph. softbox gives you one model on a stage and nothing to assemble.
+- **You need rendered output, or one look across many models.** That is what softbox is for: path tracing and still and video export are built into the component, the studio lighting is procedural so it works offline, and it runs on React 18 as well as 19.
 
 ## Install
 
@@ -53,195 +67,236 @@ npm install softbox
 
 Peer dependencies: `react` / `react-dom` `>=18 <20`, `three` `>=0.177 <0.188`.
 
+Formerly published as [`threedviewer`](https://www.npmjs.com/package/threedviewer): renamed in 4.0.0 with the same API. See [MIGRATION_GUIDE.md](https://github.com/LEMing/softbox/blob/main/MIGRATION_GUIDE.md).
+
 ## Quick start
 
 ```tsx
-import { SimpleViewer } from 'softbox';
+import { useRef } from 'react';
+import { SimpleViewer, type SimpleViewerHandle } from 'softbox';
 
-function App() {
+function ProductShot() {
+  const viewerRef = useRef<SimpleViewerHandle>(null);
+
+  const saveStill = async () => {
+    const link = document.createElement('a');
+    link.href = await viewerRef.current!.captureStill({ width: 2400 });
+    link.download = 'product.png';
+    link.click();
+  };
+
   return (
-    <div style={{ width: '100%', height: '400px' }}>
-      <SimpleViewer object="https://modelviewer.dev/shared-assets/models/RobotExpressive.glb" />
+    <div style={{ width: '100%', height: 480 }}>
+      <SimpleViewer
+        ref={viewerRef}
+        object="https://modelviewer.dev/shared-assets/models/RobotExpressive.glb"
+        preset="product"
+      />
+      <button onClick={saveStill}>Save still</button>
     </div>
   );
 }
 ```
 
-A `THREE.Object3D` works too:
+The viewer fills its parent, so give the parent a size. `object` takes a URL or a `THREE.Object3D`:
 
 ```tsx
 <SimpleViewer object={new THREE.Mesh(geometry, material)} />
 ```
 
-## Visual presets
+With no options at all you get balanced studio lighting, a baked soft contact shadow that grounds the model, automatic framing, and DRACO, KTX2 and Meshopt decoding. The one-word props (`preset`, `turntable`, `animations`, `pathTraced`) cover the common cases, and [`options`](#configuration) reaches everything else.
 
-One word sets a cohesive look — background, tone mapping, environment intensity. Presets switch **live**: no rebuild, no model reload.
+## Rendering
+
+### Stills
+
+`captureStill()` resolves with a PNG data URL. It waits for a model that is still loading, so it is safe to call right after `loadModel()`.
+
+```ts
+const handle = viewerRef.current;
+
+await handle.captureStill();                              // the canvas at its on-screen size
+await handle.captureStill({ width: 2400 });               // 2400 px wide, height follows the canvas aspect
+await handle.captureStill({ width: 2000, height: 2000 }); // exact size, rendered at that aspect
+```
+
+The still is rendered for the capture, not copied off the screen. It can be much larger than the visible canvas, up to the GPU's maximum texture size, and it carries any [finishing effects](#finishing) that are on.
+
+### Photoreal stills
+
+```tsx
+<SimpleViewer ref={viewerRef} object={url} pathTraced />
+```
+
+`pathTraced` switches the viewer to progressive path tracing. While the camera moves you see ordinary raster frames, and when it rests the frame converges, then starts again from the next viewpoint. It works with every preset, including the default procedural studio. The tracer lives in a lazy chunk that is downloaded only when you turn it on.
+
+```ts
+const png = await viewerRef.current.captureStill(); // resolves once the frame has converged
+```
+
+In path-traced mode `captureStill()` waits for the accumulation to finish (`pathTracing.maxSamples`, 1024 by default) and returns the converged frame. Three things differ from raster stills:
+
+- The still has the canvas's own pixel size, which is its CSS size times `renderer.pixelRatio`. Passing `width` or `height` rejects, so size the viewer for the output you need.
+- A spinning turntable never converges, so a capture while `turntable` is on rejects. Stop it first.
+- Finishing effects do not apply, because the tracer draws the frame itself.
+
+To drive your own progress UI, listen for `pathtracing:complete`, which fires with `{ samples, totalTime }` when a frame converges.
+
+### Video
+
+```tsx
+<SimpleViewer ref={viewerRef} object={url} turntable />
+```
+
+```ts
+const clip = await viewerRef.current.captureVideo({ duration: 10 }); // Blob
+```
+
+`captureVideo()` records the live canvas through `MediaRecorder`, with no extra dependency: WebM in Chromium and Firefox, MP4 in Safari. It takes `duration` in seconds (3 by default), `fps` (30 by default), `mimeType` and `videoBitsPerSecond`.
+
+The recording runs in real time and captures what the canvas shows, at the canvas's size. A moving camera always shows raster frames, so video is raster and path tracing is for stills. A full orbit takes 30 seconds at the default speed. Raise `options.controls.autoRotateSpeed` from its default of 2 for a shorter loop: 6 gives a 10-second orbit.
+
+### Every configuration, one shoot
+
+```ts
+const handle = viewerRef.current;
+const stills: Record<string, string> = {};
+
+for (const item of catalog) {
+  await handle.loadModel(item.model); // a GLB URL, or a THREE.Object3D built in code
+  stills[item.sku] = await handle.captureStill({ width: 1600, height: 1200 });
+}
+```
+
+`loadModel()` swaps the model on the same stage, frames it again and bakes its contact shadow, so the stills differ only in the product. A model built in code never touches the network.
+
+### Poster
+
+A poster image is the viewer's instant first paint. It shows until the model's first painted frame, then dissolves into the live scene:
+
+```tsx
+<SimpleViewer object={url} options={{ poster: '/hero.webp', loading: 'lazy' }} />
+```
+
+Generate posters with `captureStill()` and they match the live viewer exactly, since the same renderer made both. With `loading: 'lazy'` the page paints the poster with zero WebGL work, and the viewer boots only when it scrolls into view, which keeps LCP fast.
+
+While it is opaque, the poster catches input, so nothing invisible underneath can be tapped. If the load fails, the poster stays up as the backdrop under the built-in error overlay. With `loadingIndicator: false` it steps aside instead, so a dead load never passes for a frozen hero image.
+
+## Look
+
+### Visual presets
+
+One word sets a cohesive look: background, tone mapping exposure and environment intensity. Presets switch live, with no rebuild and no model reload.
 
 ```tsx
 <SimpleViewer object={url} preset="product" />
 // studio | product | neutral | dark | outdoor
 ```
 
-Let your users switch presets with the built-in picker (off by default):
+Let your users switch presets with the built-in picker, which is off by default:
 
 ```tsx
 <SimpleViewer object={url} options={{ ui: { presets: true } }} />
 ```
 
-## Scenes
+### Scenes
 
-Presets grade the picture; **scenes** choose the set. `options.scene` selects
-the physical set the model stands in — the floor, the backdrop and how the
-built-in studio environment is built. Unlike presets, a scene is structural:
-switching one rebuilds the viewer.
+Presets grade the picture and scenes choose the set. `options.scene` selects the floor, the backdrop and how the studio environment is built. Unlike a preset, a scene is structural: switching one rebuilds the viewer.
 
 ```tsx
 <SimpleViewer object={url} options={{ scene: 'outdoor_concrete' }} />
 // studio_dome (default) | studio_soft | outdoor_concrete
 ```
 
-- `studio_dome` — the default set: shadow-catcher floor, baked soft contact
-  shadow and a crisp, contrast-pushed studio light with distinct highlights.
-- `studio_soft` — the same set lit softly: an even, low-contrast wraparound
-  light that flatters matte materials and softens speculars.
-- `outdoor_concrete` — open air: a daylight HDRI lights the model and paints
-  the sky (ground-projected, so the model stands *in* the world), on a large
-  photographic PBR concrete ground rendered with untiled sampling — no
-  visible texture repetition at any distance. The HDRI and concrete maps
-  (CC0, [Poly Haven](https://polyhaven.com/), ~6 MB total on first view)
-  come from their CDN by default; override or self-host via
-  `environment.url` and `helpers.grid.styleOptions`, like the
-  [decoder paths](#loaders). Offline, the ground falls back to a built-in
-  procedural concrete and the lighting to the studio environment.
+- `studio_dome` is the default set: a shadow-catcher floor, the baked soft contact shadow and a crisp, contrast-pushed studio light with distinct highlights.
+- `studio_soft` is the same set lit softly: an even, low-contrast wraparound light that flatters matte materials and softens speculars.
+- `outdoor_concrete` is open air. A daylight HDRI lights the model and paints the sky, ground-projected so the model stands in the world, on a large photographic PBR concrete ground with untiled sampling, so no texture repetition shows at any distance. The HDRI and concrete maps (CC0, [Poly Haven](https://polyhaven.com/), about 6 MB on first view) come from their CDN by default. Override or self-host them through `environment.url` and `helpers.grid.styleOptions`. Offline, the ground falls back to a built-in procedural concrete and the lighting to the studio environment.
 
-Scenes compose with presets — `scene` picks the set, `preset` grades it, and
-any explicit option you pass overrides both.
+Scenes compose with presets: `scene` picks the set, `preset` grades it, and any explicit option you pass overrides both.
 
-## Material variants
+### Finishing
 
-Models that carry [KHR_materials_variants](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_variants)
-(product colorways baked into one GLB) switch **live** — no rebuild, no
-reload:
+Four optional effects finish the raster frame. All are off by default, toggle live, and load their composer chunk only when the first one is turned on:
+
+```tsx
+<SimpleViewer
+  object={url}
+  preset="dark"
+  options={{ renderer: { vignette: true, filmGrain: true, colorGrade: true } }}
+/>
+```
+
+- `bloom` adds a restrained glow to highlights that are genuinely blown out.
+- `vignette` darkens the frame edges to hold the eye on the subject.
+- `filmGrain` lays a fixed, non-animated photographic grain over the frame.
+- `colorGrade` lifts contrast and saturation after tone mapping. Pass `true` for a balanced default, or `{ contrast, saturation }` (roughly -1 to 1, where 0 changes nothing) to tune each.
+
+### Backdrop and lighting at runtime
+
+The handle changes the backdrop and the lighting after the viewer is up, without a rebuild:
+
+```ts
+await handle.setEnvironmentMap('/studio.hdr');  // an equirectangular HDRI lights the model and fills the background
+handle.resetEnvironment();                      // back to the built-in studio
+await handle.setBackgroundImage('/brand.jpg');  // a URL, File or HTMLImageElement, fitted like CSS object-fit: cover
+handle.setBackgroundColor('#f4f1ec');           // a solid colour, which also clears a background image
+```
+
+`setBackgroundImage` changes only the backdrop and leaves the lighting alone. For a soft studio cove instead of a flat fill, set `backgroundColor` together with `backgroundColorEdge`: the backdrop becomes a radial gradient from the first, behind the subject, to the second in the corners.
+
+### Material variants
+
+Models that carry [KHR_materials_variants](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_variants), colorways baked into one GLB, switch live with no rebuild and no reload:
 
 ```tsx
 <SimpleViewer object={url} options={{ variant: 'beach' }} />
 ```
 
-Enumerate and switch imperatively via the handle:
+Enumerate and switch through the handle:
 
-```tsx
-viewerRef.current.getVariantNames();   // e.g. ['midnight', 'beach', 'street']
-viewerRef.current.setVariant('street');
-viewerRef.current.setVariant(null);    // back to the authored materials
+```ts
+handle.getVariantNames();   // e.g. ['midnight', 'beach', 'street']
+handle.setVariant('street');
+handle.setVariant(null);    // back to the authored materials
 ```
 
-Semantics worth knowing: `variant: null` is the declarative reset, while
-*leaving the option out* is "uncontrolled" — an imperative `setVariant()`
-pick survives unrelated option changes. Variant materials materialize in
-the background right after load (first paint never waits for colorways
-nobody opened); an early pick is applied the moment they're ready.
+`variant: null` is the declarative reset, while leaving the option out means "uncontrolled": a pick made with `setVariant()` survives unrelated option changes. Variant materials are prepared in the background right after load, so the first paint never waits for colorways nobody opened, and an early pick is applied the moment they are ready.
 
-## AR
+## Viewer
 
-One option puts an **AR** button over the canvas that opens the model in the
-platform's native AR viewer — no WebXR session, no extra bundle:
+### Turntable
 
-```tsx
-<SimpleViewer object={url} options={{ ar: true }} />
-
-// iOS AR Quick Look cannot read GLB — give it the USDZ counterpart:
-<SimpleViewer object={url} options={{ ar: { iosSrc: '/shoe.usdz', title: 'Runner' } }} />
-```
-
-- **Android** → Scene Viewer, straight from the model's own URL (`ar: true`
-  is enough). The model must be loaded from an **https** URL — a dropped
-  `blob:` file has no address a native app could fetch, and Scene Viewer
-  refuses plain http. Imperative `loadModel()` swaps are tracked — the
-  button always hands off the model that is on stage.
-- **iOS** → AR Quick Look, from `iosSrc` (USDZ).
-- **Desktop / unsupported** → the button simply never renders, so setting
-  `ar` unconditionally is safe. On an Android-UA device that turns out to
-  have no AR component (Quest, TV boxes), the failed handoff bounces back
-  reload-free and the button retires itself.
-
-`placement` picks the corner (`bottom-left` by default; it lifts above the
-built-in preset picker on its own). UI-only: toggling `ar` never rebuilds
-the viewer or reloads the model.
-
-## Poster
-
-A poster image is the viewer's **instant first paint** — shown until the
-model's first painted frame, then dissolved into the live scene:
-
-```tsx
-<SimpleViewer object={url} options={{ poster: '/hero.webp', loading: 'lazy' }} />
-```
-
-With `loading: 'lazy'` the combination is LCP-friendly: the page paints the
-poster immediately with zero WebGL work, and the real viewer boots only
-when scrolled into view. Generate posters with `handle.captureStill()` —
-same studio look, pixel-identical to what the live viewer will show. While
-opaque, the poster catches input (nothing invisible underneath can be
-tapped). If the load fails, the poster stays up as the backdrop under the
-built-in error overlay — with `loadingIndicator: false` it steps aside
-instead, so a dead load never masquerades as a frozen hero image.
-
-## Turntable
-
-One word puts the model on a slowly rotating showcase turntable. It pauses while the user drags and resumes on release; toggling is live, like presets.
+One word puts the model on a slowly rotating turntable. It pauses while the user drags and resumes on release. Toggling is live, like presets.
 
 ```tsx
 <SimpleViewer object={url} turntable />
-// speed: options.controls.autoRotateSpeed (2 ≈ one orbit / 30 s)
 ```
 
-## Animations
+### Animations
 
-One word plays everything the GLTF carries — all clips, looped, from the moment the model loads.
+One word plays everything the GLTF carries: all clips, looped, from the moment the model loads.
 
 ```tsx
 <SimpleViewer object={url} animations />
 ```
 
-Pick one clip, tune the speed, or build your own play/pause UI via the handle:
+Pick one clip, tune the speed, or build your own play and pause UI through the handle:
 
 ```tsx
 <SimpleViewer object={url} options={{ animations: { autoplay: 'Walk', speed: 1.5 } }} />
-
-viewerRef.current.getAnimationNames(); // ['Walk', 'Idle', ...]
-viewerRef.current.pauseAnimations();
-viewerRef.current.playAnimations('Idle');
 ```
 
-Turntable and animations compose — a spinning, walking robot is two words.
-
-## Photoreal mode & stills
-
-```tsx
-<SimpleViewer object={url} pathTraced />
+```ts
+handle.getAnimationNames(); // ['Walk', 'Idle', ...]
+handle.pauseAnimations();
+handle.playAnimations('Idle');
 ```
 
-`pathTraced` turns on interactive progressive path tracing: the frame converges whenever the camera rests, and orbiting shows plain raster frames until the camera settles again — then a fresh accumulation starts from the new viewpoint. It works with every preset, including the default procedural studio. Capture a PNG programmatically — in raster mode at any resolution, in path-traced mode once the accumulation completes:
+Turntable and animations compose: a spinning, walking robot is two words.
 
-```tsx
-const handle = viewerRef.current;
-const dataUrl = await handle.captureStill({ width: 1920 }); // PNG data URL
-```
+### Hotspots and click selection
 
-## Video capture
-
-Record the live canvas into a clip — no dependencies, straight through `MediaRecorder` (WebM in Chromium/Firefox, MP4 in Safari). Motion is captured as it happens, so `turntable` + `captureVideo` is a ready-made product-card orbit:
-
-```tsx
-<SimpleViewer ref={viewerRef} object={url} turntable />
-
-const blob = await viewerRef.current.captureVideo({ duration: 5 }); // Blob
-// also: fps, mimeType, videoBitsPerSecond
-```
-
-## Hotspot annotations & click selection
-
-Pin DOM content to a world-space point — it tracks orbiting, zooming and resizes:
+Pin DOM content to a world-space point. It tracks orbiting, zooming and resizes:
 
 ```tsx
 import { SimpleViewer, Hotspot } from 'softbox';
@@ -250,121 +305,146 @@ import { SimpleViewer, Hotspot } from 'softbox';
   <Hotspot position={[0, 1.2, 0]}>
     <div className="pin">Engine</div>
   </Hotspot>
-  <Hotspot position={[0.4, 0.2, 0.8]} occlude /> {/* hidden when the model covers it */}
+  <Hotspot position={[0.4, 0.2, 0.8]} occlude />
 </SimpleViewer>
 ```
 
 Without children a built-in dot pin is rendered. `occlude` hides the hotspot while the model blocks the line of sight to its anchor.
 
-A click on the model (drags and pinches are ignored) emits `object:selected` with the hit object and world-space point — feed it straight into a `<Hotspot>`:
+A click on the model (drags and pinches are ignored) emits `object:selected` with the hit object and the world-space point, ready to feed into a `<Hotspot>`:
 
-```tsx
+```ts
 handle.events.on('object:selected', ({ object, point }) => {
   addPin([point.x, point.y, point.z]);
 });
 ```
 
-Raycasts are BVH-accelerated per loaded model (logarithmic on high-poly meshes); opt out with `options.selection = { bvh: false }`.
+Raycasts are BVH-accelerated per loaded model, so they stay fast on high-poly meshes. Opt out with `options.selection = { bvh: false }`.
 
-## Events
+### AR
 
-Subscribe through the imperative handle:
+One option puts an AR button over the canvas that opens the model in the platform's native AR viewer. There is no WebXR session and no extra bundle:
 
 ```tsx
-const { events } = viewerRef.current;
-events.on('model:loaded', ({ model, loadTime }) => console.log('loaded in', loadTime, 'ms'));
+<SimpleViewer object={url} options={{ ar: true }} />
+
+// iOS AR Quick Look cannot read GLB, so give it the USDZ counterpart:
+<SimpleViewer object={url} options={{ ar: { iosSrc: '/shoe.usdz', title: 'Runner' } }} />
 ```
 
-| Event | Fires |
-|---|---|
-| `model:loading` / `model:loaded` / `model:error` | around every model load |
-| `render:complete` | after each rendered frame |
-| `pathtracing:complete` | once the sample cap is reached |
-| `controls:change` | when the camera controls move |
-| `object:selected` | when a click hits the loaded model (`{ object, point }`) |
-| `error` | any viewer error |
+- **Android** opens Scene Viewer straight from the model's own URL, so `ar: true` is enough. The model must be loaded from an **https** URL: a dropped `blob:` file has no address a native app could fetch, and Scene Viewer refuses plain http. Models swapped in with `loadModel()` are tracked, so the button always hands off the model that is on stage.
+- **iOS** opens AR Quick Look from `iosSrc` (USDZ).
+- **Desktop and unsupported devices** never render the button, so setting `ar` unconditionally is safe. On an Android-UA device that turns out to have no AR component (Quest, TV boxes), the failed handoff bounces back without a reload and the button retires itself.
 
-## Imperative handle
+`placement` picks the corner. It is `bottom-left` by default and lifts above the built-in preset picker on its own. Toggling `ar` never rebuilds the viewer or reloads the model.
+
+### Loading
+
+A built-in overlay shows while a model loads, and an error state if it fails, so the scene is never blank. Customize or disable it:
+
+```tsx
+<SimpleViewer object={url} options={{ loadingIndicator: { label: 'Loading…' } }} />
+<SimpleViewer object={url} options={{ loadingIndicator: false }} /> // drive your own through events
+```
+
+`loading: 'lazy'` works like `<img loading="lazy">`: the WebGL context and the model download wait until the viewer first approaches the viewport. On a page with many viewers only the visible ones boot. Browsers cap concurrent WebGL contexts, so an eager grid can silently kill its oldest viewers.
+
+## Reference
+
+### Imperative handle
 
 ```tsx
 const viewerRef = useRef<SimpleViewerHandle>(null);
 <SimpleViewer ref={viewerRef} object={url} />
 ```
 
-The handle exposes `scene`, `camera`, `renderer`, `controls`, `events`, `loadModel(source)`, `captureStill(options?)`, `captureVideo(options?)`, `getAnimationNames()`, `playAnimations(name?)`, `pauseAnimations()` and `dispose()`.
+| Member | What it does |
+|---|---|
+| `loadModel(source)` | Swaps the model: a URL or a `THREE.Object3D`. Resolves when it is on stage. |
+| `captureStill(options?)` | Resolves with a PNG data URL. See [Stills](#stills). |
+| `captureVideo(options?)` | Resolves with a video `Blob`. See [Video](#video). |
+| `getVariantNames()` / `setVariant(name)` | [Material variants](#material-variants). |
+| `getAnimationNames()` / `playAnimations(name?)` / `pauseAnimations()` | [Animations](#animations). |
+| `setEnvironmentMap(url)` / `resetEnvironment()` | [Lighting at runtime](#backdrop-and-lighting-at-runtime). |
+| `setBackgroundImage(source)` / `setBackgroundColor(color)` | [Backdrop at runtime](#backdrop-and-lighting-at-runtime). |
+| `events` | The typed event emitter, below. |
+| `scene`, `camera`, `renderer`, `controls` | The underlying three.js objects, for anything softbox does not cover. |
+| `dispose()` | Tears the viewer down. Unmounting the component does this for you. |
 
-## Configuration
+Calls that cannot run reject or throw a `ThreeViewerError` with an `ErrorCode`, both exported from the package root.
 
-Everything is optional — the defaults are the point. Pass `options` to override any part:
+### Events
 
 ```ts
-import { ControlType, defaultOptions } from 'softbox';
+const { events } = viewerRef.current;
+const off = events.on('model:loaded', ({ model, loadTime }) => console.log('loaded in', loadTime, 'ms'));
+off();
+```
+
+| Event | Fires |
+|---|---|
+| `model:loading` / `model:progress` / `model:loaded` / `model:error` | around every model load |
+| `render:complete` | after each rendered frame |
+| `pathtracing:complete` | when a path-traced frame converges (`{ samples, totalTime }`) |
+| `controls:change` | when the camera controls move |
+| `object:selected` | when a click hits the loaded model (`{ object, point }`) |
+| `error` | on any viewer error |
+
+### Configuration
+
+Everything is optional, and the defaults are the point. Pass `options` to override any part. These are the defaults, abridged:
+
+```ts
+import { ControlType, type SimpleViewerOptions } from 'softbox';
 
 const options: SimpleViewerOptions = {
   preset: 'studio',              // one-word look; explicit options below win over it
+  scene: 'studio_dome',          // the set the model stands in
   backgroundColor: '#f0f0f7',
-  staticScene: false,            // stop the render loop when nothing moves
+  staticScene: false,            // true stops the render loop when nothing moves
 
-  // Unit your model is authored in: meters (default) | centimeters | millimeters
-  // | feet | inches. Non-meter models are rescaled on load to the viewer's
-  // 1-unit-=-1-meter convention (the real-scale floor, shadows and framing
-  // depend on it) without touching the model's own transform.
+  // The unit your model is authored in: meters | centimeters | millimeters | feet | inches.
+  // Other units are rescaled on load to the viewer's 1 unit = 1 meter convention, which the
+  // floor, the shadows and the framing rely on. The model's own transform is left alone.
   units: 'meters',
 
-  camera: { position: [60, 60, 60], fov: 45, autoFitToObject: true },
+  camera: { position: [60, 60, 60], fov: 30, autoFitToObject: true },
 
-  // The procedural studio environment lights the scene by default (zero network
-  // requests). Point environment.url at an HDR/EXR/image to use your own.
+  // The procedural studio lights the scene with zero network requests.
+  // Point environment.url at an HDR, EXR or image to use your own.
   environment: { environmentIntensity: 0.5 },
 
-  // Khronos PBR Neutral tone mapping by default — keeps saturated material
-  // colours through the highlight rolloff (see renderer.toneMapping to change).
-  renderer: { antialias: true, toneMappingExposure: 1.0 },
+  // Khronos PBR Neutral tone mapping keeps saturated material colours through the highlights.
+  renderer: { antialias: true, toneMappingExposure: 1.15 },
 
   controls: { type: ControlType.OrbitControls, enableDamping: true, autoRotate: false },
 
-  animations: { autoplay: true, speed: 1 }, // GLTF clip playback
-
   helpers: {
-    grid: { type: 'hexagonal_glass' }, // hex-tile floor (matte concrete by default); also: hexagonal_wire, square_wire, stone_tiles
-    gizmo: false,                      // optional viewport orientation gizmo
+    grid: { type: 'shadow_floor' }, // also: concrete_disc, hexagonal_glass, hexagonal_wire, square_wire, stone_tiles
+    gizmo: false,                   // viewport orientation gizmo
     studioEnvironment: true,
   },
 
-  pathTracing: { enabled: false, maxSamples: 16 },
+  pathTracing: { enabled: false, maxSamples: 1024 },
 
-  ui: { presets: false },        // built-in preset picker chips
-  selection: { bvh: true },      // BVH-accelerated raycasts for picking/occlusion
-  loadingIndicator: true,        // built-in loading overlay (object form customizes it)
-  loaders: {},                   // DRACO/KTX2/Meshopt decoder config (self-host paths, toggles)
-
-  // Like <img loading="lazy">: defer the WebGL context and model download until
-  // the viewer first approaches the viewport. On pages with many viewers only
-  // the visible ones boot — browsers cap concurrent WebGL contexts, so an
-  // eager grid can silently kill the oldest ones. Once booted, always booted.
+  ui: { presets: false },        // built-in preset picker
+  selection: { bvh: true },      // BVH-accelerated raycasts for picking and occlusion
+  loadingIndicator: true,        // built-in loading overlay; the object form customizes it
+  loaders: {},                   // DRACO, KTX2 and Meshopt decoder config
   loading: 'eager',              // or 'lazy'
 };
 ```
 
-See [`defaultOptions`](https://github.com/LEMing/softbox/blob/main/src/defaultOptions.ts) for the full annotated set and the typed option interfaces exported from the package root.
-
-### Loading indicator
-
-A built-in overlay shows while a model loads (and an error state if it fails) — the scene is never blank. Customize or disable it:
-
-```tsx
-<SimpleViewer object={url} options={{ loadingIndicator: { label: 'Loading…' } }} />
-<SimpleViewer object={url} options={{ loadingIndicator: false }} /> // drive your own via events
-```
+[`defaultOptions`](https://github.com/LEMing/softbox/blob/main/src/defaultOptions.ts) is exported and holds the full set. Every option interface is exported from the package root.
 
 ### Loaders
 
-DRACO, KTX2/Basis and Meshopt decoders are wired into the glTF loader by default — compressed exports from Blender, `gltfpack` or `gltf-transform` just load. Meshopt is bundled; the DRACO/KTX2 wasm decoders are fetched **on demand** (only the first time a model actually uses that compression) from a version-pinned jsDelivr URL. For a fully offline, no-CDN setup, self-host the decoder directories:
+DRACO, KTX2/Basis and Meshopt decoders are wired into the glTF loader, so compressed exports from Blender, `gltfpack` or `gltf-transform` just load. Meshopt is bundled. The DRACO and KTX2 wasm decoders are fetched on demand, the first time a model actually uses that compression, from a version-pinned jsDelivr URL. For a fully offline setup, self-host the decoder directories:
 
 ```ts
 loaders: {
-  dracoDecoderPath: '/decoders/draco/',   // copy of three/examples/jsm/libs/draco/
-  ktx2TranscoderPath: '/decoders/basis/', // copy of three/examples/jsm/libs/basis/
+  dracoDecoderPath: '/decoders/draco/',   // a copy of three/examples/jsm/libs/draco/
+  ktx2TranscoderPath: '/decoders/basis/', // a copy of three/examples/jsm/libs/basis/
 }
 ```
 
@@ -374,13 +454,13 @@ loaders: {
 helpers: { gizmo: { placement: 'top-right', size: 128 } }
 ```
 
-Interactive orientation cube: click to snap the camera to axis views, synchronized with the controls.
+An interactive orientation cube: click it to snap the camera to an axis view. It stays in sync with the controls.
 
 ### Path tracing options
 
-`pathTracing`: `enabled`, `maxSamples` (completion cap), `bounces`, `transmissiveBounces`, `renderScale`, `lowResScale`, `dynamicLowRes`. The converged frame stays on the live canvas and re-accumulates on camera moves; `replaceWithScreenshotOnComplete: true` (off by default) restores the legacy behavior of swapping in a DOM snapshot instead.
+`pathTracing` takes `enabled`, `maxSamples` (the completion cap), `bounces`, `transmissiveBounces`, `renderScale`, `lowResScale` and `dynamicLowRes`. The converged frame stays on the live canvas and accumulates again after a camera move. `replaceWithScreenshotOnComplete: true`, off by default, restores the legacy behaviour of swapping in a DOM snapshot instead.
 
-## Next.js / SSR
+### Next.js and SSR
 
 The viewer renders into a WebGL canvas, so it is client-only. In Next.js, load it dynamically:
 
@@ -394,11 +474,18 @@ const SimpleViewer = dynamic(
 );
 ```
 
+## Quality
+
+- **Size.** The core is about 107 kB gzip, not counting `three`, which is a peer dependency. The path tracer adds 49 kB and the finishing effects a few more, each in a lazy chunk that loads only when the feature is turned on.
+- **Tests.** Every release is gated by more than 1,100 unit tests and a Playwright suite that asserts real WebGL pixels in a browser, on both the newest and the oldest `three` the peer range accepts.
+- **Types.** Every option, event payload and handle method ships TypeScript types, for ESM and CommonJS consumers alike.
+- **Provenance.** Releases are published from CI with npm provenance.
+
 ## Upgrading
 
-- **3.x → 4.0**: the package was renamed — `threedviewer` is now **`softbox`**. Swap the dependency and the import specifier; the API is unchanged. See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md).
-- **3.0 → 3.x**: additive all the way — presets, `ui`, `pathTraced`, `captureStill`, `Hotspot`, `object:selected`, `selection`, `turntable`, `animations` are new surface on top of 3.0; existing options keep working. React peer is `>=18 <20`.
-- **2.x → 3.0**: breaking release (removed no-op APIs, ESM+CJS packaging). See [MIGRATION_GUIDE.md](https://github.com/LEMing/softbox/blob/main/MIGRATION_GUIDE.md).
+- **3.x → 4.0**: the package was renamed, and `threedviewer` is now **`softbox`**. Swap the dependency and the import specifier. The API is unchanged. See [MIGRATION_GUIDE.md](https://github.com/LEMing/softbox/blob/main/MIGRATION_GUIDE.md).
+- **3.0 → 3.x**: additive all the way. Presets, `ui`, `pathTraced`, `captureStill`, `Hotspot`, `object:selected`, `selection`, `turntable` and `animations` are new surface on top of 3.0, and existing options keep working. The React peer is `>=18 <20`.
+- **2.x → 3.0**: a breaking release that removed no-op APIs and moved to ESM plus CJS packaging. See [MIGRATION_GUIDE.md](https://github.com/LEMing/softbox/blob/main/MIGRATION_GUIDE.md).
 
 Full history: [CHANGELOG.md](https://github.com/LEMing/softbox/blob/main/CHANGELOG.md)
 
