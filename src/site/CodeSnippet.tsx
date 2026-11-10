@@ -44,11 +44,6 @@ const Line = ({
   </div>
 );
 
-/**
- * Install + usage snippets, each with a copy button. The usage code is a prop
- * so the site can keep it in sync with the live toggles — the snippet IS the
- * documentation for what the user is currently seeing.
- */
 export function CodeSnippet({
   usage = DEFAULT_USAGE,
   onClose,
@@ -79,7 +74,6 @@ export function CodeSnippet({
         resetTimerRef.current = setTimeout(() => setCopied(null), 1600);
       })
       .catch(() => {
-        // Clipboard permission denied — the button simply stays "Copy".
       });
   };
 

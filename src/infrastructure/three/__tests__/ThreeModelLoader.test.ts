@@ -15,7 +15,6 @@ const revision = THREE.REVISION.replace(/\D/g, '');
 const DEFAULT_DRACO_PATH = `https://cdn.jsdelivr.net/npm/three@0.${revision}/examples/jsm/libs/draco/`;
 const DEFAULT_KTX2_PATH = `https://cdn.jsdelivr.net/npm/three@0.${revision}/examples/jsm/libs/basis/`;
 
-/** Decoders configure lazily on first load — drive them through a real load. */
 const loadWith = async (config = {}) => {
   const adapter = new ThreeGLTFLoaderAdapter(config);
   await adapter.load('model.glb');
@@ -135,9 +134,6 @@ describe('ThreeGLTFLoaderAdapter', () => {
     });
 
     it('resolves Result.err when the load callback body throws (never hangs)', async () => {
-      // A crash while adapting the parsed scene (BVH build, conversion) must
-      // surface as MODEL_LOAD_FAILED through GLTFLoader's throw→onError
-      // routing — an async callback would swallow it and hang the load.
       setNextGltf({
         scene: {
           traverse: () => {
@@ -177,8 +173,6 @@ describe('ThreeGLTFLoaderAdapter', () => {
       });
 
       const adapter = new ThreeGLTFLoaderAdapter();
-      // Resolves while the variant material is still gated — first paint
-      // must not wait for colorway textures the user may never open.
       const result = await adapter.load('model.glb');
 
       expect(result.ok).toBe(true);
@@ -227,7 +221,6 @@ describe('ThreeGLTFLoaderAdapter BVH build', () => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
     const scene = new THREE.Group();
     scene.add(mesh);
-    // Feed a real THREE scene through the mocked loader.
     gltfInstances[0].load.mockImplementation(
       (_url: string, onLoad?: (gltf: { scene: THREE.Group; animations: unknown[] }) => void) => {
         onLoad?.({ scene, animations: [] });

@@ -3,12 +3,6 @@ import defaultOptions from '../../../defaultOptions';
 import { DirectionalLightOptions } from '../LightingOptions';
 import { RendererOptions } from '../RendererOptions';
 
-/**
- * The option types were made engine-agnostic (roadmap item 13) so core stops
- * transitively importing THREE. These checks pin that a THREE value still
- * assigns to the now-primitive fields — the migration must not break real
- * Three.js callers.
- */
 describe('engine-agnostic option types', () => {
   it('accepts THREE enum constants for the renderer option numbers', () => {
     const renderer: RendererOptions = {

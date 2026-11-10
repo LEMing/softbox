@@ -13,10 +13,8 @@ import {
 } from './arHandoff';
 
 export interface ArButtonProps {
-  /** The current model source; only https URLs can reach Scene Viewer. */
   source: SimpleViewerProps['object'] | undefined;
   options: AROptions;
-  /** Lift a bottom-placed button clear of the built-in preset chip row. */
   clearPresetRow?: boolean;
 }
 
@@ -27,26 +25,12 @@ const PLACEMENT_STYLE: Record<NonNullable<AROptions['placement']>, React.CSSProp
   'bottom-right': { bottom: 16, right: 16 },
 };
 
-/**
- * The AR handoff button: floats over the canvas and opens the model in the
- * platform's native AR viewer. Renders nothing when the device cannot hand
- * off — desktop, iOS without an `iosSrc` USDZ, Android without an https
- * model URL — so consumers can set `options.ar` unconditionally. It also
- * retires itself when a Scene Viewer launch bounces off a device with no AR
- * component (the intent's failure beacon, {@link AR_FAILURE_HASH}).
- */
 export function ArButton({ source, options, clearPresetRow }: ArButtonProps) {
-  // Detected after mount, NOT during render: under SSR the server has no
-  // way to know the device, and hydration must reproduce the server markup
-  // (no button) before the capability reveal.
   const [mode, setMode] = useState<ArMode | null>(null);
   useEffect(() => {
     setMode(detectArMode());
   }, []);
 
-  // A Scene Viewer intent that found no AR component falls back to the
-  // current page with the failure hash (same-document — nothing reloads).
-  // Strip the marker and stop offering a handoff that cannot work here.
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     const onHashChange = () => {

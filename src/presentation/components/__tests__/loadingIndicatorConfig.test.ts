@@ -24,7 +24,7 @@ describe('resolveLoadingIndicator', () => {
     expect(r.enabled).toBe(true);
     expect(r.label).toBe('Загрузка');
     expect(r.color).toBe('#222');
-    expect(r.backdrop).toContain('rgba'); // default kept
+    expect(r.backdrop).toContain('rgba');
   });
 
   it('honors enabled:false inside an object', () => {

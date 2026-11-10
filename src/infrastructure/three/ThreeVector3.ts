@@ -1,9 +1,6 @@
 import * as THREE from 'three';
 import { IVector3 } from '../../core/interfaces/IObject3D';
 
-/**
- * Adapter for Three.js Vector3 to implement IVector3
- */
 export class ThreeVector3Adapter implements IVector3 {
   constructor(private vector: THREE.Vector3) {}
 
@@ -59,12 +56,10 @@ export class ThreeVector3Adapter implements IVector3 {
     return this.vector.length();
   }
 
-  // Get the underlying Three.js vector
   getThreeVector(): THREE.Vector3 {
     return this.vector;
   }
 
-  // Static factory method
   static fromThreeVector(vector: THREE.Vector3): ThreeVector3Adapter {
     return new ThreeVector3Adapter(vector);
   }

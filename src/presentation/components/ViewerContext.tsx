@@ -14,9 +14,6 @@ export interface ViewerProviderProps {
   children: React.ReactNode;
 }
 
-/**
- * Provider component for viewer context
- */
 export function ViewerProvider({ viewer, canvasRef, children }: ViewerProviderProps) {
   const value = useMemo(() => ({ viewer, canvasRef }), [viewer, canvasRef]);
   return (
@@ -26,9 +23,6 @@ export function ViewerProvider({ viewer, canvasRef, children }: ViewerProviderPr
   );
 }
 
-/**
- * Hook to access viewer context
- */
 export function useViewerContext() {
   const context = useContext(ViewerContext);
   if (!context) {

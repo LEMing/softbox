@@ -38,7 +38,6 @@ describe('ThreeEnvironmentService', () => {
   const rendererWith = (overrides: Partial<{ renderer: unknown }> = {}): IRenderer =>
     ({ renderer: {} as THREE.WebGLRenderer, ...overrides }) as unknown as IRenderer;
 
-  // CubeCamera.update needs a functional renderer surface.
   const cubeCapableService = async (): Promise<ThreeEnvironmentService> => {
     const cubeCapableRenderer = {
       coordinateSystem: THREE.WebGLCoordinateSystem,
@@ -80,7 +79,6 @@ describe('ThreeEnvironmentService', () => {
     const service = await initialized();
     const result = await service.loadEnvironmentMap('env.hdr');
     expect(result.ok).toBe(true);
-    // The original (mapping = Equirectangular) is kept for the path tracer.
     expect(service.getOriginalEnvironmentTexture('env.hdr')).not.toBeNull();
   });
 
@@ -151,7 +149,6 @@ describe('ThreeEnvironmentService', () => {
   });
 
   it('registers a cube capture of the studio room as the path-tracing original', async () => {
-    // CubeCamera.update needs a functional renderer surface.
     const service = await cubeCapableService();
 
     const studio = service.createStudioEnvironment();
@@ -191,7 +188,6 @@ describe('ThreeEnvironmentService', () => {
   it('hands the path tracer the studio cube capture even after an HDRI was loaded', async () => {
     const service = await cubeCapableService();
 
-    // An HDRI in the cache used to shadow the studio branch entirely.
     const hdri = await service.loadEnvironmentMap('room.hdr');
     expect(hdri.ok).toBe(true);
     const studio = service.createStudioEnvironment();
@@ -234,24 +230,17 @@ describe('ThreeEnvironmentService', () => {
     const threeScene = scene.getThreeScene();
     const skybox = threeScene.getObjectByName(GROUNDED_SKYBOX_NAME) as THREE.Mesh;
     expect(skybox).toBeDefined();
-    // Raster-only presentation: the tracer's ingest must hide it, or the
-    // projected sphere would occlude the HDRI environment (the dome problem).
     expect(skybox.userData[CONTACT_SHADOW_HELPER_FLAG]).toBe(true);
-    // ...and survives the screenshot flow's keepBackgrounds disposal pass.
     expect(skybox.userData.softboxBackgroundNode).toBe(true);
     expect(skybox.userData.__groundedSkyboxParams).toEqual({ height: 2, radius: 120 });
     expect(skybox.position.y).toBeCloseTo(1.99);
 
-    // Re-applying WITHOUT projection removes the stale skybox (it would keep
-    // painting the previous environment's world).
     const reapplied = service.applyToScene(scene, loaded.value, {});
     expect(reapplied.ok).toBe(true);
     expect(threeScene.getObjectByName(GROUNDED_SKYBOX_NAME)).toBeUndefined();
   });
 
   it('ground projection: skipped when no equirect source exists (studio cube path)', async () => {
-    // The minimal stub renderer fails the cube capture, so the studio PMREM
-    // has no readable original — the projection must be skipped, not crash.
     const service = await initialized();
     const studio = service.createStudioEnvironment();
     if (!studio.ok) throw studio.error;
@@ -278,7 +267,6 @@ describe('ThreeEnvironmentService', () => {
     const skybox = scene.getThreeScene().getObjectByName(GROUNDED_SKYBOX_NAME) as THREE.Mesh;
     const material = skybox.material as THREE.MeshBasicMaterial;
     expect(material.color.r).toBeCloseTo(0.5);
-    // The cache-owned map must survive canonical disposal of the mesh.
     expect(material.userData.softboxExternallyOwnedTextures).toBe(true);
   });
 
@@ -316,8 +304,6 @@ describe('ThreeEnvironmentService', () => {
   });
 
   it('leaves the studio environment usable when the cube capture fails', async () => {
-    // The minimal stub renderer cannot run CubeCamera.update — the capture
-    // must fail soft: studio PMREM still applies, just no PT original.
     const service = await initialized();
     const studio = service.createStudioEnvironment();
     if (!studio.ok) throw studio.error;
@@ -327,8 +313,6 @@ describe('ThreeEnvironmentService', () => {
     expect(applied.ok).toBe(true);
     expect(scene.getThreeScene().environment).not.toBeNull();
 
-    // A failed capture must still cache the PMREM: a miss here re-baked the
-    // room on every reset and leaked one render target per call.
     const again = service.createStudioEnvironment();
     if (!again.ok) throw again.error;
     expect(rawTexture(again.value)).toBe(rawTexture(studio.value));
@@ -350,8 +334,6 @@ describe('ThreeEnvironmentService', () => {
 
     service.dispose();
 
-    // The dual-store invariant: both the PMREM and the original are freed,
-    // and the cache no longer hands out the disposed texture afterwards.
     expect(pmremDispose).toHaveBeenCalled();
     expect(originalDispose).toHaveBeenCalled();
     expect(service.getOriginalEnvironmentTexture('env.hdr')).toBeNull();
@@ -462,8 +444,6 @@ describe('ThreeEnvironmentService render-target lifecycle', () => {
       const service = await initialized();
       const sceneAdapter = new ThreeSceneAdapter(new THREE.Scene());
       const threeScene = sceneAdapter.getThreeScene();
-      // Set directly by the consumer, not painted by a viewer API — not ours
-      // to free (it may be shared with the consumer's own scene work).
       const consumerTexture = new THREE.Texture();
       threeScene.background = consumerTexture;
       const disposeSpy = jest.spyOn(consumerTexture, 'dispose');

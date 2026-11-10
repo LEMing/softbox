@@ -1,20 +1,7 @@
 import { useEffect, useState } from 'react';
 
-/**
- * Start booting a little before the element actually scrolls into view, so
- * the viewer is usually painting by the time the user reaches it.
- */
 const PRELOAD_MARGIN = '200px';
 
-/**
- * Opens when the element first approaches the viewport; opens immediately
- * when gating is disabled or IntersectionObserver is unavailable (SSR,
- * legacy browsers) — a viewer that boots eagerly beats one that never boots.
- *
- * The gate LATCHES: once open it never closes, whatever `enabled` does
- * afterwards. Scrolling away — or flipping `loading` back to `'lazy'` — must
- * not tear down a running viewer.
- */
 export function useViewportGate(
   targetRef: React.RefObject<Element | null>,
   enabled: boolean

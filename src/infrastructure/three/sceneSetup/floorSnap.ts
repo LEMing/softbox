@@ -39,16 +39,9 @@ export function snapObjectToFloor(scene: IScene, object: IObject3D): Result<void
       return false;
     };
 
-    // The grid isn't the object being aligned, so nothing else guarantees
-    // its matrixWorld is current — a stale (e.g. identity) transform would
-    // silently throw the raycast hits off by whatever offset it's missing.
     threeScene.updateMatrixWorld(true);
     const gridMeshes: THREE.Mesh[] = [];
     threeScene.traverse((child) => {
-      // Skip the tracer-only infinity dome: it is a tall shell whose walls
-      // would drag floorTopY up to their rim and float the model, and it is a
-      // path-tracing construct anyway — the real floor level is the raster
-      // catcher, which the dome floor is separately aligned to.
       if (child.userData?.[PATH_TRACING_FLOOR_FLAG]) {
         return;
       }
@@ -65,13 +58,9 @@ export function snapObjectToFloor(scene: IScene, object: IObject3D): Result<void
     });
 
     if (gridMeshes.length === 0 || objectMeshes.length === 0) {
-      // No floor to drop onto (or nothing to drop) — leave the object where it is.
       return Result.ok(undefined);
     }
 
-    // The floor's height only needs measuring once — every tile sits at
-    // the same Y by construction — rather than raycasting against
-    // potentially thousands of individual tiles on every sample below.
     let floorTopY = -Infinity;
     const tileBox = new THREE.Box3();
     for (const mesh of gridMeshes) {
@@ -89,18 +78,6 @@ export function snapObjectToFloor(scene: IScene, object: IObject3D): Result<void
       return Result.ok(undefined);
     }
 
-    // Sample a dense grid of vertical rays across the object's own
-    // footprint, raycasting only against its own (typically BVH-
-    // accelerated) meshes — a coarse grid or a single center ray can
-    // straddle a narrow true contact point (e.g. a wheel's tread) and
-    // under-shoot how far the object actually needs to drop.
-    //
-    // Each sample casts in BOTH directions: glTF materials default to
-    // single-sided, so the true contact surface — its normal facing DOWN,
-    // outward — is backface-culled for a ray from above and only hittable
-    // from below. Down-rays still catch up-facing bottom surfaces (ground
-    // decals, open shells); the object's lowest point is the minimum over
-    // both passes.
     const SAMPLES_PER_AXIS = 40;
     const margin = Math.max(1, box.max.y - box.min.y);
     const aboveY = box.max.y + margin;
@@ -128,8 +105,6 @@ export function snapObjectToFloor(scene: IScene, object: IObject3D): Result<void
       }
     }
 
-    // A tiny epsilon avoids nudging objects that are already touching
-    // (floating point noise from the raycasts themselves).
     if (Number.isFinite(lowestObjectY)) {
       const gap = lowestObjectY - floorTopY;
       if (Math.abs(gap) > 1e-4) {

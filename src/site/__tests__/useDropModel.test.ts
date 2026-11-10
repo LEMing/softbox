@@ -26,7 +26,6 @@ describe('isModelFile', () => {
   it('accepts only self-contained .glb files', () => {
     expect(isModelFile('model.glb')).toBe(true);
     expect(isModelFile('MODEL.GLB')).toBe(true);
-    // A multi-file .gltf cannot resolve its external buffers from a blob URL.
     expect(isModelFile('scene.gltf')).toBe(false);
     expect(isModelFile('texture.png')).toBe(false);
   });

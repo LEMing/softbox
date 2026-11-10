@@ -1,13 +1,6 @@
 import * as THREE from 'three';
 import { ControlsInstance } from '../../types/CommonTypes';
 
-/**
- * Canonical adapter unwrapping: core hands out engine-agnostic adapters
- * (`IScene`/`ICamera`/…); code that genuinely needs the underlying Three.js
- * object goes through these helpers instead of hand-rolling the
- * "call getThreeX() if present, else instanceof" duck-type at every site.
- * Returns null when the candidate is neither an adapter nor a raw object.
- */
 const callUnwrap = <T>(candidate: unknown, method: string): T | null => {
   if (candidate && typeof candidate === 'object') {
     const accessor = (candidate as Record<string, unknown>)[method];
@@ -53,7 +46,6 @@ export function toThreeRenderer(candidate: unknown): THREE.WebGLRenderer | null 
   );
 }
 
-/** Controls are a type union (no instanceof); only the adapter path applies. */
 export function toThreeControls(candidate: unknown): ControlsInstance | null {
   return callUnwrap<ControlsInstance>(candidate, 'getThreeControls');
 }

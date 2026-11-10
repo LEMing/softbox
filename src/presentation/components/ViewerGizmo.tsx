@@ -35,7 +35,6 @@ export const ViewerGizmo: React.FC<ViewerGizmoProps> = ({
     return null;
   }
 
-  // Cast controls to the actual Three.js controls type
   const threeControls = controls as unknown as OrbitControls | MapControls;
 
   return (
@@ -45,9 +44,6 @@ export const ViewerGizmo: React.FC<ViewerGizmoProps> = ({
         position: 'absolute',
         width: size,
         height: size,
-        // In the documented chrome stack: above hotspots (z5), level with the
-        // preset picker (z10), and BELOW the loading/error overlay (z20) — a
-        // scrim must cover every control.
         zIndex: 10,
         ...placementStyle(placement),
       }}

@@ -25,25 +25,10 @@ import { CONTACT_SHADOW_HELPER_FLAG, PATH_TRACING_FLOOR_FLAG } from './ContactSh
 import { provideCubeUvChunkForPathTracer } from './cubeUvChunkForPathTracer';
 
 export class ThreePathTracingService implements IPathTracingService {
-  /**
-   * Hand the scene to the path tracer with the raster-only contact-shadow
-   * helpers hidden and the tracer-only ground floor shown. The `ShadowMaterial`
-   * catcher (and the baked disc) are raster shadow-map tricks the tracer can't
-   * use — ingesting them double-darkens or floats the contact area — so they're
-   * hidden; the PATH_TRACING_FLOOR_FLAG disc is the mirror image, a real matte
-   * surface kept invisible in the raster view and flipped on only here so the
-   * tracer has something physical to cast a contact shadow onto (otherwise the
-   * model floats in the traced render). The generator only reads currently-
-   * visible nodes, and both sets are restored right after the ingest so the
-   * raster fallback keeps its clean invisible-floor look.
-   */
   private ingestSceneWithoutShadowHelpers(
     threeScene: THREE.Scene,
     threeCamera: THREE.Camera
   ): void {
-    // Tag-based (not name-based): a consumer's GLB may legitimately contain a
-    // node with any name, and getObjectByName's first depth-first match would
-    // hide that node instead of the helper. The userData tag is viewer-owned.
     const hideForIngest: THREE.Object3D[] = [];
     const showForIngest: THREE.Object3D[] = [];
     threeScene.traverse((object) => {
@@ -63,18 +48,13 @@ export class ThreePathTracingService implements IPathTracingService {
     }
   }
 
-  /**
-   * Convert an HTMLImageElement-based texture to a DataTexture for path tracing
-   */
   private convertToDataTexture(texture: THREE.Texture): THREE.DataTexture | null {
     if (!texture.image || !(texture.image instanceof HTMLImageElement)) {
-      // Already a data texture or not an image
       return null;
     }
 
     const image = texture.image as HTMLImageElement;
 
-    // Create a canvas to extract pixel data
     const canvas = document.createElement('canvas');
     canvas.width = image.width;
     canvas.height = image.height;
@@ -84,19 +64,15 @@ export class ThreePathTracingService implements IPathTracingService {
       return null;
     }
 
-    // Draw the image to canvas
     context.drawImage(image, 0, 0);
 
-    // Get pixel data
     const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
 
-    // Convert to Float32Array for better precision
     const data = new Float32Array(imageData.data.length);
     for (let i = 0; i < imageData.data.length; i++) {
-      data[i] = imageData.data[i] / 255.0; // Normalize to 0-1 range
+      data[i] = imageData.data[i] / 255.0;
     }
 
-    // Create DataTexture
     const dataTexture = new THREE.DataTexture(
       data,
       canvas.width,
@@ -105,7 +81,6 @@ export class ThreePathTracingService implements IPathTracingService {
       THREE.FloatType
     );
 
-    // Copy properties from original texture
     dataTexture.mapping = texture.mapping;
     dataTexture.wrapS = texture.wrapS;
     dataTexture.wrapT = texture.wrapT;
@@ -118,7 +93,6 @@ export class ThreePathTracingService implements IPathTracingService {
     return dataTexture;
   }
 
-  /** The underlying WebGLRenderer, or null while the adapter isn't ready. */
   private getThreeRenderer(): PathTracingWebGLRenderer | null {
     return toThreeRenderer(this.renderer);
   }
@@ -132,11 +106,8 @@ export class ThreePathTracingService implements IPathTracingService {
   private maxCreateAttempts: number = 10;
   private sceneInitialized: boolean = false;
   private environmentWaitFrames: number = 0;
-  private maxEnvironmentWaitFrames: number = 300; // Wait up to ~5 seconds at 60fps
+  private maxEnvironmentWaitFrames: number = 300;
   private disposed: boolean = false;
-  // Converted-for-the-tracer copy of an image-backed equirect, reused across
-  // re-ingests. Keyed by the source texture's uuid: a runtime environment
-  // switch must not hand the tracer the PREVIOUS environment's conversion.
   private convertedEnvTexture: THREE.DataTexture | null = null;
   private convertedEnvSourceUuid: string | null = null;
   private resumable: boolean = false;
@@ -144,48 +115,27 @@ export class ThreePathTracingService implements IPathTracingService {
   private cameraDirty: boolean = false;
   public readonly events = new TypedEventEmitter<{ 'pathtracing:paused': PathTracingPausedEvent }>();
 
-  // Startup dissolve: the first path-traced samples are near-random noise
-  // (salt-and-pepper + fireflies), so instead of slamming that over the clean
-  // raster frame we snapshot the raster the moment accumulation starts and fade
-  // it out over the tracer as it resolves — the ugly early samples stay hidden
-  // under the still-opaque snapshot and only the converged image shows through.
   private rasterFadeTarget: THREE.WebGLRenderTarget | null = null;
   private fadeQuad: FullScreenQuad | null = null;
   private fadeToneMapping: THREE.ToneMapping | null = null;
   private fadeSupported = true;
 
-  /**
-   * How long the camera must rest before accumulation (re)starts. While it
-   * moves, every frame is a plain raster render: presenting path-traced
-   * samples mid-motion draws each one against a different camera, which
-   * smears the model into torn slivers during turntable spins and drags.
-   */
   private static readonly CAMERA_SETTLE_MS = 200;
 
-  /** Samples over which the raster snapshot fades out (full path-traced image
-   * by here). Sized so the dissolve completes only once the tracer has resolved
-   * enough that its noise never shows at high opacity (~1.2s of accumulation). */
   private static readonly FADE_SAMPLES = 256;
 
-  /** The raster snapshot is held fully opaque for this many opening samples
-   * (the noisiest ones) before the dissolve begins to ease it out. */
   private static readonly FADE_HOLD_SAMPLES = 4;
 
-  /** While the tracer is still grainy the path-traced layer is capped to this
-   * opacity (a faint preview over the dominant raster), so its noise never
-   * reads at more than this level — it only opens to full once resolved. */
   private static readonly FADE_PREVIEW_OPACITY = 0.3;
 
-  /** Fraction of the fade spent grainy (path-traced layer held at the preview
-   * cap); past it the layer releases from the cap to fully opaque. */
   private static readonly FADE_RELEASE_FRACTION = 0.5;
 
   constructor() {
     this.settings = {
       samples: DEFAULT_PATH_TRACING_SAMPLES,
-      bounces: 4, // Reduce bounces for better performance
-      transmissiveBounces: 2, // Reduce transmissive bounces
-      renderScale: 1, // Start with lower resolution for better performance
+      bounces: 4,
+      transmissiveBounces: 2,
+      renderScale: 1,
       lowResScale: 0.5,
       dynamicLowRes: true,
       enablePathTracing: true,
@@ -208,8 +158,6 @@ export class ThreePathTracingService implements IPathTracingService {
         );
       }
 
-      // Path tracer creation is deferred until the first render(), once the
-      // renderer is guaranteed ready.
       return Result.ok(undefined);
     } catch (error) {
       return Result.err(
@@ -233,9 +181,6 @@ export class ThreePathTracingService implements IPathTracingService {
     }
 
     try {
-      // Get the Three.js renderer using the type-safe interface. The renderer
-      // may not be ready on the very first render() call after initialize();
-      // the caller (ensurePathTracerCreated) retries on subsequent frames.
       const threeRenderer = this.getThreeRenderer();
       if (!threeRenderer) {
         return Result.err(
@@ -249,10 +194,8 @@ export class ThreePathTracingService implements IPathTracingService {
       provideCubeUvChunkForPathTracer();
       this.pathTracer = new WebGLPathTracer(threeRenderer) as ExtendedWebGLPathTracer;
 
-      // Configure the path tracer
-      // Use tiles for better performance - start with 1x1 for faster initial render
       if (this.pathTracer.tiles && 'set' in this.pathTracer.tiles) {
-        this.pathTracer.tiles.set(1, 1); // Single tile for faster first frame
+        this.pathTracer.tiles.set(1, 1);
       }
       this.pathTracer.bounces = this.settings.bounces;
 
@@ -264,18 +207,6 @@ export class ThreePathTracingService implements IPathTracingService {
       this.pathTracer.dynamicLowRes = this.settings.dynamicLowRes;
       this.pathTracer.lowResScale = this.settings.lowResScale;
 
-      // Env intensity and tone mapping are inherited from the scene/renderer,
-      // NOT overridden here: three-gpu-pathtracer reads scene.environmentIntensity
-      // on ingest and shares the renderer's tone-mapping operator + exposure, so
-      // the converged frame matches the raster preview.
-
-      // autoClear stays ON: the accumulation blit manages its own clear state
-      // per pass (accumulateOneSample), while every raster fallback frame —
-      // the env-wait period, the motion settle window — must clear normally.
-      // A global autoClear=false here stacked those raster frames over each
-      // other, smearing any camera motion into torn slivers.
-
-      // Ensure the renderer is rendering to the screen (null render target)
       threeRenderer.setRenderTarget(null);
 
       return Result.ok(undefined);
@@ -291,42 +222,25 @@ export class ThreePathTracingService implements IPathTracingService {
   }
 
   setEnabled(enabled: boolean): void {
-    // Only update if actually changing
     if (this.enabled === enabled) {
       return;
     }
 
     this.enabled = enabled;
     if (!enabled) {
-      // An explicit disable is the consumer's decision — camera moves must
-      // not silently re-arm it the way they resume a completed accumulation.
       this.resumable = false;
       this.reset();
       this.sceneInitialized = false;
 
       const threeRenderer = this.getThreeRenderer();
       if (threeRenderer) {
-        threeRenderer.autoClear = true; // Re-enable autoClear for standard rendering
+        threeRenderer.autoClear = true;
       }
     }
-    // Path tracer will be created on first render if enabled
   }
 
-  /**
-   * The service gives up on the CURRENT accumulation on its own (sample
-   * target reached, renderer never became ready, environment texture never
-   * arrived) — as opposed to `setEnabled(false)`, which is the consumer
-   * turning path tracing off entirely. Every such self-pause must emit
-   * 'pathtracing:paused' so PathTracingCoordinator releases the 'path-tracing'
-   * continuous-render reason; skipping it left the render loop demanding
-   * frames forever and callers awaiting 'pathtracing:complete' hanging.
-   */
   private disableAfterSelfPause(reason: PathTracingPausedEvent['reason']): void {
     this.enabled = false;
-    // A completed accumulation keeps the tracer and its ingested scene warm,
-    // so a later camera move can resume it cheaply. Give-up paths hold
-    // nothing worth resuming (no renderer, no usable environment) — re-arming
-    // those would just replay the same futile wait on every interaction.
     this.resumable = reason === 'completed';
     this.events.emit('pathtracing:paused', { samples: this.sampleCount, reason });
   }
@@ -334,7 +248,6 @@ export class ThreePathTracingService implements IPathTracingService {
   updateSettings(settings: Partial<IPathTracingSettings>): void {
     this.settings = { ...this.settings, ...settings };
 
-    // Update enabled state if provided
     if (settings.enablePathTracing !== undefined) {
       this.setEnabled(settings.enablePathTracing);
     }
@@ -401,12 +314,9 @@ export class ThreePathTracingService implements IPathTracingService {
       }
 
       if (!this.sceneInitialized) {
-        // Scene not initialized yet - fallback to standard renderer
         return renderer.render(scene, camera);
       }
 
-      // The path tracer renders to the canvas itself; the standard renderer
-      // must not run again this frame or it will overwrite the accumulated output.
       return this.accumulateSample(renderer, scene, camera);
     } catch (error) {
       return Result.err(
@@ -419,13 +329,6 @@ export class ThreePathTracingService implements IPathTracingService {
     }
   }
 
-  /**
-   * Creates the path tracer lazily on first use (it needs a ready renderer,
-   * which may not exist yet on the very first render() call). Returns null to
-   * continue into this frame's render once a tracer exists; returns a Result
-   * when render() should return it immediately instead — a fallback frame
-   * while still waiting for the renderer, or after giving up and disabling.
-   */
   private ensurePathTracerCreated(
     renderer: IRenderer, scene: IScene, camera: ICamera
   ): Result<void> | null {
@@ -448,7 +351,6 @@ export class ThreePathTracingService implements IPathTracingService {
     return renderer.render(scene, camera);
   }
 
-  /** Unwraps the Three.js scene/camera from their adapters, or null if either fails. */
   private extractThreeObjects(
     scene: IScene, camera: ICamera
   ): { threeScene: THREE.Scene; threeCamera: THREE.Camera } | null {
@@ -460,14 +362,6 @@ export class ThreePathTracingService implements IPathTracingService {
     return { threeScene, threeCamera };
   }
 
-  /**
-   * First-frame setup: waits for an environment texture, converts an
-   * equirectangular one to a format the tracer can read if needed, and calls
-   * pathTracer.setScene() once ready. Returns null to continue into
-   * accumulation this frame (sceneInitialized just became true); returns a
-   * Result when render() should return it immediately instead — still
-   * waiting, or the environment shape isn't one the tracer can use.
-   */
   private async initializeSceneForPathTracing(
     renderer: IRenderer,
     scene: IScene,
@@ -483,17 +377,12 @@ export class ThreePathTracingService implements IPathTracingService {
           this.disableAfterSelfPause('gave-up');
           this.environmentWaitFrames = 0;
         }
-        // Don't fail - just skip this frame and render with the standard
-        // renderer. Keep trying on subsequent frames until the environment loads.
         return renderer.render(scene, camera);
       }
 
       this.environmentWaitFrames = 0;
 
       if (originalEnvTexture && (originalEnvTexture as THREE.CubeTexture).isCubeTexture) {
-        // A cube-captured environment (the procedural studio room): the
-        // tracer converts cube maps to the equirectangular layout it needs
-        // by itself — hand it the cube in place of the unreadable PMREM.
         const currentEnv = threeScene.environment;
         threeScene.environment = originalEnvTexture;
         try {
@@ -503,8 +392,6 @@ export class ThreePathTracingService implements IPathTracingService {
           threeScene.environment = currentEnv;
         }
       } else if (originalEnvTexture && originalEnvTexture.mapping === THREE.EquirectangularReflectionMapping) {
-        // Use the original equirectangular texture for path tracing, converting
-        // an HTMLImageElement-backed texture to a DataTexture the tracer can read.
         let textureForPathTracing: THREE.Texture = originalEnvTexture;
         if (originalEnvTexture.image instanceof HTMLImageElement) {
           if (this.convertedEnvTexture && this.convertedEnvSourceUuid === originalEnvTexture.uuid) {
@@ -523,12 +410,10 @@ export class ThreePathTracingService implements IPathTracingService {
           }
         }
 
-        // Temporarily set the environment to the converted texture for path tracing.
         const currentEnv = threeScene.environment;
         threeScene.environment = textureForPathTracing;
 
         try {
-          // For JPEG/PNG textures loaded via TextureLoader, ensure the image is loaded.
           const texImage = originalEnvTexture.image as HTMLImageElement | (ImageData & { data?: unknown }) | null;
           if (texImage && !("data" in texImage && texImage.data)) {
             if (texImage instanceof HTMLImageElement && !texImage.complete) {
@@ -550,25 +435,19 @@ export class ThreePathTracingService implements IPathTracingService {
           this.ingestSceneWithoutShadowHelpers(threeScene, threeCamera);
           this.sceneInitialized = true;
 
-          // Restore the PMREM environment for regular rendering. Don't dispose
-          // the DataTexture here - it's reused across frames.
           threeScene.environment = currentEnv;
         } catch (setSceneError) {
           threeScene.environment = currentEnv;
           throw setSceneError;
         }
       } else if (threeScene.environment?.mapping === THREE.EquirectangularReflectionMapping) {
-        // Already an equirectangular texture — usable as-is.
         this.ingestSceneWithoutShadowHelpers(threeScene, threeCamera);
         this.sceneInitialized = true;
       } else {
-        // PMREM texture with no original equirectangular source: the tracer
-        // can't consume it, so this accumulation can never start.
         this.disableAfterSelfPause('gave-up');
         return renderer.render(scene, camera);
       }
     } catch (error) {
-      // Don't disable path tracing yet - we might succeed on the next try.
       console.warn('Scene initialization error:', error);
       return renderer.render(scene, camera);
     }
@@ -576,48 +455,29 @@ export class ThreePathTracingService implements IPathTracingService {
     return null;
   }
 
-  /**
-   * Accumulates one more sample once the scene is ready to path-trace: updates
-   * lights on the very first sample, renders a standard frame for immediate
-   * feedback, accumulates a tracer sample, and detects completion.
-   */
   private accumulateSample(renderer: IRenderer, scene: IScene, camera: ICamera): Result<void> {
     if (this.sampleCount === 0) {
       try {
         this.pathTracer?.updateLights();
       } catch (lightError) {
-        // Continue even if light update fails - path tracing can still work.
         console.warn('Failed to update lights for path tracing:', lightError);
       }
     }
 
-    // Render with the standard renderer first for immediate feedback.
     const standardRenderResult = renderer.render(scene, camera);
     if (!standardRenderResult.ok) {
       return standardRenderResult;
     }
 
-    // A moving camera shows the raster frame just drawn and nothing else —
-    // accumulation (and its preview) only engages once the camera rests.
-    // Presenting samples mid-motion draws each one against a different
-    // camera, smearing the model apart during turntable spins and drags.
     if (performance.now() - this.lastCameraMoveTime < ThreePathTracingService.CAMERA_SETTLE_MS) {
       return Result.ok(undefined);
     }
 
-    // The camera moved since the last accumulation: sync it into the tracer
-    // exactly once, now that it is at rest. Doing this every motion frame
-    // (rather than at rest) left tracer and renderer state fighting each
-    // other and corrupted the raster fallback into near-blank frames.
     if (this.cameraDirty) {
       this.cameraDirty = false;
       this.pathTracer?.updateCamera();
     }
 
-    // Startup dissolve: snapshot the clean raster the instant accumulation
-    // (re)starts. Guarded and cosmetic — a snapshot failure just disables the
-    // fade for the session, it must never break the render (unlike the
-    // accumulation below, whose failures are real and propagate).
     if (this.fadeSupported && this.sampleCount === 0) {
       this.runFadeStep(() => this.captureRasterFade(renderer, scene, camera));
     }
@@ -625,7 +485,6 @@ export class ThreePathTracingService implements IPathTracingService {
     this.accumulateOneSample();
     this.sampleCount++;
 
-    // Dissolve the raster out as the tracer resolves.
     if (this.fadeSupported && this.sampleCount < this.fadeWindowSamples()) {
       const rasterOpacity = 1 - this.pathTracedLayerOpacity(this.sampleCount);
       this.runFadeStep(() => this.renderRasterFade(rasterOpacity));
@@ -638,8 +497,6 @@ export class ThreePathTracingService implements IPathTracingService {
     return Result.ok(undefined);
   }
 
-  /** Run a cosmetic dissolve step, disabling the dissolve for the rest of the
-   * session if it throws — it must never take the render down with it. */
   private runFadeStep(step: () => void): void {
     try {
       step();
@@ -649,18 +506,7 @@ export class ThreePathTracingService implements IPathTracingService {
     }
   }
 
-  /** Opacity of the path-traced layer over the raster snapshot as accumulation
-   * progresses: 0 for the opening (noisiest) samples, eased up to a low preview
-   * cap while the image is still grainy — so the tracer's noise never reads
-   * above the cap — then released to fully opaque as it resolves. */
-  /** The dissolve must finish by the accumulation's LAST sample: for a
-   * consumer budget below FADE_SAMPLES the window compresses, else completion
-   * would present the pure traced frame while the fade still held the raster
-   * at high opacity — a hard pop instead of a dissolve. */
   private fadeWindowSamples(): number {
-    // Floored two past the hold so the smoothstep edges can never collapse
-    // (hold === release divides by zero). Budgets at or under the hold are
-    // pathological (nothing to dissolve over) and simply keep the raster up.
     const floor = ThreePathTracingService.FADE_HOLD_SAMPLES + 2;
     return Math.max(floor, Math.min(ThreePathTracingService.FADE_SAMPLES, this.settings.samples));
   }
@@ -680,11 +526,6 @@ export class ThreePathTracingService implements IPathTracingService {
     return smoothstep01(Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0))));
   }
 
-  /** Render the current raster frame into a linear offscreen target to fade out
-   * over the resolving path-traced image. It is captured pre-tone-mapping
-   * (three only tone-maps when drawing to the canvas, never to a target), so the
-   * fade shader applies the renderer's tone mapping + sRGB itself and the
-   * snapshot matches the frame on screen instead of coming out dark. */
   private captureRasterFade(renderer: IRenderer, scene: IScene, camera: ICamera): void {
     const threeRenderer = this.getThreeRenderer();
     if (!threeRenderer) {
@@ -703,15 +544,11 @@ export class ThreePathTracingService implements IPathTracingService {
     threeRenderer.setRenderTarget(prevTarget);
   }
 
-  /** Composite the captured raster over the on-canvas path-traced frame at the
-   * given opacity (1 = pure raster, 0 = fully revealed path tracing). */
   private renderRasterFade(opacity: number): void {
     const threeRenderer = this.getThreeRenderer();
     if (!threeRenderer || !this.rasterFadeTarget) {
       return;
     }
-    // Rebuild the material if the operator changed (e.g. a preset switch); the
-    // exposure is a live uniform so it never needs a rebuild.
     if (!this.fadeQuad || this.fadeToneMapping !== threeRenderer.toneMapping) {
       (this.fadeQuad?.material as THREE.Material | undefined)?.dispose();
       this.fadeToneMapping = threeRenderer.toneMapping;
@@ -724,21 +561,15 @@ export class ThreePathTracingService implements IPathTracingService {
     const prevAutoClear = threeRenderer.autoClear;
     const prevTarget = threeRenderer.getRenderTarget();
     threeRenderer.setRenderTarget(null);
-    threeRenderer.autoClear = false; // blend over the path-traced frame, don't clear it
+    threeRenderer.autoClear = false;
     try {
       this.fadeQuad.render(threeRenderer);
     } finally {
-      // Always restore, even if the quad render throws: a leaked autoClear=false
-      // would make every later raster frame stack instead of clear (ghosting).
       threeRenderer.autoClear = prevAutoClear;
       threeRenderer.setRenderTarget(prevTarget);
     }
   }
 
-  /** A fade material that tone-maps + sRGB-encodes a linear snapshot exactly the
-   * way the renderer would when drawing to the canvas (mirrors OutputPass), then
-   * applies the fade alpha — so the dissolve's first frame matches the on-screen
-   * raster instead of the darker un-tone-mapped image. */
   private createFadeMaterial(toneMapping: THREE.ToneMapping): THREE.ShaderMaterial {
     const toneMappingDefine: Record<number, string> = {
       [THREE.LinearToneMapping]: 'LINEAR_TONE_MAPPING',
@@ -748,11 +579,6 @@ export class ThreePathTracingService implements IPathTracingService {
       [THREE.AgXToneMapping]: 'AGX_TONE_MAPPING',
       [THREE.NeutralToneMapping]: 'NEUTRAL_TONE_MAPPING',
     };
-    // No tonemapping_pars/colorspace_pars includes here: three already injects
-    // them (and the toneMappingExposure uniform) into a ShaderMaterial's prefix
-    // when the renderer has tone mapping on, so re-including them redefines the
-    // operators — which real-GPU GLSL rejects (SwiftShader silently tolerated
-    // it). We just call the operators + sRGBTransferOETF that the prefix defines.
     const defines: Record<string, string> = {};
     const operator = toneMappingDefine[toneMapping];
     if (operator) {
@@ -796,10 +622,6 @@ export class ThreePathTracingService implements IPathTracingService {
     });
   }
 
-  /**
-   * Render while path tracing is disabled: keep the final accumulated image on
-   * screen if we just completed, otherwise delegate to the standard renderer.
-   */
   private renderWhileDisabled(scene: IScene, camera: ICamera): Result<void> {
     if (!this.renderer) {
       return Result.ok(undefined);
@@ -818,10 +640,6 @@ export class ThreePathTracingService implements IPathTracingService {
     return this.renderer.render(scene, camera);
   }
 
-  /**
-   * Render a single path-tracing sample into the internal buffer, preserving the
-   * renderer's autoClear/render-target state so the standard view stays visible.
-   */
   private accumulateOneSample(): void {
     const threeRenderer = this.getThreeRenderer();
     if (!threeRenderer) {
@@ -839,13 +657,6 @@ export class ThreePathTracingService implements IPathTracingService {
     threeRenderer.setRenderTarget(originalRenderTarget);
   }
 
-  /**
-   * Path tracing reached its sample target: present the accumulated result on
-   * the canvas and pause. The final image stays on the canvas (kept by the
-   * renderer); the tracer and its ingested scene stay warm so a camera move
-   * can resume accumulation from the new viewpoint instead of leaving a
-   * stale frame frozen on screen.
-   */
   private captureCompletedFrame(): Result<void> {
     const threeRenderer = this.getThreeRenderer();
     if (threeRenderer && this.pathTracer) {
@@ -855,19 +666,16 @@ export class ThreePathTracingService implements IPathTracingService {
         threeRenderer.setRenderTarget(null);
         threeRenderer.clear(true, true, true);
 
-        // Copy the accumulated path-traced buffer to screen.
         const copyQuad = this.pathTracer.copyQuad as { render: (renderer: THREE.WebGLRenderer) => void } | undefined;
         if (copyQuad && typeof copyQuad.render === 'function') {
           copyQuad.render(threeRenderer);
         } else {
-          // Fallback: one more sample renders the result to screen.
           threeRenderer.autoClear = false;
           this.pathTracer.renderSample();
         }
 
         threeRenderer.autoClear = originalAutoClear;
       } catch (error) {
-        // Path tracing is still complete even if presenting the frame fails.
         console.warn('Failed to present path traced result:', error);
       }
     }
@@ -885,12 +693,7 @@ export class ThreePathTracingService implements IPathTracingService {
     return this.enabled;
   }
 
-  /**
-   * Check if path tracer has been disposed after completion
-   */
   isPathTracerDisposed(): boolean {
-    // Only return true if we've actually disposed the service
-    // Not if the path tracer just hasn't been created yet
     return this.disposed;
   }
 
@@ -904,52 +707,34 @@ export class ThreePathTracingService implements IPathTracingService {
       return;
     }
     if (force) {
-      // Scene contents changed (model swap, pose change) — the ingested
-      // geometry is stale, so the next render must re-run setScene().
       this.pathTracer.reset();
       this.sceneInitialized = false;
       return;
     }
-    // Camera-only reset: open the settle window (raster-only frames until
-    // the camera rests) and mark the tracer's camera stale — it re-syncs via
-    // a single updateCamera() when accumulation restarts. No BVH rebuild:
-    // a full setScene() per camera move is what originally tore frames
-    // apart during turntable rotation.
     this.lastCameraMoveTime = performance.now();
     this.cameraDirty = true;
     this.pathTracer.reset();
-    // Don't reset createAttempts here as we want to keep trying
   }
 
   dispose(): void {
     this.disposed = true;
     this.events.removeAllListeners();
 
-    // Note: autoClear is NOT re-enabled here — that causes the screen to
-    // clear to white. The renderer's autoClear state is managed by ViewerCore.
-
     if (this.pathTracer) {
       try {
         this.pathTracer.dispose();
       } catch (error) {
-        // Continue disposal even if path tracer disposal fails
         console.warn('Failed to dispose path tracer during service disposal:', error);
       }
       this.pathTracer = null;
     }
 
-    // Dispose of converted environment texture
     if (this.convertedEnvTexture) {
       this.convertedEnvTexture.dispose();
       this.convertedEnvTexture = null;
       this.convertedEnvSourceUuid = null;
     }
 
-    // Startup-dissolve resources. Only the material is ours to free — NOT the
-    // FullScreenQuad's geometry: three shares one module-level fullscreen
-    // geometry across every FullScreenQuad (including the post-processing
-    // composer's passes), so calling fadeQuad.dispose() would pull it out from
-    // under a consumer that also uses PostProcessingPipeline.
     if (this.fadeQuad) {
       (this.fadeQuad.material as THREE.Material).dispose();
       this.fadeQuad = null;
@@ -967,7 +752,6 @@ export class ThreePathTracingService implements IPathTracingService {
   }
 
   isSupported(): boolean {
-    // Check for WebGL2 support
     const canvas = document.createElement('canvas');
     const gl = canvas.getContext('webgl2');
     return gl !== null;

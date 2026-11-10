@@ -65,9 +65,6 @@ class FakeShaderPass {
     this.disposeCount++;
   }
   constructor(public shader: ShaderLike) {
-    // Mirror the real ShaderPass, which CLONES the shader's uniforms (so setting
-    // a pass uniform never mutates the shared shader module); fall back to the
-    // vignette uniforms when the mocked shader carries none.
     const source = shader?.uniforms ?? { offset: { value: 0 }, darkness: { value: 0 } };
     this.uniforms = Object.fromEntries(
       Object.entries(source).map(([key, uniform]) => [key, { value: uniform.value }])
@@ -157,10 +154,8 @@ describe('PostProcessingPipeline', () => {
     const outputIndex = passes.findIndex((p) => p instanceof FakeOutputPass);
     const contrastPass = passes.find((p) => shaderName(p) === 'brightnessContrast') as FakeShaderPass;
     const saturationPass = passes.find((p) => shaderName(p) === 'hueSaturation') as FakeShaderPass;
-    // Both grade passes run in display space (after tone mapping)…
     expect(passes.indexOf(contrastPass)).toBeGreaterThan(outputIndex);
     expect(passes.indexOf(saturationPass)).toBeGreaterThan(outputIndex);
-    // …and the configured amounts reach the shader uniforms.
     expect(contrastPass.uniforms.contrast.value).toBe(0.2);
     expect(saturationPass.uniforms.saturation.value).toBe(0.3);
   });
@@ -173,14 +168,12 @@ describe('PostProcessingPipeline', () => {
     expect(passes[0]).toBeInstanceOf(FakeRenderPass);
     expect(passes.some((p) => p instanceof FakeOutputPass)).toBe(true);
     expect(passes.some((p) => p instanceof FakeBloomPass)).toBe(false);
-    // Vignette (a ShaderPass) is appended after OutputPass.
     const outputIndex = passes.findIndex((p) => p instanceof FakeOutputPass);
     const shaderIndex = passes.findIndex((p) => p instanceof FakeShaderPass);
     expect(shaderIndex).toBeGreaterThan(outputIndex);
   });
 
   it('runs bloom before OutputPass (linear HDR) and the grain after it (display space)', async () => {
-    // Grain-only (no vignette) so the single ShaderPass is unambiguously the grain.
     const pipeline = new PostProcessingPipeline(fakeRenderer(), {
       bloom: true,
       vignette: false,
@@ -196,8 +189,6 @@ describe('PostProcessingPipeline', () => {
     expect(bloomIndex).toBeGreaterThanOrEqual(0);
     expect(bloomIndex).toBeLessThan(outputIndex);
     expect(grainIndex).toBeGreaterThan(outputIndex);
-    // Restrained bloom: a high threshold + low strength so only genuinely blown
-    // highlights glow (raised after the brighter rig pushed more above 1.0).
     const bloomPass = passes[bloomIndex] as FakeBloomPass;
     expect(bloomPass.threshold).toBe(2.5);
     expect(bloomPass.strength).toBe(0.08);
@@ -217,9 +208,6 @@ describe('PostProcessingPipeline', () => {
     await flush();
     pipeline.render(scene, camera);
     const grain = getComposer(pipeline).passes.find((p) => p instanceof FakeShaderPass) as FakeShaderPass;
-    // Grain carries an intensity uniform and NO time uniform (a time uniform is
-    // what would make it shimmer frame to frame); it seeds off gl_FragCoord so
-    // it needs no resolution uniform to track resizes.
     expect(grain.uniforms.intensity).toBeDefined();
     expect(grain.uniforms.time).toBeUndefined();
     expect(grain.uniforms.resolution).toBeUndefined();
@@ -324,7 +312,6 @@ describe('PostProcessingPipeline', () => {
     pipeline.render(scene, camera);
     const composer = getComposer(pipeline);
     const passes = composer.passes as Array<{ disposeCount: number }>;
-    // Render + bloom + output + 2 grade + vignette + grain = the full chain.
     expect(passes).toHaveLength(7);
 
     pipeline.dispose();

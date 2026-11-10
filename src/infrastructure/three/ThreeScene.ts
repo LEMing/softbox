@@ -7,9 +7,6 @@ import { ThreeObject3DAdapter } from './ThreeObject3D';
 import { disposeSceneContents } from './disposal';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 
-/**
- * Adapter for Three.js Scene to implement IScene
- */
 export class ThreeSceneAdapter implements IScene {
   private scene: THREE.Scene;
 
@@ -101,8 +98,6 @@ export class ThreeSceneAdapter implements IScene {
   }
 
   set background(value: IColor | ITexture | null) {
-    // Overwriting a viewer-painted backdrop (gradient canvas, uploaded image)
-    // through the adapter must not leak it; foreign textures stay untouched.
     disposeViewerOwnedBackground(this.scene);
     if (value instanceof ThreeColorAdapter) {
       this.scene.background = value.getThreeColor();
@@ -147,21 +142,15 @@ export class ThreeSceneAdapter implements IScene {
     this.scene.environmentIntensity = intensity;
   }
 
-  /**
-   * Get the internal Three.js scene
-   * Implementation of IRendererExtension interface
-   */
   getInternalRenderer(): THREE.Scene | null {
     return this.scene;
   }
   
-  // The canonical unwrap surface (consumed by unwrap.ts via duck-typing).
   getThreeScene(): THREE.Scene {
     return this.scene;
   }
 }
 
-// Helper adapter classes
 class ThreeColorAdapter implements IColor {
   constructor(private color: THREE.Color) {}
 

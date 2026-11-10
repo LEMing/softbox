@@ -113,8 +113,6 @@ describe('SimpleViewer built-in preset picker', () => {
       />
     );
 
-    // Two quick picks; the consumer persists asynchronously, so the echo of
-    // the FIRST pick arrives in the preset prop after the second pick.
     fireEvent.click(screen.getByText('dark'));
     fireEvent.click(screen.getByText('outdoor'));
     rerender(
@@ -126,7 +124,6 @@ describe('SimpleViewer built-in preset picker', () => {
     );
     expect(lastOptionsPassedToCore().preset).toBe('outdoor');
 
-    // The echo of the newer pick hands control back to the consumer.
     rerender(
       <SimpleViewer
         object={null}
@@ -136,7 +133,6 @@ describe('SimpleViewer built-in preset picker', () => {
     );
     expect(lastOptionsPassedToCore().preset).toBe('outdoor');
 
-    // A genuine consumer change afterwards still wins.
     rerender(
       <SimpleViewer
         object={null}

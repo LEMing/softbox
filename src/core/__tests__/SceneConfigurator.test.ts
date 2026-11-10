@@ -215,9 +215,6 @@ describe('SceneConfigurator', () => {
         { environment: { url: 'env.hdr', groundProjection: { height: 5, radius: 0 } } },
         notDisposed
       );
-      // height honoured; a non-positive radius would make GroundedSkybox
-      // throw, so it falls back to the default instead of silently costing
-      // the projection.
       expect(env.applyToScene).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
@@ -232,8 +229,6 @@ describe('SceneConfigurator', () => {
         { environment: { url: 'env.hdr', groundProjection: { radius: 30 } } },
         notDisposed
       );
-      // The concrete disc caps at 70m; a 30m world would put opaque ground
-      // through the projected walls.
       expect(env.applyToScene).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
@@ -271,8 +266,6 @@ describe('SceneConfigurator', () => {
         expect.anything(),
         expect.objectContaining({ setBackground: false })
       );
-      // configureScene skipped the gradient because the env url owned the
-      // background — the fallback must restore it or the frame clears black.
       expect(sceneSetup.createGradientBackground).toHaveBeenCalledWith(expect.anything(), {
         topColor: '#f0f0f7',
         bottomColor: '#f0f0f7',
@@ -298,10 +291,7 @@ describe('SceneConfigurator', () => {
         },
         notDisposed
       );
-      // `false` is an explicit consumer decision (deliberately no studio
-      // reflections) — the fallback must not override it...
       expect(env.createStudioEnvironment).not.toHaveBeenCalled();
-      // ...but the backdrop is still restored so the frame is not a void.
       expect(sceneSetup.createGradientBackground).toHaveBeenCalled();
     });
 
@@ -355,7 +345,6 @@ describe('SceneConfigurator', () => {
     it('aborts after map load when disposed mid-load (no applyToScene)', async () => {
       const env = makeEnvironment();
       let calls = 0;
-      // Disposed only after the env map has loaded (second isDisposed check).
       const isDisposed = () => calls++ >= 1;
       await configurator.configureEnvironment(
         makeScene(), env, makeSceneSetup(), makeRenderer(),

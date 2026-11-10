@@ -28,11 +28,7 @@ describe('viewer scenes', () => {
   it('every scene sets only structural set fields — never the live look fields presets own', () => {
     for (const name of ALL_SCENES) {
       const scene = VIEWER_SCENES[name];
-      // The set: every scene picks a floor...
       expect(scene.helpers?.grid).toBeDefined();
-      // ...and no runtime look fields — those belong to the preset (tonal)
-      // axis, and a scene carrying one would smuggle a rebuild into a "live"
-      // change.
       expect(scene.backgroundColor).toBeUndefined();
       expect(scene.backgroundColorEdge).toBeUndefined();
       expect(scene.renderer).toBeUndefined();
@@ -51,14 +47,10 @@ describe('viewer scenes', () => {
       expect(scene.environment?.url).toBeUndefined();
     }
     const outdoor = VIEWER_SCENES.outdoor_concrete;
-    // TRUE on purpose: the env url wins while it loads; this is what lets
-    // the offline fallback light the scene instead of going black.
     expect(outdoor.helpers?.studioEnvironment).toBe(true);
     expect(outdoor.environment?.url).toEqual(expect.stringMatching(/^https:\/\/.+\.hdr$/));
     expect(outdoor.helpers?.grid).toEqual({
       type: 'concrete_disc',
-      // Photographic PBR ground by default (CC0 CDN, override/self-host like
-      // the HDRI); the procedural generator is the offline fallback.
       styleOptions: {
         texture: expect.stringMatching(/^https:\/\/.+\.jpg$/),
         normalMap: expect.stringMatching(/^https:\/\/.+\.jpg$/),
@@ -75,12 +67,10 @@ describe('viewer scenes', () => {
     const soft = VIEWER_SCENES.studio_soft;
     const defaults = defaultOptions.lighting!;
     expect(soft.environment?.studioLook).toBe('soft');
-    // Hero cues step back...
     expect(soft.lighting?.directionalLight?.intensity).toBeLessThan(
       defaults.directionalLight!.intensity!
     );
     expect(soft.lighting?.rimLight?.intensity).toBeLessThan(defaults.rimLight!.intensity!);
-    // ...and the shadow side opens up.
     expect(soft.lighting?.fillLight?.intensity).toBeGreaterThan(defaults.fillLight!.intensity!);
     expect(soft.lighting?.ambientLight?.intensity).toBeGreaterThan(
       defaults.ambientLight!.intensity!
@@ -88,13 +78,11 @@ describe('viewer scenes', () => {
     expect(soft.lighting?.hemisphereLight?.intensity).toBeGreaterThan(
       defaults.hemisphereLight!.intensity!
     );
-    // The key still casts the grounding shadow, with a wider penumbra.
     const merged = mergeWithPreset(defaultOptions, { scene: 'studio_soft' });
     expect(merged.lighting?.directionalLight?.castShadow).toBe(true);
     expect(merged.lighting?.directionalLight?.shadow?.radius).toBeGreaterThan(
       defaults.directionalLight!.shadow!.radius!
     );
-    // Deep-merge keeps what the scene doesn't set (colours, shadow map size).
     expect(merged.lighting?.directionalLight?.color).toBe(defaults.directionalLight!.color);
     expect(merged.lighting?.directionalLight?.shadow?.mapSize).toEqual(
       defaults.directionalLight!.shadow!.mapSize

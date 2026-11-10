@@ -60,8 +60,6 @@ describe('ThreeSceneSetupService.wrapInUnitsScaleGroup', () => {
     animationService.play();
     animationService.update(0.5);
 
-    // The '.scale' track animates the authored scene, while the units
-    // conversion the viewer owns stays untouched.
     expect(object.scale.x).toBeCloseTo(2);
     expect(wrapper.scale.x).toBeCloseTo(0.0254);
   });
@@ -76,8 +74,6 @@ describe('ThreeSceneSetupService.wrapInUnitsScaleGroup', () => {
     if (!second.ok) return;
 
     const wrapper = (second.value as ThreeObject3DAdapter).getThreeObject();
-    // THREE reparents on add(), so the object lives in exactly one wrapper and
-    // the world scale stays a single conversion factor.
     expect(wrapper.children).toEqual([object]);
     const worldScale = new THREE.Vector3();
     wrapper.updateMatrixWorld(true);

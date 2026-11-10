@@ -20,8 +20,6 @@ const mockedUseViewerCore = useViewerCore as jest.Mock;
 
 let coreEvents: TypedEventEmitter<ViewerEventMap>;
 
-// The default fake load never settles, so loadState sits in 'loading' and
-// dismissal is driven purely by the emitted events — like a real slow GLB.
 const makeViewer = (loadModel: jest.Mock = jest.fn(() => new Promise(() => {}))) =>
   ({
     getScene: () => null,
@@ -83,15 +81,12 @@ describe('SimpleViewer poster', () => {
       />
     );
 
-    // Renders of the empty stage must not dismiss anything.
     emitRendered();
     expect(poster()).toHaveStyle({ opacity: '1' });
 
-    // The model landed but has not painted yet — dropping now would flash.
     emitLoaded();
     expect(poster()).toHaveStyle({ opacity: '1' });
 
-    // First paint with the model on stage: fade out, then self-remove.
     emitRendered();
     expect(poster()).toHaveStyle({ opacity: '0' });
     fireEvent.transitionEnd(poster()!);
@@ -105,8 +100,6 @@ describe('SimpleViewer poster', () => {
         options={{ poster: '/hero.webp', loadingIndicator: false }}
       />
     );
-    // Opaque poster: the chrome underneath is invisible — taps must not
-    // reach it.
     expect(poster()).toHaveStyle({ pointerEvents: 'auto' });
 
     emitLoaded();
@@ -150,7 +143,6 @@ describe('SimpleViewer poster', () => {
     const { rerender } = render(
       <SimpleViewer object="model.glb" options={{ loadingIndicator: false }} />
     );
-    // The load settles; there will be no future model:loaded to wait for.
     await act(async () => {
       await Promise.resolve();
     });
@@ -162,10 +154,7 @@ describe('SimpleViewer poster', () => {
       />
     );
 
-    // Already-painted model: the poster must not cover it...
     expect(poster()).toHaveStyle({ opacity: '0' });
-    // ...and the hidden overlay must self-remove even though no CSS
-    // transition ever ran (the transitionend-less mount path).
     act(() => {
       jest.advanceTimersByTime(600);
     });

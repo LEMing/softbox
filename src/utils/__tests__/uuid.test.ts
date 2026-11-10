@@ -4,7 +4,6 @@ describe('generateUUID', () => {
   it('should generate a valid UUID v4 format', () => {
     const uuid = generateUUID();
     
-    // Check UUID v4 format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     expect(uuid).toMatch(uuidRegex);
   });
@@ -17,7 +16,6 @@ describe('generateUUID', () => {
       uuids.add(generateUUID());
     }
     
-    // All generated UUIDs should be unique
     expect(uuids.size).toBe(count);
   });
 

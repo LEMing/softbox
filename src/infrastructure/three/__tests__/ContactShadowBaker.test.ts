@@ -206,15 +206,12 @@ describe('ContactShadowBaker', () => {
     const baked = scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME) as THREE.Mesh;
     const geometry = baked.geometry as THREE.CircleGeometry;
     expect(geometry.type).toBe('CircleGeometry');
-    // The 1m box would otherwise get a ~1.85 half-extent — the 0.5 floor wins.
     expect(geometry.parameters.radius).toBe(0.5);
   });
 
   it('scales the pass count down to the floor when the probe pass is slow', () => {
     const { scene, light, model } = createBakeFixture();
     const renderer = createMockRenderer();
-    // 10ms per pass against a 100ms budget wants 10 passes — clamped to the
-    // 24-pass quality floor.
     jest
       .spyOn(performance, 'now')
       .mockReturnValueOnce(0)
@@ -227,10 +224,7 @@ describe('ContactShadowBaker', () => {
       light,
     });
 
-    // 1 untimed warm-up + 1 timed probe + 24 budgeted passes.
     expect(renderer.render).toHaveBeenCalledTimes(26);
-    // One sync fence after the warm-up (drains one-time upload/link costs
-    // out of the timed window) and one after the probe.
     expect(renderer.readRenderTargetPixels).toHaveBeenCalledTimes(2);
     expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeDefined();
   });
@@ -250,7 +244,6 @@ describe('ContactShadowBaker', () => {
       light,
     });
 
-    // Warm-up + probe + the 96-pass ceiling.
     expect(renderer.render).toHaveBeenCalledTimes(98);
   });
 
@@ -270,8 +263,6 @@ describe('ContactShadowBaker', () => {
       light,
     });
 
-    // No readback attempted (it would console-error, not throw), timing
-    // degrades to submission cost → the full-quality ceiling.
     expect(renderer.readRenderTargetPixels).not.toHaveBeenCalled();
     expect(renderer.render).toHaveBeenCalledTimes(98);
     expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeDefined();
@@ -279,7 +270,6 @@ describe('ContactShadowBaker', () => {
 
   it('evicts the stale baked disc when the context is already lost', () => {
     const { scene, light, model, liveCatcher } = createBakeFixture();
-    // First bake succeeds; the second finds the context gone at entry.
     const isContextLost = jest
       .fn<boolean, []>()
       .mockReturnValueOnce(false)
@@ -300,8 +290,6 @@ describe('ContactShadowBaker', () => {
 
     baker.bake(context);
 
-    // The stale disc would come back as an opaque black blob once the
-    // context is restored — the abort must hand back to the live catcher.
     expect(renderer.render).toHaveBeenCalledTimes(4);
     expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeUndefined();
     expect(liveCatcher.visible).toBe(true);
@@ -309,8 +297,6 @@ describe('ContactShadowBaker', () => {
 
   it('aborts the install and revives the live catcher when the context is lost mid-bake', () => {
     const { scene, light, model, liveCatcher } = createBakeFixture();
-    // First bake succeeds (entry + post checks), the second loses the
-    // context between its entry check and the post-accumulation check.
     const isContextLost = jest
       .fn<boolean, []>()
       .mockReturnValueOnce(false)
@@ -332,8 +318,6 @@ describe('ContactShadowBaker', () => {
 
     baker.bake(context);
 
-    // A partial accumulation must never replace the working live shadow,
-    // and the previous (stale-pose) disc must not linger either.
     expect(scene.getObjectByName(CONTACT_SHADOW_BAKED_NAME)).toBeUndefined();
     expect(liveCatcher.visible).toBe(true);
     expect(warn).toHaveBeenCalledWith(expect.stringMatching(/context was lost/));
@@ -341,8 +325,6 @@ describe('ContactShadowBaker', () => {
 
   it('aims the bake stand-in light where the real rig aims, not at the origin', () => {
     const { scene, light, model } = createBakeFixture();
-    // The fitted rig aims at an off-origin model; the bake light must follow
-    // or its shadow camera misses the model and the disc accumulates nothing.
     model.position.set(100, 1, -40);
     light.position.set(140, 91, 0);
     light.target.position.set(100, 1, -40);
@@ -373,11 +355,6 @@ describe('ContactShadowBaker', () => {
 
   it('bakes with zero bias and an object-fitted depth range (small models keep their contact shadow)', () => {
     const { scene, light, model } = createBakeFixture();
-    // The live rig's bias is tuned for its fixed 0.5..200 depth span; copied
-    // into the bake it erases a constant ~2cm world-space band of shadow at
-    // every contact — a third of a 6cm model (peter-panning: the shadow
-    // detaches from the mesh). The bake receiver casts no shadow, so the bake
-    // needs no bias at all.
     light.shadow.bias = -0.0001;
     light.shadow.camera.near = 0.5;
     light.shadow.camera.far = 200;
@@ -398,8 +375,6 @@ describe('ContactShadowBaker', () => {
       (child): child is THREE.DirectionalLight => child instanceof THREE.DirectionalLight
     );
     expect(bakeLight!.shadow.bias).toBe(0);
-    // The depth range brackets the ~1m fixture box around the light distance
-    // (~106) instead of inheriting the live camera's 199.5-unit span.
     const bakeCamera = bakeLight!.shadow.camera;
     expect(bakeCamera.far - bakeCamera.near).toBeLessThan(10);
     expect(bakeCamera.near).toBeGreaterThan(100);

@@ -3,44 +3,19 @@ import { IGridStyle, IGridOptions } from './IGridStyle';
 import { createShadowCatcher } from './shadowCatcher';
 import { smoothstep01 } from '../../../utils/smoothstep';
 
-/** Ceiling on meters of ground one repeat of the procedural concrete covers. */
 const TEXTURE_REPEAT_METERS = 4;
-/** Ceiling on meters per repeat for photographic maps: large, so the photo's
- * distinct stains stay sparse — the non-repeating vertex macro layer breaks
- * up what remains. */
 const PHOTO_TEXTURE_REPEAT_METERS = 7;
 
-/**
- * Meters one texture repeat covers, scaled to the GROUND size: a fixed
- * world-scale repeat gave a centimeter-scale model (its whole ground is
- * ~0.5m) only a few dozen texels across the frame — giant blurry "pixels".
- * Texel density now tracks the scene: small sets get proportionally finer
- * grain, big sets keep the sparse-repeat ceiling.
- */
 const repeatMetersFor = (groundRadius: number, ceiling: number): number =>
   Math.min(Math.max(groundRadius / 10, 0.35), ceiling);
-/** Diffuse multiplier for the photo maps: the captured concrete reads a
- * stop too dark and warm under the daylight HDRIs — lift it toward the
- * clean light-gray of a fresh pour (three does not clamp Color above 1).
- * Slightly blue-weighted to neutralize the photo's brown cast. */
 const PHOTO_BRIGHTNESS = new THREE.Color(1.55, 1.62, 1.72);
-/** How far the ground reads past the model (its largest footprint dimension). */
 const DISC_FOOTPRINT_SCALE = 8;
-/** Hard cap on the ground radius: the rim fade must complete INSIDE the
- * ground-projected skybox (default world radius 120m — see
- * core/groundProjection), or a big model's still-opaque concrete would slice
- * through the projected world's walls. */
 const DISC_MAX_RADIUS_METERS = 70;
-/** Fraction of the disc radius where the rim fade-out begins. */
 const FADE_START = 0.55;
 const CONCRETE_COLOR = '#b6b3ac';
-/** Texture resolution; one texel ≈ 12mm of ground at the default repeat. */
 const MAP_SIZE = 512;
-/** Fixed PRNG seed: the concrete looks identical every session (and in every
- * test) instead of reshuffling per page load. */
 const CONCRETE_SEED = 0x5eedc0de;
 
-/** Deterministic PRNG (mulberry32) so the generated surface is stable. */
 const mulberry32 = (seed: number) => {
   let state = seed;
   return () => {
@@ -52,11 +27,6 @@ const mulberry32 = (seed: number) => {
   };
 };
 
-/**
- * Periodic (tileable) multi-octave value noise sampled on a wrapped lattice —
- * the texture tiles seamlessly, so the repeat across the disc has no visible
- * seams. Returns a height field in [0, 1].
- */
 const makeTileableNoise = (random: () => number) => {
   const LATTICE = 128;
   const lattice = new Float32Array(LATTICE * LATTICE);
@@ -67,9 +37,6 @@ const makeTileableNoise = (random: () => number) => {
     const step = LATTICE / period;
     const gx = ((x % period) + period) % period;
     const gy = ((y % period) + period) % period;
-    // Floor the lattice indices: a period that doesn't divide LATTICE would
-    // otherwise index the array at a fraction — undefined → NaN → a black
-    // disc (vertex colors poison the whole draw).
     const ix = Math.floor(gx * step) % LATTICE;
     const iy = Math.floor(gy * step) % LATTICE;
     return lattice[iy * LATTICE + ix];
@@ -90,13 +57,6 @@ const makeTileableNoise = (random: () => number) => {
   return sample;
 };
 
-/**
- * The TILED texture field carries only HIGH-frequency content (features
- * ≤ ~12cm of ground): the eye cannot match fine grain between repeats, so
- * the tiling is undetectable. Anything larger would form a recognizable
- * motif that visibly repeats across the disc — that job belongs to the
- * per-vertex macro layer, which never repeats at all.
- */
 const textureField =
   (sample: (u: number, v: number, period: number) => number) => (u: number, v: number) =>
     0.45 * sample(u, v, 32) + 0.3 * sample(u, v, 64) + 0.25 * sample(u, v, 128);
@@ -107,15 +67,7 @@ interface ConcretePbrMaps {
   roughnessMap: THREE.CanvasTexture;
 }
 
-/**
- * Untiled sampling (Iñigo Quilez's texture-repetition technique, offset-only
- * variant so tangent-space normals stay valid): every virtual grid cell
- * samples the SAME texture at a hashed offset, smoothly blended near cell
- * borders. Repetition disappears at every viewing distance — the top-down
- * orbit is where plain tiling always resurfaced, photographic maps included.
- * `textureGrad` keeps mip selection continuous across the offset jumps.
- */
-const NO_TILE_GLSL = /* glsl */ `
+const NO_TILE_GLSL = `
 vec3 softboxHash3(vec2 p) {
   return fract(sin(vec3(
     1.0 + dot(p, vec2(37.0, 17.0)),
@@ -128,14 +80,6 @@ mat2 softboxRot(float angle) {
   float c = cos(angle);
   return mat2(c, -s, s, c);
 }
-// Full stochastic tiling: every virtual cell samples the SAME texture at a
-// hashed OFFSET and a hashed ROTATION (rotation is what kills directional
-// streaks — offsets alone leave the texture's grain orientation correlated
-// across cells), blended variance-preservingly (Heitz/Deliot): plain
-// averaging flattens contrast in every blend zone and that mush itself reads
-// as a cell-period quilt. Blend DEVIATIONS from the texture mean (top mip)
-// and renormalize by the blend energy — contrast stays constant everywhere.
-// textureGrad keeps mip selection continuous across the per-cell jumps.
 vec4 softboxCellSample(sampler2D samp, vec2 uv, vec2 cell, vec2 ddxv, vec2 ddyv) {
   vec3 h = softboxHash3(cell);
   mat2 rotation = softboxRot(h.z * 6.2831853);
@@ -165,8 +109,6 @@ vec4 softboxTextureNoTile(sampler2D samp, vec2 uv) {
   vec4 blended = mean + (w.x * a + w.y * b + w.z * c + w.w * d) * inversesqrt(dot(w, w));
   return clamp(blended, 0.0, 1.0);
 }
-// Tangent-space normals need the inverse per-cell rotation applied to each
-// sampled vector BEFORE blending, or the relief would point the wrong way.
 vec3 softboxNormalCellSample(sampler2D samp, vec2 uv, vec2 cell, vec2 ddxv, vec2 ddyv) {
   vec3 h = softboxHash3(cell);
   float angle = h.z * 6.2831853;
@@ -192,23 +134,20 @@ vec3 softboxNormalNoTile(sampler2D samp, vec2 uv) {
 }
 `;
 
-/** three r18x chunk bodies with only the texture2D sample calls swapped for
- * the untiled sampler. Guarded by the same defines as the originals, so the
- * map-less fallback material compiles unchanged. */
-const NO_TILE_MAP_FRAGMENT = /* glsl */ `
+const NO_TILE_MAP_FRAGMENT = `
 #ifdef USE_MAP
   vec4 sampledDiffuseColor = softboxTextureNoTile( map, vMapUv );
   diffuseColor *= sampledDiffuseColor;
 #endif
 `;
-const NO_TILE_NORMAL_FRAGMENT = /* glsl */ `
+const NO_TILE_NORMAL_FRAGMENT = `
 #ifdef USE_NORMALMAP_TANGENTSPACE
   vec3 mapN = softboxNormalNoTile( normalMap, vNormalMapUv );
   mapN.xy *= normalScale;
   normal = normalize( tbn * mapN );
 #endif
 `;
-const NO_TILE_ROUGHNESS_FRAGMENT = /* glsl */ `
+const NO_TILE_ROUGHNESS_FRAGMENT = `
 float roughnessFactor = roughness;
 #ifdef USE_ROUGHNESSMAP
   vec4 texelRoughness = softboxTextureNoTile( roughnessMap, vRoughnessMapUv );
@@ -232,10 +171,8 @@ interface ConcretePixelBuffers {
   roughness: Uint8ClampedArray;
 }
 
-/** Session cache of the generated pixels — pure function of the fixed seed. */
 let cachedPixels: ConcretePixelBuffers | null = null;
 
-/** Compute the albedo/normal/roughness pixels from the seeded height field. */
 const generateConcretePixels = (): ConcretePixelBuffers => {
   const random = mulberry32(CONCRETE_SEED);
   const noise = textureField(makeTileableNoise(random));
@@ -245,7 +182,6 @@ const generateConcretePixels = (): ConcretePixelBuffers => {
       height[y * MAP_SIZE + x] = noise(x / MAP_SIZE, y / MAP_SIZE);
     }
   }
-  // Sparse speckle pits — tiny darker dents that read as aggregate.
   const PITS = 900;
   for (let i = 0; i < PITS; i += 1) {
     const x = Math.floor(random() * MAP_SIZE);
@@ -267,14 +203,12 @@ const generateConcretePixels = (): ConcretePixelBuffers => {
       const i = (y * MAP_SIZE + x) * 4;
       const h = heightAt(x, y);
 
-      // Albedo: base tone modulated ±9% by the field + fine grain.
       const tone = 0.91 + h * 0.18 + (random() - 0.5) * 0.03;
       albedo[i] = Math.min(255, base.r * 255 * tone);
       albedo[i + 1] = Math.min(255, base.g * 255 * tone);
       albedo[i + 2] = Math.min(255, base.b * 255 * tone);
       albedo[i + 3] = 255;
 
-      // Tangent-space normal from central differences (wrapped — tileable).
       const dx = (heightAt(x + 1, y) - heightAt(x - 1, y)) * NORMAL_STRENGTH;
       const dy = (heightAt(x, y + 1) - heightAt(x, y - 1)) * NORMAL_STRENGTH;
       const inverseLength = 1 / Math.hypot(dx, dy, 1);
@@ -283,9 +217,6 @@ const generateConcretePixels = (): ConcretePixelBuffers => {
       normal[i + 2] = (inverseLength * 0.5 + 0.5) * 255;
       normal[i + 3] = 255;
 
-      // Roughness: matte everywhere, the low (darker, denser) areas a touch
-      // smoother — reads as subtly polished troughs. Green channel is what
-      // three samples.
       const rough = (0.86 + h * 0.12) * 255;
       roughness[i] = rough;
       roughness[i + 1] = rough;
@@ -296,26 +227,6 @@ const generateConcretePixels = (): ConcretePixelBuffers => {
   return { albedo, normal, roughness };
 };
 
-/**
- * A large matte concrete ground disc for outdoor scenes. Unlike the studio
- * shadow floor this is a real, visible surface — physical in BOTH the raster
- * view and the path tracer, so it deliberately carries NO tracer-only dome
- * (`PATH_TRACING_FLOOR_FLAG`): an enclosing dome would occlude the HDRI
- * environment the outdoor scenes light with. A `ShadowMaterial` catcher rides
- * just above the concrete so the baked soft contact shadow composites over it
- * (the disc surface stays at y=0 — the catcher lift keeps them clear; an
- * upward-extruded ground is what buried the shadow on the stone tiles).
- *
- * The concrete is PROCEDURAL PBR — albedo, normal and roughness maps are all
- * derived from one seeded, tileable multi-octave noise field (zero network
- * requests, seamless tiling, identical every session). The normal map is the
- * realism carrier: grazing light catches real micro-relief instead of a flat
- * painted plane. The rim fades out via RGBA vertex colors so the ground
- * dissolves into the environment's own floor instead of ending in a hard
- * "table edge" horizon line. Where a 2D canvas context is unavailable
- * (jsdom) it falls back to a flat matte material — the scene degrades
- * gracefully instead of failing.
- */
 export class ConcreteDiscGrid implements IGridStyle {
   name = 'Concrete Disc';
 
@@ -323,14 +234,6 @@ export class ConcreteDiscGrid implements IGridStyle {
     const group = new THREE.Group();
     const footprint = Math.max(options.size || 1, 1);
     const radius = Math.min(footprint * DISC_FOOTPRINT_SCALE, DISC_MAX_RADIUS_METERS);
-    // The ground is TWO meshes: an OPAQUE inner disc under the model and a
-    // transparent outer ring carrying the rim fade. A single transparent
-    // disc landed in three's transparent queue next to the model's own glass
-    // and, with the arbitrary same-distance sort order, could draw AFTER it —
-    // the ground seen through a windshield then overwrote the glass shading
-    // (tint and reflections vanished). The opaque core writes depth in the
-    // opaque pass, so glass composites over it correctly; the far ring draws
-    // first among transparents (renderOrder -1) for the same reason.
     const makeMaterial = (transparent: boolean) => {
       const material = new THREE.MeshStandardMaterial({
         color: CONCRETE_COLOR,
@@ -343,8 +246,6 @@ export class ConcreteDiscGrid implements IGridStyle {
       return material;
     };
     const materials = [makeMaterial(false), makeMaterial(true)];
-    // One texture set shared by both meshes (a per-material set would fetch
-    // every map twice); disposal double-visits them, which is idempotent.
     if (options.styleOptions?.texture) {
       this.applyPhotoMaps(materials, radius, options.styleOptions);
     } else {
@@ -366,19 +267,10 @@ export class ConcreteDiscGrid implements IGridStyle {
     ring.renderOrder = -1;
     group.add(ring);
 
-    // Catcher sized like the studio floor's: the baked shadow clips itself to
-    // this disc, and the shadow never spreads anywhere near the ground's edge.
     group.add(createShadowCatcher(footprint * 1.5));
     return group;
   }
 
-  /**
-   * Photographic PBR maps (URLs via `styleOptions.texture/normalMap/
-   * roughnessMap`) — real captured micro-structure is what finally reads as
-   * concrete rather than procedural grain. Each grid owns its loader and
-   * textures. A failed fetch falls back to the procedural maps per-material,
-   * so offline viewers degrade to the seeded concrete instead of a black disc.
-   */
   private applyPhotoMaps(
     materials: THREE.MeshStandardMaterial[],
     radius: number,
@@ -392,9 +284,6 @@ export class ConcreteDiscGrid implements IGridStyle {
         return;
       }
       failedOver = true;
-      // A late onError can fire after the grid was already torn down (model
-      // load replaces the construction-time grid); regenerating procedural
-      // maps onto dead materials would leak them with no owner.
       if (materials.every((material) => material.userData.softboxDisposed)) {
         return;
       }
@@ -405,9 +294,6 @@ export class ConcreteDiscGrid implements IGridStyle {
         material.map = null;
         material.normalMap = null;
         material.roughnessMap = null;
-        // Restore the scalar look first: if the procedural maps are ALSO
-        // unavailable (no 2D canvas), the flat matte tone must carry the
-        // ground instead of the photo path's white multiplier.
         material.color = new THREE.Color(CONCRETE_COLOR);
         material.roughness = 0.95;
         material.needsUpdate = true;
@@ -437,8 +323,6 @@ export class ConcreteDiscGrid implements IGridStyle {
       if (roughnessMap) {
         material.roughnessMap = roughnessMap;
       }
-      // The maps carry tone and roughness (the color lift is deliberate —
-      // see PHOTO_BRIGHTNESS); roughness must not double-apply.
       material.color = PHOTO_BRIGHTNESS.clone();
       material.roughness = 1;
     }
@@ -458,31 +342,16 @@ export class ConcreteDiscGrid implements IGridStyle {
       material.normalMap = maps.normalMap;
       material.normalScale = new THREE.Vector2(0.6, 0.6);
       material.roughnessMap = maps.roughnessMap;
-      // The maps carry tone and roughness; the scalars must not double-apply.
       material.color = new THREE.Color('#ffffff');
       material.roughness = 1;
     }
   }
 
-  /**
-   * A ground annulus (`innerRadius`..`outerRadius` of the full ground) with
-   * radial segments carrying RGBA vertex colors doing two jobs:
-   * - alpha: fully opaque around the model, easing to transparent at the rim,
-   *   so the concrete dissolves into the environment instead of showing a
-   *   hard horizon edge (only the outer ring ever has alpha < 1);
-   * - rgb: a low-frequency tonal drift across the WHOLE ground. The texture
-   *   necessarily repeats every few meters — this macro layer never repeats,
-   *   which is what stops the eye from locking onto the tile period.
-   * `fullRadius` keeps the drift/fade fields continuous across the
-   * core/ring seam — both meshes sample the same world-space functions.
-   */
   private createGroundGeometry(
     fullRadius: number,
     innerRadius: number,
     outerRadius: number
   ): THREE.BufferGeometry {
-    // Dense segments: the macro drift below is per-vertex, so vertex spacing
-    // is its effective resolution (~1m at the capped radius).
     const geometry = new THREE.RingGeometry(innerRadius, outerRadius, 128, 32);
     const macro = makeTileableNoise(mulberry32(CONCRETE_SEED ^ 0x9e3779b9));
     const positions = geometry.getAttribute('position');
@@ -493,10 +362,6 @@ export class ConcreteDiscGrid implements IGridStyle {
       const r = Math.hypot(x, y) / fullRadius;
       const fade =
         r <= FADE_START ? 1 : 1 - smoothstep01(Math.min((r - FADE_START) / (1 - FADE_START), 1));
-      // ALL visible patchiness lives here, in two scales spanning the ground
-      // (a broad wash + meter-scale mottling) — the macro period covers the
-      // whole ground exactly once, so unlike the tiled texture this layer
-      // cannot repeat, and there is no motif left for the eye to track.
       const u = x / (fullRadius * 2) + 0.5;
       const v = y / (fullRadius * 2) + 0.5;
       const drift = 0.9 + (0.6 * macro(u, v, 4) + 0.4 * macro(u, v, 32)) * 0.2;
@@ -509,14 +374,6 @@ export class ConcreteDiscGrid implements IGridStyle {
     return geometry;
   }
 
-  /**
-   * All three PBR maps from one seeded height field. The PIXELS are a pure
-   * function of the fixed seed, so they are computed once per session
-   * (`cachedPixels`) — regenerating ~786k pixel writes on every structural
-   * rebuild was measurable main-thread jank. The CANVASES AND TEXTURES are
-   * fresh per grid (never cached on the factory singleton) so canonical scene
-   * disposal frees them without ever handing a later grid a disposed texture.
-   */
   private createConcretePbrMaps(): ConcretePbrMaps | null {
     if (typeof document === 'undefined') {
       return null;
@@ -547,8 +404,6 @@ export class ConcreteDiscGrid implements IGridStyle {
       const texture = new THREE.CanvasTexture(canvas);
       texture.wrapS = THREE.RepeatWrapping;
       texture.wrapT = THREE.RepeatWrapping;
-      // The ground is viewed at grazing angles; without anisotropy the mip
-      // chain smears the grain into banding toward the horizon.
       texture.anisotropy = 4;
       return texture;
     });
@@ -557,7 +412,5 @@ export class ConcreteDiscGrid implements IGridStyle {
   }
 
   dispose(): void {
-    // Textures are owned per-grid (see createConcretePbrMaps) and freed by
-    // canonical scene disposal; the singleton retains nothing.
   }
 }

@@ -10,13 +10,6 @@ export interface ModelLoadState {
   error?: string;
 }
 
-/**
- * Loads `object` into the viewer once it is ready and tracks the load state
- * that drives the built-in overlay. Keyed on the object's stable identity (its
- * URL, or a uuid for a THREE.Object3D) so a new reference with the same
- * identity doesn't retrigger a load, and a superseded load never writes its
- * stale result.
- */
 export function useModelLoader(
   viewer: ViewerCore | null,
   isInitialized: boolean,
@@ -36,18 +29,12 @@ export function useModelLoader(
     status: object ? 'loading' : 'idle',
   }));
 
-  // A model provided but not yet on screen counts as loading from the first
-  // frame, so the scene is never briefly blank.
   useEffect(() => {
     setLoadState({ status: object ? 'loading' : 'idle' });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on objectKey (object's stable identity), not the object reference.
   }, [objectKey]);
 
   useEffect(() => {
-    // A structural rebuild disposes the previous viewer in the SAME commit that
-    // this effect runs with the (now stale) viewer reference — loading into it
-    // would hit the "after dispose" guard and surface a scary error, even though
-    // the fresh viewer will load the model correctly. Skip the disposed one.
     if (!viewer || !isInitialized || !object || viewer.isDisposed()) {
       return;
     }
@@ -57,8 +44,6 @@ export function useModelLoader(
       ? object
       : new ThreeObject3DAdapter(object as THREE.Object3D);
     viewer.loadModel(toLoad).then((result) => {
-      // A newer object superseded this load, or the viewer was torn down while
-      // it was in flight — don't write (or log) a stale/dead result.
       if (!active || viewer.isDisposed()) {
         return;
       }

@@ -11,7 +11,6 @@ describe('LoadingOverlay', () => {
     const overlay = getByTestId('viewer-loading-overlay');
     expect(overlay).toHaveAttribute('aria-busy', 'true');
     expect(getByText('Loading…')).toBeInTheDocument();
-    // The spinner animates via SMIL (no external CSS needed).
     expect(container.querySelector('animateTransform')).toBeTruthy();
   });
 

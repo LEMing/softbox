@@ -5,7 +5,6 @@ import SimpleViewer from '../SimpleViewerWrapper';
 import { SimpleViewerHandle } from '../SimpleViewerWrapper';
 import testDefaultOptions from '../testUtils/testDefaultOptions';
 
-// Create mock canvas first
 const mockCanvas = {
   width: 800,
   height: 600,
@@ -17,22 +16,21 @@ const mockCanvas = {
   getContext: jest.fn(),
 };
 
-// Mock WebGL context
 const mockWebGLContext = {
   getParameter: jest.fn((param) => {
     const params: Record<number, unknown> = {
-      0x1F00: 1024, // MAX_COMBINED_TEXTURE_IMAGE_UNITS
-      0x8B4D: 16384, // MAX_TEXTURE_SIZE
-      0x0D33: 1024, // MAX_TEXTURE_IMAGE_UNITS
-      0x8872: 16, // MAX_VERTEX_TEXTURE_IMAGE_UNITS
-      0x8B4C: 16384, // MAX_CUBE_MAP_TEXTURE_SIZE
-      0x851C: 256, // MAX_VERTEX_UNIFORM_VECTORS
-      0x8DFB: 16, // MAX_SAMPLES
-      0x8B49: 1024, // MAX_FRAGMENT_UNIFORM_VECTORS
-      0x8B4A: 16, // MAX_VARYING_VECTORS
-      0x8B4B: 8, // MAX_VERTEX_ATTRIBS
-      0x84E8: 16, // MAX_RENDERBUFFER_SIZE
-      0x0D3A: [1, 1], // MAX_VIEWPORT_DIMS
+      0x1F00: 1024,
+      0x8B4D: 16384,
+      0x0D33: 1024,
+      0x8872: 16,
+      0x8B4C: 16384,
+      0x851C: 256,
+      0x8DFB: 16,
+      0x8B49: 1024,
+      0x8B4A: 16,
+      0x8B4B: 8,
+      0x84E8: 16,
+      0x0D3A: [1, 1],
     };
     return params[param] || 0;
   }),
@@ -88,7 +86,7 @@ const mockWebGLContext = {
   bindRenderbuffer: jest.fn(),
   renderbufferStorage: jest.fn(),
   framebufferRenderbuffer: jest.fn(),
-  checkFramebufferStatus: jest.fn(() => 0x8CD5), // FRAMEBUFFER_COMPLETE
+  checkFramebufferStatus: jest.fn(() => 0x8CD5),
   getAttribLocation: jest.fn(() => 0),
   getUniformLocation: jest.fn(() => ({})),
   uniform1f: jest.fn(),
@@ -109,10 +107,8 @@ const mockWebGLContext = {
   canvas: mockCanvas,
 };
 
-// Set up circular reference
 mockCanvas.getContext.mockReturnValue(mockWebGLContext);
 
-// Mock canvas
 const originalGetContext = HTMLCanvasElement.prototype.getContext;
 HTMLCanvasElement.prototype.getContext = jest.fn(function(this: HTMLCanvasElement, contextType: string) {
   if (contextType === 'webgl' || contextType === 'webgl2') {
@@ -121,7 +117,6 @@ HTMLCanvasElement.prototype.getContext = jest.fn(function(this: HTMLCanvasElemen
   return originalGetContext.call(this, contextType as never);
 }) as jest.MockedFunction<typeof HTMLCanvasElement.prototype.getContext>;
 
-// Mock ResizeObserver
 global.ResizeObserver = jest.fn().mockImplementation(() => ({
   observe: jest.fn(),
   unobserve: jest.fn(),
@@ -134,7 +129,6 @@ describe('SimpleViewer (New Architecture)', () => {
   });
 
   afterEach(() => {
-    // Clean up any mounted components to ensure proper disposal
     cleanup();
     jest.clearAllTimers();
   });
@@ -211,7 +205,7 @@ describe('SimpleViewer (New Architecture)', () => {
       pathTracing: {
         ...testDefaultOptions.pathTracing!,
         enabled: true,
-        maxSamples: 10, // Low sample count for quick test
+        maxSamples: 10,
       },
     };
 
@@ -221,8 +215,5 @@ describe('SimpleViewer (New Architecture)', () => {
       const canvas = container.querySelector('canvas');
       expect(canvas).toBeTruthy();
     });
-
-    // The path tracing service should be created (we'll see the log)
-    // But only one instance should be created for this test
   });
 });

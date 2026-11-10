@@ -91,8 +91,6 @@ describe('useViewportGate', () => {
 
     expect(result.current).toBe(true);
 
-    // The consumer already booted on this gate — flipping to lazy afterwards
-    // must not close it (and must not start observing).
     rerender({ enabled: true });
     expect(result.current).toBe(true);
     expect(observerConstructor).not.toHaveBeenCalled();

@@ -1,8 +1,5 @@
 import { ICamera, IVector3 } from '../interfaces';
 
-/**
- * Serializes scene state for restoration after memory cleanup
- */
 export interface SerializedSceneState {
   modelUrl?: string;
   cameraPosition: { x: number; y: number; z: number };
@@ -12,9 +9,6 @@ export interface SerializedSceneState {
 }
 
 export class SceneSerializer {
-  /**
-   * Capture essential scene state for restoration
-   */
   static serialize(
     modelUrl: string | undefined,
     camera: ICamera,
@@ -23,7 +17,6 @@ export class SceneSerializer {
   ): SerializedSceneState {
     const cameraPos = camera.position;
     
-    // Get camera look-at target (approximate from camera matrix)
     const target: IVector3 = controls.target || { x: 0, y: 0, z: 0, set: () => {}, copy: () => {}, add: () => {}, multiply: () => {}, normalize: () => {}, length: () => 0 };
     
     return {
@@ -38,23 +31,18 @@ export class SceneSerializer {
     };
   }
   
-  /**
-   * Apply serialized state to scene components
-   */
   static async restore(
     state: SerializedSceneState,
     camera: ICamera,
     controls: { target?: IVector3; update?: () => void },
     loadModel?: (url: string) => Promise<void>
   ): Promise<void> {
-    // Restore camera position
     camera.position.set(
       state.cameraPosition.x,
       state.cameraPosition.y,
       state.cameraPosition.z
     );
     
-    // Restore camera target
     camera.lookAt({
       x: state.cameraTarget.x,
       y: state.cameraTarget.y,
@@ -67,7 +55,6 @@ export class SceneSerializer {
       length: () => 0
     });
     
-    // Restore controls target
     if (controls.target) {
       controls.target.set(
         state.controlsTarget.x,
@@ -76,12 +63,10 @@ export class SceneSerializer {
       );
     }
     
-    // Update controls
     if (controls.update) {
       controls.update();
     }
     
-    // Reload model if URL is available
     if (state.modelUrl && loadModel) {
       await loadModel(state.modelUrl);
     }

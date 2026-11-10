@@ -52,7 +52,6 @@ describe('ThreeSceneSetupService.addDynamicGrid', () => {
     expect(result.ok).toBe(true);
     const grid = findGrid(threeScene);
     expect(grid).toBeDefined();
-    // A floor at the origin would leave the model standing beside it.
     expect(grid!.position.x).toBeCloseTo(100);
     expect(grid!.position.z).toBeCloseTo(-40);
     expect(grid!.position.y).toBe(0);
@@ -79,8 +78,6 @@ describe('ThreeSceneSetupService.addDynamicGrid', () => {
   it('rides the shadow_floor tracer floor at the catcher height so the model sits flush on it', () => {
     const threeScene = new THREE.Scene();
     threeScene.userData = { gridOptions: { enabled: true, type: GridType.SHADOW_FLOOR } };
-    // A tall model drives the catcher lift to its clamp ceiling; the fixed
-    // placeholder height on the floor would otherwise leave it hovering below.
     const model = new THREE.Mesh(new THREE.BoxGeometry(2, 40, 2));
     model.position.set(0, 20, 0);
     threeScene.add(model);

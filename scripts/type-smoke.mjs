@@ -1,12 +1,5 @@
-/**
- * Consumer TYPE smoke test. Symlinks the package into its own node_modules so a
- * consumer can `import 'softbox'` through the real exports map, then type
- * checks that consumer under both `nodenext` and `bundler` module resolution.
- * Catches published-declaration regressions (extensionless relative imports →
- * TS2834, leaked node_modules paths → TS2307) that building alone does not show.
- */
 import { execFileSync } from 'node:child_process';
-import { lstatSync, unlinkSync, symlinkSync } from 'node:fs';
+import { rmSync, symlinkSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
@@ -16,12 +9,7 @@ const tsc = resolve(root, 'node_modules', 'typescript', 'bin', 'tsc');
 const smokeDir = resolve(root, 'scripts', 'type-smoke');
 
 function removeLink() {
-  try {
-    lstatSync(link);
-    unlinkSync(link);
-  } catch {
-    // not present
-  }
+  rmSync(link, { force: true });
 }
 
 removeLink();

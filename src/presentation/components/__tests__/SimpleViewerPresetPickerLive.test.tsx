@@ -56,7 +56,6 @@ describe('SimpleViewer preset picker (real hooks, live-apply seam)', () => {
   it('applies a picked preset live via updateOptions without rebuilding the viewer', async () => {
     render(<SimpleViewer object={null} options={{ ui: { presets: true } }} />);
 
-    // The runtime-look effect fires once after initialization.
     await waitFor(() => expect(createdViewers[0].updateOptions).toHaveBeenCalled());
     const viewer = createdViewers[0];
     viewer.updateOptions.mockClear();

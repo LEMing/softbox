@@ -31,10 +31,6 @@ export default tseslint.config(
     files: ['src/core/**/*.{ts,tsx}'],
     ignores: ['src/core/**/__tests__/**'],
     rules: {
-      // no-restricted-imports never inspects dynamic import() expressions —
-      // without these, `await import('three')` or a lazy adapter import walks
-      // straight through the bans. Template-literal specifiers are covered
-      // separately (they are not Literal nodes).
       'no-restricted-syntax': [
         'error',
         {
@@ -46,8 +42,6 @@ export default tseslint.config(
           message: 'Clean architecture: src/core must not lazy-load infrastructure, presentation or the site either — depend on an interface in src/core instead.',
         },
         {
-          // Anything that is not a plain string literal (template literal,
-          // concatenation, identifier) is uninspectable by the bans above.
           selector: 'ImportExpression[source.type!="Literal"]',
           message: 'Dynamic imports in core must use a plain string literal so the layer/ecosystem bans can inspect the specifier.',
         },
@@ -71,12 +65,6 @@ export default tseslint.config(
             message: 'These shared modules carry Three.js types for the public React surface; core must not reach them (see the engine-agnostic shared-module lint blocks).',
           },
           {
-            // The root barrels re-export the Three.js-typed public-surface
-            // modules (src/types.ts even imports three directly) — importing
-            // one from core smuggles all of that in through one innocent
-            // specifier. Regex, not group: a glob like '**/types' matches the
-            // directory's CHILDREN too; only the exact barrel specifier is
-            // banned, leaf modules stay importable.
             regex: '(^|/)(types|types/index|events|events/index)$',
             message: 'Barrel imports re-export Three.js-typed public-surface modules into core; import the specific module instead.',
           },
@@ -85,17 +73,12 @@ export default tseslint.config(
     },
   },
   {
-    // Everything engine-agnostic core imports transitively — the shared type,
-    // event, error and util modules — must be as three-free as core itself.
-    // The named ignores are the PUBLIC React-surface modules that legitimately
-    // carry Three.js types; core is banned from importing those by name above.
     files: ['src/types/**/*.ts', 'src/events/**/*.ts', 'src/errors/**/*.ts', 'src/utils/**/*.ts'],
     ignores: [
       'src/**/__tests__/**',
       'src/types/CommonTypes.ts',
       'src/types/SimpleViewerHandle.ts',
       'src/events/ViewerEvents.ts',
-      // Deliberate public-surface re-export of ViewerEvents.
       'src/events/index.ts',
     ],
     rules: {
@@ -125,9 +108,6 @@ export default tseslint.config(
             message: 'This module is in engine-agnostic core\'s transitive import closure; importing an adapter would smuggle Three.js into core through one hop.',
           },
           {
-            // Same-dir specifiers ('./CommonTypes') dodge the '**/types/…'
-            // patterns core uses — ban the three-carrying siblings here too,
-            // or a guarded file could pass their types through to core.
             group: [
               '**/CommonTypes', '**/CommonTypes.*',
               '**/SimpleViewerHandle', '**/SimpleViewerHandle.*',

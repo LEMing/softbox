@@ -7,9 +7,6 @@ export interface ScreenshotManagerDependencies {
   onRestore?: () => Promise<void>;
 }
 
-/**
- * Manages screenshot capture and restoration functionality
- */
 export class ScreenshotManager {
   private screenshotElement: HTMLImageElement | null = null;
   private isShowingScreenshot: boolean = false;
@@ -28,9 +25,6 @@ export class ScreenshotManager {
     return this.isShowingScreenshot;
   }
 
-  /**
-   * Capture current frame and replace canvas with screenshot
-   */
   captureAndReplace(
     camera: ICamera,
     controls: IControls,
@@ -41,9 +35,6 @@ export class ScreenshotManager {
 
     const canvas = this.renderer.getDomElement();
 
-    // If the drawing buffer was not preserved the capture comes back empty;
-    // keep the live scene rather than replacing it with a blank image and
-    // disposing resources.
     const dataURL = canvasToPngDataUrl(canvas);
     if (!dataURL) {
       console.warn('[ScreenshotManager] Screenshot capture produced no image, keeping live scene');
@@ -60,10 +51,8 @@ export class ScreenshotManager {
     img.style.pointerEvents = 'auto';
     img.style.cursor = 'grab';
 
-    // Insert the image in place of the canvas
     const parent = canvas.parentElement;
     if (parent) {
-      // Serialize scene state before hiding canvas
       this.serializedSceneState = SceneSerializer.serialize(
         lastModelUrl,
         camera,
@@ -76,7 +65,6 @@ export class ScreenshotManager {
       this.screenshotElement = img;
       this.isShowingScreenshot = true;
 
-      // Add interaction listeners to restore 3D scene
       const restoreScene = () => {
         this.restore();
       };
@@ -84,7 +72,6 @@ export class ScreenshotManager {
       img.addEventListener('mousedown', restoreScene);
       img.addEventListener('touchstart', restoreScene);
 
-      // Also restore on window resize
       const resizeHandler = () => {
         if (this.isShowingScreenshot) {
           this.restore();
@@ -93,14 +80,10 @@ export class ScreenshotManager {
       window.addEventListener('resize', resizeHandler);
       this.screenshotResizeHandler = resizeHandler;
 
-      // The capture was validated above, so it is safe to release scene resources.
       onResourcesDisposed?.();
     }
   }
 
-  /**
-   * Restore the 3D scene from screenshot
-   */
   async restore(): Promise<void> {
     if (!this.isShowingScreenshot || !this.screenshotElement) return;
 
@@ -125,9 +108,6 @@ export class ScreenshotManager {
     }
   }
 
-  /**
-   * Get serialized scene state for restoration
-   */
   getSerializedState(): SerializedSceneState | undefined {
     return this.serializedSceneState;
   }
@@ -142,8 +122,6 @@ export class ScreenshotManager {
       this.screenshotElement.parentElement.removeChild(this.screenshotElement);
     }
 
-    // React rebuilds a successor viewer on the SAME canvas; disposing while a
-    // screenshot is on show must not leave that canvas display:none.
     if (this.isShowingScreenshot) {
       this.renderer.getDomElement().style.display = '';
     }

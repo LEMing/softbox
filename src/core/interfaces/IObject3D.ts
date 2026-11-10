@@ -1,8 +1,5 @@
 import { Result } from '../../utils/Result';
 
-/**
- * Core interface for 3D objects, independent of Three.js
- */
 export interface IObject3D {
   id: string;
   name: string;

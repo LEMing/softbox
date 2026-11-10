@@ -8,25 +8,6 @@ import {
   RUNTIME_PATH_TRACING_FIELDS,
 } from '../../../types/runtimeOptions';
 
-/**
- * The option-partition contract. Every top-level `SimpleViewerOptions` key MUST
- * be classified here — the `Record<keyof Required<...>>` type makes adding an
- * option without classifying it a compile error, and the suites below verify
- * each classification against the real hook. This is the guard against the
- * recurring bug class where an option lands in NEITHER key list and silently
- * no-ops on a live viewer (`units` in one audit cycle, `floorAlignment` in the
- * next).
- *
- * Kinds:
- * - structural: changing it must change the structural key (viewer rebuild);
- * - runtime:    changing it must change the runtime key and NOT the structural
- *               key (applied live, never rebuilds);
- * - split:      the object carries both halves — a structural-field change
- *               must move only the structural key, a runtime-field change only
- *               the runtime key;
- * - inert:      deliberately in neither key (callbacks read through refs,
- *               React chrome, boot gating) — changing it must move neither.
- */
 type KeyCase =
   | { kind: 'structural'; a: unknown; b: unknown }
   | { kind: 'runtime'; a: unknown; b: unknown }
@@ -78,19 +59,13 @@ const OPTION_KEY_CONTRACT: Record<keyof Required<SimpleViewerOptions>, KeyCase> 
   onLoad: { kind: 'inert', a: () => {}, b: () => {} },
   onProgress: { kind: 'inert', a: (_p: number) => {}, b: (_p: number) => {} },
   onError: { kind: 'inert', a: (_e: Error) => {}, b: (_e: Error) => {} },
-  // Dead public option: declared in the type, consumed by nothing (audit
-  // 2026-07-12) — inert until it is either wired or removed.
   animationLoop: { kind: 'inert', a: (_t: number) => {}, b: null },
   replaceWithScreenshotOnComplete: { kind: 'structural', a: false, b: true },
   loading: { kind: 'inert', a: 'eager', b: 'lazy' },
   loadingIndicator: { kind: 'inert', a: true, b: { label: 'Loading…' } },
   loaders: { kind: 'structural', a: {}, b: { dracoDecoderPath: '/draco/' } },
   ui: { kind: 'inert', a: { presets: false }, b: { presets: true } },
-  // React chrome over the canvas (the AR handoff button), read live off the
-  // raw options like `ui` — toggling it must never rebuild the viewer.
   ar: { kind: 'inert', a: true, b: { iosSrc: '/model.usdz' } },
-  // React chrome too (the first-paint poster image) — swapping the image
-  // must never tear down a booting viewer.
   poster: { kind: 'inert', a: '/poster-a.jpg', b: '/poster-b.jpg' },
   selection: { kind: 'structural', a: { bvh: true }, b: { bvh: false } },
 };
@@ -164,10 +139,6 @@ describe('useStableOptions option-partition contract', () => {
   });
 
   it('every RUNTIME_* field genuinely moves the runtime key (list<->picker coupling)', () => {
-    // The RUNTIME_* lists and pickRuntimeOptions are coupled by hand; a field
-    // added to a list but missed in the picker recreates the silent-no-op bug
-    // class ONE LEVEL BELOW the top-level contract above. Derived, not
-    // example-based: iterate the lists themselves.
     const sampleValues: Record<string, [unknown, unknown]> = {
       toneMappingExposure: [1, 1.8],
       bloom: [false, true],

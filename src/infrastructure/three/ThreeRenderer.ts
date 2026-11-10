@@ -20,17 +20,11 @@ import {
   anyPostEffectEnabled,
 } from './postprocessing/PostProcessingPipeline';
 
-/**
- * Adapter for Three.js WebGLRenderer to implement IRenderer
- */
 export class ThreeRendererAdapter implements IRenderer {
   private renderer: THREE.WebGLRenderer | null = null;
   private _id: string = generateUUID();
   private canvas?: HTMLCanvasElement;
   private postPipeline: PostProcessingPipeline | null = null;
-  // The consumer-requested pixel ratio, before the post-processing cap — kept
-  // so a runtime effect toggle can re-derive the right ratio in either
-  // direction (cap on enable, restore on disable).
   private requestedPixelRatio = 1;
   private postLoadErrorHandler?: (error: unknown) => void;
 
@@ -48,7 +42,6 @@ export class ThreeRendererAdapter implements IRenderer {
 
   initialize(options: IRendererOptions): Result<void> {
     try {
-      // Create renderer with options
       this.renderer = new THREE.WebGLRenderer({
         canvas: this.canvas,
         antialias: options.antialias ?? true,
@@ -59,10 +52,9 @@ export class ThreeRendererAdapter implements IRenderer {
       });
 
 
-      // Configure shadow map
       if (options.shadowMap) {
         this.renderer.shadowMap.enabled = options.shadowMap.enabled;
-        this.renderer.shadowMap.autoUpdate = true; // Important for dynamic shadows
+        this.renderer.shadowMap.autoUpdate = true;
         if (options.shadowMap.type) {
           const shadowMapTypes = {
             'basic': THREE.BasicShadowMap,
@@ -74,16 +66,11 @@ export class ThreeRendererAdapter implements IRenderer {
         }
       }
 
-      // Configure tone mapping
       if (options.toneMapping) {
         this.renderer.toneMapping = TONE_MAPPING_BY_NAME[options.toneMapping.type];
         this.renderer.toneMappingExposure = options.toneMapping.exposure;
       }
 
-      // Set pixel ratio. Post-processing is fragment-bound (a bloom pass runs a
-      // full-screen shader per pixel), so on a HiDPI display it does 4-9x the
-      // work; cap the ratio at 2 when any effect is on to keep it affordable on
-      // mobile.
       const postConfig = {
         bloom: options.postProcessing?.bloom ?? false,
         vignette: options.postProcessing?.vignette ?? false,
@@ -96,7 +83,6 @@ export class ThreeRendererAdapter implements IRenderer {
         postEnabled ? Math.min(this.requestedPixelRatio, 2) : this.requestedPixelRatio
       );
 
-      // Set initial size if canvas has dimensions
       if (this.canvas) {
         const { clientWidth, clientHeight } = this.canvas.parentElement || this.canvas;
         if (clientWidth && clientHeight) {
@@ -104,12 +90,8 @@ export class ThreeRendererAdapter implements IRenderer {
         }
       }
 
-      // Set output color space to sRGB for correct colors
       this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-      // Build the opt-in post-processing composer when any effect is enabled.
-      // It lazy-loads its chunk, so this is cheap and adds no bundle weight for
-      // viewers that use no effects.
       if (postEnabled) {
         this.postPipeline = new PostProcessingPipeline(this.renderer, postConfig, (error) =>
           this.postLoadErrorHandler?.(error)
@@ -139,7 +121,6 @@ export class ThreeRendererAdapter implements IRenderer {
     }
 
     try {
-      // Extract Three.js objects from adapters
       if (!(scene instanceof ThreeSceneAdapter)) {
         return Result.err(
           new ThreeViewerError(
@@ -175,12 +156,6 @@ export class ThreeRendererAdapter implements IRenderer {
     }
   }
 
-  /**
-   * Render the raster view through the opt-in post-processing composer. Falls
-   * back to a plain render when no effect is enabled or the composer chunk is
-   * still loading. The path tracer never routes through here — it calls the
-   * plain render(), so its frames stay effect-free.
-   */
   renderPostProcessed(scene: IScene, camera: ICamera): Result<void> {
     if (
       !this.postPipeline ||
@@ -216,11 +191,9 @@ export class ThreeRendererAdapter implements IRenderer {
 
   setSize(width: number, height: number): void {
     if (this.renderer) {
-      // Use false as third parameter to prevent style updates that can cause flicker
       this.renderer.setSize(width, height, false);
       this.postPipeline?.setSize(width, height);
 
-      // Manually update canvas style to maintain aspect ratio
       const canvas = this.renderer.domElement;
       canvas.style.width = '100%';
       canvas.style.height = '100%';
@@ -230,10 +203,6 @@ export class ThreeRendererAdapter implements IRenderer {
   setPixelRatio(ratio: number): void {
     if (this.renderer) {
       this.renderer.setPixelRatio(ratio);
-      // Keep the composer's internal pixel ratio in sync, or its next setSize
-      // would scale targets by a stale ratio — a still capture drops to DPR 1
-      // before resizing, and a frozen ratio would over-allocate the composer
-      // targets (wasted work, and a GPU-limit overflow the size guard misses).
       this.postPipeline?.setPixelRatio(ratio);
     }
   }
@@ -248,13 +217,6 @@ export class ThreeRendererAdapter implements IRenderer {
     }
   }
 
-  /**
-   * Live-swap the opt-in post-processing effects without a viewer rebuild:
-   * tears down the current composer (if any) and lazily builds one for the new
-   * set — or none, dropping back to the plain zero-cost render path. Also
-   * re-derives the pixel-ratio cap (post-processing is fragment-bound, so the
-   * ratio is capped at 2 while any effect is on and restored when all are off).
-   */
   setPostProcessing(effects: IPostProcessingEffects): void {
     if (!this.renderer) {
       return;
@@ -270,9 +232,6 @@ export class ThreeRendererAdapter implements IRenderer {
     this.postPipeline = null;
 
     const postEnabled = anyPostEffectEnabled(config);
-    // setPixelRatio re-applies the renderer's stored size, so the drawing
-    // buffer picks the new ratio up immediately; the fresh pipeline sizes its
-    // composer from that buffer when it lazily builds on first render.
     this.renderer.setPixelRatio(
       postEnabled ? Math.min(this.requestedPixelRatio, 2) : this.requestedPixelRatio
     );
@@ -335,15 +294,10 @@ export class ThreeRendererAdapter implements IRenderer {
     return this.renderer === null;
   }
 
-  /**
-   * Get the internal Three.js renderer
-   * Implementation of IRendererExtension interface
-   */
   getInternalRenderer(): THREE.WebGLRenderer | null {
     return this.renderer;
   }
   
-  // The canonical unwrap surface (consumed by unwrap.ts via duck-typing).
   getThreeRenderer(): THREE.WebGLRenderer | null {
     return this.getInternalRenderer();
   }

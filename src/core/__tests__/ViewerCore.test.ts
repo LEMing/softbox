@@ -94,7 +94,6 @@ const makeRenderer = (
   overrides: Overrides = {}
 ): jest.Mocked<IRenderer> => {
   const internalRenderer = { autoClear: true };
-  // Typed as the port so interface growth breaks compilation here, not at runtime.
   const base: IRenderer & { getInternalRenderer: jest.Mock } = {
     id: 'renderer',
     initialize: jest.fn(() => Result.ok(undefined)),
@@ -328,8 +327,6 @@ const makeDeps = (config: MakeDepsConfig = {}): DepsBundle => {
     environmentService,
     pathTracingService,
     floorAlignmentService,
-    // Immediate by default so the deferred load-time bake behaves like the old
-    // synchronous one in tests; deferral-specific tests inject a manual queue.
     deferToNextFrame: (callback) => callback(),
   };
 
@@ -534,8 +531,6 @@ describe('ViewerCore', () => {
 
       expect(result.ok).toBe(true);
       expect(bundle.environmentService!.createStudioEnvironment).toHaveBeenCalled();
-      // The backgroundColor gradient is skipped because the studio environment
-      // owns the background; only the dark-studio gradient is applied (once).
       expect(bundle.sceneSetupService!.createGradientBackground).toHaveBeenCalledTimes(1);
       expect(enableContinuousSpy).toHaveBeenCalled();
     });
@@ -591,7 +586,6 @@ describe('ViewerCore', () => {
         'Failed to initialize path tracing:',
         expect.any(ThreeViewerError)
       );
-      // path tracing init failed -> settings never updated
       expect(bundle.pathTracingService!.updateSettings).not.toHaveBeenCalled();
     });
 
@@ -617,8 +611,6 @@ describe('ViewerCore', () => {
         'Failed to load environment map, falling back to the studio look:',
         expect.any(ThreeViewerError)
       );
-      // The load failure engages the studio fallback (lighting only) —
-      // an unlit scene is worse than the wrong set.
       expect(bundle.environmentService!.applyToScene).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
@@ -718,8 +710,6 @@ describe('ViewerCore', () => {
 
       bundle.pathTracingService!.events.emit('pathtracing:paused', { samples: 0, reason: 'gave-up' });
 
-      // Nothing was preserved on the canvas — external scene mutations must
-      // keep repainting, unlike the completed case that freezes the frame.
       expect(setAlwaysRenderSpy).toHaveBeenCalledWith(true);
       expect(setAlwaysRenderSpy).not.toHaveBeenCalledWith(false);
     });
@@ -737,9 +727,6 @@ describe('ViewerCore', () => {
       bundle.pathTracingService!.events.emit('pathtracing:paused', { samples: 0, reason: 'gave-up' });
       jest.advanceTimersByTime(200);
 
-      // stop() clears EVERY loop flag including alwaysRender — scheduling it
-      // after a gave-up pause would re-break the contract 100ms after this
-      // handler repaired it.
       expect(stopSpy).not.toHaveBeenCalled();
     });
 
@@ -751,7 +738,6 @@ describe('ViewerCore', () => {
       const setAlwaysRenderSpy = jest.spyOn(RenderLoopManager.prototype, 'setAlwaysRender');
       const viewer = new ViewerCore(bundle.deps);
       await viewer.initialize();
-      // Converged: completion turned continuous rendering off.
       bundle.pathTracingService!.events.emit('pathtracing:paused', { samples: 50, reason: 'completed' });
       setAlwaysRenderSpy.mockClear();
 
@@ -772,13 +758,11 @@ describe('ViewerCore', () => {
       const viewer = new ViewerCore(bundle.deps);
 
       const initPromise = viewer.initialize();
-      // Interleave teardown while environmentService.initialize() is still pending.
       viewer.dispose();
       envInit.resolve(Result.ok(undefined));
       const result = await initPromise;
 
       expect(result.ok).toBe(true);
-      // Bailed right after the first await: no further work against the disposed viewer.
       expect(bundle.environmentService!.loadEnvironmentMap).not.toHaveBeenCalled();
       expect(bundle.environmentService!.applyToScene).not.toHaveBeenCalled();
       expect(viewer.getState().isInitialized).toBe(false);
@@ -794,7 +778,6 @@ describe('ViewerCore', () => {
       const viewer = new ViewerCore(bundle.deps);
 
       const initPromise = viewer.initialize();
-      // Let env init resolve so execution parks on loadEnvironmentMap, then tear down.
       await tick();
       viewer.dispose();
       envLoad.resolve(Result.ok(makeTexture()));
@@ -821,7 +804,6 @@ describe('ViewerCore', () => {
       const result = await initPromise;
 
       expect(result.ok).toBe(true);
-      // Guarded right after the await: settings never pushed to the disposed service.
       expect(bundle.pathTracingService!.updateSettings).not.toHaveBeenCalled();
       expect(viewer.getState().isInitialized).toBe(false);
     });
@@ -926,9 +908,6 @@ describe('ViewerCore', () => {
 
       expect(result.ok).toBe(false);
       expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_STATE);
-      // The model manager already added it to the scene and set it as
-      // current before this call returned — it must be torn down here,
-      // since dispose() already ran and will never call this again.
       expect(loadedModel.dispose).toHaveBeenCalled();
     });
   });
@@ -940,8 +919,6 @@ describe('ViewerCore', () => {
       const bundle = makeDeps({
         withSceneSetup: true,
         withPathTracing: true,
-        // Enabled so resetAccumulation reaches the service and the traced-
-        // frame invalidation is observable.
         options: { pathTracing: { enabled: true } },
       });
       bundle.modelLoader.load.mockResolvedValue(
@@ -978,7 +955,6 @@ describe('ViewerCore', () => {
         expect.anything(),
         'beach'
       );
-      // New materials invalidate a converged traced frame.
       expect(bundle.pathTracingService!.reset).toHaveBeenCalled();
     });
 
@@ -995,8 +971,6 @@ describe('ViewerCore', () => {
       expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_PARAMETER);
       expect(bundle.sceneSetupService!.applyMaterialVariant).not.toHaveBeenCalled();
 
-      // Had the rejected name been stored, this same declarative value would
-      // read as "unchanged" and silently skip — it must warn instead.
       viewer.updateOptions({ variant: 'typo' });
       expect(console.warn).toHaveBeenCalledWith(
         'Failed to apply material variant:',
@@ -1009,7 +983,6 @@ describe('ViewerCore', () => {
       const viewer = new ViewerCore(bundle.deps);
       await viewer.initialize();
 
-      // No model yet: nothing to validate against, the choice is stored.
       expect(viewer.setMaterialVariant('beach').ok).toBe(true);
       expect(bundle.sceneSetupService!.applyMaterialVariant).not.toHaveBeenCalled();
 
@@ -1053,8 +1026,6 @@ describe('ViewerCore', () => {
       const apply = bundle.sceneSetupService!.applyMaterialVariant;
       apply.mockClear();
 
-      // An unrelated runtime change (no `variant` key) must not revert an
-      // imperative pick to the defaults.
       viewer.updateOptions({ backgroundColor: '#abcdef' });
       await tick();
 
@@ -1066,8 +1037,6 @@ describe('ViewerCore', () => {
     it('does nothing when the canvas dimensions AND camera aspect are unchanged', () => {
       const canvas = makeCanvas(640, 480);
       const bundle = makeDeps({ canvas });
-      // Both already correct → the early-return must fire: no setSize, no aspect
-      // reproject, no repaint (a rebuild is what makes the aspect stale, tested above).
       (bundle.camera as unknown as { aspect: number }).aspect = 640 / 480;
       const viewer = new ViewerCore(bundle.deps);
       (bundle.camera.updateProjectionMatrix as jest.Mock).mockClear();
@@ -1110,9 +1079,6 @@ describe('ViewerCore', () => {
     });
 
     it('matches fractional CSS × DPR products the way three floors them (no dead guard at DPR 1.5)', () => {
-      // three's setSize assigns canvas.width = Math.floor(width × ratio) —
-      // 641 × 1.5 = 961.5 → 961. A Math.round guard (962) would NEVER match
-      // this geometry, silently reverting to run-the-full-path-every-call.
       const canvas = makeCanvas(961, 720);
       const bundle = makeDeps({ canvas });
       bundle.renderer.getPixelRatio.mockReturnValue(1.5);
@@ -1127,8 +1093,6 @@ describe('ViewerCore', () => {
     });
 
     it('treats a DPR-scaled drawing buffer as an unchanged size (no-op on retina)', () => {
-      // The buffer holds CSS × pixelRatio device pixels; comparing it against
-      // raw CSS dimensions left this guard dead on every DPR ≠ 1 display.
       const canvas = makeCanvas(1280, 960);
       const bundle = makeDeps({ canvas });
       bundle.renderer.getPixelRatio.mockReturnValue(2);
@@ -1145,9 +1109,6 @@ describe('ViewerCore', () => {
     });
 
     it('re-applies the camera aspect on a rebuild that reuses an already-sized canvas', () => {
-      // A rebuild hands the fresh viewer a canvas already sized by the previous
-      // one, but a fresh camera at a stale aspect. Size alone matches, so a
-      // size-only guard would skip the aspect fix and the frame stretches.
       const canvas = makeCanvas(1920, 1000);
       const bundle = makeDeps({ canvas });
       (bundle.camera as unknown as { aspect: number }).aspect = 1;
@@ -1158,8 +1119,6 @@ describe('ViewerCore', () => {
       const aspect = (bundle.camera as unknown as { aspect: number }).aspect;
       expect(aspect).toBeCloseTo(1920 / 1000);
       expect(bundle.camera.updateProjectionMatrix).toHaveBeenCalled();
-      // Canvas already the right size — no redundant setSize, but repaint so the
-      // corrected aspect shows immediately.
       expect(bundle.renderer.setSize).not.toHaveBeenCalled();
       expect(bundle.renderer.render).toHaveBeenCalled();
     });
@@ -1178,10 +1137,6 @@ describe('ViewerCore', () => {
 
       viewer.resize(1024, 768);
 
-      // Resize behaves like a camera move: the accumulation restarts so the
-      // tracer re-syncs its camera and its counters, and the dissolve snapshot
-      // is recaptured at the new size. The service was already enabled, so no
-      // re-enable is needed.
       expect(bundle.pathTracingService!.reset).toHaveBeenCalled();
       expect(bundle.pathTracingService!.setEnabled).not.toHaveBeenCalledWith(true);
     });
@@ -1193,7 +1148,6 @@ describe('ViewerCore', () => {
         withPathTracing: true,
         options: { pathTracing: { enabled: true } },
         pathTracingOverrides: {
-          // Converged: the service self-paused and holds a warm tracer.
           isEnabled: jest.fn(() => false),
           canResume: jest.fn(() => true),
         },
@@ -1244,8 +1198,6 @@ describe('ViewerCore', () => {
       });
       const viewer = new ViewerCore(bundle.deps);
       await viewer.initialize();
-      // Convergence hard-stops the rAF chain ~100ms after the demand drops;
-      // demand flags alone cannot restart a dead loop.
       jest.spyOn(RenderLoopManager.prototype, 'isRunning').mockReturnValue(false);
       const startsBefore = startSpy.mock.calls.length;
 
@@ -1318,7 +1270,6 @@ describe('ViewerCore', () => {
         withPathTracing: true,
         options: { pathTracing: { enabled: false } },
         pathTracingOverrides: {
-          // A throw past the Result contract — the backstop catch must absorb it.
           setEnabled: jest.fn(() => {
             throw new Error('exploded past the Result contract');
           }),
@@ -1551,7 +1502,6 @@ describe('ViewerCore', () => {
       viewer.updateOptions({ animations: { autoplay: true } });
       expect(animationService.play).toHaveBeenCalledTimes(1);
 
-      // The runtime-options effect re-sends the full set on every look change.
       viewer.updateOptions({ animations: { autoplay: true } });
       expect(animationService.play).toHaveBeenCalledTimes(1);
 
@@ -1572,9 +1522,6 @@ describe('ViewerCore', () => {
         )
       ),
       pause: jest.fn(),
-      // Deliberately true: if ViewerCore ever skipped the early return on an
-      // erred play, the isPlaying() branch WOULD grab the continuous demand
-      // and the requireContinuous assertion below would catch it.
       isPlaying: jest.fn(() => true),
       setSpeed: jest.fn(),
       update: jest.fn(),
@@ -1654,13 +1601,10 @@ describe('ViewerCore', () => {
       const viewer = new ViewerCore({ ...bundle.deps, animationService });
       await viewer.initialize();
 
-      // Nothing loaded yet: there is nothing to play and no clip list to
-      // validate 'Walk' against — a valid future name must not log an error.
       viewer.updateOptions({ animations: { autoplay: 'Walk' } });
       expect(animationService.play).not.toHaveBeenCalled();
       expect(console.error).not.toHaveBeenCalled();
 
-      // The merged option kicks in when the model lands.
       await viewer.loadModel(makeObject3D());
       expect(animationService.play).toHaveBeenCalledWith('Walk');
     });
@@ -1856,9 +1800,6 @@ describe('ViewerCore', () => {
 
       expect(completeHandler).toHaveBeenCalled();
       expect(setAlwaysRenderSpy).toHaveBeenCalledWith(false);
-      // autoClear must survive completion untouched: disabling it here used
-      // to outlive the pause and stack every post-convergence raster frame
-      // over the last one, tearing the model apart on the next drag.
       const internal = bundle.renderer.getInternalRenderer() as { autoClear: boolean };
       expect(internal.autoClear).not.toBe(false);
 
@@ -1888,7 +1829,6 @@ describe('ViewerCore', () => {
         controlsOverrides: { update: jest.fn(() => true) },
         withPathTracing: true,
         pathTracingOverrides: {
-          // Completed state: self-paused with a warm tracer.
           isEnabled: jest.fn(() => false),
           canResume: jest.fn(() => true),
         },
@@ -1950,8 +1890,6 @@ describe('ViewerCore', () => {
       renderCallback!(16);
       await tick();
 
-      // Animated geometry can never converge — the accumulation is suspended
-      // (raster shows the motion) instead of resetting against a stale BVH.
       expect(bundle.pathTracingService!.reset).not.toHaveBeenCalled();
       expect(bundle.pathTracingService!.setEnabled).toHaveBeenCalledWith(false);
       expect(releaseSpy).toHaveBeenCalledWith('path-tracing');
@@ -1999,8 +1937,6 @@ describe('ViewerCore', () => {
       await viewer.initialize();
       expect(changeListener).not.toBeNull();
 
-      // The loop wound down (converged path tracing, idle static scene):
-      // only the controls' own change event observes the next interaction.
       jest.spyOn(RenderLoopManager.prototype, 'isRunning').mockReturnValue(false);
       startSpy.mockClear();
       const requestSpy = jest.spyOn(RenderLoopManager.prototype, 'requestRender');
@@ -2029,7 +1965,6 @@ describe('ViewerCore', () => {
         options: { staticScene: true, pathTracing: { enabled: true, maxSamples: 1 } },
         withPathTracing: true,
         pathTracingOverrides: {
-          // Converged-and-paused state: warm tracer preserving the canvas.
           isEnabled: jest.fn(() => false),
           canResume: jest.fn(() => true),
           getSampleCount: jest.fn(() => 5),
@@ -2041,11 +1976,7 @@ describe('ViewerCore', () => {
       renderCallback!(16);
       await tick();
 
-      // The preserved sample count must drop, or the completed-state
-      // short-circuit keeps returning without rendering and the canvas
-      // stays frozen on the converged frame for the whole playback.
       expect(bundle.pathTracingService!.reset).toHaveBeenCalled();
-      // ...but playback must NOT re-arm accumulation mid-animation.
       expect(bundle.pathTracingService!.setEnabled).not.toHaveBeenCalledWith(true);
     });
 
@@ -2078,9 +2009,6 @@ describe('ViewerCore', () => {
       await tick();
       expect(settled).toBe(false);
 
-      // Animation playback suspends the accumulation silently; the pending
-      // capture must settle with the raster frame instead of hanging for
-      // the whole (possibly looping) playback.
       playing = true;
       renderCallback!(16);
       await tick();
@@ -2097,7 +2025,6 @@ describe('ViewerCore', () => {
       const viewer = new ViewerCore(bundle.deps);
       await viewer.initialize();
 
-      // The loop wound down after a converged accumulation.
       jest.spyOn(RenderLoopManager.prototype, 'isRunning').mockReturnValue(false);
       startSpy.mockClear();
 
@@ -2168,7 +2095,6 @@ describe('ViewerCore', () => {
 
       renderCallback!(16);
       await tick();
-      // Run the scheduled replaceWithScreenshot timer (100ms).
       jest.advanceTimersByTime(100);
 
       const screenshotImg = document.body.querySelector('img');
@@ -2180,7 +2106,6 @@ describe('ViewerCore', () => {
 
       expect(canvas.style.display).toBe('');
       expect(document.body.querySelector('img')).toBeNull();
-      // restoreFromScreenshot restarts the render loop.
       expect(startSpy.mock.calls.length).toBeGreaterThan(startCallsBefore);
 
       viewer.dispose();
@@ -2215,7 +2140,6 @@ describe('ViewerCore', () => {
       expect(modelDisposeSpy).toHaveBeenCalled();
       expect(resourceDisposeSpy).toHaveBeenCalled();
       expect(screenshotDisposeSpy).toHaveBeenCalled();
-      // Teardown frees scene contents via ResourceManager.dispose() -> disposeContents()
       expect(bundle.scene.disposeContents).toHaveBeenCalled();
       expect(bundle.controls.dispose).toHaveBeenCalled();
       expect(bundle.renderer.dispose).toHaveBeenCalled();
@@ -2252,7 +2176,6 @@ describe('ViewerCore', () => {
       await viewer.initialize();
 
       renderCallback!(16);
-      // A replaceWithScreenshot callback is now scheduled for +100ms.
       viewer.dispose();
       jest.advanceTimersByTime(1000);
 
@@ -2280,8 +2203,6 @@ describe('ViewerCore deferred contact-shadow bake', () => {
 
     await viewer.loadModel(makeObject3D());
 
-    // The load resolves (overlay clears, first frame paints) with the live
-    // catcher in charge — the synchronous bake must not have run yet.
     expect(bundle.sceneSetupService!.bakeContactShadow).not.toHaveBeenCalled();
     frames.flush();
     expect(bundle.sceneSetupService!.bakeContactShadow).toHaveBeenCalledTimes(1);
@@ -2297,7 +2218,6 @@ describe('ViewerCore deferred contact-shadow bake', () => {
     await viewer.loadModel(makeObject3D());
     frames.flush();
 
-    // The first model's callback sees itself superseded and skips.
     expect(bundle.sceneSetupService!.bakeContactShadow).toHaveBeenCalledTimes(1);
   });
 
@@ -2337,7 +2257,6 @@ describe('ViewerCore deferred contact-shadow bake', () => {
     await viewer.loadModel(makeObject3D());
     frames.flush();
 
-    // Playing runs in live-shadow mode; the pause handler re-bakes itself.
     expect(bundle.sceneSetupService!.bakeContactShadow).not.toHaveBeenCalled();
   });
 });
@@ -2370,8 +2289,6 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
 
     viewer.updateOptions({ backgroundColor: '#abcdef' });
 
-    // Non-forced resets never re-read scene.background — only a forced
-    // re-ingest does, so a converged frame must not keep the old backdrop.
     expect(bundle.pathTracingService!.reset).toHaveBeenCalledWith(true);
   });
 
@@ -2404,12 +2321,8 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
 
     viewer.updateOptions({ backgroundColor: '#abcdef' });
 
-    // The repaint no-ops under an env-map backdrop — a forced re-ingest would
-    // burn a full sample budget for zero visual change.
     expect(bundle.pathTracingService!.reset).not.toHaveBeenCalledWith(true);
 
-    // resetEnvironment clears the url on the LIVE options object; the guard
-    // must see that and force again for the next real change.
     const liveOptions = (viewer as unknown as {
       options: { environment?: { url?: string } };
     }).options;
@@ -2432,9 +2345,6 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     });
     const viewer = new ViewerCore(bundle.deps);
 
-    // The runtime-options effect re-sends the WHOLE picked set on any runtime
-    // change; the defaults keep backgroundColor/environmentIntensity always
-    // defined. An unrelated update must not restart a converged accumulation.
     viewer.updateOptions({
       backgroundColor: '#000000',
       environment: { environmentIntensity: 0.5 },
@@ -2473,9 +2383,6 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
   });
 
   it('force-resets path-tracing accumulation on an effect toggle (a completed frame must repaint)', () => {
-    // The ratio-cap swap can resize the drawing buffer and clear a COMPLETED
-    // traced frame, whose presentation path never repaints by design — without
-    // the forced reset the viewer sticks blank until the controls move.
     const resetSpy = jest.spyOn(PathTracingCoordinator.prototype, 'resetAccumulation');
     const bundle = makeDeps({ options: {} });
     const viewer = new ViewerCore(bundle.deps);
@@ -2488,8 +2395,6 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
   });
 
   it('replaces an object colorGrade wholesale instead of merging its sub-fields', () => {
-    // deepMerge would keep the dropped `saturation`, silently pinning the old
-    // amount AND filtering the change as a no-op re-send.
     const bundle = makeDeps({
       options: { renderer: { colorGrade: { contrast: 0.2, saturation: 0.8 } } },
     });
@@ -2511,7 +2416,6 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
 
     viewer.updateOptions({ renderer: effects });
     viewer.updateOptions({ renderer: effects });
-    // The runtime effect re-sends the whole set alongside unrelated changes too.
     viewer.updateOptions({ renderer: { ...effects, toneMappingExposure: 1.3 } });
 
     expect(bundle.renderer.setPostProcessing).toHaveBeenCalledTimes(1);
@@ -2567,8 +2471,6 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     const viewer = new ViewerCore(bundle.deps);
     bundle.sceneSetupService!.createGradientBackground.mockClear();
 
-    // The runtime effect re-sends the whole set; a light preset carries an
-    // explicit `backgroundColorEdge: undefined` to clear the dark vignette.
     viewer.updateOptions({ backgroundColor: '#f0f0f7', backgroundColorEdge: undefined });
 
     expect(bundle.sceneSetupService!.createGradientBackground).toHaveBeenCalledWith(
@@ -2585,7 +2487,6 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     const requireSpy = jest.spyOn(RenderLoopManager.prototype, 'requireContinuous');
     const viewer = new ViewerCore(bundle.deps);
     await viewer.initialize();
-    // The heavy tracer stays unloaded while off.
     expect(bundle.pathTracingService!.initialize).not.toHaveBeenCalled();
     requireSpy.mockClear();
 
@@ -2594,7 +2495,6 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
 
     expect(bundle.pathTracingService!.initialize).toHaveBeenCalled();
     expect(bundle.pathTracingService!.setEnabled).toHaveBeenCalledWith(true);
-    // Re-ingest the current scene from scratch on enable.
     expect(bundle.pathTracingService!.reset).toHaveBeenCalledWith(true);
     expect(requireSpy).toHaveBeenCalledWith('path-tracing');
 
@@ -2618,9 +2518,6 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     await tick();
 
     expect(bundle.pathTracingService!.setEnabled).toHaveBeenCalledWith(false);
-    // A converged tracer already self-paused, so setEnabled(false) is a no-op
-    // and its completed frame is still preserved on the canvas — the reset is
-    // what zeroes the accumulation so the raster renderer takes the canvas back.
     expect(bundle.pathTracingService!.reset).toHaveBeenCalled();
     expect(releaseSpy).toHaveBeenCalledWith('path-tracing');
 
@@ -2638,7 +2535,6 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     bundle.pathTracingService!.setEnabled.mockClear();
     bundle.pathTracingService!.reset.mockClear();
 
-    // The runtime-options effect re-sends the whole set; enabled is unchanged.
     viewer.updateOptions({ pathTracing: { enabled: true } });
     await tick();
 
@@ -2649,8 +2545,6 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
   });
 
   it('aborts a stale enable when disabled while the tracer chunk is still loading', async () => {
-    // The tracer loads lazily, so enableRuntime awaits service.initialize().
-    // Hold that promise open to interleave a disable during the load.
     let resolveInit: () => void = () => {};
     const initGate = new Promise<void>((res) => {
       resolveInit = res;
@@ -2668,19 +2562,16 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     requireSpy.mockClear();
     bundle.pathTracingService!.setEnabled.mockClear();
 
-    viewer.updateOptions({ pathTracing: { enabled: true } }); // enable → suspends on init
+    viewer.updateOptions({ pathTracing: { enabled: true } });
     await tick();
-    viewer.updateOptions({ pathTracing: { enabled: false } }); // disable while loading
+    viewer.updateOptions({ pathTracing: { enabled: false } });
     await tick();
 
-    resolveInit(); // the enable's await now resolves — but intent is OFF
+    resolveInit();
     await tick(6);
 
-    // The stale enable must NOT turn the tracer back on or leak a continuous
-    // demand behind a UI that reads OFF.
     expect(bundle.pathTracingService!.setEnabled).not.toHaveBeenCalledWith(true);
     expect(requireSpy).not.toHaveBeenCalledWith('path-tracing');
-    // The disable did take effect.
     expect(bundle.pathTracingService!.setEnabled).toHaveBeenCalledWith(false);
 
     viewer.dispose();
@@ -2862,7 +2753,6 @@ describe('ViewerCore runtime environment/background', () => {
       bottomColor: '#abcdef',
     });
 
-    // The edge is cleared, so restoring the environment stays flat too.
     bundle.sceneSetupService!.createGradientBackground.mockClear();
     viewer.resetEnvironment();
     expect(bundle.sceneSetupService!.createGradientBackground).toHaveBeenLastCalledWith(bundle.scene, {
@@ -2879,9 +2769,6 @@ describe('ViewerCore.captureStill', () => {
     Object.defineProperty(canvas, 'clientHeight', { value: 300, configurable: true });
     canvas.toDataURL = jest.fn(() => 'data:image/png;base64,still');
 
-    // Mirror the real renderer: the drawing buffer is the last logical size
-    // scaled by the current pixel ratio, and setPixelRatio re-applies the last
-    // logical size (three.js WebGLRenderer semantics).
     let ratio = pixelRatio;
     let logicalWidth = 400;
     let logicalHeight = 300;
@@ -2917,11 +2804,9 @@ describe('ViewerCore.captureStill', () => {
 
     expect(result.ok).toBe(true);
     expect(result.ok && result.value).toBe('data:image/png;base64,still');
-    // Captured with pixel ratio 1 so width/height are exact output pixels...
     expect(bundle.renderer.setPixelRatio).toHaveBeenNthCalledWith(1, 1);
     expect(bundle.renderer.setSize).toHaveBeenCalledWith(1600, 1200);
     expect(bundle.renderer.render).toHaveBeenCalled();
-    // ...then the live pixel ratio and canvas size come back.
     expect(bundle.renderer.setPixelRatio).toHaveBeenLastCalledWith(2);
     expect(bundle.renderer.setSize).toHaveBeenLastCalledWith(400, 300);
     expect(bundle.canvas.width).toBe(800);
@@ -2947,7 +2832,6 @@ describe('ViewerCore.captureStill', () => {
     const result = await viewer.captureStill();
 
     expect(result.ok).toBe(true);
-    // 400x300 CSS at pixel ratio 2 → an 800x600 still, rendered at ratio 1.
     expect(bundle.renderer.setSize).toHaveBeenCalledWith(800, 600);
   });
 
@@ -2971,8 +2855,6 @@ describe('ViewerCore.captureStill', () => {
     const result = await viewer.captureStill();
 
     expect(result.ok).toBe(true);
-    // Buffer 800x600 at ratio 2 → logical 400x300 → default still 800x600,
-    // and the restore must NOT inflate the buffer to 1600x1200.
     expect(bundle.renderer.setSize).toHaveBeenLastCalledWith(400, 300);
     expect(bundle.canvas.width).toBe(800);
   });
@@ -3061,7 +2943,6 @@ describe('ViewerCore.captureStill', () => {
 
     expect(result.ok).toBe(true);
     expect(result.ok && result.value).toBe('data:image/png;base64,still');
-    // The accumulated frame is captured directly — no resize, no re-render.
     expect(bundle.renderer.setSize).not.toHaveBeenCalled();
   });
 
@@ -3093,8 +2974,6 @@ describe('ViewerCore.captureStill', () => {
     const capture = viewer.captureStill();
     await tick();
 
-    // Enabling autoRotate resets the accumulation every frame — the pending
-    // wait can never converge and must reject like the up-front check does.
     viewer.updateOptions({ controls: { autoRotate: true } });
 
     const result = await capture;
@@ -3104,9 +2983,6 @@ describe('ViewerCore.captureStill', () => {
   });
 
   it('survives a re-send of an unchanged autoRotate:true mid-wait', async () => {
-    // Turntable configured on but imperatively paused: options still say true
-    // while the controls themselves were flipped off, so the up-front
-    // turntable check passes and the capture starts waiting.
     const bundle = makeCaptureBundle({
       options: { pathTracing: { enabled: true }, controls: { autoRotate: true } },
       withPathTracing: true,
@@ -3117,8 +2993,6 @@ describe('ViewerCore.captureStill', () => {
     const capture = viewer.captureStill();
     await tick();
 
-    // The runtime-options effect re-sends the whole set; an unchanged value
-    // must neither restart the paused turntable nor reject the pending wait.
     viewer.updateOptions({ controls: { autoRotate: true } });
     expect(bundle.controls.autoRotate).toBe(false);
 
@@ -3144,15 +3018,10 @@ describe('ViewerCore.captureStill', () => {
     });
     await tick();
 
-    // A manual drag emits controls:change too but converges after release —
-    // without autoRotate set it must NOT reject the wait.
     viewer.getEvents().emit('controls:change', { controls: bundle.controls });
     await tick();
     expect(settled).toBe(false);
 
-    // autoRotate flipped directly on the raw controls the handle exposes
-    // never goes through updateOptions — the rotating camera's per-frame
-    // controls:change is the only signal the pending wait can observe.
     bundle.controls.autoRotate = true;
     viewer.getEvents().emit('controls:change', { controls: bundle.controls });
 
@@ -3189,8 +3058,6 @@ describe('ViewerCore.captureStill', () => {
       pathTracingOverrides: { isEnabled: jest.fn(() => true) },
     });
     const viewer = new ViewerCore(bundle.deps);
-    // PathTracingCoordinator only wires its 'pathtracing:paused' -> self-pause
-    // forwarding during initialize().
     await viewer.initialize();
 
     let settled = false;
@@ -3202,9 +3069,6 @@ describe('ViewerCore.captureStill', () => {
     await tick();
     expect(settled).toBe(false);
 
-    // The tracer abandoned this accumulation (renderer never ready / env
-    // never arrived) without ever reaching the sample target — no
-    // 'pathtracing:complete' will ever fire for it.
     bundle.pathTracingService!.events.emit('pathtracing:paused', { samples: 3, reason: 'gave-up' });
     const result = await capture;
 
@@ -3234,8 +3098,6 @@ describe('ViewerCore.captureStill', () => {
     });
     const viewer = new ViewerCore(bundle.deps);
 
-    // isEnabled() is false (post-completion reset / failed init) — no waiting,
-    // no hang, just the canvas as it stands.
     const result = await viewer.captureStill();
     expect(result.ok).toBe(true);
     expect(bundle.renderer.setSize).not.toHaveBeenCalled();
@@ -3292,7 +3154,6 @@ describe('ViewerCore selection wiring', () => {
     wiring.onPick(pick);
     expect(onSelected).toHaveBeenCalledWith(pick);
 
-    // A miss (empty space) emits nothing.
     wiring.onPick(null);
     expect(onSelected).toHaveBeenCalledTimes(1);
   });
@@ -3317,7 +3178,6 @@ describe('ViewerCore selection wiring', () => {
 
     expect(selectionService.dispose).toHaveBeenCalled();
 
-    // A pick delivered after dispose must not emit.
     const onSelected = jest.fn();
     viewer.getEvents().on('object:selected', onSelected);
     selectionService.initialize.mock.calls[0][0].onPick({

@@ -24,15 +24,7 @@ export interface LoadingOverlayProps {
   backdrop: string;
 }
 
-/**
- * Self-contained loading/error overlay for the viewer. Uses an inline SVG with
- * SMIL animation so it needs no external CSS. Non-interactive (pointer-events:
- * none) — it sits over the canvas and dismisses itself when loading resolves.
- */
 export function LoadingOverlay({ status, label, color, backdrop }: LoadingOverlayProps) {
-  // Respect the user's reduced-motion preference: show a static spinner arc
-  // rather than the rotating SMIL animation. Subscribed, not snapshotted — a
-  // preference change mid-load stops the spin without waiting for a re-render.
   const reduceMotion = useSyncExternalStore(
     subscribeToMotionPreference,
     readsReducedMotion,
@@ -48,7 +40,6 @@ export function LoadingOverlay({ status, label, color, backdrop }: LoadingOverla
       style={{
         position: 'absolute',
         inset: 0,
-        // Above hotspot annotations (z5) and the preset picker (z10).
         zIndex: 20,
         display: 'flex',
         flexDirection: 'column',

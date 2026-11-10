@@ -1,12 +1,3 @@
-/**
- * Accurate, minimal usage of the public API:
- *  - <SimpleViewer object={...} options={...} ref={...} />
- *  - the imperative handle (loadModel / dispose / scene-camera-renderer-controls)
- *  - typed events via handle.events
- *  - the Result-free error surface (ThreeViewerError / ErrorCode)
- *
- * Type-checked in CI (tsconfig.examples.json) so it cannot drift from the API.
- */
 import React, { useEffect, useRef } from 'react';
 import {
   SimpleViewer,
@@ -38,7 +29,6 @@ export function BasicUsage() {
     });
 
     const offError = handle.events.on('model:error', ({ error }) => {
-      // error is a ThreeViewerError with a typed code
       if (error.code === ErrorCode.MODEL_LOAD_FAILED) {
         console.error('Model failed to load:', error.message);
       }

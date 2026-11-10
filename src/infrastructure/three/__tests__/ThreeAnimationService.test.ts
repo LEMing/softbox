@@ -84,8 +84,6 @@ describe('ThreeAnimationService', () => {
 
     const result = service.play('Walk');
 
-    // The name may be perfectly right for a model that has not loaded yet —
-    // only a miss among EXISTING clips is an INVALID_PARAMETER.
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_STATE);
     expect(!result.ok && result.error.message).toMatch(/no animation clips are attached/);
@@ -99,13 +97,12 @@ describe('ThreeAnimationService', () => {
     service.play('Spin');
     service.update(0.25);
     service.pause();
-    service.update(0.25); // ignored while paused
+    service.update(0.25);
     expect(mesh.position.x).toBeCloseTo(2.5);
     expect(service.isPlaying()).toBe(false);
 
     service.play();
     service.update(0.25);
-    // Continues from the paused pose (2.5 -> 5), not restarted from t=0.
     expect(mesh.position.x).toBeCloseTo(5);
     expect(service.isPlaying()).toBe(true);
   });
@@ -122,7 +119,6 @@ describe('ThreeAnimationService', () => {
     service.play('Bounce');
     service.update(0.25);
 
-    // Bounce started fresh from t=0, not from wherever Spin had paused.
     expect(mesh.position.y).toBeCloseTo(1.25);
     expect(service.isPlaying()).toBe(true);
   });

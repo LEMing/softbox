@@ -1,10 +1,6 @@
 import { ThreeRendererAdapter } from '../ThreeRenderer';
 import { PostProcessingPipeline } from '../postprocessing/PostProcessingPipeline';
 
-// The pipeline lazy-imports the three/examples pass chunk; unmocked, those
-// ESM files fail to parse under jest and produce deterministic console.warn
-// noise (harmless — load() catches it — but noisy). Mock them like
-// PostProcessingPipeline.test.ts does.
 jest.mock('three/examples/jsm/postprocessing/EffectComposer.js', () => ({
   EffectComposer: class {
     renderTarget1 = { samples: 0 };
@@ -28,11 +24,6 @@ jest.mock('three/examples/jsm/shaders/BrightnessContrastShader.js', () => ({ Bri
 jest.mock('three/examples/jsm/shaders/HueSaturationShader.js', () => ({ HueSaturationShader: {} }));
 
 
-/**
- * jsdom has no WebGL, so the adapter is tested around a stubbed internal
- * renderer: enough surface for setPostProcessing's pipeline swap + pixel-ratio
- * cap logic, which is pure orchestration.
- */
 const stubInternalRenderer = () => ({
   setPixelRatio: jest.fn(),
   getPixelRatio: jest.fn(() => 1),
@@ -101,8 +92,6 @@ describe('ThreeRendererAdapter.setPostProcessing', () => {
     const pipeline = pipelineOf(adapter)! as unknown as {
       onLoadError?: (error: unknown) => void;
     };
-    // Drive the pipeline's failure path directly: the load-catch calls the
-    // constructor-injected callback, which must reach the adapter handler.
     pipeline.onLoadError?.(new Error('chunk fetch failed'));
 
     expect(onError).toHaveBeenCalledWith(expect.any(Error));

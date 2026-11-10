@@ -26,8 +26,6 @@ describe('useModelLoader', () => {
   });
 
   it('skips a viewer disposed by a structural rebuild (no load, no error surfaced)', () => {
-    // The rebuild disposes the previous viewer in the same commit this effect
-    // runs with; loading into it would surface a benign "after dispose" error.
     const viewer = makeViewer({ isDisposed: jest.fn(() => true) });
     const { result } = renderHook(() => useModelLoader(viewer, true, '/model.glb'));
     expect(viewer.loadModel).not.toHaveBeenCalled();
@@ -45,8 +43,6 @@ describe('useModelLoader', () => {
     const { result } = renderHook(() => useModelLoader(viewer, true, '/model.glb'));
     await waitFor(() => expect(viewer.loadModel).toHaveBeenCalled());
 
-    // The rebuild tears the viewer down while the load is in flight, then the
-    // load rejects with the dispose guard — it must not become a user-facing error.
     isDisposed.mockReturnValue(true);
     resolveLoad(Result.err(new ThreeViewerError('Cannot load model after dispose', ErrorCode.INVALID_STATE)));
     await Promise.resolve();

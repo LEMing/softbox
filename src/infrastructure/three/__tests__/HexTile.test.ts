@@ -13,9 +13,6 @@ describe('HexTile', () => {
 
     geometry.computeBoundingBox();
     const box = geometry.boundingBox!;
-    // Pins the Z-then-X bake order (Euler 'XYZ' applies Z first): the
-    // swapped order stands the tile on edge, putting max.y at ~0.5 instead
-    // of the 0.04 bevel tip.
     expect(box.max.y).toBeCloseTo(bevel, 5);
     expect(box.min.y).toBeCloseTo(-(height + bevel), 5);
   });

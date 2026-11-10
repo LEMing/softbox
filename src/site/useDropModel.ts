@@ -5,8 +5,6 @@ export interface DroppedModel {
   name: string;
 }
 
-// Only self-contained .glb files: a multi-file .gltf references external
-// buffers/textures by relative URI, which cannot resolve from a blob URL.
 export function isModelFile(name: string): boolean {
   return name.toLowerCase().endsWith('.glb');
 }
@@ -16,19 +14,10 @@ const isFileDrag = (event: DragEvent): boolean =>
 
 const REJECTION_NOTICE_MS = 2600;
 
-/**
- * Loading a local model file: window-level drag & drop plus a `loadFile`
- * entry point for a file-input fallback (touch/keyboard users). The model is
- * exposed as an object URL (revoked when replaced or on unmount). `isDragging`
- * is true while a FILE drag hovers over the window (in-page text/link drags
- * are ignored); `rejectedName` briefly holds the name of a refused file.
- */
 export function useDropModel() {
   const [dropped, setDropped] = useState<DroppedModel | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [rejectedName, setRejectedName] = useState<string | null>(null);
-  // dragenter/dragleave fire per element; a counter tells apart "left the
-  // window" from "moved between children".
   const dragDepthRef = useRef(0);
   const objectUrlRef = useRef<string | null>(null);
   const rejectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

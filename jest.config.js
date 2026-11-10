@@ -1,7 +1,3 @@
-// npm test runs jest with --runInBand: the suites are fast (~7s total) and
-// several drive real three objects whose module-level state (shared Pass
-// geometry, texture caches) is simplest to reason about single-worker; the
-// parallel speedup measured below ~2s and was not worth the isolation risk.
 export default {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',
@@ -33,16 +29,7 @@ export default {
   collectCoverageFrom: ['src/**/*.{ts,tsx}'],
   coverageDirectory: 'coverage',
   coverageReporters: ['json', 'lcov', 'clover', 'text-summary'],
-  // Floors that lock in current coverage and fail CI on regressions. `global`
-  // applies to every file NOT matched by a path-specific key below (jest removes
-  // matched files from the global pool). The per-path entries pin the
-  // well-tested, refactor-sensitive core (GPU disposal, lifecycle, managers) high
-  // so future work cannot silently gut their tests. Ratchet upward over time.
   coverageThreshold: {
-    // Global floors sit just under the remaining-pool actuals (jest subtracts
-    // the path-pinned files below) — ratcheted 2026-07-12 from 72/64/58/72
-    // after the audit found ~10 points of slack; re-tighten after major
-    // additions.
     global: {
       statements: 80,
       branches: 72,
@@ -55,15 +42,12 @@ export default {
       functions: 95,
       lines: 95,
     },
-    // Ratcheted 2026-07-12 (92/88/78/92 → below) after the environment/backdrop
-    // cluster moved to EnvironmentController and lifted the remainder.
     './src/core/ViewerCore.ts': {
       statements: 94,
       branches: 90,
       functions: 85,
       lines: 94,
     },
-    // 2026-07-12: extracted from ViewerCore; fully covered by its unit tests.
     './src/core/EnvironmentController.ts': {
       statements: 100,
       branches: 95,
@@ -82,8 +66,6 @@ export default {
       functions: 95,
       lines: 95,
     },
-    // 2026-07-12 audit T1: the two highest-risk GPU-lifecycle modules were the
-    // only unpinned ones — deleting their tests sailed through the global pool.
     './src/infrastructure/three/ThreePathTracingService.ts': {
       statements: 95,
       branches: 84,
@@ -120,9 +102,6 @@ export default {
       functions: 82,
       lines: 88,
     },
-    // 2026-07-07 B-tier pins: the modules the audit flagged as unpinned —
-    // deleting any of their test files must fail CI, not slip through the
-    // global pool.
     './src/infrastructure/three/ContactShadowBaker.ts': {
       statements: 95,
       branches: 80,
@@ -153,16 +132,12 @@ export default {
       functions: 95,
       lines: 95,
     },
-    // 2026-07-09 new-module pins (opt-in post-processing + shadow-floor default).
     './src/infrastructure/three/postprocessing/PostProcessingPipeline.ts': {
       statements: 95,
       branches: 90,
       functions: 95,
       lines: 95,
     },
-    // 2026-07-12 tech-debt audit pin: the renderer adapter (option mapping,
-    // render dispatch/fallbacks, lifecycle) sat at 25% under the global pool —
-    // deleting its new test file must fail CI, not slip through.
     './src/infrastructure/three/ThreeRenderer.ts': {
       statements: 90,
       branches: 80,
@@ -179,10 +154,6 @@ export default {
   extensionsToTreatAsEsm: ['.ts', '.tsx'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   testMatch: ['**/__tests__/**/*.ts?(x)', '**/?(*.)+(spec|test).ts?(x)'],
-  // The Playwright render-smoke suite runs real WebGL via `npm run test:render`.
-  // `.claude/worktrees` holds full repo checkouts for parallel background
-  // agents — without this, their (possibly mid-edit, possibly failing) copies
-  // of every test file get swept into this run's results too.
   testPathIgnorePatterns: ['/node_modules/', '<rootDir>/render-smoke/', '<rootDir>/.claude/'],
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
   transformIgnorePatterns: [

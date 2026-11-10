@@ -3,45 +3,22 @@ import { IScene } from './IScene';
 import { ICamera } from './ICamera';
 import { IRendererExtension } from './IRendererExtension';
 
-/**
- * Core interface for renderers, independent of rendering engine
- * Extends IRendererExtension to allow controlled access to internal implementation
- */
 export interface IRenderer extends IRendererExtension {
   id: string;
   
   initialize(options: IRendererOptions): Result<void>;
   render(scene: IScene, camera: ICamera): Result<void>;
 
-  /**
-   * Render the raster view through the opt-in post-processing composer (bloom,
-   * vignette, film grain), falling back to a plain render when no effect is
-   * enabled or the composer is still loading. Optional: renderers without a
-   * post-processing pipeline simply don't implement it.
-   */
   renderPostProcessed?(scene: IScene, camera: ICamera): Result<void>;
 
   setSize(width: number, height: number): void;
   setPixelRatio(ratio: number): void;
   getPixelRatio(): number;
 
-  /** Live-tunable tone-mapping exposure (applied without a rebuild). */
   setToneMappingExposure(exposure: number): void;
 
-  /**
-   * Live-swap the opt-in post-processing effects (applied without a rebuild):
-   * rebuilds the composer pipeline for the new set, or drops back to the plain
-   * zero-cost render path when every effect is off. Optional, like
-   * `renderPostProcessed`.
-   */
   setPostProcessing?(effects: IPostProcessingEffects): void;
 
-  /**
-   * Register a handler for post-processing chunk-load failures. The composer
-   * degrades to the plain renderer on its own; this is how the degradation
-   * reaches the consumer's 'error' channel instead of dying on the console.
-   * Optional, like the other post-processing members.
-   */
   setPostProcessingErrorHandler?(handler: (error: unknown) => void): void;
 
   getDomElement(): HTMLCanvasElement;
@@ -49,14 +26,11 @@ export interface IRenderer extends IRendererExtension {
 
   dispose(): void;
 
-  /** Whether dispose() has already torn down the underlying rendering context. */
   isDisposed(): boolean;
 
-  // Renderer capabilities
   capabilities: IRendererCapabilities;
 }
 
-/** Raw opt-in post-effect toggles, in the shape the public options express them. */
 export interface IPostProcessingEffects {
   bloom: boolean;
   vignette: boolean;
@@ -79,12 +53,10 @@ export interface IRendererOptions {
     type: 'none' | 'linear' | 'reinhard' | 'cineon' | 'aces' | 'agx' | 'neutral';
     exposure: number;
   };
-  /** Opt-in post-processing effects (default all off). */
   postProcessing?: {
     bloom?: boolean;
     vignette?: boolean;
     filmGrain?: boolean;
-    /** Resolved contrast + saturation grade amounts, or absent when off. */
     colorGrade?: { contrast: number; saturation: number };
   };
 }

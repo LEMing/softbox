@@ -20,7 +20,6 @@ describe('buildRaycastBvh', () => {
     expect((a.geometry as BvhGeometry).boundsTree).toBeTruthy();
     expect((b.geometry as BvhGeometry).boundsTree).toBeTruthy();
     expect(a.raycast).toBe(acceleratedRaycast);
-    // Only the instances are patched — the shared prototype stays pristine.
     expect(THREE.Mesh.prototype.raycast).not.toBe(acceleratedRaycast);
   });
 

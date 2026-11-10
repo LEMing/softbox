@@ -89,26 +89,20 @@ describe('StateManager', () => {
 
   describe('state validation', () => {
     it('should check if can load', () => {
-      // Not initialized - cannot load
       expect(stateManager.canLoad()).toBe(false);
       
-      // Initialize - can load
       stateManager.setInitialized();
       expect(stateManager.canLoad()).toBe(true);
       
-      // Loading state - cannot load
       stateManager.startLoading();
       expect(stateManager.canLoad()).toBe(false);
       
-      // Loaded state - can load again
       stateManager.setLoaded({ dispose: jest.fn() } as unknown as import('../../interfaces').IObject3D);
       expect(stateManager.canLoad()).toBe(true);
       
-      // Error state - can load
       stateManager.setError(new ThreeViewerError('Test', ErrorCode.MODEL_LOAD_FAILED));
       expect(stateManager.canLoad()).toBe(true);
       
-      // Disposed state - cannot load
       stateManager.setDisposed();
       expect(stateManager.canLoad()).toBe(false);
     });
@@ -119,7 +113,6 @@ describe('StateManager', () => {
       const callback = jest.fn();
       stateManager.onStateChange(callback);
       
-      // Trigger state change
       stateManager.setInitialized();
       
       expect(callback).toHaveBeenCalledTimes(1);
@@ -144,20 +137,16 @@ describe('StateManager', () => {
       const callback = jest.fn();
       const unsubscribe = stateManager.onStateChange(callback);
       
-      // First change - callback should be called
       stateManager.setInitialized();
       expect(callback).toHaveBeenCalledTimes(1);
       
-      // Unsubscribe
       unsubscribe();
       
-      // Second change - callback should not be called
       stateManager.startLoading();
       expect(callback).toHaveBeenCalledTimes(1);
     });
 
     it('should handle errors in callbacks gracefully', () => {
-      // Mock console.error to avoid polluting test output
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
       
       const errorCallback = jest.fn(() => {
@@ -168,15 +157,12 @@ describe('StateManager', () => {
       stateManager.onStateChange(errorCallback);
       stateManager.onStateChange(normalCallback);
       
-      // Should not throw and normal callback should still be called
       expect(() => stateManager.setInitialized()).not.toThrow();
       expect(errorCallback).toHaveBeenCalled();
       expect(normalCallback).toHaveBeenCalled();
       
-      // Verify console.error was called with the error
       expect(consoleErrorSpy).toHaveBeenCalledWith('Error in state change callback:', expect.any(Error));
       
-      // Restore console.error
       consoleErrorSpy.mockRestore();
     });
 

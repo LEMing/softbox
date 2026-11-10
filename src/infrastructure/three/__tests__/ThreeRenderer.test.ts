@@ -7,11 +7,6 @@ import { IScene } from '../../../core/interfaces/IScene';
 import { ICamera } from '../../../core/interfaces/ICamera';
 import { ErrorCode } from '../../../errors';
 
-/**
- * jsdom has no WebGL, so THREE.WebGLRenderer is replaced with a recording
- * fake: the adapter's option mapping, render dispatch, fallbacks and lifecycle
- * are pure orchestration over it.
- */
 const fakeInstances: FakeWebGLRenderer[] = [];
 let constructorShouldThrow = false;
 
@@ -52,10 +47,6 @@ jest.mock('three', () => ({
   WebGLRenderer: jest.fn().mockImplementation((args: unknown) => new FakeWebGLRenderer(args)),
 }));
 
-// The pipeline lazy-imports the three/examples pass chunk; unmocked, those
-// ESM files fail to parse under jest and produce deterministic console.warn
-// noise (harmless — load() catches it — but noisy). Mock them like
-// PostProcessingPipeline.test.ts does.
 jest.mock('three/examples/jsm/postprocessing/EffectComposer.js', () => ({
   EffectComposer: class {
     renderTarget1 = { samples: 0 };
@@ -204,8 +195,6 @@ describe('ThreeRendererAdapter', () => {
     it('falls back to the plain render while the pipeline chunk is still loading', () => {
       const { adapter, fake } = initialized({ postProcessing: { bloom: true } });
       const { scene, camera } = makeSceneAndCamera();
-      // The lazy chunk has not resolved inside this synchronous test, so the
-      // pipeline reports not-ready and the plain render runs.
       const result = adapter.renderPostProcessed(scene, camera);
       expect(result.ok).toBe(true);
       expect(fake.render).toHaveBeenCalled();
@@ -269,7 +258,6 @@ describe('ThreeRendererAdapter', () => {
       adapter.dispose();
       expect(fake.dispose).toHaveBeenCalledTimes(1);
       expect(adapter.isDisposed()).toBe(true);
-      // Idempotent: a second dispose must not touch the torn-down renderer.
       adapter.dispose();
       expect(fake.dispose).toHaveBeenCalledTimes(1);
     });

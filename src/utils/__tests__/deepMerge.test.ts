@@ -20,8 +20,6 @@ describe('deepMerge', () => {
   it('does not mutate either input', () => {
     const base = { nested: { x: 1 } };
     const override = { nested: { y: 2 } };
-    // Shape-divergent on purpose: the runtime tolerates overrides the type
-    // would reject, and these tests pin that defensive behavior.
     const result = deepMerge(base, override as DeepPartial<typeof base>);
     expect(base).toEqual({ nested: { x: 1 } });
     expect(override).toEqual({ nested: { y: 2 } });

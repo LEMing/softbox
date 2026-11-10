@@ -1,10 +1,8 @@
 import type { CSSProperties } from 'react';
 
-/** Shared chrome tokens for the built-in UI and the playground site. */
 export const FONT =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 
-/** Frosted-glass surface (no radius — pills and panels round differently). */
 export const glassSurface: CSSProperties = {
   background: 'rgba(255,255,255,0.78)',
   backdropFilter: 'blur(16px)',

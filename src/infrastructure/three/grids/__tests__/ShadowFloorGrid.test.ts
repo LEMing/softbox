@@ -27,13 +27,9 @@ describe('ShadowFloorGrid', () => {
     expect(dome).toBeInstanceOf(THREE.Mesh);
     expect(dome.material).toBeInstanceOf(THREE.MeshStandardMaterial);
     expect((dome.material as THREE.MeshStandardMaterial).roughness).toBe(1);
-    // Two-sided so the tracer lights the concave interior of the dome.
     expect((dome.material as THREE.MeshStandardMaterial).side).toBe(THREE.DoubleSide);
     expect(dome.receiveShadow).toBe(true);
-    // Off in the raster view; the path tracer flips it on only during ingest.
     expect(dome.visible).toBe(false);
-    // NOT tagged as a raster shadow helper (that flag hides it from the tracer,
-    // which is the opposite of what this dome is for).
     expect(dome.userData[CONTACT_SHADOW_HELPER_FLAG]).toBeUndefined();
   });
 
@@ -41,24 +37,17 @@ describe('ShadowFloorGrid', () => {
     const geometry = ptFloorOf(build(20)).geometry;
     geometry.computeBoundingBox();
     const box = geometry.boundingBox!;
-    // Floor at local y=0; walls rise well above it.
     expect(box.min.y).toBeCloseTo(0, 1);
     expect(box.max.y).toBeGreaterThan(1);
 
-    // Axisymmetric about Y: the footprint is a full circle (same extent left/
-    // right/front/back), so it looks identical from every azimuth — the whole
-    // point of the dome over a directional cove.
     expect(box.min.x).toBeCloseTo(-box.max.x, 1);
     expect(box.min.z).toBeCloseTo(-box.max.z, 1);
     expect(box.max.x).toBeCloseTo(box.max.z, 1);
 
     const position = geometry.getAttribute('position');
     expect(position.count).toBeGreaterThan(0);
-    const maxRadius = box.max.x; // wall radius
+    const maxRadius = box.max.x;
 
-    // Open top (no ceiling cap): the top edge is a ring at the wall radius —
-    // every vertex up there is far from the axis. A capped dome would have a
-    // centre vertex (radius ~0) at the top instead.
     let topRingMinRadius = Infinity;
     let floorEdgeRadius = 0;
     let wallHeightSpan = { min: Infinity, max: -Infinity };
@@ -69,7 +58,7 @@ describe('ShadowFloorGrid', () => {
         topRingMinRadius = Math.min(topRingMinRadius, r);
       }
       if (y < 1e-3) {
-        floorEdgeRadius = Math.max(floorEdgeRadius, r); // widest point of the flat floor
+        floorEdgeRadius = Math.max(floorEdgeRadius, r);
       }
       if (r > maxRadius - 1e-3) {
         wallHeightSpan = { min: Math.min(wallHeightSpan.min, y), max: Math.max(wallHeightSpan.max, y) };
@@ -77,10 +66,6 @@ describe('ShadowFloorGrid', () => {
     }
     expect(topRingMinRadius).toBeGreaterThan(1);
 
-    // Concave sweep, not a cone: the flat floor stops well short of the wall
-    // radius (a fillet bridges the gap), and the wall is genuinely VERTICAL —
-    // vertices at the max radius span a real height range. A straight cone
-    // would reach max radius only at its single apex height.
     expect(floorEdgeRadius).toBeLessThan(maxRadius * 0.9);
     expect(wallHeightSpan.max - wallHeightSpan.min).toBeGreaterThan(box.max.y * 0.3);
   });

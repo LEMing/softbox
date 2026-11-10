@@ -17,9 +17,6 @@ export class GridFactory {
     [GridType.STONE_TILES, new StoneTileGrid()],
   ]);
   
-  /**
-   * Create a grid of the specified type
-   */
   static createGrid(type: GridType, options: IGridOptions): THREE.Object3D {
     const gridStyle = this.gridStyles.get(type);
     if (!gridStyle) {
@@ -36,23 +33,14 @@ export class GridFactory {
     return grid;
   }
   
-  /**
-   * Register a custom grid style
-   */
   static registerGridStyle(type: GridType | string, style: IGridStyle): void {
     this.gridStyles.set(type as GridType, style);
   }
   
-  /**
-   * Get available grid types
-   */
   static getAvailableTypes(): string[] {
     return Array.from(this.gridStyles.keys());
   }
   
-  /**
-   * Dispose of a specific grid style's resources
-   */
   static disposeGridStyle(type: GridType): void {
     const gridStyle = this.gridStyles.get(type);
     if (gridStyle && gridStyle.dispose) {

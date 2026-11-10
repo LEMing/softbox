@@ -21,10 +21,8 @@ class FloorAligner {
     const offset = new THREE.Vector3();
 
     if (height > 0) {
-      // For non-flat objects, align the bottom to y=0
       offset.y = -bottomY;
     } else {
-      // For flat objects, don't change the y position
       offset.y = 0;
     }
 

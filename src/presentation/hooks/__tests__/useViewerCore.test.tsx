@@ -60,11 +60,7 @@ describe('useViewerCore', () => {
     await waitFor(() => expect(result.current.isInitialized).toBe(true));
 
     expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(1);
-    // The render loop calls updateRenderInfo() every frame; if the hook subscribed
-    // to onStateChange it would setState ~60x/sec for a value nothing reads. The
-    // fix is to not subscribe at all.
     expect(createdViewers[0].onStateChange).not.toHaveBeenCalled();
-    // The unused reactive `state` is no longer part of the hook's public return.
     expect(result.current).not.toHaveProperty('state');
   });
 
@@ -90,7 +86,6 @@ describe('useViewerCore', () => {
       )
     );
 
-    // Same viewer instance — a runtime-only change must not tear down the renderer.
     expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(1);
     expect(viewer.dispose).not.toHaveBeenCalled();
   });
@@ -149,8 +144,6 @@ describe('useViewerCore', () => {
         })
       )
     );
-    // The whole point: an effect toggle must not tear the viewer down (the old
-    // behavior forced the demo to remount on a key and reload the model).
     expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(1);
     expect(viewer.dispose).not.toHaveBeenCalled();
   });
@@ -212,7 +205,6 @@ describe('useViewerCore', () => {
 
     rerender({ options: { ...testDefaultOptions, units: 'meters' } });
 
-    // Behaviorally identical options must share a structural key.
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(1);
   });
@@ -281,9 +273,6 @@ describe('useViewerCore', () => {
     const viewer = createdViewers[0];
     viewer.updateOptions.mockClear();
 
-    // Flip ONLY `enabled`; the structural fields (maxSamples, bounces) stay put
-    // — replacing the whole object would drop them and count as a structural
-    // change. This mirrors how the playground toggles the tracer.
     rerender({
       options: {
         ...testDefaultOptions,
@@ -296,16 +285,12 @@ describe('useViewerCore', () => {
         expect.objectContaining({ pathTracing: { enabled: true } })
       )
     );
-    // Same viewer instance — flipping the tracer must not tear down the
-    // renderer or re-fetch the model (this is what made the toggle distort the
-    // aspect ratio and re-download the model).
     expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(1);
     expect(viewer.dispose).not.toHaveBeenCalled();
   });
 
   it('sizes a rebuilt viewer so its camera never stays at the default aspect', async () => {
     const canvasRef = makeCanvasRef();
-    // A laid-out canvas so handleResize computes real dimensions.
     Object.defineProperty(canvasRef.current, 'clientWidth', { value: 800, configurable: true });
     Object.defineProperty(canvasRef.current, 'clientHeight', { value: 400, configurable: true });
 
@@ -317,9 +302,6 @@ describe('useViewerCore', () => {
     await waitFor(() => expect(result.current.isInitialized).toBe(true));
     await waitFor(() => expect(createdViewers[0].resize).toHaveBeenCalledWith(800, 400));
 
-    // A structural change rebuilds the viewer onto the SAME (unchanged-size)
-    // canvas. Without resetting the last-size memo the resize effect would
-    // no-op here and the fresh viewer's camera would stay at aspect 1.
     rerender({
       options: { ...testDefaultOptions, camera: { ...testDefaultOptions.camera, fov: 33 } },
     });
@@ -329,10 +311,6 @@ describe('useViewerCore', () => {
   });
 
   it('reloads the model into the rebuilt viewer after a structural change', async () => {
-    // Contract pin for the fast-rebuild render bail-out (see the viewer-state
-    // comment in useViewerCore). jsdom timing cannot reproduce the React
-    // batch collapse itself — the real-browser pin is the live scene-switch
-    // render-smoke test.
     const Harness = ({ options }: { options: SimpleViewerOptions }) => {
       const canvasRef = useRef<HTMLCanvasElement>(document.createElement('canvas'));
       const { viewer, isInitialized } = useViewerCore(canvasRef, options);
@@ -364,10 +342,8 @@ describe('useViewerCore', () => {
     await waitFor(() => expect(result.current.isInitialized).toBe(true));
 
     const builtWith = (ViewerFactory.createViewer as jest.Mock).mock.calls[0][1] as SimpleViewerOptions;
-    // Preset look applied...
     expect(builtWith.backgroundColor).toBe('#ffffff');
     expect(builtWith.renderer?.toneMappingExposure).toBe(1.2);
-    // ...without clobbering unrelated defaults (deep merge, not replace).
     expect(builtWith.renderer?.shadowMapEnabled).toBe(true);
     expect(builtWith.camera?.autoFitToObject).toBe(true);
   });
@@ -399,13 +375,11 @@ describe('useViewerCore', () => {
 
     rerender({ options: { preset: 'dark' } });
 
-    // The dark preset's look is applied live via updateOptions...
     await waitFor(() =>
       expect(viewer.updateOptions).toHaveBeenCalledWith(
         expect.objectContaining({ backgroundColor: '#242430', backgroundColorEdge: '#050507' })
       )
     );
-    // ...and the viewer is neither rebuilt nor torn down (no model reload).
     expect(ViewerFactory.createViewer).toHaveBeenCalledTimes(1);
     expect(viewer.dispose).not.toHaveBeenCalled();
   });
@@ -417,8 +391,6 @@ describe('useViewerCore', () => {
 
     const installIntersectionObserver = () => {
       intersect = null;
-      // Fresh fns per test: shared ones accumulate calls across tests and
-      // pre-satisfy assertions like toHaveBeenCalled().
       observe = jest.fn();
       disconnect = jest.fn();
       (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver = jest.fn(
@@ -445,7 +417,6 @@ describe('useViewerCore', () => {
         useViewerCore(canvasRef, { ...testDefaultOptions, loading: 'lazy' })
       );
 
-      // No GL context, no model fetch — nothing until the gate opens.
       expect(ViewerFactory.createViewer).not.toHaveBeenCalled();
       expect(observe).toHaveBeenCalledWith(canvasRef.current);
 
@@ -466,9 +437,6 @@ describe('useViewerCore', () => {
       await waitFor(() => expect(result.current.isInitialized).toBe(true));
       expect(disconnect).toHaveBeenCalled();
 
-      // A scroll-out delivery (stale or otherwise) must not close the gate:
-      // a non-latching gate would flip shouldBoot back and dispose the
-      // booted viewer through the construction effect's cleanup.
       act(() => intersect!(false));
 
       expect(createdViewers[0].dispose).not.toHaveBeenCalled();

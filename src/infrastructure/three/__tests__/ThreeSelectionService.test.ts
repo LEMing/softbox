@@ -86,11 +86,8 @@ describe('ThreeSelectionService', () => {
     expect(onPick).toHaveBeenCalledTimes(1);
     const pick = onPick.mock.calls[0][0] as SelectionPick;
     expect(pick).not.toBeNull();
-    // The ray through the canvas center hits the box's front face at z=1.
     expect(pick.point.z).toBeCloseTo(1);
     expect((pick.object as ThreeObject3DAdapter).getThreeObject()).toBeInstanceOf(THREE.Mesh);
-    // The pick root got a lazy BVH (models loaded as raw objects bypass the
-    // loader's build) and the hit above went through the accelerated path.
     expect(
       (box.geometry as THREE.BufferGeometry & { boundsTree?: unknown }).boundsTree
     ).toBeTruthy();
@@ -103,7 +100,6 @@ describe('ThreeSelectionService', () => {
     canvas.dispatchEvent(pointer('pointerdown', 100, 100));
     canvas.dispatchEvent(pointer('pointerup', 100, 100));
 
-    // The pick still works, but no bounds tree was built.
     expect(onPick).toHaveBeenCalledTimes(1);
     expect(
       (box.geometry as THREE.BufferGeometry & { boundsTree?: unknown }).boundsTree
@@ -175,7 +171,6 @@ describe('ThreeSelectionService', () => {
   it('reports null for a click that misses the model', () => {
     initialize(makeBox());
 
-    // Top-left corner: the ray passes beside the 2x2 box.
     canvas.dispatchEvent(pointer('pointerdown', 2, 2));
     canvas.dispatchEvent(pointer('pointerup', 2, 2));
 

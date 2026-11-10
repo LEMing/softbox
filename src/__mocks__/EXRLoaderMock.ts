@@ -7,7 +7,6 @@ export class EXRLoader {
     _onProgress?: (event: ProgressEvent) => void,
     _onError?: (error: Error | unknown) => void
   ): void {
-    // Mock implementation
     if (onLoad) {
       const mockTexture = new THREE.Texture();
       onLoad(mockTexture);

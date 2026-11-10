@@ -25,10 +25,6 @@ export interface RenderInfo {
   averageRenderTime: number;
 }
 
-/**
- * Immutable state class for the viewer
- * Implements state machine pattern for viewer states
- */
 export class ViewerState {
   private readonly data: Readonly<ViewerStateData>;
 
@@ -49,7 +45,6 @@ export class ViewerState {
     });
   }
 
-  // Getters for state properties
   get status(): ViewerStatus {
     return this.data.status;
   }
@@ -74,7 +69,6 @@ export class ViewerState {
     return this.data.renderInfo;
   }
 
-  // State transitions
   setInitialized(): ViewerState {
     return new ViewerState({
       ...this.data,
@@ -143,7 +137,6 @@ export class ViewerState {
     });
   }
 
-  // State validation
   canLoad(): boolean {
     return this.data.isInitialized && 
            (this.data.status === 'idle' || 
@@ -166,7 +159,6 @@ export class ViewerState {
     return this.data.status === 'error' && this.data.error !== null;
   }
 
-  // Create a plain object representation
   toJSON(): ViewerStateData {
     return { ...this.data };
   }

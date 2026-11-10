@@ -6,6 +6,44 @@ import { Result } from '../../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../../errors';
 import { toThreeScene } from '../unwrap';
 
+const GRADIENT_CANVAS_HEIGHT = 512;
+const VERTICAL_STRIP_WIDTH = 2;
+const VIGNETTE_CENTER_X = 256;
+const VIGNETTE_CENTER_Y_BEHIND_SUBJECT = 205;
+const VIGNETTE_OUTER_CENTER_Y = 256;
+const VIGNETTE_RADIUS_REACHING_CORNERS = 380;
+
+function canvasWidthFor(options: IGradientOptions): number {
+  if (options.radial) {
+    return GRADIENT_CANVAS_HEIGHT;
+  }
+
+  return VERTICAL_STRIP_WIDTH;
+}
+
+function createStudioVignette(context: CanvasRenderingContext2D): CanvasGradient {
+  return context.createRadialGradient(
+    VIGNETTE_CENTER_X,
+    VIGNETTE_CENTER_Y_BEHIND_SUBJECT,
+    0,
+    VIGNETTE_CENTER_X,
+    VIGNETTE_OUTER_CENTER_Y,
+    VIGNETTE_RADIUS_REACHING_CORNERS
+  );
+}
+
+function createVerticalGradient(context: CanvasRenderingContext2D, height: number): CanvasGradient {
+  return context.createLinearGradient(0, 0, 0, height);
+}
+
+function createGradient(context: CanvasRenderingContext2D, options: IGradientOptions, height: number): CanvasGradient {
+  if (options.radial) {
+    return createStudioVignette(context);
+  }
+
+  return createVerticalGradient(context, height);
+}
+
 export function createGradientBackground(scene: IScene, options: IGradientOptions): Result<void> {
   try {
     const threeScene = toThreeScene(scene);
@@ -18,13 +56,9 @@ export function createGradientBackground(scene: IScene, options: IGradientOption
       );
     }
 
-
-    // A radial vignette needs a square canvas (a 2px-wide strip would smear the
-    // circle horizontally); the plain vertical gradient only varies down one
-    // column, so a 2px strip is enough and cheaper.
     const canvas = document.createElement('canvas');
-    canvas.width = options.radial ? 512 : 2;
-    canvas.height = 512;
+    canvas.width = canvasWidthFor(options);
+    canvas.height = GRADIENT_CANVAS_HEIGHT;
 
     const context = canvas.getContext('2d');
     if (!context) {
@@ -36,26 +70,17 @@ export function createGradientBackground(scene: IScene, options: IGradientOption
       );
     }
 
-    const gradient = options.radial
-      ? // Centre sits slightly ABOVE the middle (y=205 of 512 ≈ 40% down) so the
-        // bright lift lands behind the subject, and the outer radius reaches the
-        // corners/bottom so they fall off to the dark edge — a studio vignette.
-        context.createRadialGradient(256, 205, 0, 256, 256, 380)
-      : context.createLinearGradient(0, 0, 0, canvas.height);
+    const gradient = createGradient(context, options, canvas.height);
     gradient.addColorStop(0, options.topColor);
     gradient.addColorStop(1, options.bottomColor);
 
     context.fillStyle = gradient;
     context.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Create texture from canvas
     const texture = new THREE.CanvasTexture(canvas);
     texture.needsUpdate = true;
     markViewerOwnedBackground(texture);
 
-    // Repeated repaints must not leak the previous canvas — but ONLY
-    // viewer-painted backgrounds are ours to dispose; an env-map backdrop is
-    // the cached original the texture cache and path tracer still hold.
     disposeViewerOwnedBackground(threeScene);
     threeScene.background = texture;
 

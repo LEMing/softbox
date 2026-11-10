@@ -41,12 +41,9 @@ describe('ThreeSceneSetupService.fitCameraToObject', () => {
     expect(controls.target.z).toBeCloseTo(5);
     expect(controls.update).toHaveBeenCalled();
 
-    // Elevated, padded vantage point: above the center and farther away
-    // than the object's own size.
     expect(camera.position.y).toBeGreaterThan(0);
     expect(camera.position.distanceTo(controls.target)).toBeGreaterThan(2);
 
-    // The camera actually looks at the object's center.
     const viewDirection = camera.getWorldDirection(new THREE.Vector3());
     const towardCenter = controls.target.clone().sub(camera.position).normalize();
     expect(viewDirection.distanceTo(towardCenter)).toBeLessThan(1e-6);

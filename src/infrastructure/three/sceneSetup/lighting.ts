@@ -18,7 +18,6 @@ export function addLighting(scene: IScene, options: ILightingOptions): Result<vo
     }
 
 
-    // Add ambient light
     if (options.ambient) {
       const color = new THREE.Color(options.ambient.color || '#404040');
       const intensity = options.ambient.intensity ?? Math.PI;
@@ -26,7 +25,6 @@ export function addLighting(scene: IScene, options: ILightingOptions): Result<vo
       threeScene.add(ambientLight);
     }
 
-    // Add hemisphere light
     if (options.hemisphere) {
       const skyColor = new THREE.Color(options.hemisphere.skyColor || '#ffffbb');
       const groundColor = new THREE.Color(options.hemisphere.groundColor || '#080820');
@@ -35,16 +33,13 @@ export function addLighting(scene: IScene, options: ILightingOptions): Result<vo
       threeScene.add(hemisphereLight);
     }
 
-    // Add directional light
     if (options.directional) {
       const color = new THREE.Color(options.directional.color || '#ffffff');
       const intensity = options.directional.intensity ?? Math.PI;
       const directionalLight = new THREE.DirectionalLight(color, intensity);
 
-      // Set position
       if (options.directional.position) {
         const pos = options.directional.position;
-        // Handle both Vector3 objects and arrays
         if (pos instanceof THREE.Vector3) {
           directionalLight.position.copy(pos);
         } else if (Array.isArray(pos)) {
@@ -57,7 +52,6 @@ export function addLighting(scene: IScene, options: ILightingOptions): Result<vo
         directionalLight.position.set(6, 6, 6);
       }
 
-      // Configure shadows
       if (options.directional.castShadow) {
         directionalLight.castShadow = true;
 
@@ -93,21 +87,15 @@ export function addLighting(scene: IScene, options: ILightingOptions): Result<vo
         }
       }
 
-      // Make the light look at the center
       directionalLight.target.position.set(0, 0, 0);
       threeScene.add(directionalLight);
       threeScene.add(directionalLight.target);
 
-      // Update shadow camera
       if (directionalLight.shadow) {
         directionalLight.shadow.camera.updateProjectionMatrix();
       }
     }
 
-    // Shadowless studio accents. Added AFTER the key so findDirectionalLight
-    // (which resolves the FIRST directional as the shadow/contact-shadow source)
-    // still returns the key, not a fill/rim. Neither casts shadows — one shadow,
-    // from the key, keeps the contact shadow single and clean.
     const addAccent = (
       accent: NonNullable<ILightingOptions['fill']>,
       fallback: [number, number, number]
@@ -122,8 +110,6 @@ export function addLighting(scene: IScene, options: ILightingOptions): Result<vo
       threeScene.add(light);
       threeScene.add(light.target);
     };
-    // Soft opposite-side fill opens the shadow; rim/back light behind the
-    // subject separates its silhouette from the backdrop.
     if (options.fill) {
       addAccent(options.fill, [-60, 30, 30]);
     }

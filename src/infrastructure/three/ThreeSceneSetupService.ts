@@ -29,12 +29,6 @@ import {
   wrapInUnitsScaleGroup
 } from './sceneSetup';
 
-/**
- * Facade over the scene-setup concerns: each operation lives in its own
- * module under ./sceneSetup; this class only routes the ISceneSetupService
- * port to them and owns the one stateful collaborator, the service-lifetime
- * ContactShadowBaker every bake goes through.
- */
 export class ThreeSceneSetupService implements ISceneSetupService {
   private readonly contactShadowBaker = new ContactShadowBaker();
 
@@ -80,8 +74,6 @@ export class ThreeSceneSetupService implements ISceneSetupService {
         )
       );
     }
-    // Variant materials materialize in the background after load; an early
-    // pick waits for them (immediate for variant-less models).
     await whenMaterialVariantsResolved(native);
     return Result.ok(applyMaterialVariant(native, variant));
   }

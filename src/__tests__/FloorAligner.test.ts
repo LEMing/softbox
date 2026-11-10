@@ -5,12 +5,10 @@ describe('FloorAligner', () => {
   let mockMesh: THREE.Mesh;
 
   beforeEach(() => {
-    // Create a mock mesh before each test
     const geometry = new THREE.BoxGeometry(2, 2, 2);
     const material = new THREE.MeshBasicMaterial();
     mockMesh = new THREE.Mesh(geometry, material);
 
-    // Manually set the bounding box
     mockMesh.geometry.computeBoundingBox();
     if (mockMesh.geometry.boundingBox) {
       mockMesh.geometry.boundingBox.min.set(-1, -1, -1);

@@ -16,8 +16,6 @@ describe('pickRuntimeOptions', () => {
 
     expect(pickRuntimeOptions(options)).toEqual({
       backgroundColor: '#fff',
-      // The effect toggles are always emitted resolved (`?? false`) so removing
-      // one from the options turns it off live; antialias stays structural.
       renderer: {
         toneMappingExposure: 1.2,
         bloom: false,
@@ -28,8 +26,6 @@ describe('pickRuntimeOptions', () => {
       environment: { environmentIntensity: 0.5 },
       controls: { autoRotate: true, autoRotateSpeed: 3 },
       animations: { autoplay: true, speed: 2 },
-      // Only `enabled` is runtime; maxSamples/bounces configure the tracer at
-      // construction and stay structural.
       pathTracing: { enabled: true },
     });
   });
@@ -53,8 +49,6 @@ describe('pickRuntimeOptions', () => {
     };
 
     const result = pickRuntimeOptions(options);
-    // renderer is the exception: the effect toggles are always emitted
-    // resolved-to-false so a removed effect is switched off live.
     expect(result.renderer).toEqual({
       bloom: false,
       vignette: false,
@@ -84,16 +78,11 @@ describe('pickRuntimeOptions', () => {
 
   it('picks an expressed variant through, resolving undefined to null', () => {
     expect(pickRuntimeOptions({ variant: 'beach' }).variant).toBe('beach');
-    // Explicit null (and an expressed-but-undefined key) is the declarative
-    // reset — deepMerge ignores undefined, so it must leave here as null.
     expect(pickRuntimeOptions({ variant: null }).variant).toBeNull();
     expect(pickRuntimeOptions({ variant: undefined }).variant).toBeNull();
   });
 
   it('omits variant entirely when the consumer never expressed it', () => {
-    // An absent key is "uncontrolled": emitting a resolved null here would
-    // make any unrelated runtime prop change revert a variant picked
-    // imperatively via handle.setVariant().
     expect('variant' in pickRuntimeOptions({})).toBe(false);
   });
 

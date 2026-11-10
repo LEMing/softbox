@@ -6,12 +6,6 @@ import { ViewerEventMap as CoreViewerEventMap } from '../../core/events/CoreView
 import { EventAdapter } from '../adapters/EventAdapter';
 import { useViewerEventHandlers } from './useViewerEvents';
 
-/**
- * Bridges the engine-agnostic core event bus to the public, THREE-typed one
- * exposed on the imperative handle. Core payloads carrying adapters are
- * converted (model/controls/object:selected); the rest pass through. Returns
- * the stable public emitter for the handle.
- */
 export function useForwardedEvents(
   viewer: ViewerCore | null
 ): TypedEventEmitter<ViewerEventMap> {
@@ -36,7 +30,7 @@ export function useForwardedEvents(
       'error': (data: CoreViewerEventMap['error']) =>
         eventsRef.current.emit('error', data),
     }),
-    [] // eventsRef is stable
+    []
   );
 
   useViewerEventHandlers(viewer, handlers);

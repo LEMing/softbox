@@ -8,10 +8,8 @@ import * as THREE from 'three';
 export class ThreeFloorAlignmentService implements IFloorAlignmentService {
   alignToFloor(object: IObject3D): Result<void> {
     try {
-      // Get the Three.js object
       let threeObject: THREE.Object3D | null = null;
       
-      // Check if it has getThreeObject method
       if ('getThreeObject' in object && typeof object.getThreeObject === 'function') {
         threeObject = object.getThreeObject() as THREE.Object3D;
       } else if (object instanceof THREE.Object3D) {

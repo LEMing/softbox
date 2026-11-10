@@ -20,7 +20,6 @@ export function addHelpers(scene: IScene, options: IHelperOptions): Result<void>
       );
     }
 
-    // Store grid options and optionally create default grid
     if (options.grid) {
       const userData = threeScene.userData as SceneUserData;
       const gridConfig = typeof options.grid === 'object' ? options.grid : null;
@@ -38,7 +37,6 @@ export function addHelpers(scene: IScene, options: IHelperOptions): Result<void>
         gridOptions
       };
 
-      // Create default grid if requested
       if (gridConfig?.size || gridConfig?.divisions) {
         const gridType = gridOptions.type || GridType.HEXAGONAL_GLASS;
         const gridSize = gridConfig.size || 10;
@@ -63,7 +61,6 @@ export function addHelpers(scene: IScene, options: IHelperOptions): Result<void>
       }
     }
 
-    // Add axes helper
     if (options.axes) {
       const size = options.axesSize || 5;
       const axesHelper = new THREE.AxesHelper(size);
