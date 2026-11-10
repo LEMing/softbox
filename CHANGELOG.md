@@ -1,6 +1,13 @@
 Changelog
 =========
 
+4.26.3
+---
+
+### Documentation
+
+* README wording only. No code changes.
+
 4.26.2
 ---
 

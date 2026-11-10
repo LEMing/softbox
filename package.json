@@ -1,7 +1,7 @@
 {
   "name": "softbox",
   "private": false,
-  "version": "4.26.2",
+  "version": "4.26.3",
   "homepage": "https://leming.github.io/softbox/",
   "type": "module",
   "description": "Studio product renders from a GLB in one React component: a live 3D viewer, path-traced stills and turntable video",
