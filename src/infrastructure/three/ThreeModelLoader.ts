@@ -10,7 +10,7 @@ import { ThreeViewerError, ErrorCode } from '../../errors';
 import * as THREE from 'three';
 
 export interface GLTFLoaderConfig extends LoaderOptions {
-  renderer?: THREE.WebGLRenderer;
+  getRenderer?: () => THREE.WebGLRenderer | null;
   bvh?: boolean;
 }
 
@@ -70,8 +70,9 @@ export class ThreeGLTFLoaderAdapter implements IModelLoader {
     const { KTX2Loader } = await import('three/examples/jsm/loaders/KTX2Loader.js');
     const ktx2 = new KTX2Loader(this.loadingManager);
     ktx2.setTranscoderPath(config.ktx2TranscoderPath ?? DEFAULT_KTX2_TRANSCODER_PATH);
-    if (config.renderer) {
-      ktx2.detectSupport(config.renderer);
+    const renderer = config.getRenderer?.();
+    if (renderer) {
+      ktx2.detectSupport(renderer);
     }
     this.ktx2Loader = ktx2;
     this.loader.setKTX2Loader(ktx2);

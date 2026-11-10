@@ -1,6 +1,19 @@
 Changelog
 =========
 
+4.26.1
+---
+
+### KTX2-compressed models load
+
+* **Models with KTX2/Basis textures load** (broken since the decoders were wired in,
+  3.7.0, then published as `threedviewer`). The model loader was handed the WebGL
+  renderer while the viewer was still being built, before the renderer existed, so
+  `KTX2Loader.detectSupport()` never ran and every KTX2 texture failed with
+  `THREE.KTX2Loader: Missing initialization with .detectSupport( renderer )`. The
+  loader now reads the renderer when the decoders are set up on the first load, after
+  the viewer has initialized it.
+
 4.26.0
 ---
 
