@@ -165,6 +165,7 @@ export const wireViewerCollaborators = (
     reviveRenderLoop,
     isAutoRotating: () => controls.autoRotate,
     isScreenshotActive: () => screenshotManager.isActive(),
+    finishScheduledShadowBake: () => contactShadows.finishScheduledBake(),
   });
 
   const environment = new EnvironmentController({

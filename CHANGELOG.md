@@ -1,6 +1,21 @@
 Changelog
 =========
 
+4.26.2
+---
+
+### Stills taken right after a load carry the baked contact shadow
+
+* **`captureStill()` called straight after `loadModel()` now renders the soft contact
+  shadow of the new model.** The shadow is baked two frames after a load so the bake
+  never holds up the first paint. A raster still taken inside that window rendered
+  first, so it showed the interim live shadow: a batch loop of `loadModel()` then
+  `captureStill()` produced stills that differed from what the viewer showed a moment
+  later. A raster still now finishes the pending bake before it renders, and the live
+  canvas picks the baked shadow up in the same pass.
+* Path-traced stills were never affected, since the tracer casts its own shadows, and a
+  model that is animating keeps its live shadow as before.
+
 4.26.1
 ---
 
