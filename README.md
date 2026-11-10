@@ -49,8 +49,6 @@ softbox turns that geometry into the pictures a product page needs:
 
 Every model gets the same light, the same soft contact shadow and the same automatic framing, so a catalog rendered one configuration at a time still reads as one shoot.
 
-softbox runs in production at [Ergeon](https://www.ergeon.com), where every fence is built to order: the same component shows a configuration live and renders its stills from generated geometry.
-
 ## Is softbox the right tool?
 
 Often it is not, and the alternatives are good.
