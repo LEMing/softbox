@@ -87,3 +87,59 @@ jobs:
 
       - name: Render smoke (real WebGL pixels via SwiftShader)
         run: npm run test:render
+
+  three-floor:
+    name: three peer floor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Read the lowest three the peer range accepts
+        id: floor
+        run: echo "version=$(node scripts/three-peer-floor.mjs)" >> "$GITHUB_OUTPUT"
+
+      - name: Swap in three ${{ steps.floor.outputs.version }}
+        run: npm install --no-save three@${{ steps.floor.outputs.version }}
+
+      - name: Test on the floor runtime
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Type smoke against @types/three ${{ steps.floor.outputs.version }}
+        run: |
+          npm install --no-save three@${{ steps.floor.outputs.version }} @types/three@${{ steps.floor.outputs.version }}
+          npm run type-smoke
+
+  render-smoke-three-floor:
+    name: render-smoke on three peer floor
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Swap in the lowest three the peer range accepts
+        run: npm install --no-save three@$(node scripts/three-peer-floor.mjs)
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Render smoke on the floor runtime
+        run: npm run test:render
