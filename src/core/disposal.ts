@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { disposeBoundsTree } from './bvh';
 
 export const EXTERNALLY_OWNED_TEXTURES_FLAG = 'softboxExternallyOwnedTextures';
 
@@ -30,6 +29,12 @@ export function disposeMaterial(material: THREE.Material): void {
   }
   material.dispose();
   material.userData.softboxDisposed = true;
+}
+
+export function disposeBoundsTree(geometry: THREE.BufferGeometry): void {
+  if (geometry.boundsTree) {
+    geometry.boundsTree = undefined;
+  }
 }
 
 export function disposeObject3D(object: THREE.Object3D): void {

@@ -1,5 +1,5 @@
 import { ThreeViewerError } from '../errors';
-import { Vec3Like } from '../core/interfaces/Vec3Like';
+import { Vec3Like } from '../types/Vec3Like';
 
 export interface ViewerEventMap<TObject, TCamera, TControls, THandle> {
   'initialized': { viewer: THandle };

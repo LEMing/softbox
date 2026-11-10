@@ -8,9 +8,7 @@ import {
   PATH_TRACING_FLOOR_FLAG,
 } from '../ContactShadowBaker';
 import { PathTracingScene } from '../types/PathTracerTypes';
-import { IRenderer } from '../../../core/interfaces/IRenderer';
-import { IScene } from '../../../core/interfaces/IScene';
-import { ICamera } from '../../../core/interfaces/ICamera';
+import type { ViewerRenderer } from '../../../core/rendering/ViewerRenderer';
 import { Result } from '../../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../../errors';
 
@@ -123,29 +121,17 @@ function createStubThreeRenderer(domElement?: HTMLCanvasElement): StubThreeRende
 }
 
 interface RendererMockHandle {
-  renderer: IRenderer;
-  render: jest.Mock<Result<void>, [IScene, ICamera]>;
-  getThreeRenderer: jest.Mock<unknown, []>;
+  renderer: ViewerRenderer;
+  render: jest.Mock<Result<void>, [THREE.Scene, THREE.Camera]>;
+  getWebGLRenderer: jest.Mock<unknown, []>;
   internal: StubThreeRenderer;
 }
 
 function createRendererMock(internal: StubThreeRenderer): RendererMockHandle {
-  const render = jest.fn<Result<void>, [IScene, ICamera]>(() => Result.ok(undefined));
-  const getThreeRenderer = jest.fn<unknown, []>(() => internal);
-  const renderer = { render, getThreeRenderer } as unknown as IRenderer;
-  return { renderer, render, getThreeRenderer, internal };
-}
-
-function createSceneMock(threeScene: THREE.Scene | null): IScene {
-  return {
-    getThreeScene: jest.fn<THREE.Scene | null, []>(() => threeScene),
-  } as unknown as IScene;
-}
-
-function createCameraMock(threeCamera: THREE.Camera | null): ICamera {
-  return {
-    getThreeCamera: jest.fn<THREE.Camera | null, []>(() => threeCamera),
-  } as unknown as ICamera;
+  const render = jest.fn<Result<void>, [THREE.Scene, THREE.Camera]>(() => Result.ok(undefined));
+  const getWebGLRenderer = jest.fn<unknown, []>(() => internal);
+  const renderer = { render, getWebGLRenderer } as unknown as ViewerRenderer;
+  return { renderer, render, getWebGLRenderer, internal };
 }
 
 function equirectTexture(): THREE.Texture {
@@ -158,21 +144,17 @@ interface TestContext {
   service: ThreePathTracingService;
   internal: StubThreeRenderer;
   rendererHandle: RendererMockHandle;
-  threeScene: THREE.Scene;
-  threeCamera: THREE.Camera;
-  scene: IScene;
-  camera: ICamera;
+  scene: THREE.Scene;
+  camera: THREE.Camera;
 }
 
 function setup(domElement?: HTMLCanvasElement): TestContext {
   const internal = createStubThreeRenderer(domElement);
   const rendererHandle = createRendererMock(internal);
   const service = new ThreePathTracingService();
-  const threeScene = new THREE.Scene();
-  const threeCamera = new THREE.PerspectiveCamera();
-  const scene = createSceneMock(threeScene);
-  const camera = createCameraMock(threeCamera);
-  return { service, internal, rendererHandle, threeScene, threeCamera, scene, camera };
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera();
+  return { service, internal, rendererHandle, scene, camera };
 }
 
 async function initialize(ctx: TestContext, enabled: boolean): Promise<void> {
@@ -353,7 +335,7 @@ describe('ThreePathTracingService', () => {
     it('forwards settings to an existing path tracer', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
 
       ctx.service.updateSettings({
@@ -384,7 +366,7 @@ describe('ThreePathTracingService', () => {
 
     it('returns ok when no renderer is attached', async () => {
       const service = new ThreePathTracingService();
-      const result = await service.render(createSceneMock(new THREE.Scene()), createCameraMock(new THREE.PerspectiveCamera()));
+      const result = await service.render(new THREE.Scene(), new THREE.PerspectiveCamera());
       expect(result.ok).toBe(true);
     });
   });
@@ -416,7 +398,7 @@ describe('ThreePathTracingService', () => {
     it('falls back to the standard renderer while the renderer is not ready', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.rendererHandle.getThreeRenderer.mockReturnValue(null);
+      ctx.rendererHandle.getWebGLRenderer.mockReturnValue(null);
 
       const result = await ctx.service.render(ctx.scene, ctx.camera);
 
@@ -429,7 +411,7 @@ describe('ThreePathTracingService', () => {
     it('disables path tracing when path tracer creation fails fatally', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
       PathTracerStatics.shouldThrow = true;
       const pausedListener = jest.fn();
       ctx.service.events.on('pathtracing:paused', pausedListener);
@@ -457,21 +439,6 @@ describe('ThreePathTracingService', () => {
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.code).toBe(ErrorCode.RENDER_FAILED);
-      }
-    });
-  });
-
-  describe('render scene extraction', () => {
-    it('errors when the Three.js scene cannot be extracted', async () => {
-      const ctx = setup();
-      await initialize(ctx, true);
-      const sceneWithoutInternal = createSceneMock(null);
-
-      const result = await ctx.service.render(sceneWithoutInternal, ctx.camera);
-
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error.code).toBe(ErrorCode.INVALID_PARAMETER);
       }
     });
   });
@@ -509,7 +476,7 @@ describe('ThreePathTracingService', () => {
     it('initializes the scene from an existing equirectangular environment', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
 
       const result = await ctx.service.render(ctx.scene, ctx.camera);
 
@@ -523,7 +490,7 @@ describe('ThreePathTracingService', () => {
     it('allocates the dissolve resources once and reuses them across samples', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
 
       const first = await ctx.service.render(ctx.scene, ctx.camera);
       expect(first.ok).toBe(true);
@@ -548,7 +515,7 @@ describe('ThreePathTracingService', () => {
     it('hides the contact-shadow helpers during scene ingest and restores them after', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
 
       const baked = new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.MeshBasicMaterial());
       baked.name = CONTACT_SHADOW_BAKED_NAME;
@@ -559,7 +526,7 @@ describe('ThreePathTracingService', () => {
       liveCatcher.visible = false;
       const impostor = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
       impostor.name = CONTACT_SHADOW_BAKED_NAME;
-      ctx.threeScene.add(baked, liveCatcher, impostor);
+      ctx.scene.add(baked, liveCatcher, impostor);
 
       const bakedVisibilityWrites: boolean[] = [];
       let bakedVisible = true;
@@ -595,12 +562,12 @@ describe('ThreePathTracingService', () => {
     it('shows the tracer-only ground floor for the ingest and hides it again after', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
 
       const ptFloor = new THREE.Mesh(new THREE.CircleGeometry(1), new THREE.MeshStandardMaterial());
       ptFloor.userData[PATH_TRACING_FLOOR_FLAG] = true;
       ptFloor.visible = false;
-      ctx.threeScene.add(ptFloor);
+      ctx.scene.add(ptFloor);
 
       const floorVisibilityWrites: boolean[] = [];
       let floorVisible = false;
@@ -625,14 +592,14 @@ describe('ThreePathTracingService', () => {
       const ctx = setup();
       await initialize(ctx, true);
       const cubeTexture = new THREE.CubeTexture();
-      (ctx.threeScene as PathTracingScene).__originalEnvironmentTexture = cubeTexture;
+      (ctx.scene as PathTracingScene).__originalEnvironmentTexture = cubeTexture;
 
       const result = await ctx.service.render(ctx.scene, ctx.camera);
 
       expect(result.ok).toBe(true);
       expect(peek(ctx.service).sceneInitialized).toBe(true);
       expect(lastPathTracer().setScene).toHaveBeenCalled();
-      expect(ctx.threeScene.environment).toBeNull();
+      expect(ctx.scene.environment).toBeNull();
     });
 
     it('initializes from the original equirectangular data texture', async () => {
@@ -640,7 +607,7 @@ describe('ThreePathTracingService', () => {
       await initialize(ctx, true);
       const dataTexture = new THREE.DataTexture(new Float32Array(4), 1, 1);
       dataTexture.mapping = THREE.EquirectangularReflectionMapping;
-      (ctx.threeScene as PathTracingScene).__originalEnvironmentTexture = dataTexture;
+      (ctx.scene as PathTracingScene).__originalEnvironmentTexture = dataTexture;
 
       const result = await ctx.service.render(ctx.scene, ctx.camera);
 
@@ -657,7 +624,7 @@ describe('ThreePathTracingService', () => {
       Object.defineProperty(img, 'height', { value: 2 });
       const texture = new THREE.Texture(img);
       texture.mapping = THREE.EquirectangularReflectionMapping;
-      (ctx.threeScene as PathTracingScene).__originalEnvironmentTexture = texture;
+      (ctx.scene as PathTracingScene).__originalEnvironmentTexture = texture;
 
       const result = await ctx.service.render(ctx.scene, ctx.camera);
 
@@ -674,7 +641,7 @@ describe('ThreePathTracingService', () => {
       Object.defineProperty(img, 'height', { value: 2 });
       const texture = new THREE.Texture(img);
       texture.mapping = THREE.EquirectangularReflectionMapping;
-      (ctx.threeScene as PathTracingScene).__originalEnvironmentTexture = texture;
+      (ctx.scene as PathTracingScene).__originalEnvironmentTexture = texture;
 
       const cached = new THREE.DataTexture(new Float32Array(4), 1, 1);
       peek(ctx.service).convertedEnvTexture = cached;
@@ -694,7 +661,7 @@ describe('ThreePathTracingService', () => {
       Object.defineProperty(img, 'height', { value: 2 });
       const newEnv = new THREE.Texture(img);
       newEnv.mapping = THREE.EquirectangularReflectionMapping;
-      (ctx.threeScene as PathTracingScene).__originalEnvironmentTexture = newEnv;
+      (ctx.scene as PathTracingScene).__originalEnvironmentTexture = newEnv;
 
       const stale = new THREE.DataTexture(new Float32Array(4), 1, 1);
       const staleDispose = jest.spyOn(stale, 'dispose');
@@ -719,7 +686,7 @@ describe('ThreePathTracingService', () => {
       Object.defineProperty(img, 'complete', { value: false, configurable: true });
       const texture = new THREE.Texture(img);
       texture.mapping = THREE.EquirectangularReflectionMapping;
-      (ctx.threeScene as PathTracingScene).__originalEnvironmentTexture = texture;
+      (ctx.scene as PathTracingScene).__originalEnvironmentTexture = texture;
 
       const pending = ctx.service.render(ctx.scene, ctx.camera);
       img.onload?.(new Event('load'));
@@ -739,7 +706,7 @@ describe('ThreePathTracingService', () => {
       Object.defineProperty(img, 'complete', { value: false, configurable: true });
       const texture = new THREE.Texture(img);
       texture.mapping = THREE.EquirectangularReflectionMapping;
-      (ctx.threeScene as PathTracingScene).__originalEnvironmentTexture = texture;
+      (ctx.scene as PathTracingScene).__originalEnvironmentTexture = texture;
 
       const pending = ctx.service.render(ctx.scene, ctx.camera);
       img.onerror?.(new Event('error'));
@@ -760,7 +727,7 @@ describe('ThreePathTracingService', () => {
       Object.defineProperty(img, 'height', { value: 2 });
       const texture = new THREE.Texture(img);
       texture.mapping = THREE.EquirectangularReflectionMapping;
-      (ctx.threeScene as PathTracingScene).__originalEnvironmentTexture = texture;
+      (ctx.scene as PathTracingScene).__originalEnvironmentTexture = texture;
 
       const result = await ctx.service.render(ctx.scene, ctx.camera);
 
@@ -772,7 +739,7 @@ describe('ThreePathTracingService', () => {
     it('disables path tracing for a non-equirectangular environment without an original', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.threeScene.environment = new THREE.Texture();
+      ctx.scene.environment = new THREE.Texture();
       const pausedListener = jest.fn();
       ctx.service.events.on('pathtracing:paused', pausedListener);
 
@@ -791,7 +758,7 @@ describe('ThreePathTracingService', () => {
       await initialize(ctx, true);
       const dataTexture = new THREE.DataTexture(new Float32Array(4), 1, 1);
       dataTexture.mapping = THREE.EquirectangularReflectionMapping;
-      (ctx.threeScene as PathTracingScene).__originalEnvironmentTexture = dataTexture;
+      (ctx.scene as PathTracingScene).__originalEnvironmentTexture = dataTexture;
 
       await ctx.service.render(ctx.scene, ctx.camera);
       peek(ctx.service).sceneInitialized = false;
@@ -811,7 +778,7 @@ describe('ThreePathTracingService', () => {
     it('configures the path tracer on creation', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
 
       await ctx.service.render(ctx.scene, ctx.camera);
 
@@ -825,7 +792,7 @@ describe('ThreePathTracingService', () => {
       ctx.internal.toneMapping = THREE.ACESFilmicToneMapping;
       ctx.internal.toneMappingExposure = 0.25;
       await initialize(ctx, true);
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
 
       await ctx.service.render(ctx.scene, ctx.camera);
 
@@ -835,7 +802,7 @@ describe('ThreePathTracingService', () => {
     it('propagates a standard renderer failure during accumulation', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
 
       ctx.rendererHandle.render.mockReturnValueOnce(
@@ -853,7 +820,7 @@ describe('ThreePathTracingService', () => {
     it('continues when light updates fail on the first sample', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
 
       ctx.service.reset();
@@ -870,10 +837,10 @@ describe('ThreePathTracingService', () => {
     it('errors when the internal renderer disappears during accumulation', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
 
-      ctx.rendererHandle.getThreeRenderer.mockReturnValueOnce(null);
+      ctx.rendererHandle.getWebGLRenderer.mockReturnValueOnce(null);
 
       const result = await ctx.service.render(ctx.scene, ctx.camera);
 
@@ -895,7 +862,7 @@ describe('ThreePathTracingService', () => {
       const ctx = setup(canvas);
       await initialize(ctx, true);
       ctx.service.updateSettings({ samples: 1 });
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
 
       const pausedListener = jest.fn();
       ctx.service.events.on('pathtracing:paused', pausedListener);
@@ -923,7 +890,7 @@ describe('ThreePathTracingService', () => {
       const ctx = setup();
       await initialize(ctx, true);
       ctx.service.updateSettings({ samples: 1 });
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
 
       await ctx.service.render(ctx.scene, ctx.camera);
       expect(ctx.service.isEnabled()).toBe(false);
@@ -942,7 +909,7 @@ describe('ThreePathTracingService', () => {
       const ctx = setup();
       await initialize(ctx, true);
       ctx.service.updateSettings({ samples: 2 });
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
 
       await ctx.service.render(ctx.scene, ctx.camera);
       const copyRender = jest.fn();
@@ -965,7 +932,7 @@ describe('ThreePathTracingService', () => {
       const ctx = setup();
       await initialize(ctx, true);
       ctx.service.updateSettings({ samples: 1 });
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
       (HTMLCanvasElement.prototype.toDataURL as jest.Mock).mockImplementation(() => {
         throw new Error('capture failed');
       });
@@ -983,7 +950,7 @@ describe('ThreePathTracingService', () => {
       const ctx = setup();
       await initialize(ctx, true);
       ctx.service.updateSettings({ samples: 1 });
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
       ctx.internal.setRenderTarget.mockClear();
 
@@ -1004,7 +971,7 @@ describe('ThreePathTracingService', () => {
     it('a camera-move reset re-syncs the camera without re-ingesting the scene', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
       expect(ctx.service.getSampleCount()).toBe(1);
 
@@ -1023,7 +990,7 @@ describe('ThreePathTracingService', () => {
     it('renders raster-only while the camera is still inside the settle window', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
 
       (performance.now as jest.Mock).mockReturnValue(777_000);
@@ -1042,7 +1009,7 @@ describe('ThreePathTracingService', () => {
     it('a forced reset marks the ingested scene stale (model swap, pose change)', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
 
       ctx.service.reset(true);
@@ -1078,7 +1045,7 @@ describe('ThreePathTracingService', () => {
       const ctx = setup();
       await initialize(ctx, true);
       ctx.service.updateSettings({ samples: 1 });
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
 
       expect(ctx.service.canResume()).toBe(true);
@@ -1089,7 +1056,7 @@ describe('ThreePathTracingService', () => {
     it('is false after a give-up pause — nothing warm to resume', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.threeScene.environment = new THREE.Texture();
+      ctx.scene.environment = new THREE.Texture();
 
       await ctx.service.render(ctx.scene, ctx.camera);
 
@@ -1101,7 +1068,7 @@ describe('ThreePathTracingService', () => {
       const ctx = setup();
       await initialize(ctx, true);
       ctx.service.updateSettings({ samples: 1 });
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
       expect(ctx.service.canResume()).toBe(true);
 
@@ -1123,7 +1090,7 @@ describe('ThreePathTracingService', () => {
       const ctx = setup(canvas);
       await initialize(ctx, true);
       ctx.service.updateSettings({ samples: 1 });
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
 
       expect(parent.querySelector('img')).toBeNull();
@@ -1151,7 +1118,7 @@ describe('ThreePathTracingService', () => {
       Object.defineProperty(img, 'height', { value: 2 });
       const texture = new THREE.Texture(img);
       texture.mapping = THREE.EquirectangularReflectionMapping;
-      (ctx.threeScene as PathTracingScene).__originalEnvironmentTexture = texture;
+      (ctx.scene as PathTracingScene).__originalEnvironmentTexture = texture;
       await ctx.service.render(ctx.scene, ctx.camera);
 
       const tracer = lastPathTracer();
@@ -1169,7 +1136,7 @@ describe('ThreePathTracingService', () => {
     it('continues disposal when the path tracer throws', async () => {
       const ctx = setup();
       await initialize(ctx, true);
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
       lastPathTracer().dispose.mockImplementationOnce(() => {
         throw new Error('dispose failure');
@@ -1184,7 +1151,7 @@ describe('ThreePathTracingService', () => {
       const ctx = setup();
       await initialize(ctx, true);
       ctx.service.updateSettings({ samples: 1 });
-      ctx.threeScene.environment = equirectTexture();
+      ctx.scene.environment = equirectTexture();
       await ctx.service.render(ctx.scene, ctx.camera);
 
       const tracer = lastPathTracer();

@@ -35,7 +35,7 @@ const makeViewer = (loadModel: jest.Mock) =>
     getModelUrl: () => null,
     getCamera: () => null,
     getControls: () => null,
-    getRenderer: () => null,
+    getRenderer: () => ({ getWebGLRenderer: () => null }),
     getEvents: () => new TypedEventEmitter(),
     requestRender: jest.fn(),
     loadModel,

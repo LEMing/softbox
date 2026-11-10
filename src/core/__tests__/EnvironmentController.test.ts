@@ -1,9 +1,9 @@
+import * as THREE from 'three';
 import { EnvironmentController, EnvironmentControllerDependencies } from '../EnvironmentController';
 import { SimpleViewerOptions } from '../../types/SimpleViewerOptions';
 import { Result } from '../../utils/Result';
 import { deepMerge } from '../../utils/deepMerge';
 import { ThreeViewerError, ErrorCode } from '../../errors';
-import { IScene, ITexture } from '../interfaces/IScene';
 import { RenderLoopManager } from '../utils/RenderLoopManager';
 import { PathTracingCoordinator } from '../PathTracingCoordinator';
 
@@ -19,10 +19,10 @@ const makeBundle = (config: {
   disposed?: () => boolean;
 } = {}) => {
   let options: SimpleViewerOptions = config.options ?? {};
-  const scene = { id: 'scene' } as unknown as IScene;
+  const scene = new THREE.Scene();
   const renderLoopManager = { requestRender: jest.fn() } as unknown as RenderLoopManager;
   const pathTracing = { resetAccumulation: jest.fn() } as unknown as PathTracingCoordinator;
-  const texture = { id: 'texture' } as unknown as ITexture;
+  const texture = new THREE.Texture();
   const environmentService =
     config.withEnvironmentService === false
       ? undefined
@@ -168,7 +168,7 @@ describe('EnvironmentController.setEnvironmentMap', () => {
       environmentOverrides: {
         loadEnvironmentMap: jest.fn(async () => {
           disposed = true;
-          return Result.ok({ id: 't' } as unknown as ITexture);
+          return Result.ok(new THREE.Texture());
         }),
       },
     });

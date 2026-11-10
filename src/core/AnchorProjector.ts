@@ -1,17 +1,20 @@
 import * as THREE from 'three';
-import {
-  AnchorProjection,
-  AnchorProjectorSources,
-  IAnchorProjectionService,
-  IAnchorProjector,
-} from '../../core/interfaces/IAnchorProjector';
-import { Vec3Like } from '../../core/interfaces/Vec3Like';
-import { toThreeCamera, toThreeObject } from './unwrap';
+import { Vec3Like } from '../types/Vec3Like';
+
+export type AnchorProjection =
+  | { visible: false }
+  | { visible: true; left: number; top: number };
+
+export interface AnchorProjectorSources {
+  camera: THREE.Camera;
+  getCanvas: () => HTMLCanvasElement | null;
+  getModel: () => THREE.Object3D | null;
+}
 
 const OCCLUSION_EPSILON = 1e-3;
 const HIDDEN: AnchorProjection = { visible: false };
 
-export class ThreeAnchorProjector implements IAnchorProjector {
+export class AnchorProjector {
   private readonly anchor = new THREE.Vector3();
   private readonly projected = new THREE.Vector3();
   private readonly cameraPosition = new THREE.Vector3();
@@ -29,9 +32,9 @@ export class ThreeAnchorProjector implements IAnchorProjector {
   }
 
   project(point: Vec3Like, occlude: boolean): AnchorProjection | null {
-    const camera = toThreeCamera(this.sources.camera);
+    const camera = this.sources.camera;
     const canvas = this.sources.getCanvas();
-    if (!camera || !canvas) {
+    if (!canvas) {
       return null;
     }
     const width = canvas.clientWidth || canvas.width;
@@ -70,7 +73,7 @@ export class ThreeAnchorProjector implements IAnchorProjector {
   }
 
   private isOccluded(camera: THREE.Camera): boolean {
-    const model = toThreeObject(this.sources.getModel());
+    const model = this.sources.getModel();
     if (!model) {
       return false;
     }
@@ -81,11 +84,5 @@ export class ThreeAnchorProjector implements IAnchorProjector {
     this.raycaster.firstHitOnly = true;
     const hit = this.raycaster.intersectObject(model, true)[0];
     return Boolean(hit && hit.distance < anchorDistance - OCCLUSION_EPSILON);
-  }
-}
-
-export class ThreeAnchorProjectionService implements IAnchorProjectionService {
-  createProjector(sources: AnchorProjectorSources): IAnchorProjector {
-    return new ThreeAnchorProjector(sources);
   }
 }

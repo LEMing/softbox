@@ -34,16 +34,12 @@ export default tseslint.config(
       'no-restricted-syntax': [
         'error',
         {
-          selector: "ImportExpression Literal[value=/^(three($|\\/)|three-gpu-pathtracer|three-mesh-bvh|threedgizmo)/]",
-          message: 'Clean architecture: src/core must stay engine-agnostic — dynamic imports of the Three.js ecosystem included.',
-        },
-        {
           selector: "ImportExpression Literal[value=/(^|\\/)(infrastructure|presentation|site)\\//]",
           message: 'Clean architecture: src/core must not lazy-load infrastructure, presentation or the site either — depend on an interface in src/core instead.',
         },
         {
           selector: 'ImportExpression[source.type!="Literal"]',
-          message: 'Dynamic imports in core must use a plain string literal so the layer/ecosystem bans can inspect the specifier.',
+          message: 'Dynamic imports in core must use a plain string literal so the layer bans can inspect the specifier.',
         },
       ],
       'no-restricted-imports': ['error', {
@@ -52,45 +48,19 @@ export default tseslint.config(
             group: ['**/infrastructure/**', '**/presentation/**', '**/site/**'],
             message: 'Clean architecture: src/core must not depend on infrastructure, presentation or the site. Depend on an interface in src/core instead.',
           },
-          {
-            group: ['three', 'three/*', 'three-gpu-pathtracer', 'three-mesh-bvh', 'threedgizmo'],
-            message: 'Clean architecture: src/core must stay engine-agnostic. Wrap Three.js (and its ecosystem) behind an interface in src/infrastructure.',
-          },
-          {
-            group: [
-              '**/types/CommonTypes', '**/types/CommonTypes.*',
-              '**/types/SimpleViewerHandle', '**/types/SimpleViewerHandle.*',
-              '**/events/ViewerEvents', '**/events/ViewerEvents.*',
-            ],
-            message: 'These shared modules carry Three.js types for the public React surface; core must not reach them (see the engine-agnostic shared-module lint blocks).',
-          },
-          {
-            regex: '(^|/)(types|types/index|events|events/index)$',
-            message: 'Barrel imports re-export Three.js-typed public-surface modules into core; import the specific module instead.',
-          },
         ],
       }],
     },
   },
   {
     files: ['src/types/**/*.ts', 'src/events/**/*.ts', 'src/errors/**/*.ts', 'src/utils/**/*.ts'],
-    ignores: [
-      'src/**/__tests__/**',
-      'src/types/CommonTypes.ts',
-      'src/types/SimpleViewerHandle.ts',
-      'src/events/ViewerEvents.ts',
-      'src/events/index.ts',
-    ],
+    ignores: ['src/**/__tests__/**'],
     rules: {
       'no-restricted-syntax': [
         'error',
         {
-          selector: "ImportExpression Literal[value=/^(three($|\\/)|three-gpu-pathtracer|three-mesh-bvh|threedgizmo)/]",
-          message: 'This module is in engine-agnostic core\'s transitive import closure — dynamic imports of the Three.js ecosystem included.',
-        },
-        {
           selector: "ImportExpression Literal[value=/(^|\\/)(infrastructure|presentation|site)\\//]",
-          message: 'This module is in engine-agnostic core\'s transitive import closure — lazy-loading an adapter would smuggle Three.js in through one hop.',
+          message: 'This module is in core\'s transitive import closure — lazy-loading an adapter would make core depend on infrastructure through one hop.',
         },
         {
           selector: 'ImportExpression[source.type!="Literal"]',
@@ -100,20 +70,8 @@ export default tseslint.config(
       'no-restricted-imports': ['error', {
         patterns: [
           {
-            group: ['three', 'three/*', 'three-gpu-pathtracer', 'three-mesh-bvh', 'threedgizmo'],
-            message: 'This module is in engine-agnostic core\'s transitive import closure; use primitives or a Vec3Like, not Three.js types.',
-          },
-          {
             group: ['**/infrastructure/**', '**/presentation/**', '**/site/**'],
-            message: 'This module is in engine-agnostic core\'s transitive import closure; importing an adapter would smuggle Three.js into core through one hop.',
-          },
-          {
-            group: [
-              '**/CommonTypes', '**/CommonTypes.*',
-              '**/SimpleViewerHandle', '**/SimpleViewerHandle.*',
-              '**/ViewerEvents', '**/ViewerEvents.*',
-            ],
-            message: 'This sibling module carries Three.js types for the public React surface; a module in core\'s import closure must not re-export or depend on it.',
+            message: 'This module is in core\'s transitive import closure; importing an adapter would make core depend on infrastructure through one hop.',
           },
         ],
       }],

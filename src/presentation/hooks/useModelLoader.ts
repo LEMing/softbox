@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { ViewerCore } from '../../core/ViewerCore';
-import { ThreeObject3DAdapter } from '../../infrastructure/three/ThreeObject3D';
 
 export type ModelLoadStatus = 'idle' | 'loading' | 'loaded' | 'error';
 
@@ -40,10 +39,7 @@ export function useModelLoader(
     }
 
     let active = true;
-    const toLoad = typeof object === 'string'
-      ? object
-      : new ThreeObject3DAdapter(object as THREE.Object3D);
-    viewer.loadModel(toLoad).then((result) => {
+    viewer.loadModel(object).then((result) => {
       if (!active || viewer.isDisposed()) {
         return;
       }

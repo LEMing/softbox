@@ -1,5 +1,5 @@
-import { ThreeRendererAdapter } from '../ThreeRenderer';
-import { PostProcessingPipeline } from '../postprocessing/PostProcessingPipeline';
+import { ViewerRenderer } from '../ViewerRenderer';
+import { PostProcessingPipeline } from '../PostProcessingPipeline';
 
 jest.mock('three/examples/jsm/postprocessing/EffectComposer.js', () => ({
   EffectComposer: class {
@@ -32,17 +32,17 @@ const stubInternalRenderer = () => ({
 });
 
 const makeAdapter = (requestedRatio: number) => {
-  const adapter = new ThreeRendererAdapter();
+  const adapter = new ViewerRenderer();
   const internal = stubInternalRenderer();
   (adapter as unknown as { renderer: unknown }).renderer = internal;
   (adapter as unknown as { requestedPixelRatio: number }).requestedPixelRatio = requestedRatio;
   return { adapter, internal };
 };
 
-const pipelineOf = (adapter: ThreeRendererAdapter): PostProcessingPipeline | null =>
+const pipelineOf = (adapter: ViewerRenderer): PostProcessingPipeline | null =>
   (adapter as unknown as { postPipeline: PostProcessingPipeline | null }).postPipeline;
 
-describe('ThreeRendererAdapter.setPostProcessing', () => {
+describe('ViewerRenderer.setPostProcessing', () => {
   it('builds a pipeline when an effect turns on, and caps the pixel ratio at 2', () => {
     const { adapter, internal } = makeAdapter(3);
 
@@ -76,7 +76,7 @@ describe('ThreeRendererAdapter.setPostProcessing', () => {
   });
 
   it('is a safe no-op before the renderer is initialized', () => {
-    const adapter = new ThreeRendererAdapter();
+    const adapter = new ViewerRenderer();
     expect(() =>
       adapter.setPostProcessing({ bloom: true, vignette: false, filmGrain: false, colorGrade: false })
     ).not.toThrow();

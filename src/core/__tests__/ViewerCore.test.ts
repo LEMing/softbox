@@ -1,18 +1,10 @@
+import * as THREE from 'three';
+import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { ViewerCore, ViewerDependencies } from '../ViewerCore';
-import {
-  IRenderer,
-  IScene,
-  ICamera,
-  IControls,
-  IModelLoader,
-  IModel,
-  IObject3D,
-  IVector3,
-  ITexture,
-  IAnchorProjectionService,
-  IAnchorProjector,
-  Result,
-} from '../interfaces';
+import { IModelLoader, IModel } from '../services/IModelLoader';
+import { ViewerRenderer } from '../rendering/ViewerRenderer';
+import { AnchorProjector } from '../AnchorProjector';
+import { Result } from '../../utils/Result';
 import { IPathTracingService, PathTracingPausedEvent } from '../services/IPathTracingService';
 import { IEnvironmentService } from '../services/IEnvironmentService';
 import { ISceneSetupService } from '../services/ISceneSetupService';
@@ -47,40 +39,9 @@ const deferred = <T>(): Deferred<T> => {
   return { promise, resolve };
 };
 
-const makeVector3 = (): IVector3 => ({
-  x: 0,
-  y: 0,
-  z: 0,
-  set: jest.fn(),
-  copy: jest.fn(),
-  add: jest.fn(),
-  multiply: jest.fn(),
-  normalize: jest.fn(),
-  length: jest.fn(() => 0),
-});
+const makeTexture = (): THREE.Texture => new THREE.Texture();
 
-const makeTexture = (): ITexture => ({
-  id: 'texture',
-  image: null,
-  needsUpdate: false,
-  dispose: jest.fn(),
-});
-
-const makeObject3D = (): IObject3D => ({
-  id: 'object',
-  name: 'object',
-  visible: true,
-  castShadow: false,
-  receiveShadow: false,
-  position: makeVector3(),
-  rotation: makeVector3(),
-  scale: makeVector3(),
-  add: jest.fn(() => Result.ok(undefined)),
-  remove: jest.fn(() => Result.ok(undefined)),
-  traverse: jest.fn(),
-  clone: jest.fn(() => makeObject3D()),
-  dispose: jest.fn(),
-});
+const makeObject3D = (): THREE.Object3D => new THREE.Object3D();
 
 const makeCanvas = (width = 800, height = 600): HTMLCanvasElement => {
   const canvas = document.createElement('canvas');
@@ -92,112 +53,59 @@ const makeCanvas = (width = 800, height = 600): HTMLCanvasElement => {
 const makeRenderer = (
   canvas: HTMLCanvasElement,
   overrides: Overrides = {}
-): jest.Mocked<IRenderer> => {
-  const internalRenderer = { autoClear: true };
-  const base: IRenderer & { getInternalRenderer: jest.Mock } = {
-    id: 'renderer',
+): jest.Mocked<ViewerRenderer> => {
+  const webGLRenderer = { autoClear: true };
+  const renderer: Record<string, jest.Mock> = {
     initialize: jest.fn(() => Result.ok(undefined)),
-    render: jest.fn(() => Result.ok(undefined)),
+    render: jest.fn((_scene: THREE.Scene, _camera: THREE.Camera) => Result.ok(undefined)),
+    renderPostProcessed: jest.fn((scene: THREE.Scene, camera: THREE.Camera): Result<void> =>
+      renderer.render(scene, camera)
+    ),
     setSize: jest.fn(),
     setPixelRatio: jest.fn(),
     getPixelRatio: jest.fn(() => 1),
     setToneMappingExposure: jest.fn(),
     setPostProcessing: jest.fn(),
+    setPostProcessingErrorHandler: jest.fn(),
     getDomElement: jest.fn(() => canvas),
-    getContext: jest.fn(() => null),
+    getWebGLRenderer: jest.fn(() => webGLRenderer),
+    getMaxTextureSize: jest.fn(() => 4096),
     dispose: jest.fn(),
     isDisposed: jest.fn(() => false),
-    capabilities: {
-      maxTextureSize: 4096,
-      maxCubemapSize: 4096,
-      maxAttributes: 16,
-      maxVertexUniforms: 1024,
-      maxFragmentUniforms: 1024,
-      maxSamples: 4,
-      isWebGL2: true,
-    },
-    getInternalRenderer: jest.fn(() => internalRenderer),
+    ...overrides,
   };
-  return { ...base, ...overrides } as unknown as jest.Mocked<IRenderer>;
+  return renderer as unknown as jest.Mocked<ViewerRenderer>;
 };
 
-const makeScene = (overrides: Overrides = {}): jest.Mocked<IScene> => {
-  const base = {
-    id: 'scene',
-    name: 'scene',
-    add: jest.fn(() => Result.ok(undefined)),
-    remove: jest.fn(() => Result.ok(undefined)),
-    clear: jest.fn(),
-    disposeContents: jest.fn(),
-    traverse: jest.fn(),
-    background: null,
-    fog: null,
-    environment: null,
-    setEnvironmentIntensity: jest.fn(),
-    getInternalRenderer: jest.fn(() => null),
-  };
-  return { ...base, ...overrides } as unknown as jest.Mocked<IScene>;
+const makeScene = (overrides: Overrides = {}): jest.Mocked<THREE.Scene> => {
+  const scene = new THREE.Scene();
+  jest.spyOn(scene, 'add');
+  return Object.assign(scene, overrides) as unknown as jest.Mocked<THREE.Scene>;
 };
 
-const makeCamera = (overrides: Overrides = {}): jest.Mocked<ICamera> => {
-  const base = {
-    id: 'camera',
-    name: 'camera',
-    type: 'perspective',
-    visible: true,
-    near: 0.1,
-    far: 1000,
-    aspect: 1,
-    position: makeVector3(),
-    rotation: makeVector3(),
-    scale: makeVector3(),
-    lookAt: jest.fn(),
-    updateProjectionMatrix: jest.fn(),
-    getWorldDirection: jest.fn(),
-    add: jest.fn(() => Result.ok(undefined)),
-    remove: jest.fn(() => Result.ok(undefined)),
-    traverse: jest.fn(),
-    clone: jest.fn(),
-    dispose: jest.fn(),
-    getInternalRenderer: jest.fn(() => null),
-  };
-  return { ...base, ...overrides } as unknown as jest.Mocked<ICamera>;
+const makeCamera = (): jest.Mocked<THREE.PerspectiveCamera> => {
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 1000);
+  jest.spyOn(camera, 'updateProjectionMatrix');
+  return camera as jest.Mocked<THREE.PerspectiveCamera>;
 };
 
-const makeControls = (overrides: Overrides = {}): jest.Mocked<IControls> => {
+const makeControls = (overrides: Overrides = {}): jest.Mocked<OrbitControls> => {
   const base = {
     enabled: true,
-    enableDamping: false,
-    dampingFactor: 0.05,
-    enableZoom: true,
-    enableRotate: true,
-    enablePan: true,
-    zoomSpeed: 1,
-    minDistance: 0,
-    maxDistance: Infinity,
-    rotateSpeed: 1,
-    minPolarAngle: 0,
-    maxPolarAngle: Math.PI,
-    minAzimuthAngle: -Infinity,
-    maxAzimuthAngle: Infinity,
-    panSpeed: 1,
-    screenSpacePanning: true,
     autoRotate: false,
     autoRotateSpeed: 2,
-    target: makeVector3(),
+    target: new THREE.Vector3(),
     update: jest.fn(() => false),
-    onChange: jest.fn(() => () => undefined),
-    reset: jest.fn(),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
     dispose: jest.fn(),
-    connect: jest.fn(),
-    disconnect: jest.fn(),
   };
-  return { ...base, ...overrides } as unknown as jest.Mocked<IControls>;
+  return { ...base, ...overrides } as unknown as jest.Mocked<OrbitControls>;
 };
 
 const makeModelLoader = (overrides: Overrides = {}): jest.Mocked<IModelLoader> => {
   const base = {
-    load: jest.fn(async () => Result.ok({ scene: makeObject3D(), animations: [] })),
+    load: jest.fn(async () => Result.ok({ scene: makeObject3D() })),
     supports: jest.fn(() => true),
   };
   return { ...base, ...overrides } as unknown as jest.Mocked<IModelLoader>;
@@ -269,10 +177,10 @@ const makePathTracingService = (
 interface DepsBundle {
   deps: ViewerDependencies;
   canvas: HTMLCanvasElement;
-  renderer: jest.Mocked<IRenderer>;
-  scene: jest.Mocked<IScene>;
-  camera: jest.Mocked<ICamera>;
-  controls: jest.Mocked<IControls>;
+  renderer: jest.Mocked<ViewerRenderer>;
+  scene: jest.Mocked<THREE.Scene>;
+  camera: jest.Mocked<THREE.PerspectiveCamera>;
+  controls: jest.Mocked<OrbitControls>;
   modelLoader: jest.Mocked<IModelLoader>;
   sceneSetupService?: jest.Mocked<ISceneSetupService>;
   environmentService?: jest.Mocked<IEnvironmentService>;
@@ -769,7 +677,7 @@ describe('ViewerCore', () => {
     });
 
     it('aborts when disposed during environment map load', async () => {
-      const envLoad = deferred<Result<ITexture>>();
+      const envLoad = deferred<Result<THREE.Texture>>();
       const bundle = makeDeps({
         options: { environment: { url: 'env.hdr' } },
         withEnvironment: true,
@@ -841,7 +749,11 @@ describe('ViewerCore', () => {
     it('surfaces model manager errors and records an error state', async () => {
       const addError = new ThreeViewerError('add failed', ErrorCode.SCENE_OPERATION_FAILED);
       const bundle = makeDeps({
-        sceneOverrides: { add: jest.fn(() => Result.err(addError)) },
+        sceneOverrides: {
+          add: jest.fn(() => {
+            throw addError;
+          }),
+        },
       });
       const viewer = new ViewerCore(bundle.deps);
       await viewer.initialize();
@@ -902,13 +814,15 @@ describe('ViewerCore', () => {
       await tick();
       viewer.dispose();
 
-      const loadedModel = makeObject3D();
+      const geometry = new THREE.BufferGeometry();
+      const disposeGeometry = jest.spyOn(geometry, 'dispose');
+      const loadedModel = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial());
       modelLoad.resolve(Result.ok({ scene: loadedModel }));
       const result = await load;
 
       expect(result.ok).toBe(false);
       expect(!result.ok && result.error.code).toBe(ErrorCode.INVALID_STATE);
-      expect(loadedModel.dispose).toHaveBeenCalled();
+      expect(disposeGeometry).toHaveBeenCalled();
     });
   });
 
@@ -924,7 +838,6 @@ describe('ViewerCore', () => {
       bundle.modelLoader.load.mockResolvedValue(
         Result.ok({
           scene: makeObject3D(),
-          animations: [],
           userData: { [VARIANT_NAMES_KEY]: names },
         })
       );
@@ -1037,9 +950,9 @@ describe('ViewerCore', () => {
     it('does nothing when the canvas dimensions AND camera aspect are unchanged', () => {
       const canvas = makeCanvas(640, 480);
       const bundle = makeDeps({ canvas });
-      (bundle.camera as unknown as { aspect: number }).aspect = 640 / 480;
+      bundle.camera.aspect = 640 / 480;
       const viewer = new ViewerCore(bundle.deps);
-      (bundle.camera.updateProjectionMatrix as jest.Mock).mockClear();
+      bundle.camera.updateProjectionMatrix.mockClear();
       bundle.renderer.render.mockClear();
 
       viewer.resize(640, 480);
@@ -1071,7 +984,7 @@ describe('ViewerCore', () => {
 
       viewer.resize(800, 600);
 
-      const aspect = (bundle.camera as unknown as { aspect: number }).aspect;
+      const aspect = bundle.camera.aspect;
       expect(aspect).toBeCloseTo(800 / 600);
       expect(bundle.camera.updateProjectionMatrix).toHaveBeenCalled();
       expect(bundle.renderer.setSize).toHaveBeenCalledWith(800, 600);
@@ -1082,7 +995,7 @@ describe('ViewerCore', () => {
       const canvas = makeCanvas(961, 720);
       const bundle = makeDeps({ canvas });
       bundle.renderer.getPixelRatio.mockReturnValue(1.5);
-      (bundle.camera as unknown as { aspect: number }).aspect = 641 / 480;
+      bundle.camera.aspect = 641 / 480;
       const viewer = new ViewerCore(bundle.deps);
       bundle.renderer.render.mockClear();
 
@@ -1096,9 +1009,9 @@ describe('ViewerCore', () => {
       const canvas = makeCanvas(1280, 960);
       const bundle = makeDeps({ canvas });
       bundle.renderer.getPixelRatio.mockReturnValue(2);
-      (bundle.camera as unknown as { aspect: number }).aspect = 640 / 480;
+      bundle.camera.aspect = 640 / 480;
       const viewer = new ViewerCore(bundle.deps);
-      (bundle.camera.updateProjectionMatrix as jest.Mock).mockClear();
+      bundle.camera.updateProjectionMatrix.mockClear();
       bundle.renderer.render.mockClear();
 
       viewer.resize(640, 480);
@@ -1111,12 +1024,12 @@ describe('ViewerCore', () => {
     it('re-applies the camera aspect on a rebuild that reuses an already-sized canvas', () => {
       const canvas = makeCanvas(1920, 1000);
       const bundle = makeDeps({ canvas });
-      (bundle.camera as unknown as { aspect: number }).aspect = 1;
+      bundle.camera.aspect = 1;
       const viewer = new ViewerCore(bundle.deps);
 
       viewer.resize(1920, 1000);
 
-      const aspect = (bundle.camera as unknown as { aspect: number }).aspect;
+      const aspect = bundle.camera.aspect;
       expect(aspect).toBeCloseTo(1920 / 1000);
       expect(bundle.camera.updateProjectionMatrix).toHaveBeenCalled();
       expect(bundle.renderer.setSize).not.toHaveBeenCalled();
@@ -1609,29 +1522,30 @@ describe('ViewerCore', () => {
       expect(animationService.play).toHaveBeenCalledWith('Walk');
     });
 
-    it('createAnchorProjector returns null without an anchor projection service', () => {
-      const bundle = makeDeps();
+    it('createAnchorProjector projects anchors through the viewer camera onto its canvas', () => {
+      const bundle = makeDeps({ canvas: makeCanvas(800, 600) });
+      bundle.camera.position.set(0, 0, 5);
+      bundle.camera.lookAt(0, 0, 0);
+      bundle.camera.updateMatrixWorld();
       const viewer = new ViewerCore(bundle.deps);
 
-      expect(viewer.createAnchorProjector()).toBeNull();
-    });
+      const projector = viewer.createAnchorProjector();
 
-    it('createAnchorProjector wires the viewer camera, canvas and model into the service', () => {
-      const bundle = makeDeps();
-      const projector: IAnchorProjector = {
-        project: jest.fn(() => null),
-        invalidate: jest.fn(),
-      };
-      const service: IAnchorProjectionService = {
-        createProjector: jest.fn(() => projector),
-      };
-      const viewer = new ViewerCore({ ...bundle.deps, anchorProjectionService: service });
-
-      expect(viewer.createAnchorProjector()).toBe(projector);
-      const sources = (service.createProjector as jest.Mock).mock.calls[0][0];
-      expect(sources.camera).toBe(bundle.camera);
-      expect(sources.getCanvas()).toBe(bundle.canvas);
-      expect(sources.getModel()).toBeNull();
+      expect(projector).toBeInstanceOf(AnchorProjector);
+      expect(projector.project({ x: 0, y: 0, z: 0 }, false)).toEqual({
+        visible: true,
+        left: 400,
+        top: 300,
+      });
+      expect(projector.project({ x: 0, y: 0, z: 10 }, false)).toBeNull();
+      projector.invalidate();
+      expect(projector.project({ x: 0, y: 0, z: 10 }, false)).toEqual({ visible: false });
+      projector.invalidate();
+      expect(projector.project({ x: 0, y: 0, z: 0 }, true)).toEqual({
+        visible: true,
+        left: 400,
+        top: 300,
+      });
     });
   });
 
@@ -1667,7 +1581,11 @@ describe('ViewerCore', () => {
       const addError = new ThreeViewerError('add', ErrorCode.SCENE_OPERATION_FAILED);
       const bundle = makeDeps({
         options: { staticScene: true },
-        sceneOverrides: { add: jest.fn(() => Result.err(addError)) },
+        sceneOverrides: {
+          add: jest.fn(() => {
+            throw addError;
+          }),
+        },
       });
       const viewer = new ViewerCore(bundle.deps);
       await viewer.initialize();
@@ -1800,7 +1718,7 @@ describe('ViewerCore', () => {
 
       expect(completeHandler).toHaveBeenCalled();
       expect(setAlwaysRenderSpy).toHaveBeenCalledWith(false);
-      const internal = bundle.renderer.getInternalRenderer() as { autoClear: boolean };
+      const internal = bundle.renderer.getWebGLRenderer() as unknown as { autoClear: boolean };
       expect(internal.autoClear).not.toBe(false);
 
       jest.advanceTimersByTime(150);
@@ -1925,11 +1843,13 @@ describe('ViewerCore', () => {
       const bundle = makeDeps({
         options: { staticScene: true },
         controlsOverrides: {
-          onChange: jest.fn((listener: () => void) => {
+          addEventListener: jest.fn((type: string, listener: () => void) => {
             changeListener = listener;
-            return () => {
+          }),
+          removeEventListener: jest.fn((type: string, listener: () => void) => {
+            if (listener === changeListener) {
               changeListener = null;
-            };
+            }
           }),
         },
       });
@@ -2058,12 +1978,14 @@ describe('ViewerCore', () => {
       const stopSpy = jest.spyOn(RenderLoopManager.prototype, 'stop');
       const viewer = new ViewerCore(bundle.deps);
       await viewer.initialize();
+      const sceneContent = new THREE.Object3D();
+      bundle.scene.add(sceneContent);
 
       renderCallback!(16);
       jest.advanceTimersByTime(100);
 
       expect(captureSpy).toHaveBeenCalled();
-      expect(bundle.scene.disposeContents).toHaveBeenCalled();
+      expect(bundle.scene.children).not.toContain(sceneContent);
 
       jest.advanceTimersByTime(200);
       expect(stopSpy).toHaveBeenCalled();
@@ -2134,13 +2056,15 @@ describe('ViewerCore', () => {
       const screenshotDisposeSpy = jest.spyOn(ScreenshotManager.prototype, 'dispose');
       const viewer = new ViewerCore(bundle.deps);
       await viewer.initialize();
+      const sceneContent = new THREE.Object3D();
+      bundle.scene.add(sceneContent);
 
       viewer.dispose();
 
       expect(modelDisposeSpy).toHaveBeenCalled();
       expect(resourceDisposeSpy).toHaveBeenCalled();
       expect(screenshotDisposeSpy).toHaveBeenCalled();
-      expect(bundle.scene.disposeContents).toHaveBeenCalled();
+      expect(bundle.scene.children).not.toContain(sceneContent);
       expect(bundle.controls.dispose).toHaveBeenCalled();
       expect(bundle.renderer.dispose).toHaveBeenCalled();
       expect(viewer.getState().status).toBe('disposed');
@@ -2597,7 +2521,7 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     });
 
     expect(bundle.renderer.setToneMappingExposure).toHaveBeenCalledWith(1.4);
-    expect(bundle.scene.setEnvironmentIntensity).toHaveBeenCalledWith(0.6);
+    expect(bundle.scene.environmentIntensity).toBe(0.6);
   });
 
   it('skips the live setters when those fields are absent', () => {
@@ -2607,7 +2531,7 @@ describe('ViewerCore.updateOptions (runtime options)', () => {
     viewer.updateOptions({ renderer: {}, environment: {} });
 
     expect(bundle.renderer.setToneMappingExposure).not.toHaveBeenCalled();
-    expect(bundle.scene.setEnvironmentIntensity).not.toHaveBeenCalled();
+    expect(bundle.scene.environmentIntensity).toBe(1);
   });
 
   it('is a no-op after dispose', () => {
@@ -2820,7 +2744,7 @@ describe('ViewerCore.captureStill', () => {
     const result = await viewer.captureStill({ width: 1600, height: 400 });
 
     expect(result.ok).toBe(true);
-    const aspect = (bundle.camera as unknown as { aspect: number }).aspect;
+    const aspect = bundle.camera.aspect;
     expect(aspect).toBeCloseTo(400 / 300);
     expect(bundle.camera.updateProjectionMatrix).toHaveBeenCalled();
   });
@@ -3185,6 +3109,16 @@ describe('ViewerCore selection wiring', () => {
       point: { x: 0, y: 0, z: 0 },
     });
     expect(onSelected).not.toHaveBeenCalled();
+  });
+
+  it('exposes the injected renderer, scene, camera and controls', () => {
+    const bundle = makeDeps();
+    const viewer = new ViewerCore(bundle.deps);
+
+    expect(viewer.getRenderer()).toBe(bundle.renderer);
+    expect(viewer.getScene()).toBe(bundle.scene);
+    expect(viewer.getCamera()).toBe(bundle.camera);
+    expect(viewer.getControls()).toBe(bundle.controls);
   });
 
   it('exposes the loaded model via getModel', async () => {

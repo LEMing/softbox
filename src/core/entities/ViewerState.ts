@@ -1,4 +1,4 @@
-import { IObject3D } from '../interfaces/IObject3D';
+import type * as THREE from 'three';
 import { ThreeViewerError } from '../../errors/ThreeViewerError';
 
 export type ViewerStatus = 
@@ -11,7 +11,7 @@ export type ViewerStatus =
 
 export interface ViewerStateData {
   status: ViewerStatus;
-  currentModel: IObject3D | null;
+  currentModel: THREE.Object3D | null;
   error: ThreeViewerError | null;
   isInitialized: boolean;
   loadProgress: number;
@@ -49,7 +49,7 @@ export class ViewerState {
     return this.data.status;
   }
 
-  get currentModel(): IObject3D | null {
+  get currentModel(): THREE.Object3D | null {
     return this.data.currentModel;
   }
 
@@ -93,7 +93,7 @@ export class ViewerState {
     });
   }
 
-  setLoaded(model: IObject3D): ViewerState {
+  setLoaded(model: THREE.Object3D): ViewerState {
     return new ViewerState({
       ...this.data,
       status: 'loaded',

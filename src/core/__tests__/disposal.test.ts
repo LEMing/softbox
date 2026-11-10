@@ -7,7 +7,7 @@ import {
   EXTERNALLY_OWNED_TEXTURES_FLAG,
   STASHED_MATERIALS_KEY,
 } from '../disposal';
-import { buildRaycastBvh } from '../bvh';
+import { buildRaycastBvh } from '../../infrastructure/three/bvh';
 
 describe('disposal', () => {
   describe('disposeMaterial', () => {

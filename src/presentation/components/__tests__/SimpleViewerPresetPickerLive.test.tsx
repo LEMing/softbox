@@ -34,7 +34,7 @@ describe('SimpleViewer preset picker (real hooks, live-apply seam)', () => {
       getEvents: jest.fn(() => ({ on: jest.fn(), off: jest.fn() })),
       getCamera: jest.fn(() => null),
       getControls: jest.fn(() => null),
-      getRenderer: jest.fn(() => null),
+      getRenderer: jest.fn(() => ({ getWebGLRenderer: () => null })),
       getScene: jest.fn(() => null),
     getModelUrl: () => null,
       requestRender: jest.fn(),

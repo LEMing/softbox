@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { ThreeAnimationService } from '../ThreeAnimationService';
-import { IObject3D } from '../../../core/interfaces';
 import { ErrorCode } from '../../../errors';
 
 const makeAnimatedModel = () => {
@@ -13,13 +12,13 @@ const makeAnimatedModel = () => {
     new THREE.NumberKeyframeTrack('box.position[y]', [0, 1], [0, 5]),
   ]);
   mesh.animations = [spin, bounce];
-  return { mesh, adapter: { getThreeObject: () => mesh } as unknown as IObject3D };
+  return { mesh };
 };
 
 describe('ThreeAnimationService', () => {
   it('reads clip names from the attached model root', () => {
     const service = new ThreeAnimationService();
-    service.attach(makeAnimatedModel().adapter);
+    service.attach(makeAnimatedModel().mesh);
 
     expect(service.getClipNames()).toEqual(['Spin', 'Bounce']);
   });
@@ -30,7 +29,7 @@ describe('ThreeAnimationService', () => {
     positioningGroup.add(mesh);
     const service = new ThreeAnimationService();
 
-    service.attach({ getThreeObject: () => positioningGroup } as unknown as IObject3D);
+    service.attach(positioningGroup);
     service.play('Spin');
     service.update(0.5);
 
@@ -39,9 +38,9 @@ describe('ThreeAnimationService', () => {
   });
 
   it('play() without a name advances ALL clips', () => {
-    const { mesh, adapter } = makeAnimatedModel();
+    const { mesh } = makeAnimatedModel();
     const service = new ThreeAnimationService();
-    service.attach(adapter);
+    service.attach(mesh);
 
     service.play();
     service.update(0.5);
@@ -52,9 +51,9 @@ describe('ThreeAnimationService', () => {
   });
 
   it('play(name) advances only that clip', () => {
-    const { mesh, adapter } = makeAnimatedModel();
+    const { mesh } = makeAnimatedModel();
     const service = new ThreeAnimationService();
-    service.attach(adapter);
+    service.attach(mesh);
 
     const result = service.play('Bounce');
     service.update(0.5);
@@ -65,9 +64,9 @@ describe('ThreeAnimationService', () => {
   });
 
   it('play(unknownName) errs and lists the clips the model carries', () => {
-    const { adapter } = makeAnimatedModel();
+    const { mesh } = makeAnimatedModel();
     const service = new ThreeAnimationService();
-    service.attach(adapter);
+    service.attach(mesh);
 
     const result = service.play('Walk');
 
@@ -80,7 +79,7 @@ describe('ThreeAnimationService', () => {
   it('play(name) with no clips attached errs INVALID_STATE, not a bad-name error', () => {
     const bare = new THREE.Object3D();
     const service = new ThreeAnimationService();
-    service.attach({ getThreeObject: () => bare } as unknown as IObject3D);
+    service.attach(bare);
 
     const result = service.play('Walk');
 
@@ -90,9 +89,9 @@ describe('ThreeAnimationService', () => {
   });
 
   it('pause() freezes the pose and play() resumes without restarting', () => {
-    const { mesh, adapter } = makeAnimatedModel();
+    const { mesh } = makeAnimatedModel();
     const service = new ThreeAnimationService();
-    service.attach(adapter);
+    service.attach(mesh);
 
     service.play('Spin');
     service.update(0.25);
@@ -108,9 +107,9 @@ describe('ThreeAnimationService', () => {
   });
 
   it('play(differentClip) after pause() switches instead of resuming the old clip', () => {
-    const { mesh, adapter } = makeAnimatedModel();
+    const { mesh } = makeAnimatedModel();
     const service = new ThreeAnimationService();
-    service.attach(adapter);
+    service.attach(mesh);
 
     service.play('Spin');
     service.update(0.25);
@@ -124,9 +123,9 @@ describe('ThreeAnimationService', () => {
   });
 
   it('setSpeed scales playback', () => {
-    const { mesh, adapter } = makeAnimatedModel();
+    const { mesh } = makeAnimatedModel();
     const service = new ThreeAnimationService();
-    service.attach(adapter);
+    service.attach(mesh);
     service.setSpeed(2);
 
     service.play('Spin');
@@ -138,7 +137,7 @@ describe('ThreeAnimationService', () => {
   it('is inert for a bare play() on a model without clips', () => {
     const bare = new THREE.Object3D();
     const service = new ThreeAnimationService();
-    service.attach({ getThreeObject: () => bare } as unknown as IObject3D);
+    service.attach(bare);
 
     expect(service.play().ok).toBe(true);
     expect(service.getClipNames()).toEqual([]);
@@ -146,9 +145,9 @@ describe('ThreeAnimationService', () => {
   });
 
   it('detach() stops playback and forgets the clips', () => {
-    const { adapter } = makeAnimatedModel();
+    const { mesh } = makeAnimatedModel();
     const service = new ThreeAnimationService();
-    service.attach(adapter);
+    service.attach(mesh);
     service.play();
 
     service.detach();
@@ -160,7 +159,7 @@ describe('ThreeAnimationService', () => {
   it('attach() replaces the previous model wholesale', () => {
     const first = makeAnimatedModel();
     const service = new ThreeAnimationService();
-    service.attach(first.adapter);
+    service.attach(first.mesh);
     service.play();
 
     const solo = new THREE.Object3D();
@@ -170,7 +169,7 @@ describe('ThreeAnimationService', () => {
         new THREE.NumberKeyframeTrack('solo.position[z]', [0, 1], [0, 1]),
       ]),
     ];
-    service.attach({ getThreeObject: () => solo } as unknown as IObject3D);
+    service.attach(solo);
 
     expect(service.getClipNames()).toEqual(['Solo']);
     expect(service.isPlaying()).toBe(false);

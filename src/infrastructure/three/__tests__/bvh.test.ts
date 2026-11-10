@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { acceleratedRaycast } from 'three-mesh-bvh';
-import { buildRaycastBvh, disposeBoundsTree } from '../bvh';
+import { buildRaycastBvh } from '../bvh';
+import { disposeBoundsTree } from '../../../core/disposal';
 
 type BvhGeometry = THREE.BufferGeometry & { boundsTree?: unknown };
 

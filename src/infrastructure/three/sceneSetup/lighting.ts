@@ -1,28 +1,15 @@
 import * as THREE from 'three';
 import { ILightingOptions } from '../../../core/services/ISceneSetupService';
-import { IScene } from '../../../core/interfaces/IScene';
 import { Result } from '../../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../../errors';
-import { toThreeScene } from '../unwrap';
 
-export function addLighting(scene: IScene, options: ILightingOptions): Result<void> {
+export function addLighting(scene: THREE.Scene, options: ILightingOptions): Result<void> {
   try {
-    const threeScene = toThreeScene(scene);
-    if (!threeScene) {
-      return Result.err(
-        new ThreeViewerError(
-          'Scene must be ThreeSceneAdapter',
-          ErrorCode.INVALID_PARAMETER
-        )
-      );
-    }
-
-
     if (options.ambient) {
       const color = new THREE.Color(options.ambient.color || '#404040');
       const intensity = options.ambient.intensity ?? Math.PI;
       const ambientLight = new THREE.AmbientLight(color, intensity);
-      threeScene.add(ambientLight);
+      scene.add(ambientLight);
     }
 
     if (options.hemisphere) {
@@ -30,7 +17,7 @@ export function addLighting(scene: IScene, options: ILightingOptions): Result<vo
       const groundColor = new THREE.Color(options.hemisphere.groundColor || '#080820');
       const intensity = options.hemisphere.intensity ?? 1;
       const hemisphereLight = new THREE.HemisphereLight(skyColor, groundColor, intensity);
-      threeScene.add(hemisphereLight);
+      scene.add(hemisphereLight);
     }
 
     if (options.directional) {
@@ -88,8 +75,8 @@ export function addLighting(scene: IScene, options: ILightingOptions): Result<vo
       }
 
       directionalLight.target.position.set(0, 0, 0);
-      threeScene.add(directionalLight);
-      threeScene.add(directionalLight.target);
+      scene.add(directionalLight);
+      scene.add(directionalLight.target);
 
       if (directionalLight.shadow) {
         directionalLight.shadow.camera.updateProjectionMatrix();
@@ -107,8 +94,8 @@ export function addLighting(scene: IScene, options: ILightingOptions): Result<vo
       const pos = accent.position ?? fallback;
       light.position.set(pos[0], pos[1], pos[2]);
       light.target.position.set(0, 0, 0);
-      threeScene.add(light);
-      threeScene.add(light.target);
+      scene.add(light);
+      scene.add(light.target);
     };
     if (options.fill) {
       addAccent(options.fill, [-60, 30, 30]);

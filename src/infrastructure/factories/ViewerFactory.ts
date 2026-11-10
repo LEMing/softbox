@@ -1,12 +1,11 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { MapControls } from 'three/examples/jsm/controls/MapControls';
 import { ViewerCore, ViewerDependencies } from '../../core/ViewerCore';
+import { ViewerRenderer } from '../../core/rendering/ViewerRenderer';
 import { resolveUnitsScaleToMeters } from '../../core/utils/units';
 import { SimpleViewerOptions } from '../../types/SimpleViewerOptions';
-import { 
-  ThreeRendererAdapter,
-  ThreeSceneAdapter,
-  ThreePerspectiveCameraAdapter,
-  ThreeOrbitControlsAdapter,
-  ThreeMapControlsAdapter,
+import {
   ModelLoaderFactory,
   GLTFLoaderConfig,
   LazyPathTracingService,
@@ -14,12 +13,10 @@ import {
   ThreeSceneSetupService,
   ThreeFloorAlignmentService,
   ThreeSelectionService,
-  ThreeAnchorProjectionService,
   ThreeAnimationService
 } from '../three';
 import { ControlType } from '../../types/options';
 import { RendererOptionsConverter } from '../converters/RendererOptionsConverter';
-import * as THREE from 'three';
 
 export class ViewerFactory {
   static createViewer(
@@ -28,20 +25,16 @@ export class ViewerFactory {
   ): ViewerCore {
     resolveUnitsScaleToMeters(options.units);
 
-    const renderer = new ThreeRendererAdapter(canvas);
+    const renderer = new ViewerRenderer(canvas);
     
-    const scene = new ThreeSceneAdapter();
+    const scene = new THREE.Scene();
     
     const camera = this.createCamera(options);
     
-    const controls = this.createControls(
-      camera.getThreeCamera(),
-      canvas,
-      options
-    );
+    const controls = this.createControls(camera, canvas, options);
     
     const modelLoader = new ExtendedModelLoaderFactory().createDefaultLoader({
-      renderer: renderer.getThreeRenderer() ?? undefined,
+      renderer: renderer.getWebGLRenderer() ?? undefined,
       bvh: options.selection?.bvh,
       ...options.loaders,
     });
@@ -55,8 +48,6 @@ export class ViewerFactory {
     const floorAlignmentService = new ThreeFloorAlignmentService();
 
     const selectionService = new ThreeSelectionService();
-
-    const anchorProjectionService = new ThreeAnchorProjectionService();
 
     const animationService = new ThreeAnimationService();
     
@@ -79,14 +70,13 @@ export class ViewerFactory {
       pathTracingService,
       floorAlignmentService,
       selectionService,
-      anchorProjectionService,
       animationService
     };
     
     return new ViewerCore(dependencies);
   }
   
-  private static createCamera(options: SimpleViewerOptions): ThreePerspectiveCameraAdapter {
+  private static createCamera(options: SimpleViewerOptions): THREE.PerspectiveCamera {
     const cameraOptions = options.camera || {};
     
     const legacyOptions = cameraOptions as { 
@@ -108,12 +98,7 @@ export class ViewerFactory {
     const position = legacyOptions.position || legacyOptions.cameraPosition;
     const target = legacyOptions.target || legacyOptions.cameraTarget;
     
-    const camera = ThreePerspectiveCameraAdapter.create(
-      fov,
-      1,
-      near,
-      far
-    );
+    const camera = new THREE.PerspectiveCamera(fov, 1, near, far);
     
     if (position) {
       camera.position.set(
@@ -124,17 +109,7 @@ export class ViewerFactory {
     }
     
     if (target) {
-      camera.lookAt({
-        x: target[0],
-        y: target[1],
-        z: target[2],
-        set: () => {},
-        copy: () => {},
-        add: () => {},
-        multiply: () => {},
-        normalize: () => {},
-        length: () => 0
-      });
+      camera.lookAt(target[0], target[1], target[2]);
     }
     
     return camera;
@@ -144,17 +119,13 @@ export class ViewerFactory {
     camera: THREE.Camera,
     domElement: HTMLElement,
     options: SimpleViewerOptions
-  ): ThreeOrbitControlsAdapter | ThreeMapControlsAdapter {
+  ): OrbitControls {
     const controlsOptions = options.controls || {};
-    const type = controlsOptions.type || ControlType.OrbitControls;
-    
-    let controls: ThreeOrbitControlsAdapter | ThreeMapControlsAdapter;
-    
-    if (type === ControlType.MapControls) {
-      controls = new ThreeMapControlsAdapter(camera, domElement);
-    } else {
-      controls = new ThreeOrbitControlsAdapter(camera, domElement);
-    }
+    const controls = this.instantiateControls(
+      controlsOptions.type || ControlType.OrbitControls,
+      camera,
+      domElement
+    );
     
     controls.enabled = controlsOptions.enabled ?? true;
     controls.enableDamping = controlsOptions.enableDamping ?? true;
@@ -187,12 +158,25 @@ export class ViewerFactory {
       cameraTarget?: [number, number, number];
     };
     const target = legacyOptions.target || legacyOptions.cameraTarget;
-    if (target && controls.target) {
+    if (target) {
       controls.target.set(target[0], target[1], target[2]);
       controls.update();
     }
     
     return controls;
+  }
+
+  private static instantiateControls(
+    type: ControlType,
+    camera: THREE.Camera,
+    domElement: HTMLElement
+  ): OrbitControls {
+    if (type === ControlType.MapControls) {
+      const mapControls = new MapControls(camera, domElement);
+      mapControls.screenSpacePanning = true;
+      return mapControls;
+    }
+    return new OrbitControls(camera, domElement);
   }
 }
 

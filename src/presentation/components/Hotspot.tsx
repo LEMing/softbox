@@ -36,9 +36,6 @@ export function Hotspot({ position, occlude = false, children }: HotspotProps) {
       return;
     }
     const projector = viewer.createAnchorProjector();
-    if (!projector) {
-      return;
-    }
 
     const anchor = { x, y, z };
     const update = () => {

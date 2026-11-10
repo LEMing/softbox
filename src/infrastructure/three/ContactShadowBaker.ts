@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { disposeObject3D } from './disposal';
+import { disposeObject3D } from '../../core/disposal';
 
 export const CONTACT_SHADOW_BAKED_NAME = 'contact-shadow-baked';
 export const CONTACT_SHADOW_LIVE_NAME = 'contact-shadow-live';

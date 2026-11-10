@@ -1,4 +1,6 @@
-import { IRenderer, IScene, ICamera, Result } from './interfaces';
+import type * as THREE from 'three';
+import type { ViewerRenderer } from './rendering/ViewerRenderer';
+import { Result } from '../utils/Result';
 import { TypedEventEmitter } from '../events/EventEmitter';
 import { ViewerEventMap } from './events/CoreViewerEvents';
 import { ThreeViewerError, ErrorCode } from '../errors';
@@ -14,9 +16,9 @@ import { bestEffort } from '../utils/bestEffort';
 type CaptureWaitOutcome = 'complete' | 'disposed' | 'error' | 'turntable';
 
 export interface CaptureControllerDependencies {
-  renderer: IRenderer;
-  scene: IScene;
-  camera: ICamera;
+  renderer: ViewerRenderer;
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
   events: TypedEventEmitter<ViewerEventMap>;
   renderLoopManager: RenderLoopManager;
   pathTracing: PathTracingCoordinator;
@@ -300,7 +302,7 @@ export class CaptureController {
       options.height ?? (options.width !== undefined ? options.width / liveAspect : liveHeight * livePixelRatio)
     );
 
-    const maxSize = renderer.capabilities.maxTextureSize;
+    const maxSize = renderer.getMaxTextureSize();
     if (
       !Number.isFinite(targetWidth) || !Number.isFinite(targetHeight) ||
       targetWidth <= 0 || targetHeight <= 0 ||
@@ -317,18 +319,12 @@ export class CaptureController {
     renderer.setPixelRatio(1);
     renderer.setSize(targetWidth, targetHeight);
     applyCameraAspect(camera, targetWidth / targetHeight);
-    const rendered = renderer.renderPostProcessed
-      ? renderer.renderPostProcessed(scene, camera)
-      : renderer.render(scene, camera);
+    const rendered = renderer.renderPostProcessed(scene, camera);
     const still = rendered.ok ? this.readCanvasPng() : Result.err(rendered.error);
     renderer.setSize(liveWidth, liveHeight);
     renderer.setPixelRatio(livePixelRatio);
     applyCameraAspect(camera, liveAspect);
-    if (renderer.renderPostProcessed) {
-      renderer.renderPostProcessed(scene, camera);
-    } else {
-      renderer.render(scene, camera);
-    }
+    renderer.renderPostProcessed(scene, camera);
     renderLoopManager.requestRender();
     return still;
   }

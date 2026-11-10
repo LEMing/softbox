@@ -38,7 +38,7 @@ describe('StateManager', () => {
         traverse: jest.fn()
       };
       
-      stateManager.setLoaded(mockModel as unknown as import('../../interfaces').IObject3D);
+      stateManager.setLoaded(mockModel as unknown as import('three').Object3D);
       
       expect(stateManager.getStatus()).toBe('loaded');
       expect(stateManager.getCurrentModel()).toBe(mockModel);
@@ -79,7 +79,7 @@ describe('StateManager', () => {
 
     it('should set disposed state', () => {
       const mockModel = { dispose: jest.fn(), traverse: jest.fn() };
-      stateManager.setLoaded(mockModel as unknown as import('../../interfaces').IObject3D);
+      stateManager.setLoaded(mockModel as unknown as import('three').Object3D);
       stateManager.setDisposed();
       
       expect(stateManager.getStatus()).toBe('disposed');
@@ -97,7 +97,7 @@ describe('StateManager', () => {
       stateManager.startLoading();
       expect(stateManager.canLoad()).toBe(false);
       
-      stateManager.setLoaded({ dispose: jest.fn() } as unknown as import('../../interfaces').IObject3D);
+      stateManager.setLoaded({ dispose: jest.fn() } as unknown as import('three').Object3D);
       expect(stateManager.canLoad()).toBe(true);
       
       stateManager.setError(new ThreeViewerError('Test', ErrorCode.MODEL_LOAD_FAILED));

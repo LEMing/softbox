@@ -9,9 +9,8 @@ import { useViewerCore, useViewerEventHandlers } from '../../hooks';
 import { TypedEventEmitter } from '../../../events/EventEmitter';
 import { ViewerEventMap } from '../../../core/events/CoreViewerEvents';
 import { ViewerCore } from '../../../core/ViewerCore';
-import { ICamera, IObject3D } from '../../../core/interfaces';
+import { AnchorProjector } from '../../../core/AnchorProjector';
 import { buildRaycastBvh } from '../../../infrastructure/three/bvh';
-import { ThreeAnchorProjector } from '../../../infrastructure/three/ThreeAnchorProjector';
 
 jest.mock('../../hooks', () => ({
   ...jest.requireActual('../../hooks'),
@@ -33,17 +32,15 @@ const makeViewer = (model: THREE.Object3D | null = null) => {
   Object.defineProperty(canvas, 'clientHeight', { value: 200, configurable: true });
 
   const bus = new TypedEventEmitter<ViewerEventMap>();
-  const cameraAdapter = { getThreeCamera: () => camera } as unknown as ICamera;
-  const getModel = () =>
-    (model ? { getThreeObject: () => model } : null) as IObject3D | null;
+  const getModel = () => model;
   const viewer = {
-    getCamera: () => cameraAdapter,
+    getCamera: () => camera,
     getDomElement: () => canvas,
     getEvents: () => bus,
     getModel,
     createAnchorProjector: () =>
-      new ThreeAnchorProjector({
-        camera: cameraAdapter,
+      new AnchorProjector({
+        camera,
         getCanvas: () => canvas,
         getModel,
       }),
@@ -138,17 +135,6 @@ describe('Hotspot', () => {
     renderHotspot(viewer, canvas, { position: [0, 0, 0], children: false });
 
     expect(screen.getByTestId('viewer-hotspot').querySelector('span')).not.toBeNull();
-  });
-
-  it('stays hidden and unsubscribed when the viewer has no anchor projection service', () => {
-    const { viewer, canvas, bus } = makeViewer();
-    (viewer as unknown as { createAnchorProjector: () => null }).createAnchorProjector =
-      () => null;
-
-    renderHotspot(viewer, canvas, { position: [0, 0, 0] });
-
-    expect(screen.getByTestId('viewer-hotspot').style.visibility).toBe('hidden');
-    expect(bus.listenerCount('render:complete')).toBe(0);
   });
 
   it('unsubscribes from viewer events on unmount', () => {

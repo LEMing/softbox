@@ -7,9 +7,7 @@ import {
   IPathTracingSettings,
   PathTracingPausedEvent
 } from '../../core/services/IPathTracingService';
-import { IRenderer } from '../../core/interfaces/IRenderer';
-import { IScene } from '../../core/interfaces/IScene';
-import { ICamera } from '../../core/interfaces/ICamera';
+import type { ViewerRenderer } from '../../core/rendering/ViewerRenderer';
 import { DEFAULT_PATH_TRACING_SAMPLES } from '../../core/constants';
 import { Result } from '../../utils/Result';
 import { smoothstep01 } from '../../utils/smoothstep';
@@ -19,7 +17,6 @@ import {
   PathTracingWebGLRenderer,
   PathTracingScene
 } from './types/PathTracerTypes';
-import { toThreeScene, toThreeCamera, toThreeRenderer } from './unwrap';
 import { TypedEventEmitter } from '../../events/EventEmitter';
 import { CONTACT_SHADOW_HELPER_FLAG, PATH_TRACING_FLOOR_FLAG } from './ContactShadowBaker';
 import { provideCubeUvChunkForPathTracer } from './cubeUvChunkForPathTracer';
@@ -94,13 +91,13 @@ export class ThreePathTracingService implements IPathTracingService {
   }
 
   private getThreeRenderer(): PathTracingWebGLRenderer | null {
-    return toThreeRenderer(this.renderer);
+    return this.renderer?.getWebGLRenderer() ?? null;
   }
 
   private pathTracer: ExtendedWebGLPathTracer | null = null;
   private settings: IPathTracingSettings;
   private enabled: boolean = false;
-  private renderer: IRenderer | null = null;
+  private renderer: ViewerRenderer | null = null;
   private sampleCount: number = 0;
   private createAttempts: number = 0;
   private maxCreateAttempts: number = 10;
@@ -271,7 +268,7 @@ export class ThreePathTracingService implements IPathTracingService {
     }
   }
 
-  async render(scene: IScene, camera: ICamera): Promise<Result<void>> {
+  async render(scene: THREE.Scene, camera: THREE.Camera): Promise<Result<void>> {
     if (this.disposed) {
       return Result.ok(undefined);
     }
@@ -293,21 +290,8 @@ export class ThreePathTracingService implements IPathTracingService {
     }
 
     try {
-      const objects = this.extractThreeObjects(scene, camera);
-      if (!objects) {
-        return Result.err(
-          new ThreeViewerError(
-            'Could not extract Three.js scene or camera',
-            ErrorCode.INVALID_PARAMETER
-          )
-        );
-      }
-      const { threeScene, threeCamera } = objects;
-
       if (!this.sceneInitialized) {
-        const initOutcome = await this.initializeSceneForPathTracing(
-          renderer, scene, camera, threeScene, threeCamera
-        );
+        const initOutcome = await this.initializeSceneForPathTracing(renderer, scene, camera);
         if (initOutcome) {
           return initOutcome;
         }
@@ -330,7 +314,7 @@ export class ThreePathTracingService implements IPathTracingService {
   }
 
   private ensurePathTracerCreated(
-    renderer: IRenderer, scene: IScene, camera: ICamera
+    renderer: ViewerRenderer, scene: THREE.Scene, camera: THREE.Camera
   ): Result<void> | null {
     this.createAttempts++;
     const createResult = this.createPathTracer();
@@ -351,27 +335,14 @@ export class ThreePathTracingService implements IPathTracingService {
     return renderer.render(scene, camera);
   }
 
-  private extractThreeObjects(
-    scene: IScene, camera: ICamera
-  ): { threeScene: THREE.Scene; threeCamera: THREE.Camera } | null {
-    const threeScene = toThreeScene(scene);
-    const threeCamera = toThreeCamera(camera);
-    if (!threeScene || !threeCamera) {
-      return null;
-    }
-    return { threeScene, threeCamera };
-  }
-
   private async initializeSceneForPathTracing(
-    renderer: IRenderer,
-    scene: IScene,
-    camera: ICamera,
-    threeScene: THREE.Scene,
-    threeCamera: THREE.Camera
+    renderer: ViewerRenderer,
+    scene: THREE.Scene,
+    camera: THREE.Camera
   ): Promise<Result<void> | null> {
     try {
-      const originalEnvTexture = (threeScene as PathTracingScene).__originalEnvironmentTexture;
-      if (!threeScene.environment && !originalEnvTexture) {
+      const originalEnvTexture = (scene as PathTracingScene).__originalEnvironmentTexture;
+      if (!scene.environment && !originalEnvTexture) {
         this.environmentWaitFrames++;
         if (this.environmentWaitFrames >= this.maxEnvironmentWaitFrames) {
           this.disableAfterSelfPause('gave-up');
@@ -383,13 +354,13 @@ export class ThreePathTracingService implements IPathTracingService {
       this.environmentWaitFrames = 0;
 
       if (originalEnvTexture && (originalEnvTexture as THREE.CubeTexture).isCubeTexture) {
-        const currentEnv = threeScene.environment;
-        threeScene.environment = originalEnvTexture;
+        const currentEnv = scene.environment;
+        scene.environment = originalEnvTexture;
         try {
-          this.ingestSceneWithoutShadowHelpers(threeScene, threeCamera);
+          this.ingestSceneWithoutShadowHelpers(scene, camera);
           this.sceneInitialized = true;
         } finally {
-          threeScene.environment = currentEnv;
+          scene.environment = currentEnv;
         }
       } else if (originalEnvTexture && originalEnvTexture.mapping === THREE.EquirectangularReflectionMapping) {
         let textureForPathTracing: THREE.Texture = originalEnvTexture;
@@ -410,8 +381,8 @@ export class ThreePathTracingService implements IPathTracingService {
           }
         }
 
-        const currentEnv = threeScene.environment;
-        threeScene.environment = textureForPathTracing;
+        const currentEnv = scene.environment;
+        scene.environment = textureForPathTracing;
 
         try {
           const texImage = originalEnvTexture.image as HTMLImageElement | (ImageData & { data?: unknown }) | null;
@@ -432,16 +403,16 @@ export class ThreePathTracingService implements IPathTracingService {
             }
           }
 
-          this.ingestSceneWithoutShadowHelpers(threeScene, threeCamera);
+          this.ingestSceneWithoutShadowHelpers(scene, camera);
           this.sceneInitialized = true;
 
-          threeScene.environment = currentEnv;
+          scene.environment = currentEnv;
         } catch (setSceneError) {
-          threeScene.environment = currentEnv;
+          scene.environment = currentEnv;
           throw setSceneError;
         }
-      } else if (threeScene.environment?.mapping === THREE.EquirectangularReflectionMapping) {
-        this.ingestSceneWithoutShadowHelpers(threeScene, threeCamera);
+      } else if (scene.environment?.mapping === THREE.EquirectangularReflectionMapping) {
+        this.ingestSceneWithoutShadowHelpers(scene, camera);
         this.sceneInitialized = true;
       } else {
         this.disableAfterSelfPause('gave-up');
@@ -455,7 +426,7 @@ export class ThreePathTracingService implements IPathTracingService {
     return null;
   }
 
-  private accumulateSample(renderer: IRenderer, scene: IScene, camera: ICamera): Result<void> {
+  private accumulateSample(renderer: ViewerRenderer, scene: THREE.Scene, camera: THREE.Camera): Result<void> {
     if (this.sampleCount === 0) {
       try {
         this.pathTracer?.updateLights();
@@ -526,7 +497,7 @@ export class ThreePathTracingService implements IPathTracingService {
     return smoothstep01(Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0))));
   }
 
-  private captureRasterFade(renderer: IRenderer, scene: IScene, camera: ICamera): void {
+  private captureRasterFade(renderer: ViewerRenderer, scene: THREE.Scene, camera: THREE.Camera): void {
     const threeRenderer = this.getThreeRenderer();
     if (!threeRenderer) {
       return;
@@ -622,7 +593,7 @@ export class ThreePathTracingService implements IPathTracingService {
     });
   }
 
-  private renderWhileDisabled(scene: IScene, camera: ICamera): Result<void> {
+  private renderWhileDisabled(scene: THREE.Scene, camera: THREE.Camera): Result<void> {
     if (!this.renderer) {
       return Result.ok(undefined);
     }

@@ -1,31 +1,13 @@
 import { IFloorAlignmentService } from '../../core/services/IFloorAlignmentService';
-import { IObject3D } from '../../core/interfaces/IObject3D';
 import { Result } from '../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import FloorAligner from './FloorAligner';
 import * as THREE from 'three';
 
 export class ThreeFloorAlignmentService implements IFloorAlignmentService {
-  alignToFloor(object: IObject3D): Result<void> {
+  alignToFloor(object: THREE.Object3D): Result<void> {
     try {
-      let threeObject: THREE.Object3D | null = null;
-      
-      if ('getThreeObject' in object && typeof object.getThreeObject === 'function') {
-        threeObject = object.getThreeObject() as THREE.Object3D;
-      } else if (object instanceof THREE.Object3D) {
-        threeObject = object;
-      }
-      
-      if (!threeObject) {
-        return Result.err(
-          new ThreeViewerError(
-            'Could not get Three.js object for floor alignment',
-            ErrorCode.INVALID_PARAMETER
-          )
-        );
-      }
-      
-      const aligner = new FloorAligner(threeObject);
+      const aligner = new FloorAligner(object);
       aligner.alignToFloor();
       
       return Result.ok(undefined);

@@ -26,13 +26,6 @@ import { PresetPicker } from './PresetPicker';
 import { ArButton } from './ArButton';
 import { PosterOverlay } from './PosterOverlay';
 import { resolveLoadingIndicator } from './loadingIndicatorConfig';
-import { ThreeObject3DAdapter } from '../../infrastructure/three/ThreeObject3D';
-import {
-  toThreeCamera,
-  toThreeControls,
-  toThreeRenderer,
-  toThreeScene,
-} from '../../infrastructure/three/unwrap';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import * as THREE from 'three';
 
@@ -62,9 +55,9 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
     const events = useForwardedEvents(viewer);
     useOptionCallbacks(viewer, initError, options);
 
-    const camera = viewer ? toThreeCamera(viewer.getCamera()) : null;
-    const controls = viewer ? toThreeControls(viewer.getControls()) : null;
-    const renderer = viewer ? toThreeRenderer(viewer.getRenderer()) : null;
+    const camera = viewer?.getCamera() ?? null;
+    const controls = viewer?.getControls() ?? null;
+    const renderer = viewer?.getRenderer().getWebGLRenderer() ?? null;
 
     const renderScene = useCallback(() => {
       viewer?.requestRender();
@@ -125,7 +118,7 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
 
     useImperativeHandle(ref, () => {
       return {
-        scene: viewer ? toThreeScene(viewer.getScene()) : null,
+        scene: viewer?.getScene() ?? null,
         camera,
         renderer,
         controls,
@@ -134,10 +127,7 @@ export const SimpleViewer = forwardRef<SimpleViewerHandle, SimpleViewerProps>(
           if (!viewer) {
             throw notReadyError();
           }
-          const toLoad = typeof source === 'string'
-            ? source
-            : new ThreeObject3DAdapter(source);
-          const result = await viewer.loadModel(toLoad);
+          const result = await viewer.loadModel(source);
           if (!result.ok) {
             throw result.error;
           }

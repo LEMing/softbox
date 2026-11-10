@@ -1,7 +1,5 @@
 import * as THREE from 'three';
 import { ThreeSceneSetupService } from '../ThreeSceneSetupService';
-import { ThreeSceneAdapter } from '../ThreeScene';
-import { ThreeObject3DAdapter } from '../ThreeObject3D';
 import { GridType } from '../grids/IGridStyle';
 import { CONTACT_SHADOW_LIVE_NAME, PATH_TRACING_FLOOR_FLAG } from '../ContactShadowBaker';
 
@@ -27,8 +25,8 @@ describe('ThreeSceneSetupService.addDynamicGrid', () => {
     threeScene.add(model);
 
     const result = new ThreeSceneSetupService().addDynamicGrid(
-      new ThreeSceneAdapter(threeScene),
-      new ThreeObject3DAdapter(model)
+      threeScene,
+      model
     );
 
     expect(result.ok).toBe(true);
@@ -45,8 +43,8 @@ describe('ThreeSceneSetupService.addDynamicGrid', () => {
     threeScene.add(model);
 
     const result = new ThreeSceneSetupService().addDynamicGrid(
-      new ThreeSceneAdapter(threeScene),
-      new ThreeObject3DAdapter(model)
+      threeScene,
+      model
     );
 
     expect(result.ok).toBe(true);
@@ -63,11 +61,11 @@ describe('ThreeSceneSetupService.addDynamicGrid', () => {
     model.position.set(100, 1, -40);
     threeScene.add(model);
     const service = new ThreeSceneSetupService();
-    service.addDynamicGrid(new ThreeSceneAdapter(threeScene), new ThreeObject3DAdapter(model));
+    service.addDynamicGrid(threeScene, model);
 
     model.position.set(0, 1, 0);
     model.updateMatrixWorld(true);
-    service.addDynamicGrid(new ThreeSceneAdapter(threeScene), new ThreeObject3DAdapter(model));
+    service.addDynamicGrid(threeScene, model);
 
     const grids = threeScene.children.filter((child) => child.userData?.isGrid);
     expect(grids).toHaveLength(1);
@@ -83,8 +81,8 @@ describe('ThreeSceneSetupService.addDynamicGrid', () => {
     threeScene.add(model);
 
     new ThreeSceneSetupService().addDynamicGrid(
-      new ThreeSceneAdapter(threeScene),
-      new ThreeObject3DAdapter(model)
+      threeScene,
+      model
     );
 
     const grid = findGrid(threeScene)!;

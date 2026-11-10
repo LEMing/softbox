@@ -1,16 +1,9 @@
-import {
-  IRenderer,
-  IRendererOptions,
-  IScene,
-  IModelLoader,
-  ICamera,
-  IPerspectiveCamera,
-  IControls,
-  IObject3D,
-  IAnchorProjectionService,
-  IAnchorProjector,
-  Result
-} from './interfaces';
+import type * as THREE from 'three';
+import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { IModelLoader } from './services/IModelLoader';
+import { ViewerRenderer, ViewerRendererOptions } from './rendering/ViewerRenderer';
+import { AnchorProjector } from './AnchorProjector';
+import { Result } from '../utils/Result';
 import { TypedEventEmitter } from '../events/EventEmitter';
 import { ViewerEventMap } from './events/CoreViewerEvents';
 import { ThreeViewerError, ErrorCode } from '../errors';
@@ -43,19 +36,18 @@ import { bestEffort } from '../utils/bestEffort';
 export type { CaptureStillOptions };
 
 export interface ViewerDependencies {
-  renderer: IRenderer;
-  scene: IScene;
-  camera: ICamera;
-  controls: IControls;
+  renderer: ViewerRenderer;
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  controls: OrbitControls;
   modelLoader: IModelLoader;
   options: SimpleViewerOptions;
-  rendererOptions?: IRendererOptions;
+  rendererOptions?: ViewerRendererOptions;
   pathTracingService?: IPathTracingService;
   environmentService?: IEnvironmentService;
   sceneSetupService?: ISceneSetupService;
   floorAlignmentService?: IFloorAlignmentService;
   selectionService?: ISelectionService;
-  anchorProjectionService?: IAnchorProjectionService;
   animationService?: IAnimationService;
   deferToNextFrame?: (callback: () => void) => void;
 }
@@ -78,16 +70,15 @@ export class ViewerCore {
   private readonly environment: EnvironmentController;
   private controlsChangeUnsubscribe: (() => void) | null = null;
 
-  private readonly renderer: IRenderer;
-  private readonly scene: IScene;
-  private readonly camera: ICamera;
-  private readonly controls: IControls;
+  private readonly renderer: ViewerRenderer;
+  private readonly scene: THREE.Scene;
+  private readonly camera: THREE.PerspectiveCamera;
+  private readonly controls: OrbitControls;
   private options: SimpleViewerOptions;
-  private readonly rendererOptions?: IRendererOptions;
+  private readonly rendererOptions?: ViewerRendererOptions;
   private readonly sceneSetupService?: ISceneSetupService;
   private readonly environmentService?: IEnvironmentService;
   private readonly selectionService?: ISelectionService;
-  private readonly anchorProjectionService?: IAnchorProjectionService;
   private readonly animationService?: IAnimationService;
   private readonly deferToNextFrame: (callback: () => void) => void;
 
@@ -101,7 +92,6 @@ export class ViewerCore {
     this.sceneSetupService = dependencies.sceneSetupService;
     this.environmentService = dependencies.environmentService;
     this.selectionService = dependencies.selectionService;
-    this.anchorProjectionService = dependencies.anchorProjectionService;
     this.animationService = dependencies.animationService;
     this.deferToNextFrame = dependencies.deferToNextFrame ?? deferToNextFrame;
 
@@ -192,7 +182,7 @@ export class ViewerCore {
 
   async initialize(): Promise<Result<void>> {
     try {
-      this.renderer.setPostProcessingErrorHandler?.((error) => {
+      this.renderer.setPostProcessingErrorHandler((error) => {
         if (!this.disposed) {
           this.events.emit('error', {
             error: new ThreeViewerError(
@@ -248,13 +238,16 @@ export class ViewerCore {
       this.stateManager.setInitialized();
       this.startRenderLoop();
 
-      this.controlsChangeUnsubscribe = this.controls.onChange(() => {
+      const handleControlsChange = () => {
         if (this.disposed) {
           return;
         }
         this.reviveRenderLoop();
         this.renderLoopManager.requestRender();
-      });
+      };
+      this.controls.addEventListener('change', handleControlsChange);
+      this.controlsChangeUnsubscribe = () =>
+        this.controls.removeEventListener('change', handleControlsChange);
 
       if (!this.options.staticScene) {
         this.renderLoopManager.setAlwaysRender(true);
@@ -280,13 +273,13 @@ export class ViewerCore {
     }
   }
 
-  loadModel(source: string | IObject3D): Promise<Result<void>> {
+  loadModel(source: string | THREE.Object3D): Promise<Result<void>> {
     const run = this.modelLoadChain.then(() => this.runLoadModel(source));
     this.modelLoadChain = run.then(() => undefined, () => undefined);
     return run;
   }
 
-  private async runLoadModel(source: string | IObject3D): Promise<Result<void>> {
+  private async runLoadModel(source: string | THREE.Object3D): Promise<Result<void>> {
     if (this.disposed) {
       return Result.err(
         new ThreeViewerError('Cannot load model after dispose', ErrorCode.INVALID_STATE)
@@ -443,9 +436,7 @@ export class ViewerCore {
   }
 
   private renderRaster(): Result<void> {
-    return this.renderer.renderPostProcessed
-      ? this.renderer.renderPostProcessed(this.scene, this.camera)
-      : this.renderer.render(this.scene, this.camera);
+    return this.renderer.renderPostProcessed(this.scene, this.camera);
   }
 
   updateOptions(partial: Partial<SimpleViewerOptions>): void {
@@ -486,11 +477,7 @@ export class ViewerCore {
       needsRender = true;
     }
     const nextPostEffects = ViewerCore.postEffectsKey(this.options);
-    if (
-      partial.renderer &&
-      nextPostEffects !== previousPostEffects &&
-      this.renderer.setPostProcessing
-    ) {
+    if (partial.renderer && nextPostEffects !== previousPostEffects) {
       this.renderer.setPostProcessing({
         bloom: this.options.renderer?.bloom ?? false,
         vignette: this.options.renderer?.vignette ?? false,
@@ -502,7 +489,7 @@ export class ViewerCore {
     }
     const environmentIntensity = partial.environment?.environmentIntensity;
     if (environmentIntensity !== undefined) {
-      this.scene.setEnvironmentIntensity(environmentIntensity);
+      this.scene.environmentIntensity = environmentIntensity;
       if (environmentIntensity !== previousEnvironmentIntensity) {
         this.pathTracing.resetAccumulation(true);
       }
@@ -593,12 +580,7 @@ export class ViewerCore {
     const sizeMatches =
       canvas.width === Math.floor(width * pixelRatio) &&
       canvas.height === Math.floor(height * pixelRatio);
-    const perspectiveAspect =
-      this.camera.type === 'perspective' && 'aspect' in this.camera
-        ? (this.camera as IPerspectiveCamera).aspect
-        : null;
-    const aspectMatches =
-      perspectiveAspect === null || Math.abs(perspectiveAspect - targetAspect) < 1e-6;
+    const aspectMatches = Math.abs(this.camera.aspect - targetAspect) < 1e-6;
     if (sizeMatches && aspectMatches) {
       return;
     }
@@ -631,23 +613,23 @@ export class ViewerCore {
     return this.renderer.getDomElement();
   }
 
-  getRenderer(): IRenderer {
+  getRenderer(): ViewerRenderer {
     return this.renderer;
   }
 
-  getScene(): IScene {
+  getScene(): THREE.Scene {
     return this.scene;
   }
 
-  getCamera(): ICamera {
+  getCamera(): THREE.PerspectiveCamera {
     return this.camera;
   }
 
-  getControls(): IControls {
+  getControls(): OrbitControls {
     return this.controls;
   }
 
-  getModel(): IObject3D | null {
+  getModel(): THREE.Object3D | null {
     return this.modelManager.getCurrentModel();
   }
 
@@ -783,13 +765,17 @@ export class ViewerCore {
     if (!model || !this.sceneSetupService) {
       return;
     }
-    const bakeResult = this.sceneSetupService.bakeContactShadow(this.scene, model, this.renderer);
+    const bakeResult = this.sceneSetupService.bakeContactShadow(
+      this.scene,
+      model,
+      this.renderer.getWebGLRenderer()
+    );
     if (!bakeResult.ok) {
       console.warn('Failed to bake contact shadow:', bakeResult.error);
     }
   }
 
-  private scheduleContactShadowBake(model: IObject3D): void {
+  private scheduleContactShadowBake(model: THREE.Object3D): void {
     this.deferToNextFrame(() => {
       if (
         this.disposed ||
@@ -804,7 +790,7 @@ export class ViewerCore {
     });
   }
 
-  private attachAnimations(model: IObject3D): void {
+  private attachAnimations(model: THREE.Object3D): void {
     if (!this.animationService) {
       return;
     }
@@ -820,11 +806,8 @@ export class ViewerCore {
     }
   }
 
-  createAnchorProjector(): IAnchorProjector | null {
-    if (!this.anchorProjectionService) {
-      return null;
-    }
-    return this.anchorProjectionService.createProjector({
+  createAnchorProjector(): AnchorProjector {
+    return new AnchorProjector({
       camera: this.camera,
       getCanvas: () => this.renderer.getDomElement(),
       getModel: () => this.getModel(),

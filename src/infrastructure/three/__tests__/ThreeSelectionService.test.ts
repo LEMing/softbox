@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { ThreeSelectionService } from '../ThreeSelectionService';
-import { ThreeObject3DAdapter } from '../ThreeObject3D';
 import { SelectionPick } from '../../../core/services/ISelectionService';
 
 const makeCanvas = (): HTMLCanvasElement => {
@@ -59,8 +58,8 @@ describe('ThreeSelectionService', () => {
   const initialize = (root: THREE.Object3D | null, bvh?: boolean) => {
     service.initialize({
       canvas,
-      camera: { getThreeCamera: () => makeCamera() } as never,
-      getPickRoot: () => (root ? new ThreeObject3DAdapter(root) : null),
+      camera: makeCamera(),
+      getPickRoot: () => root,
       onPick,
       bvh,
     });
@@ -87,7 +86,7 @@ describe('ThreeSelectionService', () => {
     const pick = onPick.mock.calls[0][0] as SelectionPick;
     expect(pick).not.toBeNull();
     expect(pick.point.z).toBeCloseTo(1);
-    expect((pick.object as ThreeObject3DAdapter).getThreeObject()).toBeInstanceOf(THREE.Mesh);
+    expect(pick.object).toBeInstanceOf(THREE.Mesh);
     expect(
       (box.geometry as THREE.BufferGeometry & { boundsTree?: unknown }).boundsTree
     ).toBeTruthy();

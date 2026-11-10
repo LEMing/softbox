@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader';
-import { MODEL_VARIANT_NAMES_KEY } from '../../../core/interfaces/IModelLoader';
-import { disposeMaterial, STASHED_MATERIALS_KEY } from '../disposal';
+import { MODEL_VARIANT_NAMES_KEY } from '../../../core/services/IModelLoader';
+import { disposeMaterial, STASHED_MATERIALS_KEY } from '../../../core/disposal';
 
 const EXTENSION = 'KHR_materials_variants';
 

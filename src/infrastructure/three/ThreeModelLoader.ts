@@ -1,16 +1,11 @@
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import type { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import type { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
-import {
-  IModelLoader,
-  IModel,
-  IAnimation
-} from '../../core/interfaces/IModelLoader';
+import { IModelLoader, IModel } from '../../core/services/IModelLoader';
 import { LoaderOptions } from '../../types/options';
 import { Result } from '../../utils/Result';
 import { buildRaycastBvh } from './bvh';
 import { beginMaterialVariantResolution } from './gltf/materialVariants';
-import { ThreeObject3DAdapter } from './ThreeObject3D';
 import { ThreeViewerError, ErrorCode } from '../../errors';
 import * as THREE from 'three';
 
@@ -108,21 +103,7 @@ export class ThreeGLTFLoaderAdapter implements IModelLoader {
             }
             gltf.scene.animations = gltf.animations;
             const model: IModel = {
-              scene: new ThreeObject3DAdapter(gltf.scene),
-              animations: this.convertAnimations(gltf.animations),
-              cameras: gltf.cameras?.map(cam => {
-                const isPerspective = cam instanceof THREE.PerspectiveCamera;
-                const isOrthographic = cam instanceof THREE.OrthographicCamera;
-                
-                return {
-                  name: cam.name,
-                  type: cam.type,
-                  fov: isPerspective ? cam.fov : undefined,
-                  aspect: isPerspective ? cam.aspect : undefined,
-                  near: isPerspective ? cam.near : (isOrthographic ? cam.near : 0.1),
-                  far: isPerspective ? cam.far : (isOrthographic ? cam.far : 1000),
-                };
-              }),
+              scene: gltf.scene,
               userData: gltf.userData,
             };
             resolve(Result.ok(model));
@@ -162,27 +143,6 @@ export class ThreeGLTFLoaderAdapter implements IModelLoader {
   dispose(): void {
     this.dracoLoader?.dispose();
     this.ktx2Loader?.dispose();
-  }
-
-  private convertAnimations(animations: THREE.AnimationClip[]): IAnimation[] {
-    return animations.map(clip => ({
-      name: clip.name,
-      duration: clip.duration,
-      tracks: clip.tracks.map(track => ({
-        name: track.name,
-        type: this.getTrackType(track),
-        times: track.times as Float32Array,
-        values: track.values as Float32Array,
-      })),
-    }));
-  }
-
-  private getTrackType(track: THREE.KeyframeTrack): 'vector' | 'quaternion' | 'number' | 'boolean' {
-    if (track instanceof THREE.VectorKeyframeTrack) return 'vector';
-    if (track instanceof THREE.QuaternionKeyframeTrack) return 'quaternion';
-    if (track instanceof THREE.NumberKeyframeTrack) return 'number';
-    if (track instanceof THREE.BooleanKeyframeTrack) return 'boolean';
-    return 'number';
   }
 }
 

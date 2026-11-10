@@ -1,27 +1,15 @@
 import * as THREE from 'three';
 import { IHelperOptions } from '../../../core/services/ISceneSetupService';
-import { IScene } from '../../../core/interfaces/IScene';
 import { Result } from '../../../utils/Result';
 import { ThreeViewerError, ErrorCode } from '../../../errors';
-import { toThreeScene } from '../unwrap';
 import { GridFactory } from '../grids/GridFactory';
 import { GridType, IGridOptions } from '../grids/IGridStyle';
 import { SceneUserData } from './sceneUserData';
 
-export function addHelpers(scene: IScene, options: IHelperOptions): Result<void> {
+export function addHelpers(scene: THREE.Scene, options: IHelperOptions): Result<void> {
   try {
-    const threeScene = toThreeScene(scene);
-    if (!threeScene) {
-      return Result.err(
-        new ThreeViewerError(
-          'Scene must be ThreeSceneAdapter',
-          ErrorCode.INVALID_PARAMETER
-        )
-      );
-    }
-
     if (options.grid) {
-      const userData = threeScene.userData as SceneUserData;
+      const userData = scene.userData as SceneUserData;
       const gridConfig = typeof options.grid === 'object' ? options.grid : null;
 
       const gridOptions = {
@@ -32,7 +20,7 @@ export function addHelpers(scene: IScene, options: IHelperOptions): Result<void>
         styleOptions: gridConfig?.styleOptions
       };
 
-      threeScene.userData = {
+      scene.userData = {
         ...userData,
         gridOptions
       };
@@ -57,14 +45,14 @@ export function addHelpers(scene: IScene, options: IHelperOptions): Result<void>
         const grid = GridFactory.createGrid(gridType, gridOptionsForFactory);
         grid.userData.isGrid = true;
         grid.userData.isDefaultGrid = true;
-        threeScene.add(grid);
+        scene.add(grid);
       }
     }
 
     if (options.axes) {
       const size = options.axesSize || 5;
       const axesHelper = new THREE.AxesHelper(size);
-      threeScene.add(axesHelper);
+      scene.add(axesHelper);
     }
 
     return Result.ok(undefined);

@@ -21,9 +21,3 @@ export function buildRaycastBvh(root: THREE.Object3D): void {
     mesh.raycast = acceleratedRaycast;
   });
 }
-
-export function disposeBoundsTree(geometry: THREE.BufferGeometry): void {
-  if (geometry.boundsTree) {
-    geometry.boundsTree = undefined;
-  }
-}

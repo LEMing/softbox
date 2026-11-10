@@ -1,3 +1,5 @@
+import type * as THREE from 'three';
+import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import {
   ISceneSetupService,
   IHelperOptions,
@@ -5,16 +7,9 @@ import {
   IGradientOptions,
   ContactShadowMode
 } from '../../core/services/ISceneSetupService';
-import { IScene } from '../../core/interfaces/IScene';
-import { IObject3D } from '../../core/interfaces/IObject3D';
-import { ICamera } from '../../core/interfaces/ICamera';
-import { IControls } from '../../core/interfaces/IControls';
-import { IRenderer } from '../../core/interfaces/IRenderer';
 import { Result } from '../../utils/Result';
-import { ThreeViewerError, ErrorCode } from '../../errors';
 import { ContactShadowBaker } from './ContactShadowBaker';
 import { applyMaterialVariant, whenMaterialVariantsResolved } from './gltf/materialVariants';
-import { toThreeObject } from './unwrap';
 import {
   addDynamicGrid,
   addHelpers,
@@ -32,61 +27,52 @@ import {
 export class ThreeSceneSetupService implements ISceneSetupService {
   private readonly contactShadowBaker = new ContactShadowBaker();
 
-  addHelpers(scene: IScene, options: IHelperOptions): Result<void> {
+  addHelpers(scene: THREE.Scene, options: IHelperOptions): Result<void> {
     return addHelpers(scene, options);
   }
 
-  addDynamicGrid(scene: IScene, object: IObject3D, scaleFactor: number = 1.2): Result<void> {
+  addDynamicGrid(scene: THREE.Scene, object: THREE.Object3D, scaleFactor: number = 1.2): Result<void> {
     return addDynamicGrid(scene, object, scaleFactor);
   }
 
-  snapObjectToFloor(scene: IScene, object: IObject3D): Result<void> {
+  snapObjectToFloor(scene: THREE.Scene, object: THREE.Object3D): Result<void> {
     return snapObjectToFloor(scene, object);
   }
 
-  fitShadowCameraToObject(scene: IScene, object: IObject3D): Result<void> {
+  fitShadowCameraToObject(scene: THREE.Scene, object: THREE.Object3D): Result<void> {
     return fitShadowCameraToObject(scene, object);
   }
 
-  bakeContactShadow(scene: IScene, object: IObject3D, renderer: IRenderer): Result<void> {
+  bakeContactShadow(scene: THREE.Scene, object: THREE.Object3D, renderer: THREE.WebGLRenderer | null): Result<void> {
     return bakeContactShadow(scene, object, renderer, this.contactShadowBaker);
   }
 
-  resetContactShadow(scene: IScene): Result<void> {
+  resetContactShadow(scene: THREE.Scene): Result<void> {
     return resetContactShadow(scene);
   }
 
-  setContactShadowMode(scene: IScene, mode: ContactShadowMode): Result<void> {
+  setContactShadowMode(scene: THREE.Scene, mode: ContactShadowMode): Result<void> {
     return setContactShadowMode(scene, mode);
   }
 
-  wrapInUnitsScaleGroup(object: IObject3D, scaleToMeters: number): Result<IObject3D> {
+  wrapInUnitsScaleGroup(object: THREE.Object3D, scaleToMeters: number): Result<THREE.Object3D> {
     return wrapInUnitsScaleGroup(object, scaleToMeters);
   }
 
-  async applyMaterialVariant(model: IObject3D, variant: string | null): Promise<Result<boolean>> {
-    const native = toThreeObject(model);
-    if (!native) {
-      return Result.err(
-        new ThreeViewerError(
-          'Model must expose a Three.js Object3D',
-          ErrorCode.INVALID_PARAMETER
-        )
-      );
-    }
-    await whenMaterialVariantsResolved(native);
-    return Result.ok(applyMaterialVariant(native, variant));
+  async applyMaterialVariant(model: THREE.Object3D, variant: string | null): Promise<Result<boolean>> {
+    await whenMaterialVariantsResolved(model);
+    return Result.ok(applyMaterialVariant(model, variant));
   }
 
-  addLighting(scene: IScene, options: ILightingOptions): Result<void> {
+  addLighting(scene: THREE.Scene, options: ILightingOptions): Result<void> {
     return addLighting(scene, options);
   }
 
-  createGradientBackground(scene: IScene, options: IGradientOptions): Result<void> {
+  createGradientBackground(scene: THREE.Scene, options: IGradientOptions): Result<void> {
     return createGradientBackground(scene, options);
   }
 
-  fitCameraToObject(object: IObject3D, camera: ICamera, controls: IControls): Result<void> {
+  fitCameraToObject(object: THREE.Object3D, camera: THREE.PerspectiveCamera, controls: OrbitControls): Result<void> {
     return fitCameraToObject(object, camera, controls);
   }
 }

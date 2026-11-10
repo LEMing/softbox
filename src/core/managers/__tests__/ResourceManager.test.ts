@@ -1,22 +1,23 @@
+import * as THREE from 'three';
 import { ResourceManager } from '../ResourceManager';
-import { IScene } from '../../interfaces';
+import { disposeSceneContents } from '../../disposal';
 import { IPathTracingService } from '../../services/IPathTracingService';
 import { IEnvironmentService } from '../../services/IEnvironmentService';
 
+jest.mock('../../disposal', () => ({
+  disposeSceneContents: jest.fn(),
+}));
+
+const disposeContents = disposeSceneContents as jest.MockedFunction<typeof disposeSceneContents>;
+
 describe('ResourceManager', () => {
   let resourceManager: ResourceManager;
-  let mockScene: jest.Mocked<IScene>;
+  let mockScene: THREE.Scene;
   let mockPathTracingService: jest.Mocked<IPathTracingService>;
   let mockEnvironmentService: jest.Mocked<IEnvironmentService>;
 
   beforeEach(() => {
-    mockScene = {
-      traverse: jest.fn(),
-      clear: jest.fn(),
-      disposeContents: jest.fn(),
-      add: jest.fn(),
-      remove: jest.fn()
-    } as unknown as jest.Mocked<IScene>;
+    mockScene = new THREE.Scene();
 
     mockPathTracingService = {
       dispose: jest.fn(),
@@ -94,8 +95,8 @@ describe('ResourceManager', () => {
     it('should dispose scene contents while keeping backgrounds restorable', () => {
       resourceManager.disposeSceneResources();
 
-      expect(mockScene.disposeContents).toHaveBeenCalledTimes(1);
-      expect(mockScene.disposeContents).toHaveBeenCalledWith({ keepBackgrounds: true });
+      expect(disposeContents).toHaveBeenCalledTimes(1);
+      expect(disposeContents).toHaveBeenCalledWith(mockScene, { keepBackgrounds: true });
     });
 
     it('should NOT dispose the environment service (its textures back the kept background/reflections)', () => {
@@ -109,7 +110,7 @@ describe('ResourceManager', () => {
 
       expect(mockPathTracingService.dispose).not.toHaveBeenCalled();
       expect(mockEnvironmentService.dispose).not.toHaveBeenCalled();
-      expect(mockScene.disposeContents).toHaveBeenCalled();
+      expect(disposeContents).toHaveBeenCalledWith(mockScene, { keepBackgrounds: true });
     });
 
     it('should not dispose path tracing even when preservePathTracing is false', () => {
@@ -177,7 +178,7 @@ describe('ResourceManager', () => {
       expect(mockPathTracingService.dispose).toHaveBeenCalled();
       expect(mockEnvironmentService.dispose).toHaveBeenCalled();
 
-      expect(mockScene.disposeContents).toHaveBeenCalledWith();
+      expect(disposeContents).toHaveBeenCalledWith(mockScene);
 
       expect(gcMock).toHaveBeenCalled();
 
