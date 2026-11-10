@@ -4,7 +4,7 @@
   "version": "4.26.1",
   "homepage": "https://leming.github.io/softbox/",
   "type": "module",
-  "description": "Batteries-included React 3D viewer — any GLB looks studio-shot in one line",
+  "description": "Studio product renders from a GLB in one React component: a live 3D viewer, path-traced stills and turntable video",
   "keywords": [
     "3d",
     "three.js",
@@ -13,9 +13,13 @@
     "glb",
     "gltf",
     "product viewer",
+    "product render",
+    "product configurator",
     "webgl",
     "model-viewer",
     "path-tracing",
+    "render",
+    "screenshot",
     "turntable"
   ],
   "repository": {
