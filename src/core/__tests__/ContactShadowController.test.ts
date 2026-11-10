@@ -115,4 +115,47 @@ describe('ContactShadowController', () => {
       expect(b.repaint).not.toHaveBeenCalled();
     }
   });
+
+  it('finishes a scheduled bake at once and leaves nothing for the later frame', () => {
+    const b = makeBundle();
+    b.controller.scheduleBakeFor(b.state.model!);
+
+    b.controller.finishScheduledBake();
+
+    expect(b.sceneSetupService.bakeContactShadow).toHaveBeenCalledTimes(1);
+    b.flush();
+    expect(b.sceneSetupService.bakeContactShadow).toHaveBeenCalledTimes(1);
+    expect(b.repaint).not.toHaveBeenCalled();
+  });
+
+  it('has nothing to finish when no bake is scheduled', () => {
+    const b = makeBundle();
+
+    b.controller.finishScheduledBake();
+
+    expect(b.sceneSetupService.bakeContactShadow).not.toHaveBeenCalled();
+  });
+
+  it('keeps a scheduled bake for the later frame while the model animates', () => {
+    const b = makeBundle({ animating: true });
+    b.controller.scheduleBakeFor(b.state.model!);
+
+    b.controller.finishScheduledBake();
+    expect(b.sceneSetupService.bakeContactShadow).not.toHaveBeenCalled();
+
+    b.state.animating = false;
+    b.flush();
+    expect(b.sceneSetupService.bakeContactShadow).toHaveBeenCalledTimes(1);
+    expect(b.repaint).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not finish a bake scheduled for a model that was replaced', () => {
+    const b = makeBundle();
+    b.controller.scheduleBakeFor(b.state.model!);
+    b.state.model = new THREE.Object3D();
+
+    b.controller.finishScheduledBake();
+
+    expect(b.sceneSetupService.bakeContactShadow).not.toHaveBeenCalled();
+  });
 });

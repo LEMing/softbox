@@ -15,6 +15,7 @@ export interface ContactShadowControllerDependencies {
 
 export class ContactShadowController {
   private readonly deps: ContactShadowControllerDependencies;
+  private modelAwaitingBake: THREE.Object3D | null = null;
 
   constructor(deps: ContactShadowControllerDependencies) {
     this.deps = deps;
@@ -40,13 +41,35 @@ export class ContactShadowController {
   }
 
   scheduleBakeFor(model: THREE.Object3D): void {
+    this.modelAwaitingBake = model;
     this.deps.deferToNextFrame(() => {
-      if (this.isStale(model) || this.deps.isAnimating()) {
+      if (!this.isAwaitingBake(model)) {
+        return;
+      }
+      this.modelAwaitingBake = null;
+      if (!this.canBake(model)) {
         return;
       }
       this.rebakeForCurrentPose();
       this.deps.repaint();
     });
+  }
+
+  finishScheduledBake(): void {
+    const model = this.modelAwaitingBake;
+    if (!model || !this.canBake(model)) {
+      return;
+    }
+    this.modelAwaitingBake = null;
+    this.rebakeForCurrentPose();
+  }
+
+  private isAwaitingBake(model: THREE.Object3D): boolean {
+    return this.modelAwaitingBake === model;
+  }
+
+  private canBake(model: THREE.Object3D): boolean {
+    return !this.isStale(model) && !this.deps.isAnimating();
   }
 
   private isStale(model: THREE.Object3D): boolean {

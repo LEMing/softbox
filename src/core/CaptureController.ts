@@ -28,6 +28,7 @@ export interface CaptureControllerDependencies {
   reviveRenderLoop: () => void;
   isAutoRotating: () => boolean;
   isScreenshotActive: () => boolean;
+  finishScheduledShadowBake: () => void;
 }
 
 type StreamingCanvas = HTMLCanvasElement & {
@@ -77,6 +78,7 @@ export class CaptureController {
     if (this.deps.pathTracing.isEnabled()) {
       return this.capturePathTracedStill(options);
     }
+    this.deps.finishScheduledShadowBake();
     return this.captureRasterStill(options);
   }
 

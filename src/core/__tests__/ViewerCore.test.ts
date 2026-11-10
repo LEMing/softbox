@@ -2759,6 +2759,36 @@ describe('ViewerCore.captureStill', () => {
     expect(bundle.renderer.setSize).toHaveBeenCalledWith(800, 600);
   });
 
+  it('bakes the contact shadow of a freshly loaded model before the still renders', async () => {
+    const laterFrames: Array<() => void> = [];
+    const bundle = makeCaptureBundle({ withSceneSetup: true });
+    const viewer = new ViewerCore({
+      ...bundle.deps,
+      deferToNextFrame: (callback) => {
+        laterFrames.push(callback);
+      },
+    });
+    await viewer.initialize();
+    await viewer.loadModel(makeObject3D());
+    const bake = bundle.sceneSetupService!.bakeContactShadow;
+    const setSize = bundle.renderer.setSize as jest.Mock;
+    expect(bake).not.toHaveBeenCalled();
+
+    const result = await viewer.captureStill({ width: 1600, height: 1200 });
+
+    expect(result.ok).toBe(true);
+    expect(bake).toHaveBeenCalledTimes(1);
+    const stillSizing = setSize.mock.calls.findIndex(
+      ([width, height]) => width === 1600 && height === 1200
+    );
+    expect(bake.mock.invocationCallOrder[0]).toBeLessThan(
+      setSize.mock.invocationCallOrder[stillSizing]
+    );
+
+    laterFrames.splice(0).forEach((callback) => callback());
+    expect(bake).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the canvas aspect when only one dimension is given', async () => {
     const bundle = makeCaptureBundle();
     const viewer = new ViewerCore(bundle.deps);
